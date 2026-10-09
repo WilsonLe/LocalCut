@@ -15,6 +15,7 @@ export type {
 } from './actions';
 import { EditorError } from '../core/errors';
 import { AiError, aiInvariant } from './errors';
+import type { AiErrorCode } from './errors';
 import {
   assetContext,
   boundedContext,
@@ -76,15 +77,31 @@ export interface AssistantResult {
   proposalIds: string[];
   usage: Usage;
 }
+/** Inspectable local activity, never raw provider JSON or continuation metadata. */
+export interface AssistantToolCall {
+  /** Opaque local identity, unique even when the provider repeats a tool name/ID. */
+  callId: string;
+  name: string;
+  phase: 'started' | 'completed' | 'failed';
+  input?: Record<string, unknown>;
+  result?: unknown;
+  error?: {
+    code: AiErrorCode;
+    message: string;
+    details: Readonly<Record<string, unknown>>;
+  };
+  /** Large details are omitted whole; they are never partial, invalid JSON. */
+  inputOmitted?: true;
+  resultOmitted?: true;
+  errorOmitted?: true;
+}
 export type AssistantEvent =
   | { type: 'state'; state: 'idle' | 'running' | 'disposed'; turnId?: string }
   | { type: 'text'; turnId: string; text: string }
-  | {
+  | (AssistantToolCall & {
       type: 'tool';
       turnId: string;
-      name: string;
-      phase: 'started' | 'completed' | 'failed';
-    }
+    })
   | { type: 'proposal'; proposal: EditProposal }
   | { type: 'proposal_progress'; proposalId: string; progress: Progress }
   | { type: 'usage'; turnId: string; usage: Usage }
@@ -257,7 +274,16 @@ export function createAssistant(options: AssistantOptions) {
     const completion = (async (): Promise<AssistantResult> => {
       const staged: EditProposal[] = [];
       let outputBytes = 0,
-        toolCount = 0;
+        toolCount = 0,
+        // UI history must not grow by maxToolCalls × maxContextBytes.
+        toolDetailBytes = Math.min(limits.maxContextBytes, 128 * 1024);
+      const disclose = <T>(value: T): { value?: T; omitted?: true } => {
+        const bytes = byteLength(value);
+        if (bytes > Math.min(32 * 1024, toolDetailBytes))
+          return { omitted: true };
+        toolDetailBytes -= bytes;
+        return { value };
+      };
       const usage: Usage = {
         promptTokens: 0,
         completionTokens: 0,
@@ -703,27 +729,63 @@ export function createAssistant(options: AssistantOptions) {
             toolCount++;
             check();
             const name = call.function.name;
-            emit({ type: 'tool', turnId: id, name, phase: 'started' }, local);
+            const activity = {
+              type: 'tool' as const,
+              turnId: id,
+              callId: crypto.randomUUID(),
+              // Unknown provider-controlled strings are not a UI label.
+              name: declaredTools.has(name) ? name : 'unavailable_tool',
+            };
+            let started = false;
             let result: unknown;
             try {
               const parsed = parseTool(name, call.function.arguments);
+              const input = disclose(parsed.args);
+              emit(
+                {
+                  ...activity,
+                  phase: 'started',
+                  ...(input.omitted
+                    ? { inputOmitted: true }
+                    : { input: input.value }),
+                },
+                local,
+              );
+              started = true;
               result = await handleTool(parsed.name, parsed.args);
               boundedContext(result, limits.maxContextBytes);
+              const output = disclose(result);
               emit(
-                { type: 'tool', turnId: id, name, phase: 'completed' },
+                {
+                  ...activity,
+                  phase: 'completed',
+                  ...(output.omitted
+                    ? { resultOmitted: true }
+                    : { result: output.value }),
+                },
                 local,
               );
             } catch (error) {
               check();
+              if (!started) emit({ ...activity, phase: 'started' }, local);
               const safe = localError(error);
-              result = {
-                error: {
-                  code: safe.code,
-                  message: safe.message,
-                  details: safe.details,
-                },
+              const failure = {
+                code: safe.code,
+                message: safe.message,
+                details: safe.details,
               };
-              emit({ type: 'tool', turnId: id, name, phase: 'failed' }, local);
+              result = { error: failure };
+              const detail = disclose(failure);
+              emit(
+                {
+                  ...activity,
+                  phase: 'failed',
+                  ...(detail.omitted
+                    ? { errorOmitted: true }
+                    : { error: detail.value }),
+                },
+                local,
+              );
             }
             const response: ChatMessage = {
               role: 'tool',
@@ -988,6 +1050,17 @@ export function createAssistant(options: AssistantOptions) {
     approveProposal,
     cancelProposal(id: string) {
       ensureActive();
+      const proposal = proposals.get(id);
+      aiInvariant(proposal, 'PROPOSAL_NOT_FOUND', 'Proposal does not exist.');
+      aiInvariant(
+        proposal.action &&
+          proposal.action.type !== 'undo' &&
+          proposal.action.type !== 'redo',
+        'INVALID_REQUEST',
+        'Only a running service action can be cancelled.',
+      );
+      // A click can arrive after completion renders but before React removes it.
+      if (proposal.status !== 'applying') return;
       const controller = serviceControllers.get(id);
       aiInvariant(
         controller,

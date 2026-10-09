@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import type { Editor, Project } from '../editor';
 import type {
   Assistant,
+  AssistantToolCall,
   AssistantTurn,
   ContextPolicy,
   EditProposal,
@@ -41,7 +42,43 @@ interface Message {
   status: 'complete' | 'streaming' | 'interrupted' | 'failed';
   proposalIds: string[];
   usage?: Usage;
-  tools?: { name: string; phase: 'started' | 'completed' | 'failed' }[];
+  tools?: AssistantToolCall[];
+}
+function ToolDetails({ tool }: { tool: AssistantToolCall }) {
+  return (
+    <div className="space-y-3 rounded-xl bg-muted p-3 text-xs">
+      <div>
+        <p className="mb-1 font-medium">Input</p>
+        <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words">
+          {tool.inputOmitted
+            ? 'Input omitted: activity detail size limit.'
+            : tool.input === undefined
+              ? 'No validated input available.'
+              : JSON.stringify(tool.input, null, 2)}
+        </pre>
+      </div>
+      {tool.phase === 'completed' && (
+        <div>
+          <p className="mb-1 font-medium">Result</p>
+          <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words">
+            {tool.resultOmitted
+              ? 'Result omitted: activity detail size limit.'
+              : JSON.stringify(tool.result, null, 2)}
+          </pre>
+        </div>
+      )}
+      {tool.phase === 'failed' && (
+        <div>
+          <p className="mb-1 font-medium text-destructive">Error</p>
+          <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words text-destructive">
+            {tool.errorOmitted
+              ? 'Error detail omitted: activity detail size limit.'
+              : JSON.stringify(tool.error, null, 2)}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
 }
 interface SessionProps extends ConversationProps {
   editor: Editor;
@@ -201,25 +238,15 @@ export default function ConversationSession({
               message.id === event.turnId
                 ? {
                     ...message,
-                    tools:
-                      event.phase === 'started'
-                        ? [
-                            ...(message.tools ?? []),
-                            { name: event.name, phase: event.phase },
-                          ]
-                        : (message.tools ?? []).map((tool, index, tools) =>
-                            index ===
-                            tools.reduce(
-                              (last, item, candidate) =>
-                                item.name === event.name &&
-                                item.phase === 'started'
-                                  ? candidate
-                                  : last,
-                              -1,
-                            )
-                              ? { ...tool, phase: event.phase }
-                              : tool,
-                          ),
+                    tools: (message.tools ?? []).some(
+                      (tool) => tool.callId === event.callId,
+                    )
+                      ? message.tools!.map((tool) =>
+                          tool.callId === event.callId
+                            ? { ...tool, ...event }
+                            : tool,
+                        )
+                      : [...(message.tools ?? []), event],
                   }
                 : message,
             ),
@@ -308,6 +335,21 @@ export default function ConversationSession({
       if (mounted.current) onBusy(false);
     }
   };
+  const cancelAction = (id: string) => {
+    const current = assistant.current;
+    if (!current) return;
+    try {
+      if (current.getProposal(id).status === 'applying')
+        current.cancelProposal(id);
+    } catch (error) {
+      // Session teardown or completion may win the race with a final click.
+      if (errorCode(error) === 'DISPOSED') return;
+      if (mounted.current) {
+        setFailure(errorText(error));
+        onError(error);
+      }
+    }
+  };
   useLayoutEffect(() => {
     const input = composer.current;
     if (!input) return;
@@ -369,16 +411,27 @@ export default function ConversationSession({
                     </span>
                   }
                 >
-                  <div className="space-y-2 rounded-xl bg-muted p-3 text-xs">
-                    {message.tools.map((tool, index) => (
-                      <p key={index}>
-                        {tool.name.replaceAll('_', ' ')} ·{' '}
-                        {tool.phase === 'started'
-                          ? 'Running'
-                          : tool.phase === 'completed'
-                            ? 'Completed'
-                            : 'Failed'}
-                      </p>
+                  <div className="space-y-2 border-l pl-3">
+                    {message.tools.map((tool) => (
+                      <div
+                        key={tool.callId}
+                        data-tool-call={tool.callId}
+                        data-tool-name={tool.name}
+                      >
+                        <AccordionDisclosure
+                          summary={`${tool.name.replaceAll('_', ' ')} · ${
+                            tool.phase === 'started'
+                              ? message.status === 'streaming'
+                                ? 'Running'
+                                : 'Interrupted'
+                              : tool.phase === 'completed'
+                                ? 'Completed'
+                                : 'Failed'
+                          }`}
+                        >
+                          <ToolDetails tool={tool} />
+                        </AccordionDisclosure>
+                      </div>
                     ))}
                   </div>
                 </AccordionDisclosure>
@@ -426,7 +479,11 @@ export default function ConversationSession({
                           : proposal.status === 'discarded'
                             ? 'Proposal discarded'
                             : proposal.status === 'applying'
-                              ? 'Applying edit…'
+                              ? !proposal.action ||
+                                proposal.action.type === 'undo' ||
+                                proposal.action.type === 'redo'
+                                ? 'Committing edit…'
+                                : 'Running action…'
                               : stale
                                 ? 'Project changed. Ask for a new proposal.'
                                 : proposal.action
@@ -445,20 +502,27 @@ export default function ConversationSession({
                       {proposal.status === 'applying' && (
                         <div className="flex items-center justify-between gap-2 text-xs">
                           <span role="status">
-                            {proposal.progress?.stage ?? 'Working'}
+                            {proposal.progress?.stage ??
+                              (!proposal.action ||
+                              proposal.action.type === 'undo' ||
+                              proposal.action.type === 'redo'
+                                ? 'Committing'
+                                : 'Working')}
                             {proposal.progress?.progress !== undefined
                               ? ` · ${Math.round(proposal.progress.progress * 100)}%`
                               : ''}
                           </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              assistant.current?.cancelProposal(id)
-                            }
-                          >
-                            Cancel action
-                          </Button>
+                          {proposal.action &&
+                            proposal.action.type !== 'undo' &&
+                            proposal.action.type !== 'redo' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => cancelAction(id)}
+                              >
+                                Cancel action
+                              </Button>
+                            )}
                         </div>
                       )}
                       {proposal.status === 'applied' &&

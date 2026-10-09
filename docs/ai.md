@@ -90,6 +90,8 @@ The adapter sends requests only to fixed HTTPS OpenRouter endpoints with omitted
 
 Provider reasoning text and signed/encrypted reasoning details are retained as bounded opaque conversation state for subsequent tool rounds. They are not emitted as user-visible text events or interpreted as tools.
 
+Each `tool` event carries a locally generated `callId`, name and phase. After schema validation, the start event includes the parsed input; terminal events include the redacted result or a safe structured error. Match updates by `callId`, including repeated calls to the same tool. Details are limited to 32 KiB per field and at most 128 KiB per turn (or the configured context limit, if lower). Oversized details are omitted whole and marked with `inputOmitted`, `resultOmitted` or `errorOmitted`; raw invalid arguments and provider continuation data are never exposed. The workspace renders these as independently expandable calls.
+
 Streaming uses bounded UTF-8/SSE parsing and handles comments, split network chunks, CR/LF boundaries, multiline data, incremental tool arguments and final usage accounting. The adapter requires a complete terminal response and `[DONE]` before exposing executable tool calls. Truncated, malformed, refused, oversized and provider-error streams fail. No automatic retry can duplicate a provider charge. Abort cancels local consumption and HTTP work; whether upstream billing stops depends on the provider.
 
 The assistant exposes these local tools. Tool arguments derive from the canonical edit schemas; optional service tools are advertised only when the supplied engine supports them.
@@ -125,13 +127,15 @@ if (result.kind === 'export') {
   // After Save or dismissal:
   await artifact.dispose();
 }
-// For a running service card:
+// For a running export, transcription, or model-preparation card:
 assistant.cancelProposal(selectedProposalId);
 ```
 
 `approveProposal` returns a discriminated result: an edit/history receipt, local export metadata and artifact ID, transcript ID/source/cue count, or model-preparation readiness. Export files and storage paths never enter provider context. Progress appears in `proposal_progress` events and `proposal.progress`; worker details and raw errors are excluded. Export artifacts remain owned by the assistant until explicitly disposed or the assistant is disposed. Disposal cancels active service jobs and releases retained outputs. A service retry is always another explicit user approval, never an automatic model retry. Preparation and inference are separate approvals; an unprepared transcription fails without automatically downloading a model. Approving local transcription does not opt its text into remote context. Its new transcript can be linked to the source clip without sharing text, or read by the model only when `includeTranscripts` is enabled.
 
 Edits and history delegate to the engine's atomic revision checks, persistent idempotency receipts, asset validation, and history. Export validates the authored revision before starting and the actual captured revision before publishing. A concurrent project edit produces `REVISION_CONFLICT` and requires a new proposal. Concurrent approval of one proposal shares one result; approving a completed export does not encode it again. Cancellation/disposal does not roll back an already committed edit or persisted transcript. No model tool can approve or cancel another proposal, trigger Save, or bypass the host approval action.
+
+Atomic edit and history commits cannot be cancelled after submission. `cancelProposal` rejects those proposal types and treats a late cancellation of a completed service job as a no-op, preserving its artifact. Consumers should show cancellation only on running export, transcription and preparation jobs.
 
 The API coverage boundary is explicit:
 

@@ -4,7 +4,7 @@ The interface follows the approved conversation-led mockup: resizable conversati
 
 The narrower chat can collapse into a rail while the editor expands, and returns with its conversation intact. Both regions animate together and respect reduced motion. OpenRouter connection/model settings have one compact entry point in chat. The header settings menu reveals Project, View and Export groups progressively; media stays reachable from its right-edge toggle. Supporting metadata lives in tooltips and disclosures. Durable design choices are recorded in [user preferences](user-preferences.md).
 
-Chat follows the CYOBot instructor workspace's interaction structure: session picker, scrolling transcript, right-aligned user bubbles, plain assistant replies, tool disclosures, approval cards, and a rounded growing composer. Enter sends; Shift+Enter inserts a newline. IME composition and repeated Enter do not submit. Stop cancels the active turn, and scrolling up reveals a return-to-latest control. Sessions are local to the current connection/project and are not saved across reloads.
+Chat follows the CYOBot instructor workspace's interaction structure: session picker, scrolling transcript, right-aligned user bubbles, plain assistant replies, tool disclosures, approval cards, and a rounded growing composer. Tool disclosures expose each call's bounded input, result or error separately, subject to the same sharing policy as its remote context. Enter sends; Shift+Enter inserts a newline. IME composition and repeated Enter do not submit. Stop cancels the active turn, and scrolling up reveals a return-to-latest control. Sessions are local to the current connection/project and are not saved across reloads. Chat resizing is available above 900px; narrower layouts use a fixed responsive width.
 
 ## Projects and media
 
@@ -36,7 +36,7 @@ Connect AI accepts a user-owned OpenRouter key or starts its PKCE login. Keys st
 
 Prompts and structural metadata are sent remotely only by Send. Separate, initially unchecked choices opt names, on-screen text and transcript content into context. Changing model, project or sharing choices starts a new conversation. Raw files and decoded audio are never included. Provider charges can apply; set spending limits in OpenRouter.
 
-Streaming text is not an applied edit. Only a successfully completed assistant turn can publish a validated proposal. Inspect its operations, then Apply or Discard. Apply retains the engine's revision check and stable receipt; stale proposals require a new request. Undo/Redo, export, transcription and model preparation have separate approval cards. Job cards show real progress and cancellation; completed exports offer a local Save action. Cancelling a turn does not publish partial proposals. Committed edits survive disconnection and reload; conversations do not.
+Streaming text is not an applied edit. Only a successfully completed assistant turn can publish a validated proposal. Inspect its operations, then Apply or Discard. Apply retains the engine's revision check and stable receipt; stale proposals require a new request. Undo/Redo, export, transcription and model preparation have separate approval cards. Export, transcription and preparation jobs show real progress and cancellation; atomic edits and history commits cannot be cancelled after submission. Completed exports offer a local Save action. Cancelling a turn does not publish partial proposals. Committed edits survive disconnection and reload; conversations do not.
 
 ## Export
 
@@ -48,4 +48,4 @@ Safari can return an MPEG-4 ES descriptor instead of the raw AAC AudioSpecificCo
 
 Production Chrome tests exercise both `/` and `/LocalCut/`, inert startup, real imports, timing/speed edits, Undo/Redo, persisted reopening, frame pixels and real exports reopened with native decoding. Controlled OpenRouter responses test the real UI, privacy choices and explicit proposal application. They do not prove a paid provider request or interactive account consent; those remain separately authorized checks described in [AI integration](ai.md).
 
-No schema migration accompanies the workspace. Reverting its commit returns to the headless entry while retaining saved projects. Deployment remains the manually triggered Pages workflow in [DEPLOY.md](../DEPLOY.md).
+No schema migration accompanies these workspace refinements. Reverting them restores the previous workspace while retaining saved projects. Deployment remains the manually triggered Pages workflow in [DEPLOY.md](../DEPLOY.md).

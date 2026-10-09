@@ -1,5 +1,52 @@
 import { expect, test } from '@playwright/test';
 
+test('chat resize controls match responsive layout and report actual desktop width', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 850, height: 900 });
+  await page.goto('/LocalCut/');
+  const handle = page.locator(
+    '[role="separator"][aria-label="Resize workspace chat"]',
+  );
+  for (const width of [850, 900]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(handle).toBeHidden();
+    await expect(
+      page.getByRole('separator', { name: 'Resize workspace chat' }),
+    ).toHaveCount(0);
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(handle).toBeVisible();
+  const panel = page.getByRole('complementary', {
+    name: 'Editing conversation',
+    exact: true,
+  });
+  await expect
+    .poll(async () => Math.round((await panel.boundingBox())!.width))
+    .toBe(320);
+  const before = Number(await handle.getAttribute('aria-valuenow'));
+  await handle.focus();
+  await handle.press('ArrowRight');
+  await expect
+    .poll(async () => Math.round((await panel.boundingBox())!.width))
+    .toBe(before + 16);
+  await expect(handle).toHaveAttribute('aria-valuenow', String(before + 16));
+  const min = Number(await handle.getAttribute('aria-valuemin'));
+  const max = Number(await handle.getAttribute('aria-valuemax'));
+  expect(before + 16).toBeGreaterThanOrEqual(min);
+  expect(before + 16).toBeLessThanOrEqual(max);
+  await handle.press('Home');
+  await expect
+    .poll(async () => Math.round((await panel.boundingBox())!.width))
+    .toBe(min);
+  await expect(handle).toHaveAttribute('aria-valuenow', String(min));
+  await handle.press('End');
+  await expect
+    .poll(async () => Math.round((await panel.boundingBox())!.width))
+    .toBe(max);
+  await expect(handle).toHaveAttribute('aria-valuenow', String(max));
+});
+
 for (const base of ['/', '/LocalCut/']) {
   test(`workspace keeps metadata quiet, project forms spacious and media on the right ${base}`, async ({
     page,

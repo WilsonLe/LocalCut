@@ -238,6 +238,62 @@ describe('headless assistant boundaries', () => {
     ]);
     expect(f.project().revision).toBe(1);
   });
+  it.each(['edits', 'undo', 'redo'] as const)(
+    'does not offer cancellation semantics for an atomic %s commit',
+    async (kind) => {
+      const f = fixture(),
+        started = deferred<void>(),
+        finish = deferred<void>();
+      const commit = async (requestId: string): Promise<EditReceipt> => {
+        started.resolve();
+        await finish.promise;
+        return {
+          requestId,
+          projectId: f.project().id,
+          appliedRevision: 1,
+          affectedIds: ['video'],
+          warnings: [],
+        };
+      };
+      f.editor.commands.apply = vi.fn((batch) => commit(batch.requestId));
+      f.editor.commands.undo = vi.fn((_project, requestId) =>
+        commit(requestId),
+      );
+      f.editor.commands.redo = vi.fn((_project, requestId) =>
+        commit(requestId),
+      );
+      const p = provider([
+        [
+          kind === 'edits'
+            ? proposal()
+            : final('', [
+                call('propose_action', {
+                  summary: kind,
+                  action: { type: kind },
+                }),
+              ]),
+        ],
+        [final()],
+      ]);
+      const assistant = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test/model',
+      });
+      const id = (await assistant.run(kind).completion).proposalIds[0]!;
+      const pending = assistant.approveProposal(id);
+      await started.promise;
+      expect(assistant.getProposal(id).status).toBe('applying');
+      expect(() => assistant.cancelProposal(id)).toThrow(
+        expect.objectContaining({ code: 'INVALID_REQUEST' }),
+      );
+      finish.resolve();
+      expect(await pending).toMatchObject({ receipt: { appliedRevision: 1 } });
+      expect(assistant.getProposal(id).status).toBe('applied');
+      await assistant.dispose();
+    },
+  );
   it('rejects stale proposals through the canonical engine without changing state', async () => {
     const f = setup(),
       id = (await f.assistant.run('Move').completion).proposalIds[0]!;
@@ -493,6 +549,127 @@ describe('headless assistant boundaries', () => {
     });
     expect(f.editor.commands.validate).not.toHaveBeenCalled();
     expect(f.assistant.snapshot().proposals).toEqual([]);
+  });
+  it('publishes independently identified, redacted tool details and safe validation errors', async () => {
+    const f = setup([
+      [
+        final('', [
+          call('inspect_project', {}, 'repeat'),
+          call(
+            'validate_edits',
+            {
+              operations: [{ type: 'removeClip', clipId: 'missing' }],
+            },
+            'invalid-edit',
+          ),
+          call(
+            'inspect_project',
+            { secret: 'raw-provider-secret' },
+            'invalid-input',
+          ),
+        ]),
+      ],
+      [final('', [call('inspect_project', {}, 'repeat')])],
+      [final()],
+    ]);
+    const events: Extract<AssistantEvent, { type: 'tool' }>[] = [];
+    f.assistant.subscribe((event) => {
+      if (event.type === 'tool') events.push(event);
+    });
+    await f.assistant.run('Inspect and validate').completion;
+    const starts = events.filter((event) => event.phase === 'started');
+    expect(starts).toHaveLength(4);
+    expect(new Set(starts.map((event) => event.callId)).size).toBe(4);
+    for (const start of starts) {
+      expect(
+        events.filter((event) => event.callId === start.callId),
+      ).toHaveLength(2);
+    }
+    const inspections = events.filter((event) => event.phase === 'completed');
+    expect(inspections).toHaveLength(2);
+    expect(inspections[0]!.result).toMatchObject({
+      revision: 0,
+      id: f.project().id,
+    });
+    expect(inspections[1]!.callId).not.toBe(inspections[0]!.callId);
+    const rejected = events.find(
+      (event) => event.name === 'validate_edits' && event.phase === 'failed',
+    )!;
+    expect(rejected.error).toMatchObject({
+      code: 'EDIT_REJECTED',
+      details: { editorCode: 'NOT_FOUND' },
+    });
+    expect(
+      events.find(
+        (event) =>
+          event.callId === rejected.callId && event.phase === 'started',
+      )!.input,
+    ).toEqual({
+      operations: [{ type: 'removeClip', clipId: 'missing' }],
+    });
+    const malformed = events.find(
+      (event) => event.error?.code === 'INVALID_TOOL_ARGUMENTS',
+    )!;
+    expect(
+      events.find(
+        (event) =>
+          event.callId === malformed.callId && event.phase === 'started',
+      )!.input,
+    ).toBeUndefined();
+    expect(JSON.stringify(events)).not.toMatch(
+      /Private client|Private overlay|Private cue|Private transcript|raw-provider-secret/,
+    );
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+  });
+  it('caps cumulative activity details while preserving completed calls and provider results', async () => {
+    const f = fixture();
+    f.project().tracks[1]!.clips[0]!.text!.text = 'x'.repeat(24000);
+    const p = provider([
+      [
+        final(
+          '',
+          Array.from({ length: 7 }, (_, index) =>
+            call('inspect_project', {}, String(index)),
+          ),
+        ),
+      ],
+      [final()],
+    ]);
+    const assistant = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      context: { includeText: true },
+    });
+    const events: Extract<AssistantEvent, { type: 'tool' }>[] = [];
+    assistant.subscribe((event) => {
+      if (event.type === 'tool') events.push(event);
+    });
+    await assistant.run('Inspect repeatedly').completion;
+    const completed = events.filter((event) => event.phase === 'completed');
+    expect(completed).toHaveLength(7);
+    expect(completed.some((event) => event.resultOmitted)).toBe(true);
+    expect(completed.some((event) => event.result !== undefined)).toBe(true);
+    const bytes = events.reduce(
+      (sum, event) =>
+        sum +
+        ['input', 'result', 'error'].reduce((total, key) => {
+          const value = event[key as 'input' | 'result' | 'error'];
+          return (
+            total +
+            (value === undefined
+              ? 0
+              : new TextEncoder().encode(JSON.stringify(value)).length)
+          );
+        }, 0),
+      0,
+    );
+    expect(bytes).toBeLessThanOrEqual(128 * 1024);
+    expect(
+      p.requests[1]!.messages.filter((message) => message.role === 'tool'),
+    ).toHaveLength(7);
+    await assistant.dispose();
   });
   it('requires clean stream completion before executing a completed tool message', async () => {
     const f = setup([[proposal(), { type: 'text', text: 'late data' }]]);
@@ -1321,6 +1498,10 @@ describe('headless assistant boundaries', () => {
       progress: { stage: 'encoding', progress: 0.5 },
     });
     expect(a.exportArtifact(id).file).toBe(file);
+    // A stale Cancel click after completion must preserve the published artifact.
+    expect(() => a.cancelProposal(id)).not.toThrow();
+    expect(a.exportArtifact(id).file).toBe(file);
+    expect(dispose).not.toHaveBeenCalled();
     expect(await a.approveProposal(id)).toEqual(result);
     expect(f.editor.exports.start).toHaveBeenCalledTimes(1);
     await a.run('What is ready?').completion;

@@ -67,7 +67,7 @@ export function ChatResizeHandle({
       aria-valuenow={bounds.width}
       aria-valuetext={`${bounds.width} pixels`}
       tabIndex={0}
-      className="absolute inset-y-0 right-0 z-20 hidden w-2 touch-none cursor-col-resize items-center justify-center outline-none hover:bg-primary/10 focus-visible:bg-primary/10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring min-[801px]:flex"
+      className="absolute inset-y-0 right-0 z-20 hidden w-2 touch-none cursor-col-resize items-center justify-center outline-none hover:bg-primary/10 focus-visible:bg-primary/10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring min-[901px]:flex"
       onPointerDown={(event) => {
         if (!event.isPrimary || event.button !== 0) return;
         event.preventDefault();
