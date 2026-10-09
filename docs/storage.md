@@ -2,6 +2,8 @@
 
 Opening createEditor explicitly creates IndexedDB localcut-v1 and OPFS localcut/. Model preparation uses localcut-asr-v1 in Cache Storage. Tests pass a separate namespace. All paths on a GitHub Pages origin share storage; cleanup must remain scoped to LocalCut resources.
 
+Appearance uses the separate, versioned localStorage key `localcut.appearance.v1` containing `{ version: 1, preferences }`. It stores only enumerated UI choices, not credentials, media, project data or chat. Reading appearance at startup does not initialize editing storage. Root and `/LocalCut/` on the same origin share this preference. Storage events synchronize tabs; reset removes only this key. Unknown versions and invalid fields use safe defaults; read/write failures leave session customization usable and show an unsaved notice. Appearance is outside project backups and does not require a project-schema migration.
+
 IndexedDB contains projects, 100 undo/redo snapshots, lifetime idempotency receipts, metadata, transcripts, derivative records, and journals. A document/history/receipt change uses one atomic transaction with a revision check. Unsupported schemas and malformed imports fail without replacing a saved project.
 
 Original media is immutable OPFS content identified by asset ID. An import journal precedes file mutation. An asset becomes ready only after the file finishes; failure removes partial content. Relink accepts a missing original with matching metadata; it does not overwrite a ready source.
