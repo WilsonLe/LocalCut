@@ -66,4 +66,4 @@ Safari can return an MPEG-4 ES descriptor instead of the raw AAC AudioSpecificCo
 
 Production Chrome tests exercise both `/` and `/LocalCut/`, inert startup, real imports, timing/speed edits, Undo/Redo, persisted reopening, frame pixels and real exports reopened with native decoding. Controlled OpenRouter responses test the real UI, privacy choices and explicit proposal application. They do not prove a paid provider request or interactive account consent; those remain separately authorized checks described in [AI integration](ai.md).
 
-No schema migration accompanies these workspace refinements. Reverting them restores the previous workspace while retaining saved projects. Deployment remains the manually triggered Pages workflow in [DEPLOY.md](../DEPLOY.md).
+Version browsing adds compatible fields to existing project records without an IndexedDB version upgrade. See [storage compatibility and rollback](storage.md) before using older application writers; they retain the current project but do not preserve its version history. Deployment remains the manually triggered Pages workflow in [DEPLOY.md](../DEPLOY.md).

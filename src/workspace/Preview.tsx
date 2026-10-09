@@ -206,7 +206,7 @@ export function Preview({
           <div className="empty-preview">
             <Film aria-hidden="true" />
             <h1>{versionId ? 'Empty timeline' : 'Start with your footage.'}</h1>
-            <Button onClick={onImport}>Import media</Button>
+            {!versionId && <Button onClick={onImport}>Import media</Button>}
           </div>
         )}
         {loading && total > 0 && (

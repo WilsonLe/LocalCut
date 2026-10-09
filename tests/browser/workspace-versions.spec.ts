@@ -58,6 +58,33 @@ for (const base of ['/', '/LocalCut/']) {
     ).not.toBeVisible();
     await page.getByRole('button', { name: 'Close', exact: true }).click();
     await page.getByLabel('Playhead position').fill('500000');
+    await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const engine = await createEditor();
+      try {
+        const project = (await engine.projects.list()).find(
+          (p) => p.name === 'Version journey',
+        )!;
+        await engine.commands.apply({
+          projectId: project.id,
+          expectedRevision: project.revision,
+          requestId: 'concurrent-trim',
+          operations: [
+            {
+              type: 'updateClip',
+              clipId: project.tracks[0]!.clips[0]!.id,
+              patch: { durationUs: 100000 },
+            },
+          ],
+        });
+      } finally {
+        await engine.dispose();
+      }
+    }, base);
+    // A live update must not clamp the historical playhead to the current duration.
+    await expect(page.getByLabel('Playhead position')).toHaveValue('500000');
     await page
       .getByRole('button', { name: 'Play preview', exact: true })
       .click();
@@ -130,6 +157,11 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
     await expect(
       timeline.getByRole('button', { name: 'First state', exact: true }),
+    ).not.toBeVisible();
+    await expect(
+      page
+        .locator('.empty-preview')
+        .getByRole('button', { name: 'Import media', exact: true }),
     ).not.toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({

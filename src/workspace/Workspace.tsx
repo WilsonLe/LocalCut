@@ -152,16 +152,18 @@ export function Workspace() {
       return;
     setProject(snapshot);
     setAssets(media);
-    setSelected((previous) =>
-      snapshot.tracks.some((track) =>
-        track.clips.some((clip) => clip.id === previous),
-      )
-        ? previous
-        : undefined,
-    );
-    setTimeUs((previous) =>
-      Math.min(previous, Math.max(0, projectDuration(snapshot) - 1)),
-    );
+    if (!browsing.current) {
+      setSelected((previous) =>
+        snapshot.tracks.some((track) =>
+          track.clips.some((clip) => clip.id === previous),
+        )
+          ? previous
+          : undefined,
+      );
+      setTimeUs((previous) =>
+        Math.min(previous, Math.max(0, projectDuration(snapshot) - 1)),
+      );
+    }
   }, []);
   const ensureEditor = useCallback(async () => {
     instance.current ??= import('../editor')
