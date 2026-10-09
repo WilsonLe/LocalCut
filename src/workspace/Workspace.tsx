@@ -747,214 +747,219 @@ export function Workspace() {
         </div>
       </header>
       <div className="workspace-body" data-appearance-open={appearanceOpen}>
-      <div className="workspace-columns">
-        <Conversation
-          editor={editor}
-          project={project}
-          readOnly={!!browsed}
-          selectedClipId={selected}
-          onApplied={refresh}
-          onError={error}
-          registerCleanup={registerCleanup}
-          collapsed={chatCollapsed}
-          width={chatWidth}
-          onResize={setChatWidth}
-          onToggle={() => setChatCollapsed((collapsed) => !collapsed)}
-        />
-        <main
-          className="editing-area"
-          data-editor-shortcuts
-          tabIndex={0}
-          aria-label="Video editor"
-        >
-          {versionsOpen && (
-            <section className="version-browser" aria-label="Project versions">
-              <div className="section-heading">
-                <h2>Versions</h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => {
-                    leaveVersion();
-                    setVersionsOpen(false);
-                  }}
-                >
-                  Close versions
-                </Button>
-              </div>
-              <div
-                className="version-list"
-                role="group"
-                aria-label="Saved versions"
-              >
-                {versions.map((version) => (
-                  <Button
-                    key={version.id}
-                    variant={browsed?.id === version.id ? 'secondary' : 'ghost'}
-                    disabled={busy}
-                    aria-pressed={browsed?.id === version.id}
-                    onClick={() => browseVersion(version.id)}
-                  >
-                    Version {version.number} ·{' '}
-                    {new Date(version.createdAt).toLocaleString([], {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                    })}
-                    {version.kind === 'restore' ? ' · Restored' : ''}
-                  </Button>
-                ))}
-              </div>
-              {browsed && (
-                <div className="version-actions">
-                  <span>Version {browsed.number} · Read-only</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy}
-                    onClick={leaveVersion}
-                  >
-                    Return to current
-                  </Button>
-                  <Button size="sm" disabled={busy} onClick={restoreVersion}>
-                    Restore as new version
-                  </Button>
-                </div>
-              )}
-            </section>
-          )}
-          <div className="editing-content">
-            <Preview
-              controlsRef={previewControls}
-              editor={editor}
-              project={viewProject}
-              versionId={browsed?.id}
-              timeUs={timeUs}
-              seekRevision={seekRevision}
-              onTime={setTimeUs}
-              onImport={() => fileInput.current?.click()}
-              onError={error}
-            />
-            <Timeline
-              project={viewProject}
-              assets={browsed ? versionAssets : assets}
-              readOnly={!!browsed}
-              selected={selected}
-              timeUs={timeUs}
-              busy={busy}
-              onSelect={setSelected}
-              onTime={seek}
-              onUndo={undo}
-              onRedo={redo}
-              onSplit={split}
-              onDelete={deleteClip}
-              onProperties={() => setDialog('properties')}
-              onText={addText}
-            />
-          </div>
-        </main>
-        <aside
-          className="media-panel"
-          aria-label="Media library"
-          data-collapsed={!drawer}
-        >
-          <Tooltip content={drawer ? 'Collapse media' : 'Open media'}>
-            <Button
-              className="media-toggle"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={drawer ? 'Collapse media' : 'Expand media'}
-              aria-expanded={drawer}
-              aria-controls="workspace-media-content"
-              onClick={() => setDrawer((open) => !open)}
-            >
-              {drawer ? <PanelRightClose /> : <Files />}
-            </Button>
-          </Tooltip>
-          <div
-            id="workspace-media-content"
-            className="media-content"
-            inert={!drawer}
-            aria-hidden={!drawer}
+        <div className="workspace-columns">
+          <Conversation
+            editor={editor}
+            project={project}
+            readOnly={!!browsed}
+            selectedClipId={selected}
+            onApplied={refresh}
+            onError={error}
+            registerCleanup={registerCleanup}
+            collapsed={chatCollapsed}
+            width={chatWidth}
+            onResize={setChatWidth}
+            onToggle={() => setChatCollapsed((collapsed) => !collapsed)}
+          />
+          <main
+            className="editing-area"
+            data-editor-shortcuts
+            tabIndex={0}
+            aria-label="Video editor"
           >
-            <section className="media-library" aria-label="Project media">
-              <div className="section-heading">
-                <h2>Media</h2>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy || !!browsed}
-                    onClick={() => fileInput.current?.click()}
-                  >
-                    <Upload /> Import media
-                  </Button>
+            {versionsOpen && (
+              <section
+                className="version-browser"
+                aria-label="Project versions"
+              >
+                <div className="section-heading">
+                  <h2>Versions</h2>
                   <Button
                     variant="ghost"
                     size="sm"
-                    disabled={!project || busy || !!browsed}
-                    onClick={backupProject}
+                    disabled={busy}
+                    onClick={() => {
+                      leaveVersion();
+                      setVersionsOpen(false);
+                    }}
                   >
-                    <Download /> Backup
+                    Close versions
                   </Button>
                 </div>
-              </div>
-              {(browsed ? versionAssets : assets).length ? (
-                <div className="media-grid">
-                  {(browsed ? versionAssets : assets).map((asset) => (
-                    <div className="media-item" key={asset.id}>
-                      <div className="media-symbol">
-                        {asset.kind === 'audio' ? <Files /> : <FilmIcon />}
-                      </div>
-                      <span title={asset.name}>{asset.name}</span>
-                      <small>
-                        {asset.status === 'missing'
-                          ? 'Missing · relink file'
-                          : asset.kind === 'image'
-                            ? `${asset.width} × ${asset.height}`
-                            : formatTime(asset.durationUs)}
-                      </small>
-                      {asset.status === 'missing' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={busy || !!browsed}
-                          onClick={() => {
-                            const input = document.createElement('input');
-                            input.type = 'file';
-                            input.onchange = () => {
-                              const file = input.files?.[0];
-                              if (file)
-                                void action(async () => {
-                                  if (browsing.current) return;
-                                  const engine = await ensureEditor();
-                                  await awaitJob(
-                                    engine.assets.relink(asset.id, file),
-                                    'Relinking media',
-                                  );
-                                  await refresh();
-                                });
-                            };
-                            input.click();
-                          }}
-                        >
-                          Relink
-                        </Button>
-                      )}
-                    </div>
+                <div
+                  className="version-list"
+                  role="group"
+                  aria-label="Saved versions"
+                >
+                  {versions.map((version) => (
+                    <Button
+                      key={version.id}
+                      variant={
+                        browsed?.id === version.id ? 'secondary' : 'ghost'
+                      }
+                      disabled={busy}
+                      aria-pressed={browsed?.id === version.id}
+                      onClick={() => browseVersion(version.id)}
+                    >
+                      Version {version.number} ·{' '}
+                      {new Date(version.createdAt).toLocaleString([], {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                      })}
+                      {version.kind === 'restore' ? ' · Restored' : ''}
+                    </Button>
                   ))}
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Import video, audio or images to add them to the timeline.
-                </p>
-              )}
-            </section>
-          </div>
-        </aside>
+                {browsed && (
+                  <div className="version-actions">
+                    <span>Version {browsed.number} · Read-only</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busy}
+                      onClick={leaveVersion}
+                    >
+                      Return to current
+                    </Button>
+                    <Button size="sm" disabled={busy} onClick={restoreVersion}>
+                      Restore as new version
+                    </Button>
+                  </div>
+                )}
+              </section>
+            )}
+            <div className="editing-content">
+              <Preview
+                controlsRef={previewControls}
+                editor={editor}
+                project={viewProject}
+                versionId={browsed?.id}
+                timeUs={timeUs}
+                seekRevision={seekRevision}
+                onTime={setTimeUs}
+                onImport={() => fileInput.current?.click()}
+                onError={error}
+              />
+              <Timeline
+                project={viewProject}
+                assets={browsed ? versionAssets : assets}
+                readOnly={!!browsed}
+                selected={selected}
+                timeUs={timeUs}
+                busy={busy}
+                onSelect={setSelected}
+                onTime={seek}
+                onUndo={undo}
+                onRedo={redo}
+                onSplit={split}
+                onDelete={deleteClip}
+                onProperties={() => setDialog('properties')}
+                onText={addText}
+              />
+            </div>
+          </main>
+          <aside
+            className="media-panel"
+            aria-label="Media library"
+            data-collapsed={!drawer}
+          >
+            <Tooltip content={drawer ? 'Collapse media' : 'Open media'}>
+              <Button
+                className="media-toggle"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={drawer ? 'Collapse media' : 'Expand media'}
+                aria-expanded={drawer}
+                aria-controls="workspace-media-content"
+                onClick={() => setDrawer((open) => !open)}
+              >
+                {drawer ? <PanelRightClose /> : <Files />}
+              </Button>
+            </Tooltip>
+            <div
+              id="workspace-media-content"
+              className="media-content"
+              inert={!drawer}
+              aria-hidden={!drawer}
+            >
+              <section className="media-library" aria-label="Project media">
+                <div className="section-heading">
+                  <h2>Media</h2>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busy || !!browsed}
+                      onClick={() => fileInput.current?.click()}
+                    >
+                      <Upload /> Import media
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!project || busy || !!browsed}
+                      onClick={backupProject}
+                    >
+                      <Download /> Backup
+                    </Button>
+                  </div>
+                </div>
+                {(browsed ? versionAssets : assets).length ? (
+                  <div className="media-grid">
+                    {(browsed ? versionAssets : assets).map((asset) => (
+                      <div className="media-item" key={asset.id}>
+                        <div className="media-symbol">
+                          {asset.kind === 'audio' ? <Files /> : <FilmIcon />}
+                        </div>
+                        <span title={asset.name}>{asset.name}</span>
+                        <small>
+                          {asset.status === 'missing'
+                            ? 'Missing · relink file'
+                            : asset.kind === 'image'
+                              ? `${asset.width} × ${asset.height}`
+                              : formatTime(asset.durationUs)}
+                        </small>
+                        {asset.status === 'missing' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busy || !!browsed}
+                            onClick={() => {
+                              const input = document.createElement('input');
+                              input.type = 'file';
+                              input.onchange = () => {
+                                const file = input.files?.[0];
+                                if (file)
+                                  void action(async () => {
+                                    if (browsing.current) return;
+                                    const engine = await ensureEditor();
+                                    await awaitJob(
+                                      engine.assets.relink(asset.id, file),
+                                      'Relinking media',
+                                    );
+                                    await refresh();
+                                  });
+                              };
+                              input.click();
+                            }}
+                          >
+                            Relink
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Import video, audio or images to add them to the timeline.
+                  </p>
+                )}
+              </section>
+            </div>
+          </aside>
         </div>
         {appearanceOpen && (
           <Suspense
