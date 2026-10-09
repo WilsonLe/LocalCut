@@ -3,9 +3,18 @@ import type { IDBPDatabase } from 'idb';
 import { asEditorError, EditorError, invariant } from '../core/errors';
 import { applyOperations, canonical, parseBatch } from '../core/commands';
 import type { CommandBatch, EditReceipt } from '../core/commands';
-import { assetIds, validateProject, validateBackup } from '../core/model';
+import { legacyCommandReceiptContent } from '../core/receipt-content';
+import { repairLegacyIdentities } from '../core/legacy-identities';
+import {
+  assetIds,
+  validateProject,
+  validateBackup,
+  transcriptSchema,
+} from '../core/model';
+import { commitWithSignal } from './transaction';
 import type { Asset, Project, Transcript, ProjectBackup } from '../core/model';
 interface RecordState {
+  identityVersion?: 1;
   project: Project;
   undo: Project[];
   redo: Project[];
@@ -13,7 +22,35 @@ interface RecordState {
 interface SavedReceipt {
   key: string;
   content: string;
+  contentVersion?: 2;
   receipt: EditReceipt;
+}
+function normalizeState(state: RecordState): RecordState {
+  invariant(
+    state.identityVersion === undefined || state.identityVersion === 1,
+    'INVALID_DOCUMENT',
+    'Unsupported stored identity version',
+  );
+  invariant(
+    Array.isArray(state.undo) && Array.isArray(state.redo),
+    'INVALID_DOCUMENT',
+    'Invalid project history',
+  );
+  if (state.identityVersion === 1)
+    return { ...state, project: validateProject(state.project) };
+  // Oldest undo first; redo is a stack, so its reverse is chronological.
+  const snapshots = [
+    ...state.undo,
+    state.project,
+    ...[...state.redo].reverse(),
+  ];
+  const normalized = repairLegacyIdentities(snapshots);
+  return {
+    identityVersion: 1,
+    project: normalized[state.undo.length]!,
+    undo: normalized.slice(0, state.undo.length),
+    redo: normalized.slice(state.undo.length + 1).reverse(),
+  };
 }
 export interface Journal {
   id: string;
@@ -100,52 +137,90 @@ export class Store {
     });
   }
   async getProject(id: string): Promise<Project> {
-    const record = (await this.db.get('projects', id)) as
-      RecordState | undefined;
-    invariant(record, 'NOT_FOUND', `Project ${id} missing`);
-    return validateProject(record.project);
+    const tx = this.db.transaction('projects', 'readwrite');
+    return commitWithSignal(tx, undefined, async () => {
+      const record = (await tx.store.get(id)) as RecordState | undefined;
+      invariant(record, 'NOT_FOUND', `Project ${id} missing`);
+      const state = normalizeState(record);
+      if (record.identityVersion === undefined)
+        await tx.store.put({ ...state, id });
+      return state.project;
+    });
   }
   async create(project: Project) {
     const value = validateProject(project);
-    await this.db.add('projects', {
-      id: value.id,
-      project: value,
-      undo: [],
-      redo: [],
+    const tx = this.db.transaction(
+      ['projects', 'assets', 'transcripts'],
+      'readwrite',
+    );
+    return commitWithSignal(tx, undefined, async () => {
+      await this.validateAssets(
+        value,
+        (id) => tx.objectStore('assets').get(id),
+        (id) => tx.objectStore('transcripts').get(id),
+      );
+      await tx.objectStore('projects').add({
+        identityVersion: 1,
+        id: value.id,
+        project: value,
+        undo: [],
+        redo: [],
+      });
+      return value;
     });
-    return value;
   }
   async backup(id: string): Promise<ProjectBackup> {
-    const tx = this.db.transaction(['projects', 'assets', 'transcripts']);
-    const state = (await tx.objectStore('projects').get(id)) as
-      RecordState | undefined;
-    invariant(state, 'NOT_FOUND', 'Project missing');
-    const project = validateProject(state.project);
-    const transcriptIds = [
-      ...new Set(
-        project.tracks.flatMap((t) =>
-          t.clips.flatMap((c) => (c.transcriptId ? [c.transcriptId] : [])),
+    const tx = this.db.transaction(
+      ['projects', 'assets', 'transcripts'],
+      'readwrite',
+    );
+    return commitWithSignal(tx, undefined, async () => {
+      const record = (await tx.objectStore('projects').get(id)) as
+        RecordState | undefined;
+      invariant(record, 'NOT_FOUND', 'Project missing');
+      const state = normalizeState(record);
+      if (record.identityVersion === undefined)
+        await tx.objectStore('projects').put({ ...state, id });
+      const project = state.project;
+      const transcriptIds = [
+        ...new Set(
+          project.tracks.flatMap((t) =>
+            t.clips.flatMap((c) => (c.transcriptId ? [c.transcriptId] : [])),
+          ),
         ),
-      ),
-    ];
-    const transcripts = await Promise.all(
-      transcriptIds.map(
-        (id) => tx.objectStore('transcripts').get(id) as Promise<Transcript>,
-      ),
-    );
-    const ids = [
-      ...new Set([
-        ...assetIds(project),
-        ...transcripts.filter(Boolean).map((t) => t.assetId),
-      ]),
-    ];
-    const assets = await Promise.all(
-      ids.map((id) => tx.objectStore('assets').get(id) as Promise<Asset>),
-    );
-    await tx.done;
-    return validateBackup({ backupVersion: 1, project, assets, transcripts });
+      ];
+      const transcripts = await Promise.all(
+        transcriptIds.map(
+          (id) => tx.objectStore('transcripts').get(id) as Promise<Transcript>,
+        ),
+      );
+      const ids = [
+        ...new Set([
+          ...assetIds(project),
+          ...transcripts.filter(Boolean).map((t) => t.assetId),
+        ]),
+      ];
+      const assets = await Promise.all(
+        ids.map((id) => tx.objectStore('assets').get(id) as Promise<Asset>),
+      );
+      return validateBackup({
+        backupVersion: 1,
+        identityVersion: 1,
+        project,
+        assets,
+        transcripts,
+      });
+    });
   }
-  async restore(value: unknown) {
+  async restore(value: unknown, repairLegacy = false) {
+    if (
+      repairLegacy &&
+      value &&
+      typeof value === 'object' &&
+      !('identityVersion' in value) &&
+      'project' in value
+    )
+      value = { ...value, project: repairLegacyIdentities([value.project])[0] };
     const backup = validateBackup(value);
     const assets = new Map(
       backup.assets.map((a) => [a.id, crypto.randomUUID()]),
@@ -173,9 +248,13 @@ export class Store {
       'readwrite',
     );
     try {
-      await tx
-        .objectStore('projects')
-        .add({ id: project.id, project, undo: [], redo: [] });
+      await tx.objectStore('projects').add({
+        identityVersion: 1,
+        id: project.id,
+        project,
+        undo: [],
+        redo: [],
+      });
       for (const asset of backup.assets)
         await tx
           .objectStore('assets')
@@ -199,9 +278,18 @@ export class Store {
     }
   }
   async list(): Promise<Project[]> {
-    return ((await this.db.getAll('projects')) as RecordState[]).map((r) =>
-      validateProject(r.project),
-    );
+    const tx = this.db.transaction('projects', 'readwrite');
+    return commitWithSignal(tx, undefined, async () => {
+      const records = (await tx.store.getAll()) as RecordState[];
+      const projects: Project[] = [];
+      for (const record of records) {
+        const state = normalizeState(record);
+        if (record.identityVersion === undefined)
+          await tx.store.put({ ...state, id: state.project.id });
+        projects.push(state.project);
+      }
+      return projects;
+    });
   }
   async deleteProject(id: string) {
     const tx = this.db.transaction(['projects', 'receipts'], 'readwrite');
@@ -216,11 +304,12 @@ export class Store {
   }
   async apply(input: CommandBatch) {
     const batch = parseBatch(input);
+    const legacyContent = legacyCommandReceiptContent(input);
     return this.commit(
       batch.projectId,
       batch.requestId,
       batch.expectedRevision,
-      canonical(batch),
+      canonical(input),
       (state) => {
         const result = applyOperations(state.project, batch.operations);
         state.undo.push(state.project);
@@ -229,6 +318,7 @@ export class Store {
         state.project = result.project;
         return result.affectedIds;
       },
+      () => legacyContent,
     );
   }
   async history(
@@ -260,6 +350,7 @@ export class Store {
     expected: number,
     content: string,
     mutate: (state: RecordState) => string[],
+    legacyContent: () => string | undefined = () => content,
   ): Promise<EditReceipt> {
     invariant(
       requestId.length > 0 && Number.isSafeInteger(expected) && expected >= 0,
@@ -275,17 +366,24 @@ export class Store {
         saved = (await tx.objectStore('receipts').get(key)) as
           SavedReceipt | undefined;
       if (saved) {
+        const expectedContent =
+          saved.contentVersion === 2
+            ? content
+            : saved.contentVersion === undefined
+              ? legacyContent()
+              : undefined;
         invariant(
-          saved.content === content,
+          expectedContent !== undefined && saved.content === expectedContent,
           'REQUEST_CONFLICT',
           'Request ID reused with different content',
         );
         await tx.done;
         return saved.receipt;
       }
-      const state = (await tx.objectStore('projects').get(projectId)) as
+      const record = (await tx.objectStore('projects').get(projectId)) as
         RecordState | undefined;
-      invariant(state, 'NOT_FOUND', 'Project missing');
+      invariant(record, 'NOT_FOUND', 'Project missing');
+      const state = normalizeState(record);
       const revision = state.project.revision;
       invariant(
         revision === expected,
@@ -310,7 +408,9 @@ export class Store {
         warnings: [],
       };
       await tx.objectStore('projects').put({ ...state, id: projectId });
-      await tx.objectStore('receipts').put({ key, content, receipt });
+      await tx
+        .objectStore('receipts')
+        .put({ key, content, contentVersion: 2, receipt });
       await tx.done;
       return receipt;
     } catch (error) {
@@ -487,8 +587,30 @@ export class Store {
   async transcript(id: string): Promise<Transcript | undefined> {
     return this.db.get('transcripts', id);
   }
-  async saveTranscript(value: Transcript) {
-    await this.db.put('transcripts', value);
+  async saveTranscript(value: Transcript, signal?: AbortSignal) {
+    const parsed = transcriptSchema.safeParse(value);
+    invariant(parsed.success, 'INVALID_DOCUMENT', 'Invalid transcript');
+    const tx = this.db.transaction(['assets', 'transcripts'], 'readwrite');
+    return commitWithSignal(tx, signal, async () => {
+      const asset = (await tx.objectStore('assets').get(value.assetId)) as
+        Asset | undefined;
+      invariant(asset, 'MISSING_ASSET', 'Transcript source asset missing');
+      let previous = -1;
+      const ids = new Set<string>();
+      for (const cue of value.cues) {
+        invariant(
+          !ids.has(cue.id) &&
+            cue.timeUs >= previous &&
+            cue.endUs > cue.timeUs &&
+            cue.endUs <= asset.durationUs,
+          'INVALID_DOCUMENT',
+          'Invalid source transcript timing or identity',
+        );
+        ids.add(cue.id);
+        previous = cue.timeUs;
+      }
+      await tx.objectStore('transcripts').put(parsed.data);
+    });
   }
   close() {
     this.db.close();

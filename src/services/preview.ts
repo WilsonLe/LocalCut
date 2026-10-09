@@ -64,12 +64,15 @@ export function createPreviewSession(
     }
     sources.clear();
   };
+  // The native clock keeps moving while decoding. Stop the timeline at the
+  // scheduled PCM boundary until pump can resume it with the next block.
   const time = () =>
     playing
-      ? Math.max(
-          0,
-          Math.min(
-            durationUs(snapshot!),
+      ? Math.min(
+          durationUs(snapshot!),
+          Math.max(position, (audioFrame * 1e6) / 48000),
+          Math.max(
+            position,
             position + (audioContext.currentTime - origin) * 1e6,
           ),
         )
@@ -94,6 +97,15 @@ export function createPreviewSession(
         start = audioFrame;
       const channels = await audio(snapshot, start, count, controller.signal);
       if (!playing || token !== generation) break;
+      let scheduledAt = origin + (start / 48000 - position / 1e6);
+      if (scheduledAt < audioContext.currentTime) {
+        // A cold source can outlast the queued audio. Hold at that boundary
+        // while decoding, then resume consecutive blocks without skipping or
+        // playing overdue buffers on top of one another.
+        position = Math.max(position, (start * 1e6) / 48000);
+        scheduledAt = audioContext.currentTime + 0.05;
+        origin = scheduledAt - (start / 48000 - position / 1e6);
+      }
       const buffer = audioContext.createBuffer(2, count, 48000);
       for (let i = 0; i < 2; i++)
         buffer.copyToChannel(new Float32Array(channels[i]!), i);
@@ -105,22 +117,16 @@ export function createPreviewSession(
         sources.delete(source);
         source.disconnect();
       };
-      source.start(
-        Math.max(
-          audioContext.currentTime,
-          origin + (start / 48000 - position / 1e6),
-        ),
-      );
+      source.start(scheduledAt);
       audioFrame += count;
     }
   };
   const tick = async (token: number) => {
     if (!playing || !snapshot || token !== generation) return;
-    const t = time();
     try {
       await pump(token);
       if (token !== generation) return;
-      await present(snapshot, t, token);
+      await present(snapshot, time(), token);
     } catch (error) {
       if (playing && token === generation) {
         position = time();
@@ -131,7 +137,7 @@ export function createPreviewSession(
       return;
     }
     if (!playing || token !== generation) return;
-    if (t >= durationUs(snapshot)) {
+    if (time() >= durationUs(snapshot)) {
       position = durationUs(snapshot);
       stop();
       return;
@@ -225,6 +231,7 @@ export function createPreviewSession(
       return Math.round(time());
     },
     dispose() {
+      if (playing) position = time();
       disposed = true;
       stop();
       listeners.clear();

@@ -8,8 +8,10 @@ Transformers.js's browser and WASM caches share the named LocalCut cache. Intern
 
 Preparation needs roughly 41 MB of model weights, 27 MB of runtime, and configuration/tokenizer files. Progress totals can vary with cache hits. Keep app hosting available for cached inference; full offline navigation is deferred.
 
-Transcribe requires an imported audio-capable asset and optional language/startUs/endUs. Audio becomes mono 16 kHz with anti-alias resampling. Whisper transcribes the source language with 30-second windows and 5-second overlap, returning segment timestamps. Successful transcripts alone are persisted, with source asset ID and model/revision provenance. A clip's transcriptId links these source cues through trim, speed, and timeline placement.
+Transcribe requires an imported audio-capable asset and optional language/startUs/endUs. The selected source interval is half-open and must satisfy integer microseconds 0 ≤ startUs < endUs ≤ asset duration; defaults are zero and the asset duration. Audio becomes mono 16 kHz with anti-alias resampling. Whisper transcribes the source language with 30-second windows and 5-second overlap, returning segment timestamps. These timestamps are rounded to microseconds, offset into source time, and clamped to the exact requested bounds. A missing segment end uses the requested end; missing or non-finite starts and empty intervals are discarded. Final-sample padding cannot extend a saved cue past endUs.
 
-Cancellation terminates the inference worker. A later request opens a fresh worker. clearModelCache preserves committed transcripts, media, and edits.
+Successful transcripts alone are persisted, with source asset ID and model/revision provenance. Storage rejects unordered or out-of-source cues and duplicate cue IDs. A clip's transcriptId links these source cues through trim, speed, and timeline placement.
+
+Cancellation during active inference terminates its worker; a later request opens a fresh worker. Cancellation while transcript persistence is pending aborts the transaction. If the transaction already committed, the job returns that successful transcript despite a late cancellation rather than hiding saved data behind a CANCELLED result. clearModelCache preserves committed transcripts, media, and edits.
 
 The engine never posts audio/media to remote services. Allowed app network traffic consists of static assets and explicitly prepared model/runtime downloads. See [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) for model/library and speech-fixture attribution.

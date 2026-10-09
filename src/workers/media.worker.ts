@@ -41,6 +41,7 @@ self.onmessage = ({ data }: MessageEvent<Request>) => {
   controllers.set(data.id, controller);
   const execute = async () => {
     let store: Store | undefined;
+    let result: unknown;
     const progress = (p: Progress) =>
       self.postMessage({ id: data.id, kind: 'progress', data: p });
     try {
@@ -52,7 +53,6 @@ self.onmessage = ({ data }: MessageEvent<Request>) => {
       checkAbort(controller.signal);
       const p = data.payload;
       store = await Store.open(p.namespace, false);
-      let result: unknown;
       let transfer: Transferable[] = [];
       switch (data.operation) {
         case 'import':
@@ -173,9 +173,21 @@ self.onmessage = ({ data }: MessageEvent<Request>) => {
         default:
           throw new Error('Unknown worker operation');
       }
-      checkAbort(controller.signal);
+      // An import's atomic commit is its publication point. Late cancellation
+      // must not turn a successfully committed original into an unclaimed asset.
+      if (data.operation !== 'import') checkAbort(controller.signal);
       self.postMessage({ id: data.id, kind: 'result', data: result }, transfer);
     } catch (error) {
+      if (result && typeof result === 'object') {
+        if ('image' in result && result.image instanceof ImageBitmap)
+          result.image.close();
+        if (
+          data.operation === 'export' &&
+          'path' in result &&
+          typeof result.path === 'string'
+        )
+          await store?.remove(result.path);
+      }
       if (data.operation === 'frame' || data.operation === 'audio') {
         preview?.dispose();
         preview?.store.close();

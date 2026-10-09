@@ -1,13 +1,73 @@
 import { VideoSampleSink } from 'mediabunny';
-import type { Input } from 'mediabunny';
+import type { Input, VideoSample } from 'mediabunny';
 import type { Clip, Project, Transcript } from '../core/model';
-import { invariant } from '../core/errors';
+import { EditorError, invariant } from '../core/errors';
 import { gainAt, mapSourceCue, sourceTimeUs, valueAt } from '../core/timing';
 import { resampleAt } from '../core/resample';
 import { checkAbort } from '../services/jobs';
 import type { Progress } from '../services/jobs';
 import type { Store } from '../storage/store';
 import { inputFile, convertCache, pcmWindow } from './assets';
+
+/** @internal Owns decoded samples; callers borrow the returned current frame. */
+export class VideoFrameCursor {
+  private iterator: AsyncGenerator<VideoSample, void, unknown> | undefined;
+  private current: VideoSample | undefined;
+  private next: VideoSample | undefined;
+  private requested: number | undefined;
+  private disposed = false;
+
+  constructor(private readonly sink: Pick<VideoSampleSink, 'samples'>) {}
+
+  private async release() {
+    const iterator = this.iterator;
+    this.iterator = undefined;
+    this.current?.close();
+    this.next?.close();
+    this.current = undefined;
+    this.next = undefined;
+    this.requested = undefined;
+    await iterator?.return();
+  }
+
+  private async read() {
+    const iterator = this.iterator!;
+    const result = await iterator.next();
+    if (this.disposed || iterator !== this.iterator) {
+      if (!result.done) result.value.close();
+      throw new EditorError('DISPOSED', 'Video frame cursor disposed');
+    }
+    return result.done ? undefined : result.value;
+  }
+
+  async sample(timestamp: number): Promise<VideoSample | null> {
+    invariant(!this.disposed, 'DISPOSED', 'Video frame cursor disposed');
+    if (
+      !this.iterator ||
+      timestamp < this.requested! ||
+      timestamp - this.requested! > 1
+    ) {
+      await this.release();
+      invariant(!this.disposed, 'DISPOSED', 'Video frame cursor disposed');
+      this.iterator = this.sink.samples(timestamp);
+      this.next = await this.read();
+    }
+    while (this.next && this.next.timestamp <= timestamp + 1e-9) {
+      this.current?.close();
+      this.current = this.next;
+      this.next = undefined;
+      this.next = await this.read();
+    }
+    this.requested = timestamp;
+    return this.current ?? null;
+  }
+
+  dispose() {
+    this.disposed = true;
+    void this.release().catch(() => {});
+  }
+}
+
 export class Renderer {
   readonly canvas: OffscreenCanvas;
   private layers = new Map<string, OffscreenCanvas>();
@@ -15,6 +75,7 @@ export class Renderer {
   private audioProgress: (p: Progress) => void = () => {};
   private inputs = new Map<string, Input>();
   private sinks = new Map<string, VideoSampleSink>();
+  private videoFrames = new Map<string, VideoFrameCursor>();
   private images = new Map<string, ImageBitmap>();
   private pcm = new Map<string, File>();
   private leases = new Map<string, () => void>();
@@ -72,23 +133,22 @@ export class Renderer {
         }
         ctx.drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh);
       } else {
-        let sink = this.sinks.get(asset.id);
-        if (!sink) {
-          const input = inputFile(await this.store.file(asset.id)),
-            track = await input.getPrimaryVideoTrack();
-          invariant(track, 'UNSUPPORTED_CODEC', 'Asset has no video');
-          this.inputs.set(asset.id, input);
-          sink = new VideoSampleSink(track);
-          this.sinks.set(asset.id, sink);
-        }
-        const frame = await sink.getSample(sourceTimeUs(clip, timeUs) / 1e6);
-        if (frame) {
-          try {
-            frame.draw(ctx, sx, sy, sw, sh, dx, dy, dw, dh);
-          } finally {
-            frame.close();
+        let cursor = this.videoFrames.get(clip.id);
+        if (!cursor) {
+          let sink = this.sinks.get(asset.id);
+          if (!sink) {
+            const input = inputFile(await this.store.file(asset.id)),
+              track = await input.getPrimaryVideoTrack();
+            invariant(track, 'UNSUPPORTED_CODEC', 'Asset has no video');
+            this.inputs.set(asset.id, input);
+            sink = new VideoSampleSink(track);
+            this.sinks.set(asset.id, sink);
           }
+          cursor = new VideoFrameCursor(sink);
+          this.videoFrames.set(clip.id, cursor);
         }
+        const frame = await cursor.sample(sourceTimeUs(clip, timeUs) / 1e6);
+        frame?.draw(ctx, sx, sy, sw, sh, dx, dy, dw, dh);
       }
     } else if (clip.kind === 'text' || clip.kind === 'caption') {
       let text = clip.text?.text ?? '';
@@ -207,6 +267,23 @@ export class Renderer {
           .map((c) => c.assetId!),
       ),
     );
+    const activeVideoClips = new Set(
+      this.project.tracks.flatMap((track) =>
+        track.clips
+          .filter(
+            (clip) =>
+              clip.kind === 'video' &&
+              clip.startUs <= timeUs &&
+              clip.startUs + clip.durationUs > timeUs,
+          )
+          .map((clip) => clip.id),
+      ),
+    );
+    for (const [id, cursor] of this.videoFrames)
+      if (!activeVideoClips.has(id)) {
+        cursor.dispose();
+        this.videoFrames.delete(id);
+      }
     for (const [id, image] of this.images)
       if (!activeAssets.has(id)) {
         image.close();
@@ -396,6 +473,8 @@ export class Renderer {
     return mixed;
   }
   dispose() {
+    for (const cursor of this.videoFrames.values()) cursor.dispose();
+    this.videoFrames.clear();
     for (const release of this.leases.values()) release();
     this.leases.clear();
     for (const input of this.inputs.values()) input.dispose();

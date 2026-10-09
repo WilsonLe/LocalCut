@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import {
   clipSchema,
+  clipPatchSchema,
+  nestedId,
   trackSchema,
   transitionSchema,
   validateProject,
@@ -24,7 +26,7 @@ export type EditOperation =
   | {
       type: 'updateClip';
       clipId: string;
-      patch: Partial<Omit<Clip, 'id' | 'kind'>>;
+      patch: z.input<typeof clipPatchSchema>;
     }
   | {
       type: 'trimClip';
@@ -80,7 +82,7 @@ const operationSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('updateClip'),
       clipId: z.string(),
-      patch: clipSchema.omit({ id: true, kind: true }).partial(),
+      patch: clipPatchSchema,
     })
     .strict(),
   z
@@ -168,20 +170,38 @@ export function canonical(value: unknown): string {
 function splitKeys(
   clip: Clip,
   offset: number,
+  rightClipId: string,
 ): [Clip['keyframes'], Clip['keyframes']] {
   const left: Clip['keyframes'] = {},
     right: Clip['keyframes'] = {};
   for (const name of Object.keys(clip.keyframes) as Parameter[]) {
     const keys = clip.keyframes[name]!;
+    if (!keys.length) {
+      left[name] = [];
+      right[name] = [];
+      continue;
+    }
     const v = evaluateKeys(keys, offset, clip[name]);
     const interpolation =
       keys.filter((k) => k.timeUs <= offset).at(-1)?.interpolation ?? 'linear';
     left[name] = [
       ...keys.filter((k) => k.timeUs < offset),
-      { timeUs: offset, value: v, interpolation },
+      {
+        id:
+          keys.find((k) => k.timeUs === offset)?.id ??
+          nestedId('keyframe', clip.id, `split:${name}:${offset}`),
+        timeUs: offset,
+        value: v,
+        interpolation,
+      },
     ];
     right[name] = [
-      { timeUs: 0, value: v, interpolation },
+      {
+        id: nestedId('keyframe', rightClipId, `split:${name}:${offset}`),
+        timeUs: 0,
+        value: v,
+        interpolation,
+      },
       ...keys
         .filter((k) => k.timeUs > offset)
         .map((k) => ({ ...k, timeUs: k.timeUs - offset })),
@@ -193,7 +213,7 @@ export function applyOperations(
   original: Project,
   operations: EditOperation[],
 ): { project: Project; affectedIds: string[] } {
-  const p = structuredClone(original),
+  const p = validateProject(original),
     affected = new Set<string>();
   const track = (id: string) => {
     const t = p.tracks.find((t) => t.id === id);
@@ -250,7 +270,7 @@ export function applyOperations(
       }
       case 'updateClip': {
         const { t, c } = locate(op.clipId);
-        t.clips[t.clips.indexOf(c)] = { ...c, ...op.patch };
+        t.clips[t.clips.indexOf(c)] = clipSchema.parse({ ...c, ...op.patch });
         break;
       }
       case 'trimClip': {
@@ -276,7 +296,7 @@ export function applyOperations(
         right.id = op.rightClipId;
         right.startUs = op.atUs;
         right.durationUs = c.durationUs - offset;
-        const [leftKeys, rightKeys] = splitKeys(c, offset);
+        const [leftKeys, rightKeys] = splitKeys(c, offset, right.id);
         c.keyframes = leftKeys;
         right.keyframes = rightKeys;
         c.durationUs = offset;
@@ -294,7 +314,10 @@ export function applyOperations(
           .filter((q) => q.endUs > offset)
           .map((q) => ({
             ...q,
-            id: crypto.randomUUID(),
+            id:
+              q.timeUs >= offset
+                ? q.id
+                : nestedId('cue', right.id, `split:${q.id}:${offset}`),
             timeUs: Math.max(0, q.timeUs - offset),
             endUs: q.endUs - offset,
           }));
@@ -315,11 +338,17 @@ export function applyOperations(
       }
       case 'duplicateClip': {
         const { c } = locate(op.clipId);
-        track(op.trackId).clips.push({
+        const duplicate = {
           ...structuredClone(c),
           id: op.newClipId,
           startUs: op.startUs,
-        });
+        };
+        for (const keys of Object.values(duplicate.keyframes))
+          for (const key of keys)
+            key.id = nestedId('keyframe', duplicate.id, `duplicate:${key.id}`);
+        for (const cue of duplicate.cues)
+          cue.id = nestedId('cue', duplicate.id, `duplicate:${cue.id}`);
+        track(op.trackId).clips.push(duplicate);
         affected.add(op.newClipId);
         break;
       }

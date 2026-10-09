@@ -96,8 +96,13 @@ describe('project contracts', () => {
     c.sourceOutUs = 4000000;
     c.keyframes = {
       opacity: [
-        { timeUs: 0, value: 0, interpolation: 'linear' },
-        { timeUs: 2000000, value: 1, interpolation: 'linear' },
+        { id: 'opacity-start', timeUs: 0, value: 0, interpolation: 'linear' },
+        {
+          id: 'opacity-end',
+          timeUs: 2000000,
+          value: 1,
+          interpolation: 'linear',
+        },
       ],
     };
     const r = applyOperations(p, [
@@ -140,9 +145,9 @@ describe('timing and captions', () => {
     expect(frameTimeUs(30000, { num: 30000, den: 1001 })).toBe(1001000000));
   it('evaluates hold/linear and endpoint extensions', () => {
     const keys = [
-      { timeUs: 100, value: 1, interpolation: 'hold' as const },
-      { timeUs: 200, value: 3, interpolation: 'linear' as const },
-      { timeUs: 300, value: 5, interpolation: 'linear' as const },
+      { id: 'first', timeUs: 100, value: 1, interpolation: 'hold' as const },
+      { id: 'middle', timeUs: 200, value: 3, interpolation: 'linear' as const },
+      { id: 'last', timeUs: 300, value: 5, interpolation: 'linear' as const },
     ];
     expect(evaluateKeys(keys, 0, 0)).toBe(1);
     expect(evaluateKeys(keys, 150, 0)).toBe(1);
@@ -206,15 +211,47 @@ describe('streaming audio resampling', () => {
     expect((crossings * 48000) / output.length).toBeCloseTo(880, -1);
     expect(resampleAt(source, 100 + 2 * 5000, 2)).toBeCloseTo(output[5000]!, 6);
   });
-  it('attenuates high-frequency aliasing at4x', () => {
-    const source = sine(12000);
-    const rms = Math.sqrt(
-      Array.from(
-        { length: 1000 },
-        (_, i) => resampleAt(source, 100 + i * 4, 4) ** 2,
-      ).reduce((a, b) => a + b, 0) / 1000,
+  it('rejects a nondegenerate stop-band tone while retaining the pass band at4x', () => {
+    const rms = (samples: number[]) =>
+      Math.sqrt(
+        samples.reduce((sum, value) => sum + value ** 2, 0) / samples.length,
+      );
+    const stop = sine(10000),
+      pass = sine(1500),
+      positions = Array.from({ length: 2000 }, (_, i) => 1000 + i * 4);
+    // Unfiltered decimation aliases this tone with substantial energy. A
+    // frequency at a decimation zero would let a broken resampler pass.
+    expect(rms(positions.map((position) => stop[position]!))).toBeGreaterThan(
+      0.6,
     );
-    expect(rms).toBeLessThan(0.02);
+    expect(
+      rms(positions.map((position) => resampleAt(stop, position, 4))),
+    ).toBeLessThan(0.02);
+    expect(
+      rms(positions.map((position) => resampleAt(pass, position, 4))),
+    ).toBeCloseTo(Math.SQRT1_2, 2);
+  });
+  it('preserves fractional phase and matches consecutive processing blocks', () => {
+    const source = sine(440),
+      speed = 1.37,
+      start = 2000.375,
+      count = 8192,
+      whole = Array.from({ length: count }, (_, i) =>
+        resampleAt(source, start + i * speed, speed),
+      );
+    const blocked: number[] = [];
+    for (let offset = 0; offset < count; offset += 1001) {
+      const blockStart = start + offset * speed;
+      for (let i = 0; i < Math.min(1001, count - offset); i++)
+        blocked.push(resampleAt(source, blockStart + i * speed, speed));
+    }
+    for (let i = 0; i < count; i++) {
+      const expected = Math.sin(
+        ((start + i * speed) * 2 * Math.PI * 440) / 48000,
+      );
+      expect(Math.abs(whole[i]! - expected)).toBeLessThan(0.0005);
+      expect(Math.abs(blocked[i]! - whole[i]!)).toBeLessThan(0.0001);
+    }
   });
   it.each([0.25, 4])('returns finite bounded samples at%sx', (speed) =>
     expect(Number.isFinite(resampleAt(sine(440), 100.25, speed))).toBe(true),
