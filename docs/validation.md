@@ -1,6 +1,6 @@
 # Validation
 
-Normal CI separates formatting/lint/type checking, unit tests, production builds/artifact budgets, Chrome integration, and real transcription/cached replay. Native codec support is required; missing AAC/H.264/VP9/Opus fails the gate. Browser tests use installed stable Google Chrome, never a generic Chromium-only substitute.
+Normal CI separates formatting/lint/type checking, unit tests, production builds/artifact budgets, Chrome integration, and real transcription/cached replay. Native codec support is required; missing AAC/H.264/VP9/Opus fails the gate. Browser tests use installed stable Google Chrome, never a generic Chromium-only substitute. CI passes the stable installer output through LOCALCUT_CHROME_EXECUTABLE; local runs use the installed Chrome channel.
 
 Tests serve the real production outputs at / and /LocalCut/. All test UI/surfaces are created by page evaluation and absent from product assets. Generated PNG/WAV fixtures exercise known colors, transforms, timing, tone frequency, and waveform behavior. The attributed JFK speech fixture checks actual local inference.
 

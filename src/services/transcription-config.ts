@@ -16,6 +16,16 @@ export const runtimeFiles = [
   'ort-wasm-simd-threaded.asyncify.wasm',
 ];
 export const modelHashes: Record<string, string> = {
+  'config.json':
+    '2b2e4e519084e0ea028b19b153f95202735a971870d6844aa26e559edd292e94',
+  'generation_config.json':
+    '68ac791fcb4999461a313472125042934656240ba1cba7d1c2627fcbb19ac24c',
+  'preprocessor_config.json':
+    'a6a76d28c93edb273669eb9e0b0636a2bddbb1272c3261e47b7ca6dfdbac1b8d',
+  'tokenizer.json':
+    '27fc476bfe7f17299480be2273fc0608e4d5a99aba2ab5dec5374b4482d1a566',
+  'tokenizer_config.json':
+    '2a4c4281cf9f51ac6ccc406fdc711a087afe6530f671fa7b80953edc498275ce',
   'encoder_model_quantized.onnx':
     'fd9d995b9dcb0520f0dbf6cf68651af639fc385f594d9d876e69ca2802dc438e',
   'decoder_model_merged_quantized.onnx':

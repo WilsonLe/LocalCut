@@ -1,3 +1,4 @@
+import { withQuotaRecovery } from '../storage/quota';
 import {
   Output,
   Mp4OutputFormat,
@@ -79,6 +80,31 @@ export async function preflight(project: Project, options: ExportOptions) {
   };
 }
 export async function exportProject(
+  store: Store,
+  project: Project,
+  options: ExportOptions,
+  signal: AbortSignal,
+  progress: (p: Progress) => void,
+  id: string,
+): Promise<ExportResult> {
+  const caps = await preflight(project, options);
+  invariant(
+    caps.supported,
+    'UNSUPPORTED_CODEC',
+    'Requested encoding configuration unsupported',
+  );
+  const reserve =
+    Math.ceil(
+      (((durationUs(project) / 1e6) * (caps.videoBitrate + caps.audioBitrate)) /
+        8) *
+        1.1,
+    ) +
+    1024 * 1024;
+  return withQuotaRecovery(store, reserve, signal, () =>
+    exportAttempt(store, project, options, signal, progress, id),
+  );
+}
+async function exportAttempt(
   store: Store,
   project: Project,
   options: ExportOptions,

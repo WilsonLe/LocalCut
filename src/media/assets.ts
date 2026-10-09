@@ -1,3 +1,4 @@
+import { withQuotaRecovery } from '../storage/quota';
 import {
   Input,
   BlobSource,
@@ -115,41 +116,74 @@ export async function importAsset(
       'INVALID_DOCUMENT',
       'Replacement does not match source metadata',
     );
-    let exists = true;
-    try {
-      await store.file(relinkId);
-    } catch {
-      exists = false;
-    }
-    invariant(!exists, 'INVALID_COMMAND', 'Ready originals cannot be replaced');
   }
-  return store.lock(`job:${jobId}`, 'exclusive', async () => {
-    await store.journal({ id: jobId, target: asset.id, kind: 'import' });
-    try {
-      progress({ stage: 'store', progress: 0.3 });
-      await store.evict(file.size);
-      await store.write(
-        asset.id,
-        file.stream().pipeThrough(
-          new TransformStream({
-            transform(chunk, controller) {
+  return withQuotaRecovery(store, file.size, signal, () =>
+    store.lock(
+      `asset:${asset.id}`,
+      'exclusive',
+      () =>
+        store.lock(
+          `job:${jobId}`,
+          'exclusive',
+          async () => {
+            if (relinkId) {
+              let exists = true;
+              try {
+                await store.file(relinkId);
+              } catch {
+                exists = false;
+              }
+              invariant(
+                !exists,
+                'INVALID_COMMAND',
+                'Ready originals cannot be replaced',
+              );
+            }
+            await store.journal({
+              id: jobId,
+              target: asset.id,
+              kind: 'import',
+            });
+            try {
+              progress({ stage: 'store', progress: 0.3 });
+              await store.write(
+                asset.id,
+                file.stream().pipeThrough(
+                  new TransformStream({
+                    transform(chunk, controller) {
+                      checkAbort(signal);
+                      controller.enqueue(chunk);
+                    },
+                  }),
+                ),
+              );
               checkAbort(signal);
-              controller.enqueue(chunk);
-            },
-          }),
+              const tx = store.db.transaction(
+                ['assets', 'journal'],
+                'readwrite',
+              );
+              await tx.objectStore('assets').put(asset);
+              await tx.objectStore('journal').put({
+                id: jobId,
+                target: asset.id,
+                kind: 'import',
+                committed: true,
+              });
+              await tx.done;
+              await store.finishJournal(jobId);
+              progress({ stage: 'ready', progress: 1 });
+              return asset;
+            } catch (e) {
+              await store.remove(asset.id);
+              await store.finishJournal(jobId);
+              throw e;
+            }
+          },
+          signal,
         ),
-      );
-      checkAbort(signal);
-      await store.db.put('assets', asset);
-      await store.finishJournal(jobId);
-      progress({ stage: 'ready', progress: 1 });
-      return asset;
-    } catch (e) {
-      await store.remove(asset.id);
-      await store.finishJournal(jobId);
-      throw e;
-    }
-  });
+      signal,
+    ),
+  );
 }
 export async function outputTarget(store: Store, path: string) {
   const file = await store.root.getFileHandle(path, { create: true }),
@@ -198,102 +232,136 @@ export async function convertCache(
   progress: (p: Progress) => void,
   jobId: string,
 ) {
+  const cached = await store.derivative(`${kind}-v1-${assetId}`);
+  const asset = await store.getAsset(assetId);
+  const reserve = cached
+    ? 0
+    : Math.ceil(
+        (asset.durationUs / 1e6) *
+          (kind === 'pcm' ? 48000 * 2 * 4 : 2_128_000 / 8) *
+          1.1,
+      ) +
+      1024 * 1024;
+  return withQuotaRecovery(store, reserve, signal, () =>
+    convertCacheAttempt(store, assetId, kind, signal, progress, jobId),
+  );
+}
+async function convertCacheAttempt(
+  store: Store,
+  assetId: string,
+  kind: 'pcm' | 'proxy',
+  signal: AbortSignal,
+  progress: (p: Progress) => void,
+  jobId: string,
+) {
   const id = `${kind}-v1-${assetId}`;
-  return store.lock(`derivative:${id}`, 'exclusive', async () => {
-    const old = await store.derivative(id);
-    if (old) {
-      try {
-        return await store.file(old.path);
-      } catch {
-        await store.db.delete('derivatives', id);
+  return store.lock(
+    `derivative:${id}`,
+    'exclusive',
+    async () => {
+      const old = await store.derivative(id);
+      if (old) {
+        try {
+          return await store.file(old.path);
+        } catch {
+          await store.db.delete('derivatives', id);
+        }
       }
-    }
-    const asset = await store.getAsset(assetId);
-    invariant(
-      kind === 'pcm' ? asset.audioCodec : asset.videoCodec,
-      'UNSUPPORTED_CODEC',
-      `Asset has no ${kind === 'pcm' ? 'audio' : 'video'}`,
-    );
-    const input = inputFile(await store.file(assetId)),
-      path = `cache-${id}`;
-    const target = await outputTarget(store, path);
-    const output = new Output({
-      format: kind === 'pcm' ? new WavOutputFormat() : new WebMOutputFormat(),
-      target: target.target,
-    });
-    let conversion: Conversion | undefined;
-    return store.lock(`job:${jobId}`, 'exclusive', async () => {
-      await store.journal({ id: jobId, target: path, kind: 'derivative' });
-      const cancel = () => {
-        void conversion?.cancel();
-      };
-      signal.addEventListener('abort', cancel, { once: true });
-      try {
-        conversion = await Conversion.init({
-          input,
-          output,
-          tracks: 'primary',
-          copy: false,
-          showWarnings: false,
-          video:
-            kind === 'pcm'
-              ? { discard: true }
-              : {
-                  height: Math.min(720, asset.height),
-                  codec: 'vp9',
-                  bitrate: 2_000_000,
-                },
-          audio:
-            kind === 'pcm'
-              ? { codec: 'pcm-f32', sampleRate: 48000, numberOfChannels: 2 }
-              : { codec: 'opus', sampleRate: 48000, numberOfChannels: 2 },
-        });
-        invariant(
-          conversion.isValid,
-          'UNSUPPORTED_CODEC',
-          'Cannot generate derivative',
-        );
-        const lost = conversion.discardedTracks.filter((t) =>
-          kind === 'pcm'
-            ? t.track.isAudioTrack()
-            : t.track.isAudioTrack() || t.track.isVideoTrack(),
-        );
-        invariant(
-          !lost.length,
-          'UNSUPPORTED_CODEC',
-          'Derivative would drop required stream',
-        );
-        conversion.onProgress = (v) => {
-          checkAbort(signal);
-          progress({ stage: kind, progress: v });
-        };
-        checkAbort(signal);
-        await conversion.execute();
-        checkAbort(signal);
-        await target.close();
-        const file = await store.file(path);
-        await store.cache({
-          id,
-          assetId,
-          path,
-          size: file.size,
-          accessed: Date.now(),
-          kind,
-        });
-        await store.finishJournal(jobId);
-        return file;
-      } catch (e) {
-        await conversion?.cancel().catch(() => {});
-        await target.abort();
-        await store.remove(path);
-        await store.finishJournal(jobId);
-        throw e;
-      } finally {
-        signal.removeEventListener('abort', cancel);
-        input.dispose();
-      }
-    });
-  });
+      const asset = await store.getAsset(assetId);
+      invariant(
+        kind === 'pcm' ? asset.audioCodec : asset.videoCodec,
+        'UNSUPPORTED_CODEC',
+        `Asset has no ${kind === 'pcm' ? 'audio' : 'video'}`,
+      );
+      const input = inputFile(await store.file(assetId)),
+        path = `cache-${id}`;
+      let target: Awaited<ReturnType<typeof outputTarget>> | undefined;
+      let conversion: Conversion | undefined;
+      return store.lock(
+        `job:${jobId}`,
+        'exclusive',
+        async () => {
+          await store.journal({ id: jobId, target: path, kind: 'derivative' });
+          const cancel = () => {
+            void conversion?.cancel();
+          };
+          signal.addEventListener('abort', cancel, { once: true });
+          try {
+            target = await outputTarget(store, path);
+            const output = new Output({
+              format:
+                kind === 'pcm' ? new WavOutputFormat() : new WebMOutputFormat(),
+              target: target.target,
+            });
+            conversion = await Conversion.init({
+              input,
+              output,
+              tracks: 'primary',
+              copy: false,
+              showWarnings: false,
+              video:
+                kind === 'pcm'
+                  ? { discard: true }
+                  : {
+                      height: Math.min(720, asset.height),
+                      codec: 'vp9',
+                      bitrate: 2_000_000,
+                    },
+              audio:
+                kind === 'pcm'
+                  ? { codec: 'pcm-f32', sampleRate: 48000, numberOfChannels: 2 }
+                  : { codec: 'opus', sampleRate: 48000, numberOfChannels: 2 },
+            });
+            invariant(
+              conversion.isValid,
+              'UNSUPPORTED_CODEC',
+              'Cannot generate derivative',
+            );
+            const lost = conversion.discardedTracks.filter((t) =>
+              kind === 'pcm'
+                ? t.track.isAudioTrack()
+                : t.track.isAudioTrack() || t.track.isVideoTrack(),
+            );
+            invariant(
+              !lost.length,
+              'UNSUPPORTED_CODEC',
+              'Derivative would drop required stream',
+            );
+            conversion.onProgress = (v) => {
+              checkAbort(signal);
+              progress({ stage: kind, progress: v });
+            };
+            checkAbort(signal);
+            await conversion.execute();
+            checkAbort(signal);
+            await target.close();
+            const file = await store.file(path);
+            await store.cache({
+              id,
+              assetId,
+              path,
+              size: file.size,
+              accessed: Date.now(),
+              kind,
+            });
+            await store.finishJournal(jobId);
+            return file;
+          } catch (e) {
+            await conversion?.cancel().catch(() => {});
+            await target?.abort();
+            await store.remove(path);
+            await store.finishJournal(jobId);
+            throw e;
+          } finally {
+            signal.removeEventListener('abort', cancel);
+            input.dispose();
+          }
+        },
+        signal,
+      );
+    },
+    signal,
+  );
 }
 export async function thumbnails(
   store: Store,

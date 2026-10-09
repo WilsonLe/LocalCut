@@ -325,17 +325,23 @@ export class Renderer {
         if (!asset.audioCodec) continue;
         if (!this.leases.has(id))
           this.leases.set(id, await this.store.lease('asset:' + id));
-        this.pcm.set(
-          id,
-          await convertCache(
-            this.store,
+        try {
+          this.pcm.set(
             id,
-            'pcm',
-            signal,
-            this.audioProgress,
-            crypto.randomUUID(),
-          ),
-        );
+            await convertCache(
+              this.store,
+              id,
+              'pcm',
+              signal,
+              this.audioProgress,
+              crypto.randomUUID(),
+            ),
+          );
+        } catch (error) {
+          this.leases.get(id)?.();
+          this.leases.delete(id);
+          throw error;
+        }
       }
 
     for (const track of this.project.tracks) {

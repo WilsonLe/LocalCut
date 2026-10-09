@@ -5,7 +5,9 @@ Dependencies retain their upstream licenses in installed packages. Copies for th
 - React: Meta Platforms and contributors, MIT.
 - Tailwind CSS: Tailwind Labs, MIT.
 - shadcn/ui and Base UI: upstream contributors, MIT.
-- Zod, idb, Mediabunny: their respective contributors, MIT.
+- Zod: upstream contributors, MIT.
+- idb: Jake Archibald and contributors, ISC.
+- Mediabunny: Vanilagy and contributors, MPL-2.0.
 - Transformers.js: Hugging Face and contributors, Apache-2.0.
 - ONNX Runtime: Microsoft and contributors, MIT.
 - Whisper: OpenAI and contributors, MIT. The pinned Xenova/whisper-tiny model conversion declares Apache-2.0 in its model card. Model card: https://huggingface.co/Xenova/whisper-tiny. Pinned revision: 5332fcc35e32a33b86612b9a57a89be7906102b1.

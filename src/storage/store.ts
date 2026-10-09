@@ -3,8 +3,8 @@ import type { IDBPDatabase } from 'idb';
 import { asEditorError, EditorError, invariant } from '../core/errors';
 import { applyOperations, canonical, parseBatch } from '../core/commands';
 import type { CommandBatch, EditReceipt } from '../core/commands';
-import { assetIds, validateProject } from '../core/model';
-import type { Asset, Project, Transcript } from '../core/model';
+import { assetIds, validateProject, validateBackup } from '../core/model';
+import type { Asset, Project, Transcript, ProjectBackup } from '../core/model';
 interface RecordState {
   project: Project;
   undo: Project[];
@@ -19,6 +19,7 @@ export interface Journal {
   id: string;
   target: string;
   kind: 'import' | 'export' | 'derivative';
+  committed?: boolean;
 }
 export interface Derivative {
   id: string;
@@ -73,8 +74,13 @@ export class Store {
     key: string,
     mode: 'exclusive' | 'shared',
     fn: () => Promise<T>,
+    signal?: AbortSignal,
   ): Promise<T> {
-    return navigator.locks.request(`${this.namespace}:${key}`, { mode }, fn);
+    return navigator.locks.request(
+      `${this.namespace}:${key}`,
+      { mode, signal },
+      fn,
+    );
   }
   async lease(key: string): Promise<() => void> {
     let release!: () => void;
@@ -107,6 +113,89 @@ export class Store {
       redo: [],
     });
     return value;
+  }
+  async backup(id: string): Promise<ProjectBackup> {
+    const tx = this.db.transaction(['projects', 'assets', 'transcripts']);
+    const state = (await tx.objectStore('projects').get(id)) as
+      RecordState | undefined;
+    invariant(state, 'NOT_FOUND', 'Project missing');
+    const project = validateProject(state.project);
+    const transcriptIds = [
+      ...new Set(
+        project.tracks.flatMap((t) =>
+          t.clips.flatMap((c) => (c.transcriptId ? [c.transcriptId] : [])),
+        ),
+      ),
+    ];
+    const transcripts = await Promise.all(
+      transcriptIds.map(
+        (id) => tx.objectStore('transcripts').get(id) as Promise<Transcript>,
+      ),
+    );
+    const ids = [
+      ...new Set([
+        ...assetIds(project),
+        ...transcripts.filter(Boolean).map((t) => t.assetId),
+      ]),
+    ];
+    const assets = await Promise.all(
+      ids.map((id) => tx.objectStore('assets').get(id) as Promise<Asset>),
+    );
+    await tx.done;
+    return validateBackup({ backupVersion: 1, project, assets, transcripts });
+  }
+  async restore(value: unknown) {
+    const backup = validateBackup(value);
+    const assets = new Map(
+      backup.assets.map((a) => [a.id, crypto.randomUUID()]),
+    );
+    const transcripts = new Map(
+      backup.transcripts.map((t) => [t.id, crypto.randomUUID()]),
+    );
+    const project = validateProject({
+      ...backup.project,
+      id: crypto.randomUUID(),
+      revision: 0,
+      tracks: backup.project.tracks.map((t) => ({
+        ...t,
+        clips: t.clips.map((c) => ({
+          ...c,
+          ...(c.assetId ? { assetId: assets.get(c.assetId) } : {}),
+          ...(c.transcriptId
+            ? { transcriptId: transcripts.get(c.transcriptId) }
+            : {}),
+        })),
+      })),
+    });
+    const tx = this.db.transaction(
+      ['projects', 'assets', 'transcripts'],
+      'readwrite',
+    );
+    try {
+      await tx
+        .objectStore('projects')
+        .add({ id: project.id, project, undo: [], redo: [] });
+      for (const asset of backup.assets)
+        await tx
+          .objectStore('assets')
+          .add({ ...asset, id: assets.get(asset.id)!, status: 'missing' });
+      for (const transcript of backup.transcripts)
+        await tx.objectStore('transcripts').add({
+          ...transcript,
+          id: transcripts.get(transcript.id)!,
+          assetId: assets.get(transcript.assetId)!,
+        });
+      await tx.done;
+      return project;
+    } catch (error) {
+      try {
+        tx.abort();
+      } catch {
+        /* Already aborted. */
+      }
+      await tx.done.catch(() => {});
+      throw asEditorError(error);
+    }
   }
   async list(): Promise<Project[]> {
     return ((await this.db.getAll('projects')) as RecordState[]).map((r) =>
@@ -302,7 +391,11 @@ export class Store {
         { ifAvailable: true },
         async (lock) => {
           if (!lock) return;
-          if (j.kind === 'import' && (await this.db.get('assets', j.target))) {
+          if (
+            j.kind === 'import' &&
+            j.committed &&
+            (await this.db.get('assets', j.target))
+          ) {
             await this.finishJournal(j.id);
             return;
           }
@@ -348,7 +441,9 @@ export class Store {
       let size = records.reduce((n, d) => n + d.size, 0);
       const limit = Math.min(
         512 * 1024 * 1024,
-        Math.max(0, available + size - reserveBytes),
+        reserveBytes === Infinity
+          ? 0
+          : Math.max(0, available + size - reserveBytes),
       );
       for (const r of records) {
         if (size <= limit) break;

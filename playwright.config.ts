@@ -10,6 +10,7 @@ export default defineConfig({
   use: {
     baseURL: `http://127.0.0.1:${process.env.LOCALCUT_TEST_PORT ?? 4178}`,
     channel: 'chrome',
+    launchOptions: { executablePath: process.env.LOCALCUT_CHROME_EXECUTABLE },
     trace: 'retain-on-failure',
   },
   webServer: {

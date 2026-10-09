@@ -1,15 +1,17 @@
 import type { Project } from '../core/model';
 import { durationUs } from '../core/model';
-import { EditorError, invariant } from '../core/errors';
+import { EditorError, invariant, asEditorError } from '../core/errors';
 export interface FrameResult {
   timeUs: number;
   revision: number;
   image: ImageBitmap;
 }
 export interface PreviewSession {
+  /** Resolves after initial audio scheduling and video presentation succeed. */
   play(): Promise<void>;
   pause(): void;
   seek(timeUs: number): Promise<void>;
+  onError(listener: (error: EditorError) => void): () => void;
   readonly currentTimeUs: number;
   dispose(): void;
 }
@@ -32,10 +34,20 @@ export function createPreviewSession(
     disposed = false,
     animation = 0,
     generation = 0,
-    audioFrame = 0,
-    pumpBusy = false;
+    audioFrame = 0;
   let controller = new AbortController();
+  const listeners = new Set<(error: EditorError) => void>();
   const sources = new Set<AudioBufferSourceNode>();
+  const report = (error: unknown) => {
+    const structured = asEditorError(error);
+    for (const listener of listeners) {
+      try {
+        listener(structured);
+      } catch {
+        /* Consumer isolation. */
+      }
+    }
+  };
   const stop = () => {
     playing = false;
     generation++;
@@ -48,77 +60,75 @@ export function createPreviewSession(
       } catch {
         /* Already stopped. */
       }
+      source.disconnect();
     }
     sources.clear();
   };
   const time = () =>
     playing
-      ? Math.min(
-          durationUs(snapshot!),
-          position + (audioContext.currentTime - origin) * 1e6,
+      ? Math.max(
+          0,
+          Math.min(
+            durationUs(snapshot!),
+            position + (audioContext.currentTime - origin) * 1e6,
+          ),
         )
       : position;
   const present = async (p: Project, t: number, token: number) => {
     const result = await frame(p, t, controller.signal);
     try {
-      if (token === generation && !disposed) {
+      if (token === generation && !disposed)
         canvas
           .getContext('2d')!
           .drawImage(result.image, 0, 0, canvas.width, canvas.height);
-      }
     } finally {
       result.image.close();
     }
   };
-  const pump = async () => {
-    if (pumpBusy || !playing || !snapshot) return;
-    pumpBusy = true;
-    const token = generation;
-    try {
-      const until = Math.min(durationUs(snapshot), time() + 500000),
-        limit = Math.ceil((until * 48000) / 1e6);
-      while (playing && token === generation && audioFrame < limit) {
-        const count = Math.min(12000, limit - audioFrame),
-          start = audioFrame;
-        const channels = await audio(snapshot, start, count, controller.signal);
-        if (!playing || token !== generation) break;
-        const buffer = audioContext.createBuffer(2, count, 48000);
-        for (let i = 0; i < 2; i++)
-          buffer.copyToChannel(new Float32Array(channels[i]!), i);
-        const source = audioContext.createBufferSource();
-        source.buffer = buffer;
-        source.connect(audioContext.destination);
-        sources.add(source);
-        source.onended = () => {
-          sources.delete(source);
-          source.disconnect();
-        };
-        source.start(
-          Math.max(
-            audioContext.currentTime,
-            origin + (start / 48000 - position / 1e6),
-          ),
-        );
-        audioFrame += count;
-      }
-    } finally {
-      pumpBusy = false;
+  const pump = async (token: number) => {
+    if (!playing || !snapshot || token !== generation) return;
+    const until = Math.min(durationUs(snapshot), time() + 500000),
+      limit = Math.ceil((until * 48000) / 1e6);
+    while (playing && token === generation && audioFrame < limit) {
+      const count = Math.min(12000, limit - audioFrame),
+        start = audioFrame;
+      const channels = await audio(snapshot, start, count, controller.signal);
+      if (!playing || token !== generation) break;
+      const buffer = audioContext.createBuffer(2, count, 48000);
+      for (let i = 0; i < 2; i++)
+        buffer.copyToChannel(new Float32Array(channels[i]!), i);
+      const source = audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioContext.destination);
+      sources.add(source);
+      source.onended = () => {
+        sources.delete(source);
+        source.disconnect();
+      };
+      source.start(
+        Math.max(
+          audioContext.currentTime,
+          origin + (start / 48000 - position / 1e6),
+        ),
+      );
+      audioFrame += count;
     }
   };
-  const tick = async () => {
-    if (!playing || !snapshot) return;
-    const token = generation,
-      t = time();
+  const tick = async (token: number) => {
+    if (!playing || !snapshot || token !== generation) return;
+    const t = time();
     try {
-      await pump();
+      await pump(token);
       if (token !== generation) return;
       await present(snapshot, t, token);
-    } catch (e) {
+    } catch (error) {
       if (playing && token === generation) {
         position = time();
         stop();
-        throw e;
+        report(error);
+        throw asEditorError(error);
       }
+      return;
     }
     if (!playing || token !== generation) return;
     if (t >= durationUs(snapshot)) {
@@ -127,13 +137,15 @@ export function createPreviewSession(
       return;
     }
     animation = requestAnimationFrame(() => {
-      void tick().catch(() => {});
+      // tick reports failures before rejecting; background promises are observed.
+      void tick(token).catch(() => {});
     });
   };
   return {
     async play() {
       invariant(!disposed, 'DISPOSED', 'Preview disposed');
       if (playing) return;
+      const token = ++generation;
       if (audioContext.state !== 'running') {
         if (!navigator.userActivation.hasBeenActive)
           throw new EditorError(
@@ -147,13 +159,37 @@ export function createPreviewSession(
         'PLAYBACK_BLOCKED',
         'Audio context is suspended',
       );
-      snapshot = await project();
+      const p = await project();
+      if (token !== generation || disposed) return;
+      snapshot = p;
       if (position >= durationUs(snapshot)) position = 0;
+      // Prepare the first bounded block before starting the clock. Lazy decoding
+      // must not consume timeline time while the first audio cache is built.
+      try {
+        const count = Math.min(
+          12000,
+          Math.ceil(((durationUs(snapshot) - position) * 48000) / 1e6),
+        );
+        if (count > 0)
+          await audio(
+            snapshot,
+            Math.round((position * 48000) / 1e6),
+            count,
+            controller.signal,
+          );
+        if (token !== generation || disposed) return;
+        await present(snapshot, position, token);
+      } catch (error) {
+        if (token !== generation || disposed) return;
+        stop();
+        report(error);
+        throw asEditorError(error);
+      }
+      if (token !== generation || disposed) return;
       origin = audioContext.currentTime + 0.05;
       audioFrame = Math.round((position * 48000) / 1e6);
       playing = true;
-      generation++;
-      void tick().catch(() => {});
+      await tick(token);
     },
     pause() {
       if (playing) position = time();
@@ -161,19 +197,29 @@ export function createPreviewSession(
     },
     async seek(timeUs) {
       invariant(!disposed, 'DISPOSED', 'Preview disposed');
-      snapshot = await project();
+      const resume = playing;
+      stop();
+      const token = generation;
+      const p = await project();
+      if (token !== generation || disposed) return;
       invariant(
-        Number.isSafeInteger(timeUs) &&
-          timeUs >= 0 &&
-          timeUs <= durationUs(snapshot),
+        Number.isSafeInteger(timeUs) && timeUs >= 0 && timeUs <= durationUs(p),
         'INVALID_COMMAND',
         'Seek outside project',
       );
-      const resume = playing;
-      stop();
+      snapshot = p;
       position = timeUs;
-      await present(snapshot, timeUs, generation);
-      if (resume) await this.play();
+      try {
+        await present(p, timeUs, token);
+      } catch (error) {
+        if (token === generation && !disposed) throw error;
+      }
+      if (resume && token === generation && !disposed) await this.play();
+    },
+    onError(listener) {
+      invariant(!disposed, 'DISPOSED', 'Preview disposed');
+      listeners.add(listener);
+      return () => listeners.delete(listener);
     },
     get currentTimeUs() {
       return Math.round(time());
@@ -181,6 +227,7 @@ export function createPreviewSession(
     dispose() {
       disposed = true;
       stop();
+      listeners.clear();
     },
   };
 }

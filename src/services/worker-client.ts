@@ -4,7 +4,7 @@ interface Response {
   id: string;
   kind: 'progress' | 'result' | 'error';
   data?: unknown;
-  error?: { code: string; message: string };
+  error?: { code: string; message: string; details?: Record<string, unknown> };
 }
 export class WorkerClient {
   private worker?: Worker;
@@ -44,6 +44,7 @@ export class WorkerClient {
             new EditorError(
               (data.error?.code ?? 'WORKER_FAILED') as EditorError['code'],
               data.error?.message ?? 'Worker error',
+              data.error?.details,
             ),
           );
         else task.resolve(data.data);

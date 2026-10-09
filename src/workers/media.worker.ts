@@ -115,7 +115,8 @@ self.onmessage = ({ data }: MessageEvent<Request>) => {
             preview.project.id !== p.project.id ||
             preview.project.revision !== p.project.revision ||
             preview.store.namespace !== p.namespace ||
-            preview.canvas.width !== (p.width ?? p.project.width)
+            preview.canvas.width !== (p.width ?? p.project.width) ||
+            preview.canvas.height !== (p.height ?? p.project.height)
           ) {
             preview?.dispose();
             preview?.store.close();
@@ -175,11 +176,16 @@ self.onmessage = ({ data }: MessageEvent<Request>) => {
       checkAbort(controller.signal);
       self.postMessage({ id: data.id, kind: 'result', data: result }, transfer);
     } catch (error) {
+      if (data.operation === 'frame' || data.operation === 'audio') {
+        preview?.dispose();
+        preview?.store.close();
+        preview = undefined;
+      }
       const e = asEditorError(error);
       self.postMessage({
         id: data.id,
         kind: 'error',
-        error: { code: e.code, message: e.message },
+        error: { code: e.code, message: e.message, details: e.details },
       });
     } finally {
       store?.close();

@@ -155,7 +155,7 @@ export async function createEditor(options: EditorOptions = {}) {
       },
       async exportJSON(id: string) {
         active();
-        return JSON.stringify(await store.getProject(id), null, 2);
+        return JSON.stringify(await store.backup(id), null, 2);
       },
       async importJSON(text: string) {
         active();
@@ -165,10 +165,17 @@ export async function createEditor(options: EditorOptions = {}) {
         } catch {
           throw new EditorError('INVALID_DOCUMENT', 'Invalid project JSON');
         }
-        const p = validateProject(value);
-        p.id = crypto.randomUUID();
-        p.revision = 0;
-        return store.create(p);
+        let p: Project;
+        if (value && typeof value === 'object' && 'backupVersion' in value)
+          p = await store.restore(value);
+        else {
+          p = validateProject(value);
+          p.id = crypto.randomUUID();
+          p.revision = 0;
+          p = await store.create(p);
+        }
+        notify({ projectId: p.id, revision: p.revision, type: 'changed' });
+        return p;
       },
     },
     assets: {

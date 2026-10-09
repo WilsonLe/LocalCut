@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { newProject, clipSchema, validateProject } from '../../src/core/model';
+import {
+  newProject,
+  clipSchema,
+  validateProject,
+  validateBackup,
+} from '../../src/core/model';
 import {
   applyOperations,
   canonical,
@@ -228,4 +233,33 @@ it('preserves gain and fade continuity when splitting inside fades', () => {
     const part = t < 500000 ? split[0]! : split[1]!;
     expect(gainAt(part, t)).toBeCloseTo(gainAt(c, t), 10);
   }
+});
+it('rejects runtime project settings that could overwrite revision or identity', () => {
+  expect(() => newProject('injection', { revision: 99 } as never)).toThrow();
+  expect(newProject('valid', { width: 640 }).revision).toBe(0);
+});
+
+it('rejects backup source bounds before publishing any records', () => {
+  expect(() =>
+    validateBackup({
+      backupVersion: 1,
+      project: project(),
+      transcripts: [],
+      assets: [
+        {
+          id: 'asset',
+          name: 'short',
+          kind: 'video',
+          type: 'video/webm',
+          size: 1,
+          durationUs: 1000000,
+          width: 1920,
+          height: 1080,
+          rotation: 0,
+          videoCodec: 'vp9',
+          status: 'ready',
+        },
+      ],
+    }),
+  ).toThrow('exceeds source duration');
 });

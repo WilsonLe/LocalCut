@@ -129,30 +129,110 @@ export type Parameter = z.infer<typeof parameterSchema>;
 export type Keyframe = z.infer<typeof keyframeSchema>;
 export type ClipInput = z.input<typeof clipSchema>;
 export type TrackInput = z.input<typeof trackSchema>;
-export interface Asset {
-  id: string;
-  name: string;
-  kind: 'video' | 'audio' | 'image';
-  size: number;
-  type: string;
-  durationUs: number;
-  width: number;
-  height: number;
-  rotation: number;
-  frameRate?: number;
-  videoCodec?: string;
-  audioCodec?: string;
-  sampleRate?: number;
-  channels?: number;
-  status: 'ready';
-}
-export interface Transcript {
-  id: string;
-  assetId: string;
-  model: string;
-  revision: string;
-  language?: string;
-  cues: Cue[];
+export const assetSchema = z
+  .object({
+    id,
+    name: z.string(),
+    kind: z.enum(['video', 'audio', 'image']),
+    size: time,
+    type: z.string(),
+    durationUs: time,
+    width: finite.nonnegative(),
+    height: finite.nonnegative(),
+    rotation: finite,
+    frameRate: finite.positive().optional(),
+    videoCodec: z.string().optional(),
+    audioCodec: z.string().optional(),
+    sampleRate: finite.positive().optional(),
+    channels: z.number().int().positive().optional(),
+    status: z.enum(['ready', 'missing']),
+  })
+  .strict();
+export const transcriptSchema = z
+  .object({
+    id,
+    assetId: id,
+    model: z.string(),
+    revision: z.string(),
+    language: z.string().optional(),
+    cues: z.array(cueSchema),
+  })
+  .strict();
+export const backupSchema = z
+  .object({
+    backupVersion: z.literal(1),
+    project: projectSchema,
+    assets: z.array(assetSchema),
+    transcripts: z.array(transcriptSchema),
+  })
+  .strict();
+export type Asset = z.infer<typeof assetSchema>;
+export type Transcript = z.infer<typeof transcriptSchema>;
+export type ProjectBackup = z.infer<typeof backupSchema>;
+export function validateBackup(value: unknown): ProjectBackup {
+  const result = backupSchema.safeParse(value);
+  if (!result.success)
+    throw new EditorError('INVALID_DOCUMENT', result.error.message);
+  const backup = result.data;
+  validateProject(backup.project);
+  const assets = new Map(backup.assets.map((a) => [a.id, a]));
+  const transcripts = new Map(backup.transcripts.map((t) => [t.id, t]));
+  invariant(
+    assets.size === backup.assets.length &&
+      transcripts.size === backup.transcripts.length,
+    'INVALID_DOCUMENT',
+    'Duplicate backup records',
+  );
+  for (const assetId of assetIds(backup.project))
+    invariant(
+      assets.has(assetId),
+      'INVALID_DOCUMENT',
+      'Backup lacks asset metadata',
+    );
+  for (const clip of backup.project.tracks.flatMap((t) => t.clips)) {
+    if (clip.assetId) {
+      const asset = assets.get(clip.assetId)!;
+      invariant(
+        clip.kind === 'image'
+          ? asset.kind === 'image'
+          : clip.kind === 'video'
+            ? asset.kind === 'video'
+            : clip.kind === 'audio'
+              ? !!asset.audioCodec
+              : true,
+        'INVALID_DOCUMENT',
+        'Backup clip and source types differ',
+      );
+      invariant(
+        !clip.sourceOutUs || clip.sourceOutUs <= asset.durationUs,
+        'INVALID_DOCUMENT',
+        'Backup clip exceeds source duration',
+      );
+    }
+    if (!clip.transcriptId) continue;
+    const transcript = transcripts.get(clip.transcriptId);
+    invariant(
+      transcript && transcript.assetId === clip.assetId,
+      'INVALID_DOCUMENT',
+      'Backup lacks matching transcript',
+    );
+  }
+  for (const transcript of backup.transcripts) {
+    const asset = assets.get(transcript.assetId);
+    invariant(asset, 'INVALID_DOCUMENT', 'Transcript lacks source metadata');
+    let previous = -1;
+    for (const cue of transcript.cues) {
+      invariant(
+        cue.timeUs >= previous &&
+          cue.endUs > cue.timeUs &&
+          cue.endUs <= asset.durationUs,
+        'INVALID_DOCUMENT',
+        'Invalid source transcript timing',
+      );
+      previous = cue.timeUs;
+    }
+  }
+  return backup;
 }
 export function validateProject(value: unknown): Project {
   const result = projectSchema.safeParse(value);
@@ -306,6 +386,13 @@ export function newProject(
   name: string,
   settings: Partial<Pick<Project, 'width' | 'height' | 'frameRate'>> = {},
 ): Project {
+  const parsed = projectSchema
+    .pick({ width: true, height: true, frameRate: true })
+    .partial()
+    .strict()
+    .safeParse(settings);
+  if (!parsed.success)
+    throw new EditorError('INVALID_DOCUMENT', parsed.error.message);
   return validateProject({
     schemaVersion: 1,
     id: crypto.randomUUID(),
@@ -317,7 +404,7 @@ export function newProject(
     audio: { sampleRate: 48000, channels: 2 },
     tracks: [],
     transitions: [],
-    ...settings,
+    ...parsed.data,
   });
 }
 export function durationUs(project: Project): number {
