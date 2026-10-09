@@ -119,7 +119,7 @@ Errors use stable `AiError.code` values: authentication/expiry, credits, rate li
 
 ## Verification
 
-`pnpm check` includes unit protocol/auth/controller tests, both static builds and production Chrome integration with intercepted OpenRouter responses and the real local editor. Interception makes deterministic failure-path tests possible; it does not prove authenticated live provider behavior. Tests cover privacy redaction, OAuth callback reload, explicit proposal/apply/Undo and persistence, stale revisions, idempotency, cancellation, malformed streams, credential races, resource bounds and inert imports. The initial workspace graph excludes both optional entries and all AI dependencies count toward the aggregate budget.
+Local `pnpm check` includes unit protocol/auth/controller tests, both static builds and production Chrome integration with intercepted OpenRouter responses and the real local editor. Interception makes deterministic failure-path tests possible; it does not prove authenticated live provider behavior. Tests cover privacy redaction, OAuth callback reload, explicit proposal/apply/Undo and persistence, stale revisions, idempotency, cancellation, malformed streams, credential races, resource bounds and inert imports. The initial workspace graph excludes both optional entries and all AI dependencies count toward the aggregate budget.
 
 The public catalog and CORS were checked without a key on 2026-10-10 (Sydney): model GET returned 200, and auth/chat OPTIONS returned 204 permitting bearer-header browser calls. This verifies public connectivity only.
 
@@ -129,6 +129,6 @@ For a separately authorized real-provider acceptance run, inject a user-owned ke
 LOCALCUT_OPENROUTER_LIVE=1 LOCALCUT_OPENROUTER_MODEL=provider/model pnpm test:ai:live
 ```
 
-`OPENROUTER_API_KEY` must already be set securely; never paste a real key into a tracked script or command history. This command can incur provider charges. It asks for one synthetic track, validates the returned proposal, applies it through the actual engine and undoes it. Missing opt-in/key/model fails before any provider request, rather than becoming a passing skip. Tracing, screenshots, videos and response attachments are disabled for this suite. Normal CI never needs or receives a real provider key. OAuth login/consent still needs an interactive account test with an authorized user account.
+`OPENROUTER_API_KEY` must already be set securely; never paste a real key into a tracked script or command history. This local command can incur provider charges. It asks for one synthetic track, validates the returned proposal, applies it through the actual engine and undoes it. Missing opt-in/key/model fails before any provider request, rather than becoming a passing skip. Tracing, screenshots, videos and response attachments are disabled for this suite. Normal local checks never need a real provider key. OAuth login/consent still needs an interactive account test with an authorized user account.
 
 No model account, backend or schema migration is included. Rollback consists of reverting the additive AI module/build/docs changes; existing project documents remain compatible.

@@ -2,7 +2,7 @@
 
 Start with the [contributor contract](../AGENTS.md) and, for workspace changes, [user preferences](user-preferences.md). Use the pinned setup and [command table](../README.md#setup). Work in an issue-linked isolated feature worktree; reuse the task's existing worktree and draft PR when continuing a change.
 
-Verify Node 24, pnpm 11.25.0, and installed stable Google Chrome once, then reuse that setup throughout the iteration. Run `pnpm install --frozen-lockfile` when dependencies are missing or the lockfile changes; do not reinstall or download a browser after every edit. The [CI Chrome installer](../scripts/install-chrome.mjs) provisions signed desktop Chrome. Generic Playwright Chromium does not satisfy the native codec acceptance gate.
+Verify Node 24, pnpm 11.25.0, and installed stable Google Chrome once, then reuse that setup throughout the iteration. Run `pnpm install --frozen-lockfile` when dependencies are missing or the lockfile changes; do not reinstall or download a browser after every edit. Generic Playwright Chromium does not satisfy the native codec acceptance gate.
 
 ## Read guidance at the file's scope
 
@@ -21,7 +21,7 @@ Read the root `AGENTS.md`, then the guides in the target file's ancestor directo
 | [`src/services/`](../src/services/AGENTS.md), [`src/workers/`](../src/workers/AGENTS.md)                                                         | Preview clock, job/worker transport, and local media/transcription execution.                        |
 | [`src/ai/`](../src/ai/AGENTS.md)                                                                                                                 | Optional OpenRouter authentication, transport, context policy, and proposed edits.                   |
 | [`tests/`](../tests/AGENTS.md): [`unit/`](../tests/unit/AGENTS.md), [`browser/`](../tests/browser/AGENTS.md), [`live/`](../tests/live/AGENTS.md) | Pure/service tests, production Chrome acceptance, and opt-in paid-provider acceptance.               |
-| [`scripts/`](../scripts/AGENTS.md), [`.github/workflows/`](../.github/workflows/AGENTS.md)                                                       | Builds, verified build reuse, test server, artifact checks, and CI.                                  |
+| [`scripts/`](../scripts/AGENTS.md), [`.github/workflows/`](../.github/workflows/AGENTS.md)                                                       | Local builds/checks, verified build reuse, test server, and manual Pages deployment.                 |
 
 See [architecture](architecture.md) and [API contracts](api.md) before crossing a boundary. Preserve the existing owner instead of duplicating project state in a control or transport.
 
@@ -58,7 +58,7 @@ For documentation-only edits, check formatting and the referenced files/commands
 
 ## Expand verification at the boundary
 
-Run `pnpm check` before handing off code changes and after changes to shared contracts, dependencies, build configuration, or the test pipeline. It always runs formatting, lint, types, units, both production builds, bundle budgets, and the complete normal Chrome suite. Focused checks make the iteration fast; they do not replace this integration gate.
+Run `pnpm check` locally before handing off code changes and after changes to shared contracts, dependencies, build configuration, or the test pipeline. It always runs formatting, lint, types, units, both production builds, bundle budgets, and the complete normal Chrome suite. Focused checks make the iteration fast; they do not replace this integration gate. Hosted CI is disabled; local results are the acceptance evidence.
 
 Follow [validation](validation.md) for real transcription/cached replay and the five-minute export gate before implementation handoff, and whenever changes affect those capabilities. They are explicit `pnpm test:transcription` and `pnpm test:performance` commands, outside normal `check`. Real-provider testing is separately opt-in; read [AI privacy and live-test requirements](ai.md) before `pnpm test:ai:live`. Report missing capabilities or failed gates directly.
 
@@ -69,11 +69,11 @@ Normal Chrome tests use two workers. Set `LOCALCUT_BROWSER_WORKERS=1` for serial
 - Give engine tests unique namespaces, following `test-` plus `crypto.randomUUID()` in existing browser specs. Dispose sessions, engines, and returned artifacts. Follow [storage ownership](storage.md); never clear an origin's unrelated data.
 - Coordinate one owner for each test server and output directory. The default test port is 4178; for a separate run, use an available port, for example `LOCALCUT_TEST_PORT=4185 pnpm test:browser tests/browser/recovery.spec.ts`. A different port does not isolate `dist`, `dist-root`, or reports.
 - Finish builds before starting browser acceptance. Do not write either production output directory while another test is using it. Distinct worktrees or serialized runs avoid that conflict; evidence belongs to the build tested.
-- Read the failing assertion and retained trace in `test-results/`, plus the HTML report in `playwright-report/`, before retrying. CI archives failure artifacts. Preserve the command, revision, base path, and observed values; timing failures need actual clock values, not just a boolean result.
+- Read the failing assertion and retained trace in `test-results/`, plus the HTML report in `playwright-report/`, before retrying. Retain these local artifacts when recording a failure. Preserve the command, revision, base path, and observed values; timing failures need actual clock values, not just a boolean result.
 - Fix the identified cause and rerun the affected scenario. Broaden only when the change reaches another owner or a remaining failure needs it. Resume successful work from its artifacts instead of restarting the complete suite after every edit.
 
 ## Review and delivery
 
 Keep the issue, draft PR, implementation, and evidence aligned. Run exactly one automatic independent review cycle for the candidate. Address its findings and run targeted revalidation plus any affected integration gates; do not automatically start another review of those fixes. Record remaining limitations and the checks actually run.
 
-Merge and deployment require separate authorization. Follow [deployment and rollback](../DEPLOY.md) for the release gate; a local pass or review approval does not prove hosted CI, merge, or deployment succeeded.
+Merge and deployment require separate authorization. Follow [deployment and rollback](../DEPLOY.md) for the release gate; a local pass or review approval does not prove merge or deployment succeeded.

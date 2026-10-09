@@ -1,8 +1,10 @@
 # Local acceptance evidence
 
+Current acceptance runs locally, as described in [validation](validation.md). Hosted CI is disabled; earlier hosted checks linked from release history remain historical evidence for those revisions. Manual Pages deployment and its live verification remain separate.
+
 ## Conversation-led workspace
 
-The workspace on top of OpenRouter integration commit `4c1ef4c6d62023df01e685a4919aff2597aa3dcd` passed `pnpm check`: formatting, lint, four TypeScript scopes, 295 unit tests, both production builds, bundle budgets, and 39 production-browser tests in installed Google Chrome 155.0.8059.40. These are local checks; hosted checks and deployment are separate.
+The workspace on top of OpenRouter integration commit `4c1ef4c6d62023df01e685a4919aff2597aa3dcd` passed `pnpm check`: formatting, lint, four TypeScript scopes, 295 unit tests, both production builds, bundle budgets, and 39 production-browser tests in installed Google Chrome 155.0.8059.40. These are local checks and do not confirm deployed behavior.
 
 Browser coverage includes inert startup, both hosting paths, local image/audio/video import, real preview/playback/seek, properties and history, reload/reopen, actual MP4/WebM download and decoding, cancellation, and responsive layouts down to 320 px. Controlled OpenRouter responses verify explicit sharing, reviewed proposal application, stale-proposal rejection, cancelled streaming, retry, and both OAuth callback paths. Additional regressions cover exact source bounds at fractional durations, concurrent manual edits, long-reply scrolling, animated collapse/expand without losing the conversation, reduced motion, grouped menus and keyboard focus. No paid provider inference or interactive account consent was exercised.
 
@@ -18,7 +20,7 @@ The same 39 normal Chrome tests passed in 62.86 seconds with one worker and 33.0
 
 The following foundation measurements describe the earlier headless release. Current workspace delivery is tracked in issue #16 and its linked PR.
 
-Validated in installed Google Chrome 155.0.8059.40 on macOS arm64, Node 24.21.0 and pnpm 11.25.0. These are local checks; hosted CI and deployed behavior need separate readback.
+Validated in installed Google Chrome 155.0.8059.40 on macOS arm64, Node 24.21.0 and pnpm 11.25.0. These are historical local checks; deployed behavior needs separate readback.
 
 - pnpm check passed formatting, lint, four strict TypeScript scopes, 128 unit tests, both production builds, artifact budgets, and 16 Chrome integration tests.
 - Real quantized Whisper inference passed against the attributed speech fixture and a 33-second repeated fixture crossing a window boundary. Active inference cancellation saved no transcript; a fresh worker performed automatic language detection with exact source bounds and backup linkage. Reloaded inference used a fresh worker with remote hosts blocked. Preparation/readiness verified pinned model and WASM checksums.
