@@ -25,4 +25,5 @@ This is the project record of the user's durable product and workflow choices. U
 - Pull and rebase onto current `main`, including the OpenRouter integration, before completing the workspace.
 - Optimize tests for fast feedback. Prefer targeted tests while iterating and bounded parallelism where isolation allows it; retain required full acceptance before delivery. Do not trade away real Chrome, codec, transcription, privacy or export evidence for speed.
 - Keep agent instructions and developer documentation useful and current. Make one development cycle fast with clear module ownership, focused checks, verified build reuse, failure recovery, and one automatic review-and-address cycle; avoid redundant full checks or repeated reviews when the relevant inputs have not changed.
+- Nest `AGENTS.md` files at directory and subdirectory ownership boundaries so instructions stay scoped to the code being changed. Keep the root brief and shared rules in parent guides; do not duplicate a full global guide in each module.
 - Keep these preferences recorded here and preserve the user's separate merge/deployment authorization boundaries.

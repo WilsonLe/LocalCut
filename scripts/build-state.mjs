@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
-import { dirname, join, relative } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -60,7 +60,10 @@ export async function inputHash(build) {
     .map((name) => join(root, name));
   const files = [
     ...rootFiles,
-    ...(await filesIn(join(root, 'src'))),
+    // Agent instructions are development metadata, never production inputs.
+    ...(await filesIn(join(root, 'src'))).filter(
+      (file) => basename(file) !== 'AGENTS.md',
+    ),
     ...(await filesIn(join(root, 'public'))),
     ...['build.mjs', 'build-state.mjs'].map((name) =>
       join(root, 'scripts', name),

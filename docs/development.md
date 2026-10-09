@@ -4,20 +4,24 @@ Start with the [contributor contract](../AGENTS.md) and, for workspace changes, 
 
 Verify Node 24, pnpm 11.25.0, and installed stable Google Chrome once, then reuse that setup throughout the iteration. Run `pnpm install --frozen-lockfile` when dependencies are missing or the lockfile changes; do not reinstall or download a browser after every edit. The [CI Chrome installer](../scripts/install-chrome.mjs) provisions signed desktop Chrome. Generic Playwright Chromium does not satisfy the native codec acceptance gate.
 
+## Read guidance at the file's scope
+
+Read the root `AGENTS.md`, then the guides in the target file's ancestor directories. For `src/workspace/Conversation.tsx`, that is root → `src/AGENTS.md` → `src/workspace/AGENTS.md`; for a browser test, root → `tests/AGENTS.md` → `tests/browser/AGENTS.md`. Parent rules remain in force; local guides add module-specific responsibilities and check selection. Keep a new rule at the narrowest shared owner instead of copying it across guides.
+
 ## Find the owner
 
-| Directory                                          | Responsibility                                                                                       |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `src/workspace/`                                   | Conversation, preview, timeline, settings, and their UI state; editing goes through the shared APIs. |
-| `src/components/ui/`, `src/styles.css`, `src/lib/` | Shared shadcn/Base UI primitives, semantic styling, and utilities.                                   |
-| `src/core/`                                        | Pure documents, commands, identity, captions, timing, and resampling.                                |
-| `src/editor/`                                      | Public editor facade, lifecycle, jobs, and events exposed to consumers.                              |
-| `src/storage/`                                     | IndexedDB transactions, OPFS originals, journals, recovery, and quota.                               |
-| `src/media/`                                       | Import/decode, derivatives, composition, and streaming export.                                       |
-| `src/services/`, `src/workers/`                    | Preview clock, job/worker transport, and local media/transcription execution.                        |
-| `src/ai/`                                          | Optional OpenRouter authentication, transport, context policy, and proposed edits.                   |
-| `tests/unit/`, `tests/browser/`, `tests/live/`     | Pure/service tests, production Chrome acceptance, and opt-in paid-provider acceptance.               |
-| `scripts/`, `.github/workflows/`                   | Builds, verified build reuse, test server, artifact checks, and CI.                                  |
+| Directory                                                                                                                                        | Responsibility                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| [`src/workspace/`](../src/workspace/AGENTS.md)                                                                                                   | Conversation, preview, timeline, settings, and their UI state; editing goes through the shared APIs. |
+| [`src/components/ui/`](../src/components/ui/AGENTS.md), `src/styles.css`, `src/lib/`                                                             | Shared shadcn/Base UI primitives, semantic styling, and utilities.                                   |
+| [`src/core/`](../src/core/AGENTS.md)                                                                                                             | Pure documents, commands, identity, captions, timing, and resampling.                                |
+| [`src/editor/`](../src/editor/AGENTS.md)                                                                                                         | Public editor facade, lifecycle, jobs, and events exposed to consumers.                              |
+| [`src/storage/`](../src/storage/AGENTS.md)                                                                                                       | IndexedDB transactions, OPFS originals, journals, recovery, and quota.                               |
+| [`src/media/`](../src/media/AGENTS.md)                                                                                                           | Import/decode, derivatives, composition, and streaming export.                                       |
+| [`src/services/`](../src/services/AGENTS.md), [`src/workers/`](../src/workers/AGENTS.md)                                                         | Preview clock, job/worker transport, and local media/transcription execution.                        |
+| [`src/ai/`](../src/ai/AGENTS.md)                                                                                                                 | Optional OpenRouter authentication, transport, context policy, and proposed edits.                   |
+| [`tests/`](../tests/AGENTS.md): [`unit/`](../tests/unit/AGENTS.md), [`browser/`](../tests/browser/AGENTS.md), [`live/`](../tests/live/AGENTS.md) | Pure/service tests, production Chrome acceptance, and opt-in paid-provider acceptance.               |
+| [`scripts/`](../scripts/AGENTS.md), [`.github/workflows/`](../.github/workflows/AGENTS.md)                                                       | Builds, verified build reuse, test server, artifact checks, and CI.                                  |
 
 See [architecture](architecture.md) and [API contracts](api.md) before crossing a boundary. Preserve the existing owner instead of duplicating project state in a control or transport.
 

@@ -4,6 +4,7 @@
 
 - Read [user preferences](docs/user-preferences.md); update that record when the user states a durable preference. Newer explicit choices take precedence.
 - Use [README setup and commands](README.md#setup), then the [development guide](docs/development.md) for module ownership, focused checks, and failure recovery. Read the relevant API, storage, AI, or deployment contract only when the change touches it.
+- Before editing a file, read the `AGENTS.md` files in its ancestor directories, including the nearest module guide. Root guidance applies everywhere; nested guidance adds the local contract. Keep instructions at their narrowest useful scope and link shared rules instead of copying them.
 - Inspect the current branch, dirty files, base, and linked issue/PR before editing. Reuse the task's isolated feature worktree and existing tracking issue; preserve unrelated work. Keep the issue's scope current before implementation.
 
 ## Keep one development cycle short
@@ -15,16 +16,9 @@
 - Freeze the candidate and run one independent draft-PR review-and-address cycle. Fix accepted findings and rerun affected checks; do not automatically start another independent review. Record the reviewed and resulting heads and distinguish author validation from independent review.
 - Keep the issue and PR linked both ways. Report the exact head/base, checks, limitations, and release state. Merge and Pages deployment require separate authorization.
 
-## Product and runtime contracts
+## Scoped entry points
 
-- The approved production interface is a conversation-led workspace: editing conversation at left, preview and compact timeline at right. Use the existing neutral Vega shadcn/Base UI foundation; do not add sample media or simulated editing behavior to production.
-- Initial page load must not start workers, initialize storage, fetch models, request permissions, or instantiate the editor. Open/create/import actions explicitly initialize the engine. An explicit OpenRouter OAuth return may complete authentication after removing callback secrets from the address.
-- All future controls and agent transports must invoke the shared engine API. Keep one canonical project document and explicit revision/request contracts.
-- Keep src/core pure TypeScript: no React, browser storage, media libraries, services, workers, or network operations.
-- Keep media and inference local. Model/runtime downloads require explicit preparation. No user-media uploads, embedded secrets, or hosted processing services.
-- Optional OpenRouter text reasoning lives only in `src/ai` and the lazy `ai.js` entry. User-owned keys remain in memory; temporary PKCE state is tab-scoped. Send only explicitly requested, policy-filtered text/metadata. AI tools propose changes; explicit callers apply them through the existing editor API. Keep raw media and local speech inference on-device.
-- Preserve microsecond integers, rational frame rates, half-open ranges, idempotent receipts, atomic history/document commits, and client-side capability preflight.
-- Dispose native resources and workers. Use app-owned storage namespaces; do not clear origin-wide databases, files, or caches.
-- Use pinned dependencies and the committed lockfile. Model revision, quantization, runtime CDN, and artifact hashes are contracts.
-- A mocked inference or Chromium-only pass does not satisfy transcription/codec acceptance. Record missing evidence as a failure, never a passing skip.
-- Keep remote AI opt-in, models user-selected, sharing choices unchecked, credentials memory-only, and every AI proposal explicitly applied or discarded. Show asynchronous feedback through accessible Sonner toasts or the active operation dialog.
+- [Application and runtime](src/AGENTS.md): shared source constraints, with module guides below it.
+- [Tests](tests/AGENTS.md): isolation and evidence, with separate unit, browser, and live-provider guides.
+- [Build and tooling](scripts/AGENTS.md), [CI and releases](.github/workflows/AGENTS.md), and [documentation](docs/AGENTS.md).
+- Keep dependencies and the lockfile pinned. Model/runtime revisions and artifact hashes are contracts. Required native codec and inference evidence cannot be replaced by mocks or a different browser channel.
