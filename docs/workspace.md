@@ -8,7 +8,7 @@ Chat follows the CYOBot instructor workspace's interaction structure: session pi
 
 ## Appearance
 
-Open **Workspace settings → Appearance** to customize the running app. The panel sits beside the editor on wide screens and above it on narrower screens; the editor remains usable as the preview. Changes apply immediately to app colors, menus, dialogs, typography and corners without reopening the project or conversation.
+Open **Workspace settings → Appearance** to customize the running app. The panel sits beside the editor on wide screens and above it on narrower screens; the editor remains usable as the preview. While the panel is open, chat can render narrower to retain preview space alongside expanded media; closing Appearance restores the preferred chat width. Phone layouts scroll through the controls, preview, timeline and conversation without overlapping them. Changes apply immediately to app colors, menus, dialogs, typography and corners without reopening the project or conversation.
 
 Inspired by [shadcn Create](https://ui.shadcn.com/create), the panel offers light/dark/system mode, neutral base color, accent theme, system body and heading fonts, radius, density, menu color and menu accent. Base UI and Lucide remain fixed. Fonts use installed system stacks and require no network requests. Density changes preview/timeline spacing. Theme colors also adapt timeline clips while audio and text retain distinct semantic tints. Video content and exported media are unaffected.
 

@@ -34,6 +34,102 @@ async function styles(page: Page) {
 }
 
 for (const base of ['/', '/LocalCut/']) {
+  test(`workspace appearance preserves preview space with wide chat and expanded media ${base}`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(base);
+    const panel = await openAppearance(page);
+    const resize = page.getByRole('separator', {
+      name: 'Resize workspace chat',
+    });
+    await resize.press('End');
+    await expect(resize).toHaveAttribute('aria-valuenow', '560');
+    await page.getByRole('button', { name: 'Expand media' }).click();
+    await page.setViewportSize({ width: 1120, height: 900 });
+    const editorWidth = () =>
+      page
+        .locator('.editing-area')
+        .evaluate((node) => node.getBoundingClientRect().width);
+    await expect.poll(editorWidth).toBeGreaterThanOrEqual(279);
+    expect(
+      (await page.locator('.preview-stage').boundingBox())!.width,
+    ).toBeGreaterThan(200);
+    await expect(
+      page.getByRole('button', { name: 'Collapse media' }),
+    ).toBeVisible();
+    const current = Number(await resize.getAttribute('aria-valuenow'));
+    expect(current).toBeLessThanOrEqual(
+      Number(await resize.getAttribute('aria-valuemax')),
+    );
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBe(1120);
+    await page.getByRole('button', { name: 'Collapse chat' }).click();
+    await expect
+      .poll(
+        async () =>
+          (await page.locator('.conversation-panel').boundingBox())!.width,
+      )
+      .toBe(52);
+    await page.getByRole('button', { name: 'Expand chat' }).click();
+    await expect.poll(editorWidth).toBeGreaterThanOrEqual(279);
+    await panel.getByRole('button', { name: 'Close appearance' }).click();
+    await expect(resize).toHaveAttribute('aria-valuenow', '560');
+  });
+
+  test(`workspace appearance keeps phone preview, timeline and chat from overlapping ${base}`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.goto(base);
+    const panel = await openAppearance(page);
+    await choose(page, 'Density', 'Comfortable');
+    await expect(page.locator('html')).toHaveAttribute(
+      'data-density',
+      'comfortable',
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const preview = document
+            .querySelector('.preview')!
+            .getBoundingClientRect();
+          const timeline = document
+            .querySelector('.timeline')!
+            .getBoundingClientRect();
+          const chat = document
+            .querySelector('.conversation-panel')!
+            .getBoundingClientRect();
+          return Math.max(
+            preview.bottom - timeline.top,
+            timeline.bottom - chat.top,
+          );
+        }),
+      )
+      .toBeLessThanOrEqual(1);
+    await page.locator('.preview-stage').scrollIntoViewIfNeeded();
+    await expect(
+      page.getByRole('region', { name: 'Project preview', exact: true }),
+    ).toBeVisible();
+    expect(
+      (await page.locator('.preview-stage').boundingBox())!.width,
+    ).toBeGreaterThan(200);
+    await page
+      .getByRole('button', { name: 'Connect AI', exact: true })
+      .first()
+      .scrollIntoViewIfNeeded();
+    await expect(
+      page.getByRole('button', { name: 'Connect AI', exact: true }).first(),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBe(320);
+    await expect(panel).toBeVisible();
+  });
+
   test(`workspace appearance remains usable when storage reads are blocked ${base}`, async ({
     page,
   }) => {
