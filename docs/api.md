@@ -1,5 +1,7 @@
 # Headless API
 
+Optional remote AI lives in the separately imported `ai.js` entry. Its connection, event, proposal, cancellation and frontend wiring contracts are documented in [OpenRouter integration](ai.md). Constructing either AI object starts no work; the editor is opened separately and supplied to the assistant.
+
 Serve dist over HTTPS or localhost. Import from the deployment base:
 
 ```ts

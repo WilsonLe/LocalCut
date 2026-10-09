@@ -5,6 +5,7 @@
 - All future controls and agent transports must invoke the shared engine API. Keep one canonical project document and explicit revision/request contracts.
 - Keep src/core pure TypeScript: no React, browser storage, media libraries, services, workers, or network operations.
 - Keep media and inference local. Model/runtime downloads require explicit preparation. No user-media uploads, embedded secrets, or hosted processing services.
+- Optional OpenRouter text reasoning lives only in `src/ai` and the lazy `ai.js` entry. User-owned keys remain in memory; temporary PKCE state is tab-scoped. Send only explicitly requested, policy-filtered text/metadata. AI tools propose changes; explicit callers apply them through the existing editor API. Keep raw media and local speech inference on-device.
 - Preserve microsecond integers, rational frame rates, half-open ranges, idempotent receipts, atomic history/document commits, and client-side capability preflight.
 - Dispose native resources and workers. Use app-owned storage namespaces; do not clear origin-wide databases, files, or caches.
 - Use pinned dependencies and the committed lockfile. Model revision, quantization, runtime CDN, and artifact hashes are contracts.

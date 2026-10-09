@@ -39,10 +39,13 @@ export default defineConfig({
       input: {
         app: resolve(import.meta.dirname, 'index.html'),
         editor: resolve(import.meta.dirname, 'src/editor/index.ts'),
+        ai: resolve(import.meta.dirname, 'src/ai/index.ts'),
       },
       output: {
         entryFileNames: (chunk) =>
-          chunk.name === 'editor' ? 'editor.js' : 'assets/[name]-[hash].js',
+          chunk.name === 'editor' || chunk.name === 'ai'
+            ? `${chunk.name}.js`
+            : 'assets/[name]-[hash].js',
       },
     },
   },

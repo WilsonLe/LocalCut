@@ -19,6 +19,13 @@ for (const root of ['dist', 'dist-root']) {
     (v) => v.isEntry && v.src === 'index.html',
   );
   assert(entry, 'App manifest entry missing');
+  for (const name of ['editor', 'ai']) {
+    const moduleEntry = Object.values(manifest).find(
+      (v) => v.isEntry && v.src === `src/${name}/index.ts`,
+    );
+    assert(moduleEntry?.file === `${name}.js`, `Stable ${name} entry missing`);
+    await stat(`${root}/types/${name}/index.d.ts`);
+  }
   const graph = new Set();
   function visit(chunk) {
     if (graph.has(chunk.file)) return;
@@ -51,8 +58,10 @@ for (const root of ['dist', 'dist-root']) {
   assert(css <= 30 * 1024, `Initial CSS ${css}`);
   assert(total <= 5 * 1024 * 1024, `Aggregate JS/CSS ${total}`);
   assert(
-    ![...graph].some((p) => p === 'editor.js' || p.includes('worker')),
-    'Engine eagerly loaded',
+    ![...graph].some(
+      (p) => p === 'editor.js' || p === 'ai.js' || p.includes('worker'),
+    ),
+    'Engine or AI eagerly loaded',
   );
   console.log(
     JSON.stringify({
