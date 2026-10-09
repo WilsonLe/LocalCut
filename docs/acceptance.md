@@ -1,6 +1,26 @@
 # Local acceptance evidence
 
-Validated in installed Google Chrome 155.0.8059.40 on macOS arm64, Node 24.21.0 and pnpm 11.25.0. These are local checks; hosted CI and deployed behavior need separate readback.
+Current acceptance runs locally, as described in [validation](validation.md). Hosted CI is disabled; earlier hosted checks linked from release history remain historical evidence for those revisions. Manual Pages deployment and its live verification remain separate.
+
+## Conversation-led workspace
+
+The workspace on top of OpenRouter integration commit `4c1ef4c6d62023df01e685a4919aff2597aa3dcd` passed `pnpm check`: formatting, lint, four TypeScript scopes, 295 unit tests, both production builds, bundle budgets, and 39 production-browser tests in installed Google Chrome 155.0.8059.40. These are local checks and do not confirm deployed behavior.
+
+Browser coverage includes inert startup, both hosting paths, local image/audio/video import, real preview/playback/seek, properties and history, reload/reopen, actual MP4/WebM download and decoding, cancellation, and responsive layouts down to 320 px. Controlled OpenRouter responses verify explicit sharing, reviewed proposal application, stale-proposal rejection, cancelled streaming, retry, and both OAuth callback paths. Additional regressions cover exact source bounds at fractional durations, concurrent manual edits, long-reply scrolling, animated collapse/expand without losing the conversation, reduced motion, grouped menus and keyboard focus. No paid provider inference or interactive account consent was exercised.
+
+The final root build measured 133,329 bytes initial JavaScript, 10,126 bytes initial CSS, and 561,586 bytes aggregate JavaScript/CSS (all gzip). The `/LocalCut/` build measured 133,339, 10,126, and 561,603 bytes respectively. The initial JavaScript budget is 153,600 bytes. Settings menus and selectors load on demand. No model weights or large inference runtime binaries are deployed.
+
+Real Whisper preparation/inference and a fresh-worker cached replay with remote hosts blocked passed. The repeated-source five-minute 1080p30 MP4 workload completed in 34.13 seconds after warmup; the two-minute workload took 14.06 seconds. The steady total browser/worker RSS difference was 71.4 MiB, below the 128 MiB gate. Both outputs reopened at the expected durations and a preview seek completed during export. Raw measurements are retained in [workspace-performance-evidence.json](workspace-performance-evidence.json); this generated workload does not prove performance for every source or effect combination.
+
+The independent review and three corrected findings are recorded in [workspace-review.md](workspace-review.md). Later user-directed settings/chat refinements have production Chrome coverage and author validation; they were not subjected to another independent review cycle.
+
+The same 39 normal Chrome tests passed in 62.86 seconds with one worker and 33.0 seconds with two. Normal checks now use two isolated workers; heavy acceptance stays serial. The focused UI command verifies input/output fingerprints before reusing builds. See [validation](validation.md) for commands and cache checks.
+
+## Earlier headless foundation
+
+The following foundation measurements describe the earlier headless release. Current workspace delivery is tracked in issue #16 and its linked PR.
+
+Validated in installed Google Chrome 155.0.8059.40 on macOS arm64, Node 24.21.0 and pnpm 11.25.0. These are historical local checks; deployed behavior needs separate readback.
 
 - pnpm check passed formatting, lint, four strict TypeScript scopes, 128 unit tests, both production builds, artifact budgets, and 16 Chrome integration tests.
 - Real quantized Whisper inference passed against the attributed speech fixture and a 33-second repeated fixture crossing a window boundary. Active inference cancellation saved no transcript; a fresh worker performed automatic language detection with exact source bounds and backup linkage. Reloaded inference used a fresh worker with remote hosts blocked. Preparation/readiness verified pinned model and WASM checksums.
@@ -16,6 +36,6 @@ Completion regressions cover legacy import reference validation, partial updates
 
 Upgrade regressions seed actual base-release receipts and project/history records into production Chrome. They verify exact old request replay despite changed defaults/ID generation, conflict rejection for changed fields, persistent raw fingerprints for new receipts, and atomic two-tab migration without revision changes. Original caption cue ownership survives reordered undo/redo and backup round trips. Unmarked legacy import repair is explicit; marked invalid backups and cross-kind collisions remain rejected.
 
-GitHub Pages is configured for the manual Actions workflow; the release issue records dispatch and live verification separately. The production page has no product UI, mockups, router, Pilot panel, or automatic editor instance.
+GitHub Pages is configured for the manual Actions workflow; the release issue records dispatch and live verification separately. That foundation release had no product UI. The subsequent approved workspace adds controls without an automatic editor instance, router, or browser Pilot panel.
 
 The independent review findings and author corrections are documented in [review.md](review.md). Additional regressions verify fresh-namespace backup restoration and source-caption pixels, remapped missing-asset metadata, interrupted and concurrent relinking, cancellation while waiting on an asset lock, playback failure reporting and successful play/pause/seek, height changes, checksum tampering, bounded quota retry, and original/active-reader preservation.

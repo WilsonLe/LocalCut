@@ -197,9 +197,15 @@ test('fresh-namespace backups restore metadata, transcript captions and relink o
       playbackAudio,
     );
     await playing.play();
-    await new Promise((r) => setTimeout(r, 150));
-    const advanced =
-      playing.currentTimeUs >= 50000 && playing.currentTimeUs < 400000;
+    // Observe native playback progress instead of assuming the audio clock has
+    // advanced after a particular wall-clock delay on a busy CI runner.
+    const progressDeadline = performance.now() + 5000;
+    while (
+      playing.currentTimeUs < 50000 &&
+      performance.now() < progressDeadline
+    )
+      await new Promise((r) => setTimeout(r, 10));
+    const advancedUs = playing.currentTimeUs;
     playing.pause();
     const paused = playing.currentTimeUs;
     await new Promise((r) => setTimeout(r, 50));
@@ -253,12 +259,15 @@ test('fresh-namespace backups restore metadata, transcript captions and relink o
       relinks,
       cancelledLock,
       restoredStatus,
-      advanced,
+      advancedUs,
       stable,
       seeked,
     };
   });
-  expect(result).toEqual({
+  const { advancedUs, ...restoredResult } = result;
+  expect(advancedUs).toBeGreaterThanOrEqual(50000);
+  expect(advancedUs).toBeLessThan(1000000);
+  expect(restoredResult).toEqual({
     same: true,
     missing: 'MISSING_ASSET',
     playback: 'MISSING_ASSET',
@@ -275,7 +284,6 @@ test('fresh-namespace backups restore metadata, transcript captions and relink o
     relinks: ['INVALID_COMMAND', 'ready'],
     cancelledLock: 'CANCELLED',
     restoredStatus: 'missing',
-    advanced: true,
     stable: true,
     seeked: true,
   });

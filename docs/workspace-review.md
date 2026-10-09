@@ -1,0 +1,11 @@
+# Workspace review and corrections
+
+The single independent read-only review for [PR #17](https://github.com/WilsonLe/LocalCut/pull/17) compared base `4c1ef4c6d62023df01e685a4919aff2597aa3dcd` with head `f9a3ebea13f76eee7d522983b76b43b12844b9d3`. The reviewer inspected issue #16, contributor instructions, the full changed source/tests/docs, existing feedback and rendered desktop/narrow evidence. There were no prior reviews or unresolved review threads.
+
+The reviewer reproduced three P2 findings against the production build:
+
+- A 48,001-frame WAV at 48 kHz has a rounded source duration of 1,000,021 microseconds. The properties form converted speed to rounded duration and then back to source duration, incorrectly producing 1,000,022 microseconds at 2× speed. The engine correctly rejected that source overrun. The form now preserves exact source endpoints unless the user explicitly changes duration. Regression tests cover both hosting paths, a later gain-only edit, fractional speed, and explicit duration changes.
+- The manual editing helper replaced the form's expected revision with a freshly fetched revision. A delayed cross-tab notification let a stale form silently overwrite another editor's gain change. Manual edits and history actions now retain the revision the user saw. A conflict refreshes the form and explains that the user must review the latest values before retrying. A production-engine test suppresses the external notification, verifies the concurrent edit survives, and then retries from refreshed state.
+- The desktop workspace had no definite height, so a long assistant reply expanded the whole document and moved the composer thousands of pixels below the preview. Desktop height and child minimum sizes now bound the workspace; the conversation and editing regions scroll internally. Narrow screens retain the stacked page flow. A streamed 22 KB reply verifies internal scrolling and an accessible composer, with additional checks at 390 px and 320 px.
+
+All three findings were accepted. The correction commit is author-validated; it was not subjected to a second independent review. The PR review-cycle comment records the resulting head and final checks. Paid model inference and interactive account consent remain outside the verified scope.
