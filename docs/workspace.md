@@ -2,9 +2,19 @@
 
 The interface follows the approved conversation-led mockup: resizable conversation on the left, preview and compact timeline in the center, and an independently collapsible media library on the right. Small screens stack the preview above the conversation and open media as a right-edge drawer. Production contains no illustrative clips, simulated replies or fake export progress.
 
-The narrower chat can collapse into a rail while the editor expands, and returns with its conversation intact. Both regions animate together and respect reduced motion. OpenRouter connection/model settings have one compact entry point in chat. The header settings menu reveals Project, View and Export groups progressively; media stays reachable from its right-edge toggle. Supporting metadata lives in tooltips and disclosures. Durable design choices are recorded in [user preferences](user-preferences.md).
+The narrower chat can collapse into a rail while the editor expands, and returns with its conversation intact. Both regions animate together and respect reduced motion. OpenRouter connection/model settings have one compact entry point in chat. The header settings menu reveals Project, View and Export groups progressively and includes Appearance; media stays reachable from its right-edge toggle. Supporting metadata lives in tooltips and disclosures. Durable design choices are recorded in [user preferences](user-preferences.md).
 
 Chat follows the CYOBot instructor workspace's interaction structure: session picker, scrolling transcript, right-aligned user bubbles, plain assistant replies, tool disclosures, approval cards, and a rounded growing composer. Tool disclosures expose each call's bounded input, result or error separately, subject to the same sharing policy as its remote context. Enter sends; Shift+Enter inserts a newline. IME composition and repeated Enter do not submit. Stop cancels the active turn, and scrolling up reveals a return-to-latest control. Sessions are local to the current connection/project and are not saved across reloads. Chat resizing is available above 900px; narrower layouts use a fixed responsive width.
+
+## Appearance
+
+Open **Workspace settings → Appearance** to customize the running app. The panel sits beside the editor on wide screens and above it on narrower screens; the editor remains usable as the preview. While the panel is open, chat can render narrower to retain preview space alongside expanded media; closing Appearance restores the preferred chat width. Phone layouts scroll through the controls, preview, timeline and conversation without overlapping them. Changes apply immediately to app colors, menus, dialogs, typography and corners without reopening the project or conversation.
+
+Inspired by [shadcn Create](https://ui.shadcn.com/create), the panel offers light/dark/system mode, neutral base color, accent theme, system body and heading fonts, radius, density, menu color and menu accent. Base UI and Lucide remain fixed. Fonts use installed system stacks and require no network requests. Density changes preview/timeline spacing. Theme colors also adapt timeline clips while audio and text retain distinct semantic tints. Video content and exported media are unaffected.
+
+Choices save automatically in this browser and synchronize across tabs on the same origin. They apply before the workspace renders; System follows the device color scheme. Randomize changes appearance options while retaining the chosen mode. Reset restores LocalCut's light, neutral, system-sans defaults and removes only its appearance record. If browser storage is blocked or full, changes remain usable for the current session and the panel reports that they could not be saved. Unsupported or malformed records fall back to safe defaults.
+
+Close the panel or press Escape to return focus to Workspace settings. An open picker handles Escape first. No account, editor initialization or remote request is needed to customize appearance.
 
 ## Projects and media
 

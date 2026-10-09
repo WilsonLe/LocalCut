@@ -38,6 +38,7 @@ import { Tooltip } from '../components/ui/tooltip';
 import { frameStep } from './shortcuts';
 import { useEditorShortcuts } from './useEditorShortcuts';
 import { Timeline } from './Timeline';
+import { useAppearance } from './appearance';
 import {
   appendAsset,
   downloadFile,
@@ -48,9 +49,16 @@ import {
 import type { DialogName, Progress } from './WorkspaceDialogs';
 const WorkspaceDialogs = lazy(() => import('./WorkspaceDialogs'));
 const WorkspaceMenu = lazy(() => import('./WorkspaceMenu'));
+const AppearancePanel = lazy(() => import('./AppearancePanel'));
 type Artifact = ExportResult & { dispose: () => Promise<void> };
 
 export function Workspace() {
+  const { dark } = useAppearance();
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const closeAppearance = () => {
+    setAppearanceOpen(false);
+    document.getElementById('workspace-settings-trigger')?.focus();
+  };
   const [editor, setEditor] = useState<Editor | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -613,6 +621,7 @@ export function Workspace() {
                 onToggleChat={() => setChatCollapsed((collapsed) => !collapsed)}
                 onExport={showExport}
                 onFormatChange={setFormat}
+                onAppearance={() => setAppearanceOpen(true)}
               />
             </Suspense>
           ) : (
@@ -620,148 +629,161 @@ export function Workspace() {
           )}
         </div>
       </header>
-      <div className="workspace-columns">
-        <Conversation
-          editor={editor}
-          project={project}
-          selectedClipId={selected}
-          onApplied={refresh}
-          onError={error}
-          registerCleanup={registerCleanup}
-          collapsed={chatCollapsed}
-          width={chatWidth}
-          onResize={setChatWidth}
-          onToggle={() => setChatCollapsed((collapsed) => !collapsed)}
-        />
-        <main
-          className="editing-area"
-          data-editor-shortcuts
-          tabIndex={0}
-          aria-label="Video editor"
-        >
-          <Preview
-            controlsRef={previewControls}
+      <div className="workspace-body" data-appearance-open={appearanceOpen}>
+        <div className="workspace-columns">
+          <Conversation
             editor={editor}
             project={project}
-            timeUs={timeUs}
-            seekRevision={seekRevision}
-            onTime={setTimeUs}
-            onImport={() => fileInput.current?.click()}
+            selectedClipId={selected}
+            onApplied={refresh}
             onError={error}
+            registerCleanup={registerCleanup}
+            collapsed={chatCollapsed}
+            width={chatWidth}
+            onResize={setChatWidth}
+            onToggle={() => setChatCollapsed((collapsed) => !collapsed)}
           />
-          <Timeline
-            project={project}
-            assets={assets}
-            selected={selected}
-            timeUs={timeUs}
-            busy={busy}
-            onSelect={setSelected}
-            onTime={seek}
-            onUndo={undo}
-            onRedo={redo}
-            onSplit={split}
-            onDelete={deleteClip}
-            onProperties={() => setDialog('properties')}
-            onText={addText}
-          />
-        </main>
-        <aside
-          className="media-panel"
-          aria-label="Media library"
-          data-collapsed={!drawer}
-        >
-          <Tooltip content={drawer ? 'Collapse media' : 'Open media'}>
-            <Button
-              className="media-toggle"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={drawer ? 'Collapse media' : 'Expand media'}
-              aria-expanded={drawer}
-              aria-controls="workspace-media-content"
-              onClick={() => setDrawer((open) => !open)}
-            >
-              {drawer ? <PanelRightClose /> : <Files />}
-            </Button>
-          </Tooltip>
-          <div
-            id="workspace-media-content"
-            className="media-content"
-            inert={!drawer}
-            aria-hidden={!drawer}
+          <main
+            className="editing-area"
+            data-editor-shortcuts
+            tabIndex={0}
+            aria-label="Video editor"
           >
-            <section className="media-library" aria-label="Project media">
-              <div className="section-heading">
-                <h2>Media</h2>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => fileInput.current?.click()}
-                  >
-                    <Upload /> Import media
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={!project || busy}
-                    onClick={backupProject}
-                  >
-                    <Download /> Backup
-                  </Button>
+            <Preview
+              controlsRef={previewControls}
+              editor={editor}
+              project={project}
+              timeUs={timeUs}
+              seekRevision={seekRevision}
+              onTime={setTimeUs}
+              onImport={() => fileInput.current?.click()}
+              onError={error}
+            />
+            <Timeline
+              project={project}
+              assets={assets}
+              selected={selected}
+              timeUs={timeUs}
+              busy={busy}
+              onSelect={setSelected}
+              onTime={seek}
+              onUndo={undo}
+              onRedo={redo}
+              onSplit={split}
+              onDelete={deleteClip}
+              onProperties={() => setDialog('properties')}
+              onText={addText}
+            />
+          </main>
+          <aside
+            className="media-panel"
+            aria-label="Media library"
+            data-collapsed={!drawer}
+          >
+            <Tooltip content={drawer ? 'Collapse media' : 'Open media'}>
+              <Button
+                className="media-toggle"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={drawer ? 'Collapse media' : 'Expand media'}
+                aria-expanded={drawer}
+                aria-controls="workspace-media-content"
+                onClick={() => setDrawer((open) => !open)}
+              >
+                {drawer ? <PanelRightClose /> : <Files />}
+              </Button>
+            </Tooltip>
+            <div
+              id="workspace-media-content"
+              className="media-content"
+              inert={!drawer}
+              aria-hidden={!drawer}
+            >
+              <section className="media-library" aria-label="Project media">
+                <div className="section-heading">
+                  <h2>Media</h2>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => fileInput.current?.click()}
+                    >
+                      <Upload /> Import media
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!project || busy}
+                      onClick={backupProject}
+                    >
+                      <Download /> Backup
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              {assets.length ? (
-                <div className="media-grid">
-                  {assets.map((asset) => (
-                    <div className="media-item" key={asset.id}>
-                      <div className="media-symbol">
-                        {asset.kind === 'audio' ? <Files /> : <FilmIcon />}
+                {assets.length ? (
+                  <div className="media-grid">
+                    {assets.map((asset) => (
+                      <div className="media-item" key={asset.id}>
+                        <div className="media-symbol">
+                          {asset.kind === 'audio' ? <Files /> : <FilmIcon />}
+                        </div>
+                        <span title={asset.name}>{asset.name}</span>
+                        <small>
+                          {asset.status === 'missing'
+                            ? 'Missing · relink file'
+                            : asset.kind === 'image'
+                              ? `${asset.width} × ${asset.height}`
+                              : formatTime(asset.durationUs)}
+                        </small>
+                        {asset.status === 'missing' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const input = document.createElement('input');
+                              input.type = 'file';
+                              input.onchange = () => {
+                                const file = input.files?.[0];
+                                if (file)
+                                  void action(async () => {
+                                    const engine = await ensureEditor();
+                                    await awaitJob(
+                                      engine.assets.relink(asset.id, file),
+                                      'Relinking media',
+                                    );
+                                    await refresh();
+                                  });
+                              };
+                              input.click();
+                            }}
+                          >
+                            Relink
+                          </Button>
+                        )}
                       </div>
-                      <span title={asset.name}>{asset.name}</span>
-                      <small>
-                        {asset.status === 'missing'
-                          ? 'Missing · relink file'
-                          : asset.kind === 'image'
-                            ? `${asset.width} × ${asset.height}`
-                            : formatTime(asset.durationUs)}
-                      </small>
-                      {asset.status === 'missing' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const input = document.createElement('input');
-                            input.type = 'file';
-                            input.onchange = () => {
-                              const file = input.files?.[0];
-                              if (file)
-                                void action(async () => {
-                                  const engine = await ensureEditor();
-                                  await awaitJob(
-                                    engine.assets.relink(asset.id, file),
-                                    'Relinking media',
-                                  );
-                                  await refresh();
-                                });
-                            };
-                            input.click();
-                          }}
-                        >
-                          Relink
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Import video, audio or images to add them to the timeline.
-                </p>
-              )}
-            </section>
-          </div>
-        </aside>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Import video, audio or images to add them to the timeline.
+                  </p>
+                )}
+              </section>
+            </div>
+          </aside>
+        </div>
+        {appearanceOpen && (
+          <Suspense
+            fallback={
+              <section className="appearance-panel" role="status">
+                Loading appearance…
+              </section>
+            }
+          >
+            <AppearancePanel onClose={closeAppearance} />
+          </Suspense>
+        )}
       </div>
       <input
         ref={fileInput}
@@ -834,7 +856,11 @@ export function Workspace() {
           />
         </Suspense>
       )}
-      <Toaster position="bottom-right" closeButton />
+      <Toaster
+        theme={dark ? 'dark' : 'light'}
+        position="bottom-right"
+        closeButton
+      />
     </div>
   );
 }

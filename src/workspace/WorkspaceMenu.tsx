@@ -20,6 +20,7 @@ export interface WorkspaceMenuProps {
   onToggleChat: () => void;
   onExport: () => void;
   onFormatChange: (format: 'mp4' | 'webm') => void;
+  onAppearance: () => void;
 }
 
 const popupClass =
@@ -82,6 +83,7 @@ export function WorkspaceMenu({
   onToggleChat,
   onExport,
   onFormatChange,
+  onAppearance,
 }: WorkspaceMenuProps) {
   return (
     <Menu.Root
@@ -192,6 +194,9 @@ export function WorkspaceMenu({
                 Export video
               </Menu.Item>
             </Submenu>
+            <Menu.Item className={itemClass} onClick={onAppearance}>
+              Appearance
+            </Menu.Item>
           </Menu.Popup>
         </Menu.Positioner>
       </Menu.Portal>
