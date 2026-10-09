@@ -20,6 +20,7 @@
     "test:browser": "playwright test --grep-invert \"@transcription|@performance\"",
     "test:transcription": "playwright test --grep @transcription",
     "test:performance": "playwright test --grep @performance",
+    "test:ai:live": "playwright test --config playwright.ai-live.config.ts",
     "check:bundle": "node scripts/check-bundle.mjs",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm build:root && pnpm check:bundle && pnpm test:browser"
   },

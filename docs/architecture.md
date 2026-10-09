@@ -1,6 +1,6 @@
 # Architecture
 
-One application package produces two independent entry points. index.html mounts a blank React 19 application and semantic Tailwind/shadcn tokens. editor.js exports the explicitly opened headless engine. Workers are loaded on demand; the blank app imports no engine code. Vite emits ESM workers and paths suitable for both /LocalCut/ and /.
+One application package produces three independent entry points. index.html mounts a blank React 19 application and semantic Tailwind/shadcn tokens. editor.js exports the explicitly opened headless engine. ai.js exports optional OpenRouter authentication, streaming and the headless assistant. Workers are loaded on demand; the blank app imports no engine or AI code. Vite emits ESM workers and paths suitable for both /LocalCut/ and /.
 
 The design-system configuration is shadcn Base UI, neutral Vega, CSS-first Tailwind 4, light/dark variables, and system fonts. No UI component consumers exist yet.
 
@@ -12,6 +12,7 @@ The design-system configuration is shadcn Base UI, neutral Vega, CSS-first Tailw
 | src/services | Jobs, worker transport, preview clock, pinned model configuration                                                    |
 | src/workers  | Separate interactive and background media workers; dedicated single-thread inference worker                          |
 | src/editor   | Disposable asynchronous public facade and events                                                                     |
+| src/ai       | Optional text-only OpenRouter transport, in-memory credentials, PKCE and validated edit proposals                    |
 
 The project owns ordered tracks, clips, overlays/cues, and explicit transitions. It references assets by stable ID. Browser object URLs, file handles, native samples, decoded bytes, and contexts are runtime resources and never part of project JSON.
 
@@ -25,4 +26,4 @@ Export freezes a revision, probes both codecs, schedules frames from indices, st
 
 Jobs have an ID, completion promise, progress subscription, and cancellation. Media work yields regularly and observes cancellation; inference cancellation terminates its dedicated worker. Terminal events are structured. Worker crashes reject pending work and subsequent jobs create a new worker.
 
-No router, service worker, cloud backend, transport-specific agent API, or production window global exists. Future user controls and agent panels share this facade.
+No router, service worker, cloud backend or production window global exists. Future user controls and agent panels share the editor facade. The optional OpenRouter assistant captures a project revision, offers bounded read tools and proposes commands through this same facade. It cannot apply edits on its own; explicit frontend application preserves engine receipts and Undo. See [AI contracts and privacy](ai.md).

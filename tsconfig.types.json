@@ -8,6 +8,6 @@
     "rootDir": "src",
     "rewriteRelativeImportExtensions": true
   },
-  "include": ["src/editor/index.ts"],
+  "include": ["src/editor/index.ts", "src/ai/index.ts"],
   "exclude": []
 }

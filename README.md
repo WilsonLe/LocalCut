@@ -1,6 +1,6 @@
 # LocalCut
 
-A local, headless video editor foundation that builds to static files. The production React page intentionally renders nothing. Import the separately built editor module to exercise the engine; product mockups and controls will follow.
+A local, headless video editor foundation that builds to static files. The production React page intentionally renders nothing. Import the separately built editor module to exercise the engine. The optional `ai.js` module connects OpenRouter to validated edit proposals; product controls will follow.
 
 ## Setup
 
@@ -13,7 +13,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Current desktop Google Chrome is required for native codec, OPFS, Web Locks, and production integration tests. No runtime environment variables, accounts, servers, or secrets are required. HTTPS or localhost is required for browser storage.
+Current desktop Google Chrome is required for native codec, OPFS, Web Locks, and production integration tests. Local editing requires no runtime environment variables, accounts, servers, or secrets. Optional remote AI needs an explicitly connected user-owned OpenRouter key. HTTPS or localhost is required for browser storage.
 
 | Command                   | Purpose                                                     |
 | ------------------------- | ----------------------------------------------------------- |
@@ -22,11 +22,12 @@ Current desktop Google Chrome is required for native codec, OPFS, Web Locks, and
 | `pnpm lint`               | ESLint and pure-core import boundaries                      |
 | `pnpm format:check`       | Prettier                                                    |
 | `pnpm test`               | Domain and service unit tests                               |
-| `pnpm build`              | App + `editor.js` + worker assets + declarations            |
+| `pnpm build`              | App + `editor.js` + `ai.js` + worker assets + declarations  |
 | `pnpm build:root`         | Equivalent build at `/` in `dist-root`                      |
 | `pnpm test:browser`       | Production integration in Google Chrome                     |
 | `pnpm test:transcription` | Real pinned Whisper preparation and cached replay           |
 | `pnpm test:performance`   | Warmup, two- and five-minute 1080p exports                  |
+| `pnpm test:ai:live`       | Opt-in real OpenRouter test; private key and model required |
 | `pnpm check:bundle`       | Actual entry graph and static artifact budgets              |
 | `pnpm check`              | Normal formatting/lint/type/unit/build/bundle/browser gates |
 
@@ -34,4 +35,4 @@ Browser commands require both production builds first. The harness server is tes
 
 TypeScript 7.0.2 supplies `tsc` through the `@typescript/native` alias. The `typescript` alias supplies Microsoft's pinned v6 compatibility API for typescript-eslint; it does not replace the production compiler. Dependencies and the lockfile are exact.
 
-See [architecture](docs/architecture.md), [API](docs/api.md), [storage](docs/storage.md), [transcription and privacy](docs/transcription.md), [verification](docs/validation.md), and [deployment](DEPLOY.md).
+See [architecture](docs/architecture.md), [API](docs/api.md), [OpenRouter integration and privacy](docs/ai.md), [storage](docs/storage.md), [local transcription](docs/transcription.md), [verification](docs/validation.md), and [deployment](DEPLOY.md).
