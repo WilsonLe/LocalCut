@@ -298,4 +298,87 @@ describe('OpenRouter explicit PKCE authorization', () => {
     client.dispose();
     expect([...store.values]).toEqual([['other-app', 'keep']]);
   });
+  it.each(['disconnect', 'setKey'] as const)(
+    'clears a previous instance flow on fresh-client %s',
+    async (action) => {
+      const store = storage();
+      store.setItem('unrelated', 'keep');
+      const first = createOpenRouter({ oauthStorage: store });
+      const flow = await first.beginAuthorization({ callbackUrl: callback });
+      const fetch = vi.fn<typeof globalThis.fetch>();
+      const fresh = createOpenRouter({ oauthStorage: store, fetch });
+      expect(store.getItem(OAUTH_STORAGE_KEY)).not.toBeNull();
+      if (action === 'setKey') fresh.setKey('replacement-key');
+      else fresh.disconnect();
+      await expect(
+        fresh.completeAuthorization({
+          callbackUrl: returned(flow.authorizationUrl),
+        }),
+      ).rejects.toMatchObject({ code: 'AUTH_FLOW_INVALID' });
+      expect(fetch).not.toHaveBeenCalled();
+      expect(store.getItem('unrelated')).toBe('keep');
+      expect(store.getItem(OAUTH_STORAGE_KEY)).toBeNull();
+    },
+  );
+  it('clears an unregistered default session store only on an explicit operation', async () => {
+    const store = storage();
+    store.setItem('unrelated', 'keep');
+    const original = Object.getOwnPropertyDescriptor(
+      globalThis,
+      'sessionStorage',
+    );
+    let accesses = 0;
+    Object.defineProperty(globalThis, 'sessionStorage', {
+      configurable: true,
+      get() {
+        accesses++;
+        return store;
+      },
+    });
+    try {
+      const first = createOpenRouter();
+      expect(accesses).toBe(0);
+      const flow = await first.beginAuthorization({ callbackUrl: callback });
+      const before = accesses;
+      const fetch = vi.fn<typeof globalThis.fetch>();
+      const fresh = createOpenRouter({ fetch });
+      expect(accesses).toBe(before);
+      fresh.disconnect();
+      expect(accesses).toBeGreaterThan(before);
+      await expect(
+        fresh.completeAuthorization({
+          callbackUrl: returned(flow.authorizationUrl),
+        }),
+      ).rejects.toMatchObject({ code: 'AUTH_FLOW_INVALID' });
+      expect(fetch).not.toHaveBeenCalled();
+      expect(store.getItem('unrelated')).toBe('keep');
+    } finally {
+      if (original)
+        Object.defineProperty(globalThis, 'sessionStorage', original);
+      else Reflect.deleteProperty(globalThis, 'sessionStorage');
+    }
+  });
+  it('keeps disconnect and key replacement safe when default storage is denied', () => {
+    const original = Object.getOwnPropertyDescriptor(
+      globalThis,
+      'sessionStorage',
+    );
+    Object.defineProperty(globalThis, 'sessionStorage', {
+      configurable: true,
+      get() {
+        throw new Error('denied SECRET');
+      },
+    });
+    try {
+      const fresh = createOpenRouter();
+      expect(() => fresh.disconnect()).not.toThrow();
+      expect(() => fresh.setKey('replacement-key')).not.toThrow();
+      expect(fresh.status()).toEqual({ connected: true });
+      fresh.dispose();
+    } finally {
+      if (original)
+        Object.defineProperty(globalThis, 'sessionStorage', original);
+      else Reflect.deleteProperty(globalThis, 'sessionStorage');
+    }
+  });
 });

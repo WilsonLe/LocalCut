@@ -380,4 +380,203 @@ describe('OpenRouter SSE protocol', () => {
       collect(response(comment.repeat(129), 65536)),
     ).rejects.toMatchObject({ code: 'RESPONSE_LIMIT' });
   });
+  it('preserves ordered indexed reasoning, late signatures, opaque data, summaries and legacy aliases', async () => {
+    const stream =
+      frame({
+        reasoning: 'hidden ',
+        reasoning_content: 'alias ',
+        reasoning_details: [
+          {
+            type: 'reasoning.text',
+            text: 'Think ',
+            id: null,
+            signature: null,
+            index: 7,
+          },
+          {
+            type: 'reasoning.encrypted',
+            data: 'opaque-',
+            id: 'encrypted',
+            format: 'openai-responses-v1',
+            index: 2,
+          },
+          { type: 'reasoning.summary', summary: 'First ', index: 9 },
+        ],
+      }) +
+      frame({
+        reasoning: 'thought',
+        reasoning_content: 'text',
+        reasoning_details: [
+          {
+            index: 7,
+            text: 'carefully',
+            id: 'thought',
+            format: 'anthropic-claude-v1',
+          },
+          { index: 2, data: 'state' },
+          { index: 9, summary: 'summary' },
+        ],
+      }) +
+      frame({ reasoning_details: [{ index: 7, signature: 'signed-' }] }) +
+      frame(
+        {
+          content: 'Visible',
+          reasoning_details: [{ index: 7, signature: 'value', id: null }],
+        },
+        'stop',
+      ) +
+      done;
+    expect(await collect(response(stream, 1))).toEqual([
+      { type: 'text', text: 'Visible' },
+      {
+        type: 'complete',
+        message: {
+          role: 'assistant',
+          content: 'Visible',
+          reasoning: 'hidden thought',
+          reasoning_content: 'alias text',
+          reasoning_details: [
+            {
+              type: 'reasoning.text',
+              text: 'Think carefully',
+              id: 'thought',
+              signature: 'signed-value',
+              index: 7,
+              format: 'anthropic-claude-v1',
+            },
+            {
+              type: 'reasoning.encrypted',
+              data: 'opaque-state',
+              id: 'encrypted',
+              format: 'openai-responses-v1',
+              index: 2,
+            },
+            { type: 'reasoning.summary', summary: 'First summary', index: 9 },
+          ],
+        },
+      },
+    ]);
+  });
+  it('retains unindexed consecutive reasoning blocks without inventing fields', async () => {
+    const one = {
+      type: 'reasoning.text',
+      text: 'one',
+      signature: null,
+      id: null,
+    };
+    const two = { type: 'reasoning.encrypted', data: '[REDACTED]' };
+    const events = await collect(
+      response(
+        frame({ reasoning_details: [one] }) +
+          frame({ reasoning_details: [two] }, 'stop') +
+          done,
+      ),
+    );
+    expect(events).toEqual([
+      {
+        type: 'complete',
+        message: {
+          role: 'assistant',
+          content: null,
+          reasoning_details: [one, two],
+        },
+      },
+    ]);
+  });
+  it.each([
+    { reasoning: 3 },
+    { reasoning_content: {} },
+    { reasoning_details: 'invalid' },
+    { reasoning_details: [{ type: 'unexpected', text: 'x' }] },
+    { reasoning_details: [{ type: 'reasoning.text', text: 2 }] },
+    {
+      reasoning_details: [{ type: 'reasoning.text', text: 'x', extra: 'bad' }],
+    },
+    {
+      reasoning_details: [
+        { type: 'reasoning.encrypted', data: 'x', signature: 'bad' },
+      ],
+    },
+    { reasoning_details: [{ type: 'reasoning.text', text: 'x', index: -1 }] },
+    { reasoning_details: [{ type: 'reasoning.text', text: 'x', index: 0.5 }] },
+    { reasoning_details: [{ type: 'reasoning.text', text: 'x', id: 3 }] },
+    {
+      reasoning_details: [
+        { type: 'reasoning.text', signature: 'signature-only' },
+      ],
+    },
+  ])('rejects malformed reasoning metadata %#', async (delta) => {
+    await expect(
+      collect(response(frame(delta, 'stop') + done)),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+  });
+  it('rejects conflicting block identities and post-terminal reasoning', async () => {
+    const first = frame({
+      reasoning_details: [
+        { type: 'reasoning.text', text: 'x', index: 0, id: 'one' },
+      ],
+    });
+    const conflict = frame(
+      { reasoning_details: [{ index: 0, id: 'two' }] },
+      'stop',
+    );
+    await expect(
+      collect(response(first + conflict + done)),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    const usage = { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 };
+    await expect(
+      collect(
+        response(
+          frame({}, 'stop') +
+            frame({ reasoning: 'late' }, 'stop', { usage }) +
+            done,
+        ),
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    await expect(
+      collect(
+        response(
+          frame({}, 'stop') +
+            frame(
+              { reasoning_details: [{ type: 'reasoning.text', text: 'late' }] },
+              'stop',
+              { usage },
+            ) +
+            done,
+        ),
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+  });
+  it('bounds reasoning bytes across blocks and aliases and bounds block count', async () => {
+    const part = frame({
+      reasoning: 'x'.repeat(65536),
+      reasoning_content: 'x'.repeat(65536),
+    });
+    await expect(
+      collect(response(part.repeat(9), 65536)),
+    ).rejects.toMatchObject({ code: 'RESPONSE_LIMIT' });
+    const block = frame({
+      reasoning_details: [
+        { type: 'reasoning.encrypted', data: 'x'.repeat(65536), index: 0 },
+      ],
+    });
+    await expect(
+      collect(response(block.repeat(17), 65536)),
+    ).rejects.toMatchObject({ code: 'RESPONSE_LIMIT' });
+    await expect(
+      collect(
+        response(
+          frame(
+            {
+              reasoning_details: Array.from({ length: 129 }, () => ({
+                type: 'reasoning.text',
+                text: 'x',
+              })),
+            },
+            'stop',
+          ) + done,
+        ),
+      ),
+    ).rejects.toMatchObject({ code: 'RESPONSE_LIMIT' });
+  });
 });

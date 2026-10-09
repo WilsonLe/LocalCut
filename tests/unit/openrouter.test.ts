@@ -420,4 +420,142 @@ describe('OpenRouter transport', () => {
       alias.id,
     );
   });
+  it('round-trips completed reasoning metadata exactly through tool continuation on a default reasoning model', async () => {
+    const reasoning = {
+      reasoning: 'raw reasoning',
+      reasoning_content: 'legacy alias',
+      reasoning_details: [
+        {
+          type: 'reasoning.encrypted',
+          data: 'opaque-provider-state',
+          id: 'reasoning-1',
+          format: 'anthropic-claude-v1',
+          index: 0,
+        },
+        {
+          type: 'reasoning.text',
+          text: 'plain block',
+          signature: 'signed-value',
+          id: null,
+          index: 1,
+        },
+        { type: 'reasoning.summary', summary: 'condensed', index: 2 },
+      ],
+    };
+    const tool = {
+      id: 'read-1',
+      type: 'function',
+      function: { name: 'read_project', arguments: '{}' },
+    };
+    let count = 0;
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input) => {
+      if (String(input).endsWith('/models'))
+        return Response.json({
+          data: [{ ...model, id: '~deepseek/deepseek-pro-latest' }],
+        });
+      count++;
+      if (count === 1)
+        return new Response(
+          'data: ' +
+            JSON.stringify({
+              choices: [
+                {
+                  index: 0,
+                  delta: { ...reasoning, tool_calls: [{ ...tool, index: 0 }] },
+                  finish_reason: 'tool_calls',
+                },
+              ],
+            }) +
+            '\n\ndata: [DONE]\n\n',
+          { headers: { 'content-type': 'text/event-stream' } },
+        );
+      return streamResponse();
+    });
+    const client = createOpenRouter({ fetch });
+    client.setKey('test-key-private');
+    const value = { ...request(), model: '~deepseek/deepseek-pro-latest' };
+    const events = await collect(client, value);
+    expect(events).toHaveLength(1);
+    const complete = events[0];
+    if (complete?.type !== 'complete')
+      throw new Error('expected complete event');
+    const expected = {
+      role: 'assistant',
+      content: null,
+      ...reasoning,
+      tool_calls: [tool],
+    };
+    expect(complete.message).toEqual(expected);
+    await collect(client, {
+      ...value,
+      messages: [
+        ...value.messages,
+        complete.message,
+        { role: 'tool', tool_call_id: 'read-1', content: '{}' },
+      ],
+    });
+    const sent = JSON.parse(String(fetch.mock.calls[2]![1]?.body)) as {
+      messages: unknown[];
+    };
+    expect(sent.messages[1]).toEqual(expected);
+    expect(sent.messages[2]).toEqual({
+      role: 'tool',
+      tool_call_id: 'read-1',
+      content: '{}',
+    });
+  });
+  it.each([
+    { reasoning: {} },
+    { reasoning_content: [] },
+    { reasoning_details: {} },
+    { reasoning_details: [{ type: 'reasoning.encrypted', data: new Date() }] },
+    { reasoning_details: [{ type: 'reasoning.text', text: 'x', extra: {} }] },
+    {
+      reasoning_details: [
+        { type: 'reasoning.text', text: 'x', signature: () => 'bad' },
+      ],
+    },
+    {
+      reasoning_details: [
+        { type: 'reasoning.text', text: 'x', index: 0 },
+        { type: 'reasoning.summary', summary: 'x', index: 0 },
+      ],
+    },
+    {
+      reasoning_details: [
+        Object.assign(new Date(), { type: 'reasoning.text', text: 'x' }),
+      ],
+    },
+    {
+      reasoning_details: [
+        { type: 'reasoning.text', text: 'x', [Symbol('bad')]: 'bad' },
+      ],
+    },
+  ])(
+    'rejects non-JSON or malformed outbound reasoning before network %#',
+    async (metadata) => {
+      const { client, fetch } = setup();
+      const invalid = {
+        ...request(),
+        messages: [{ role: 'assistant', content: null, ...metadata }],
+      } as unknown as ChatRequest;
+      await expect(collect(client, invalid)).rejects.toMatchObject({
+        code: 'INVALID_REQUEST',
+      });
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
+  it('rejects oversized outbound reasoning independently of general request limits', async () => {
+    const { client, fetch } = setup();
+    const value: ChatRequest = {
+      ...request(),
+      messages: [
+        { role: 'assistant', content: null, reasoning: 'x'.repeat(1_048_577) },
+      ],
+    };
+    await expect(collect(client, value)).rejects.toMatchObject({
+      code: 'INVALID_REQUEST',
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
 });

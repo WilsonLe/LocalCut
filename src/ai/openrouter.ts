@@ -1,6 +1,10 @@
 import { AuthorizationFlow } from './auth.ts';
 import { AiError, aiInvariant, httpError } from './errors.ts';
-import { parseChatStream, readJson } from './protocol.ts';
+import {
+  parseChatStream,
+  readJson,
+  validateReasoningMetadata,
+} from './protocol.ts';
 import type {
   ChatRequest,
   OpenRouter,
@@ -142,7 +146,14 @@ function validateRequest(request: ChatRequest): string {
     aiInvariant(valid, 'INVALID_REQUEST', 'AI messages must be text-only.');
     const allowed =
       message.role === 'assistant'
-        ? ['role', 'content', 'tool_calls']
+        ? [
+            'role',
+            'content',
+            'tool_calls',
+            'reasoning',
+            'reasoning_content',
+            'reasoning_details',
+          ]
         : message.role === 'tool'
           ? ['role', 'content', 'tool_call_id']
           : ['role', 'content'];
@@ -151,6 +162,8 @@ function validateRequest(request: ChatRequest): string {
       'INVALID_REQUEST',
       'Unsupported AI message field.',
     );
+    if (message.role === 'assistant')
+      validateReasoningMetadata(message, 'INVALID_REQUEST');
     if (message.role === 'assistant' && message.tool_calls !== undefined) {
       aiInvariant(
         Array.isArray(message.tool_calls) && message.tool_calls.length <= 32,

@@ -94,6 +94,14 @@ export class AuthorizationFlow {
   }
   invalidate(): void {
     this.sequence++;
+    // A fresh client after navigation has not yet registered its session store.
+    // Resolve it only on explicit invalidation, never during construction.
+    try {
+      const storage = this.dependencies.storage ?? globalThis.sessionStorage;
+      if (storage) this.stores.add(storage);
+    } catch {
+      /* Denied browser storage does not block in-memory disconnect. */
+    }
     for (const storage of this.stores) {
       try {
         storage.removeItem(OAUTH_STORAGE_KEY);

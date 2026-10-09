@@ -132,6 +132,42 @@ for (const base of ['/', '/LocalCut/']) {
         return createOpenRouter().status();
       }, base),
     ).toEqual({ connected: false });
+    const cancelledCallback = await page.evaluate(async (path) => {
+      const { createOpenRouter } = (await import(
+        path + 'ai.js'
+      )) as typeof import('../../src/ai');
+      const original = createOpenRouter();
+      const auth = await original.beginAuthorization({
+        callbackUrl: location.href,
+      });
+      const callback = new URL(location.href);
+      callback.searchParams.set('code', 'must-not-exchange');
+      callback.searchParams.set(
+        'state',
+        new URL(auth.authorizationUrl).searchParams.get('state')!,
+      );
+      const fresh = createOpenRouter();
+      fresh.disconnect();
+      const error = await fresh
+        .completeAuthorization({ callbackUrl: callback.href })
+        .then(
+          () => 'unexpected',
+          (error: { code: string }) => error.code,
+        );
+      const result = {
+        error,
+        connected: fresh.status().connected,
+        session: Object.values(sessionStorage),
+      };
+      fresh.dispose();
+      original.dispose();
+      return result;
+    }, base);
+    expect(cancelledCallback).toEqual({
+      error: 'AUTH_FLOW_INVALID',
+      connected: false,
+      session: [],
+    });
     expect(await page.locator('#root').innerHTML()).toBe('');
   });
 
@@ -154,6 +190,15 @@ for (const base of ['/', '/LocalCut/']) {
                   {
                     index: 0,
                     delta: {
+                      reasoning_details: [
+                        {
+                          type: 'reasoning.encrypted',
+                          data: 'opaque-provider-state',
+                          id: 'reasoning-1',
+                          format: 'anthropic-claude-v1',
+                          index: 0,
+                        },
+                      ],
                       tool_calls: [
                         {
                           index: 0,
@@ -322,6 +367,19 @@ for (const base of ['/', '/LocalCut/']) {
     expect(result.events).toContain('completed');
     expect(result.result.usage.totalTokens).toBe(40);
     expect(requests).toHaveLength(2);
+    const continuation = (
+      requests[1]!.messages as Record<string, unknown>[]
+    ).find((message) => message.role === 'assistant');
+    expect(continuation?.reasoning_details).toEqual([
+      {
+        type: 'reasoning.encrypted',
+        data: 'opaque-provider-state',
+        id: 'reasoning-1',
+        format: 'anthropic-claude-v1',
+        index: 0,
+      },
+    ]);
+    expect(result.result.text).not.toContain('opaque-provider-state');
     const payload = JSON.stringify(requests);
     expect(payload).not.toMatch(
       /PRIVATE PROJECT NAME|PRIVATE OVERLAY TEXT|PRIVATE CAPTION/,

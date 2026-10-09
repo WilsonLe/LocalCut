@@ -88,6 +88,8 @@ The helper rejects URL fragments and verifies the registered callback origin/pat
 
 The adapter sends requests only to fixed HTTPS OpenRouter endpoints with omitted browser cookies, no referrer and no redirects. `listModels()` fetches the current catalog explicitly. Every chat validates the selected model supports tools before sending. No default model or silent model/provider downgrade is selected. User-selected provider aliases beginning with `~` are supported; their underlying model can change at OpenRouter. `openrouter/auto` is not selected or accepted. Requests use `provider.require_parameters: true` and `provider.data_collection: 'deny'`; a policy or capability failure is surfaced. No plugins, server tools, image inputs or arbitrary endpoint options are exposed.
 
+Provider reasoning text and signed/encrypted reasoning details are retained as bounded opaque conversation state for subsequent tool rounds. They are not emitted as user-visible text events or interpreted as tools.
+
 Streaming uses bounded UTF-8/SSE parsing and handles comments, split network chunks, CR/LF boundaries, multiline data, incremental tool arguments and final usage accounting. The adapter requires a complete terminal response and `[DONE]` before exposing executable tool calls. Truncated, malformed, refused, oversized and provider-error streams fail. No automatic retry can duplicate a provider charge. Abort cancels local consumption and HTTP work; whether upstream billing stops depends on the provider.
 
 The assistant exposes only these local tools:

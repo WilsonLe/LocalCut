@@ -1,9 +1,11 @@
 import { AiError, aiInvariant, httpError } from './errors.ts';
+import type { AiErrorCode } from './errors.ts';
 import type {
   AssistantMessage,
   ProviderEvent,
   ToolCall,
   Usage,
+  ReasoningDetail,
 } from './types.ts';
 
 /** Bounds are independent of provider claims and apply before parsing or tool execution. */
@@ -15,6 +17,8 @@ export const PROTOCOL_LIMITS = Object.freeze({
   toolCalls: 32,
   events: 65_536,
   jsonBytes: 8_388_608,
+  reasoningCharacters: 1_048_576,
+  reasoningBlocks: 128,
 });
 const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -26,6 +30,202 @@ const invalid = (): never => {
 };
 const boundedString = (value: unknown, max: number): value is string =>
   typeof value === 'string' && value.length <= max;
+
+type ReasoningMetadata = Pick<
+  AssistantMessage,
+  'reasoning' | 'reasoning_content' | 'reasoning_details'
+>;
+const reasoningKeys = [
+  'type',
+  'id',
+  'format',
+  'index',
+  'text',
+  'summary',
+  'data',
+  'signature',
+];
+const contentKeys = ['text', 'summary', 'data', 'signature'] as const;
+function plainObject(value: unknown): value is Record<string, unknown> {
+  if (!object(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return (
+    (prototype === Object.prototype || prototype === null) &&
+    Reflect.ownKeys(value).every(
+      (key) =>
+        typeof key === 'string' &&
+        'value' in Object.getOwnPropertyDescriptor(value, key)!,
+    )
+  );
+}
+function validateReasoningPart(
+  value: unknown,
+  code: AiErrorCode,
+  complete: boolean,
+): asserts value is Record<string, unknown> {
+  const check = (condition: unknown) =>
+    aiInvariant(condition, code, 'Invalid provider reasoning metadata.');
+  check(plainObject(value));
+  if (!plainObject(value)) return;
+  check(Object.keys(value).every((key) => reasoningKeys.includes(key)));
+  if (value.type !== undefined)
+    check(
+      ['reasoning.text', 'reasoning.summary', 'reasoning.encrypted'].includes(
+        String(value.type),
+      ),
+    );
+  if (value.id !== undefined)
+    check(value.id === null || boundedString(value.id, 1024));
+  if (value.format !== undefined) check(boundedString(value.format, 128));
+  if (value.index !== undefined)
+    check(
+      typeof value.index === 'number' &&
+        Number.isSafeInteger(value.index) &&
+        value.index >= 0 &&
+        value.index <= 2_147_483_647,
+    );
+  for (const key of contentKeys) {
+    if (value[key] !== undefined)
+      check(value[key] === null || typeof value[key] === 'string');
+  }
+  if (!complete) return;
+  check(typeof value.type === 'string');
+  const field =
+    value.type === 'reasoning.text'
+      ? 'text'
+      : value.type === 'reasoning.summary'
+        ? 'summary'
+        : 'data';
+  check(typeof value[field] === 'string');
+  check(
+    contentKeys.every(
+      (key) =>
+        key === field ||
+        (key === 'signature' && field === 'text') ||
+        value[key] === undefined,
+    ),
+  );
+}
+/** Validate and copy the narrow JSON-only continuation contract without exposing it as text. */
+export function validateReasoningMetadata(
+  value: Record<string, unknown>,
+  code: AiErrorCode = 'INVALID_RESPONSE',
+): ReasoningMetadata {
+  const metadata: ReasoningMetadata = {};
+  let characters = 0;
+  for (const key of ['reasoning', 'reasoning_content'] as const) {
+    if (value[key] !== undefined) {
+      aiInvariant(
+        value[key] === null || typeof value[key] === 'string',
+        code,
+        'Invalid provider reasoning metadata.',
+      );
+      metadata[key] = value[key] as string | null;
+      characters += typeof value[key] === 'string' ? value[key].length : 0;
+    }
+  }
+  if (value.reasoning_details !== undefined) {
+    aiInvariant(
+      Array.isArray(value.reasoning_details) &&
+        value.reasoning_details.length <= PROTOCOL_LIMITS.reasoningBlocks,
+      code,
+      'Invalid provider reasoning metadata.',
+    );
+    const indices = new Set<number>();
+    const details: ReasoningDetail[] = [];
+    for (const detail of value.reasoning_details) {
+      validateReasoningPart(detail, code, true);
+      if (typeof detail.index === 'number') {
+        aiInvariant(
+          !indices.has(detail.index),
+          code,
+          'Invalid provider reasoning metadata.',
+        );
+        indices.add(detail.index);
+      }
+      for (const item of Object.values(detail))
+        if (typeof item === 'string') characters += item.length;
+      details.push({ ...detail } as ReasoningDetail);
+    }
+    metadata.reasoning_details = details;
+  }
+  aiInvariant(
+    characters <= PROTOCOL_LIMITS.reasoningCharacters,
+    code === 'INVALID_RESPONSE' ? 'RESPONSE_LIMIT' : code,
+    'Provider reasoning metadata exceeded the size limit.',
+  );
+  return metadata;
+}
+
+/** Indexed blocks keep their first-seen order; only content/signature fields concatenate. */
+class ReasoningAccumulator {
+  private metadata: Record<string, unknown> = {};
+  private details: Record<string, unknown>[] = [];
+  private indexed = new Map<number, Record<string, unknown>>();
+  private characters = 0;
+  add(delta: Record<string, unknown>): void {
+    for (const key of ['reasoning', 'reasoning_content'] as const) {
+      const text = delta[key];
+      if (text === undefined) continue;
+      if (text !== null && typeof text !== 'string') return invalid();
+      if (text === null) {
+        if (this.metadata[key] === undefined) this.metadata[key] = null;
+      } else {
+        this.metadata[key] = String(this.metadata[key] ?? '') + text;
+        this.characters += text.length;
+      }
+    }
+    if (
+      delta.reasoning_details !== undefined &&
+      delta.reasoning_details !== null
+    ) {
+      if (!Array.isArray(delta.reasoning_details)) return invalid();
+      for (const fragment of delta.reasoning_details) {
+        validateReasoningPart(fragment, 'INVALID_RESPONSE', false);
+        let block =
+          typeof fragment.index === 'number'
+            ? this.indexed.get(fragment.index)
+            : undefined;
+        if (!block) {
+          block = {};
+          this.details.push(block);
+          aiInvariant(
+            this.details.length <= PROTOCOL_LIMITS.reasoningBlocks,
+            'RESPONSE_LIMIT',
+            'Provider reasoning metadata exceeded the block limit.',
+          );
+          if (typeof fragment.index === 'number')
+            this.indexed.set(fragment.index, block);
+        }
+        for (const [key, value] of Object.entries(fragment)) {
+          const previous = block[key];
+          if (contentKeys.includes(key as (typeof contentKeys)[number])) {
+            if (typeof value === 'string') {
+              block[key] = String(previous ?? '') + value;
+              this.characters += value.length;
+            } else if (previous === undefined) block[key] = value;
+          } else if (
+            previous === undefined ||
+            (key === 'id' && previous === null)
+          ) {
+            block[key] = value;
+            if (typeof value === 'string') this.characters += value.length;
+          } else if (!(key === 'id' && value === null) && previous !== value)
+            return invalid();
+        }
+      }
+      this.metadata.reasoning_details = this.details;
+    }
+    aiInvariant(
+      this.characters <= PROTOCOL_LIMITS.reasoningCharacters,
+      'RESPONSE_LIMIT',
+      'Provider reasoning metadata exceeded the size limit.',
+    );
+  }
+  complete(): ReasoningMetadata {
+    return validateReasoningMetadata(this.metadata);
+  }
+}
 
 export async function readJson(
   response: Response,
@@ -205,6 +405,7 @@ export async function* parseChatStream(
   let model: string | undefined;
   let finish: 'stop' | 'tool_calls' | undefined;
   const calls = new Map<number, ToolCall>();
+  const reasoning = new ReasoningAccumulator();
   for await (const data of dataEvents(response, signal)) {
     if (data === '[DONE]') {
       aiInvariant(
@@ -235,6 +436,7 @@ export async function* parseChatStream(
       const message: AssistantMessage = {
         role: 'assistant',
         content: content || null,
+        ...reasoning.complete(),
       };
       if (toolCalls.length) message.tool_calls = toolCalls;
       yield {
@@ -298,7 +500,16 @@ export async function* parseChatStream(
     const text = typeof delta.content === 'string' ? delta.content : '';
     const hasTools =
       delta.tool_calls !== undefined && delta.tool_calls !== null;
-    if (finish && (text || hasTools || !hasUsage)) return invalid();
+    const hasReasoning = Boolean(
+      delta.reasoning ||
+      delta.reasoning_content ||
+      (Array.isArray(delta.reasoning_details)
+        ? delta.reasoning_details.length
+        : delta.reasoning_details),
+    );
+    if (finish && (text || hasTools || hasReasoning || !hasUsage))
+      return invalid();
+    reasoning.add(delta);
     if (text) {
       content += text;
       aiInvariant(

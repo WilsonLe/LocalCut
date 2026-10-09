@@ -12,10 +12,23 @@ export interface ToolDefinition {
     parameters: Record<string, unknown>;
   };
 }
+/** Opaque provider continuation metadata; never rendered as assistant text. */
+export type ReasoningDetail = {
+  id?: string | null;
+  format?: string;
+  index?: number;
+} & (
+  | { type: 'reasoning.text'; text: string; signature?: string | null }
+  | { type: 'reasoning.summary'; summary: string }
+  | { type: 'reasoning.encrypted'; data: string }
+);
 export interface AssistantMessage {
   role: 'assistant';
   content: string | null;
   tool_calls?: ToolCall[];
+  reasoning?: string | null;
+  reasoning_content?: string | null;
+  reasoning_details?: ReasoningDetail[];
 }
 export type ChatMessage =
   | { role: 'system' | 'user'; content: string }
