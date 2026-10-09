@@ -603,6 +603,180 @@ describe('headless assistant boundaries', () => {
       gain: 0.7,
     });
   });
+  it('materializes omitted keyframe IDs consistently for AI clip inserts and updates', async () => {
+    const f = setup([
+      [
+        proposal([
+          {
+            type: 'updateClip',
+            clipId: 'video',
+            patch: {
+              keyframes: {
+                opacity: [
+                  { timeUs: 0, value: 0.75 },
+                  { timeUs: 4e6, value: 0.25 },
+                ],
+              },
+            },
+          },
+          {
+            type: 'insertClip',
+            trackId: 'main',
+            clip: {
+              id: 'animated-insert',
+              kind: 'video',
+              assetId: 'asset',
+              startUs: 5e6,
+              durationUs: 4e6,
+              sourceOutUs: 4e6,
+              keyframes: {
+                x: [
+                  { timeUs: 0, value: 10 },
+                  { timeUs: 4e6, value: 200 },
+                ],
+              },
+            },
+          },
+        ]),
+      ],
+      [final()],
+    ]);
+    const id = (await f.assistant.run('Animate both clips').completion)
+      .proposalIds[0]!;
+    const planned = await f.editor.commands.validate(
+      f.assistant.getProposal(id).batch,
+    );
+    const ids = planned.project.tracks[0]!.clips.flatMap((clip) =>
+      Object.values(clip.keyframes).flatMap((keys) =>
+        keys.map((key) => key.id),
+      ),
+    );
+    expect(ids).toHaveLength(4);
+    expect(new Set(ids).size).toBe(4);
+    expect(ids.every((key) => /^keyframe-[a-f\d]{32}$/.test(key))).toBe(true);
+    await f.assistant.applyProposal(id);
+    expect(f.project().tracks).toEqual(planned.project.tracks);
+    expect(f.project().tracks[0]!.clips[0]!.opacity).toBe(0.75);
+  });
+  it('preserves unique split and duplicate identities through an uncertain apply retry', async () => {
+    const f = fixture();
+    f.project().tracks[0]!.clips[0] = clipSchema.parse({
+      ...f.project().tracks[0]!.clips[0],
+      cues: [
+        {
+          id: 'crossing-caption',
+          timeUs: 0.5e6,
+          endUs: 3e6,
+          text: 'Private crossing caption',
+        },
+      ],
+      keyframes: {
+        opacity: [
+          { timeUs: 0, value: 1 },
+          { timeUs: 2e6, value: 0.5 },
+          { timeUs: 4e6, value: 0 },
+        ],
+      },
+    });
+    const p = provider([
+      [
+        proposal([
+          {
+            type: 'splitClip',
+            clipId: 'video',
+            atUs: 2e6,
+            rightClipId: 'right-half',
+          },
+          {
+            type: 'duplicateClip',
+            clipId: 'video',
+            newClipId: 'duplicate-half',
+            trackId: 'main',
+            startUs: 6e6,
+          },
+        ]),
+      ],
+      [final()],
+    ]);
+    const assistant = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    const id = (await assistant.run('Split and duplicate').completion)
+      .proposalIds[0]!;
+    const planned = await f.editor.commands.validate(
+      assistant.getProposal(id).batch,
+    );
+    const originalApply = f.editor.commands.apply;
+    let failAfterCommit = true;
+    f.editor.commands.apply = vi.fn(async (batch) => {
+      const receipt = await originalApply(batch);
+      if (failAfterCommit) {
+        failAfterCommit = false;
+        throw new Error('simulated interrupted delivery');
+      }
+      return receipt;
+    });
+    await expect(assistant.applyProposal(id)).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+    });
+    const committed = structuredClone(f.project());
+    const receipt = await assistant.applyProposal(id);
+    expect(receipt.appliedRevision).toBe(1);
+    expect(f.project()).toEqual(committed);
+    expect(f.project().tracks).toEqual(planned.project.tracks);
+    const clips = f.project().tracks[0]!.clips;
+    const identities = clips.flatMap((clip) => [
+      ...clip.cues.map((cue) => cue.id),
+      ...Object.values(clip.keyframes).flatMap((keys) =>
+        keys.map((key) => key.id),
+      ),
+    ]);
+    expect(new Set(identities).size).toBe(identities.length);
+    expect(clips.map((clip) => clip.keyframes.opacity!.at(-1)!.value)).toEqual([
+      0.5, 0, 0.5,
+    ]);
+    expect(clips[1]!.cues[0]).toMatchObject({ timeUs: 0, endUs: 1e6 });
+    expect(clips[0]!.cues[0]!.id).toBe('crossing-caption');
+    expect(clips[1]!.cues[0]!.id).not.toBe('crossing-caption');
+    expect(clips[2]!.cues[0]!.id).not.toBe('crossing-caption');
+    expect(JSON.stringify(p.requests)).not.toContain(
+      'Private crossing caption',
+    );
+  });
+  it('rejects reused caption cue IDs across clips before publishing an AI proposal', async () => {
+    const f = setup([
+      [
+        proposal([
+          {
+            type: 'insertClip',
+            trackId: 'overlay',
+            clip: {
+              id: 'invalid-caption',
+              kind: 'caption',
+              startUs: 0,
+              durationUs: 1e6,
+              cues: [{ id: 'cue', timeUs: 0, endUs: 1e6, text: 'Copied cue' }],
+            },
+          },
+        ]),
+      ],
+      [final()],
+    ]);
+    const original = structuredClone(f.project());
+    expect(
+      (await f.assistant.run('Copy captions').completion).proposalIds,
+    ).toEqual([]);
+    expect(f.project()).toEqual(original);
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+    const response = f.provider.requests[1]!.messages.at(-1)!;
+    expect(response).toMatchObject({
+      role: 'tool',
+      content: expect.stringContaining('EDIT_REJECTED'),
+    });
+  });
   it('does not publish staged proposals if a later request fails', async () => {
     const f = fixture();
     let round = 0;
