@@ -2,13 +2,17 @@
 
 ## Conversation-led workspace
 
-The workspace on top of OpenRouter integration commit `4c1ef4c6d62023df01e685a4919aff2597aa3dcd` passed `pnpm check`: formatting, lint, four TypeScript scopes, 295 unit tests, both production builds, bundle budgets, and 33 production-browser tests in installed Google Chrome 155.0.8059.40. These are local checks; hosted checks and deployment are separate.
+The workspace on top of OpenRouter integration commit `4c1ef4c6d62023df01e685a4919aff2597aa3dcd` passed `pnpm check`: formatting, lint, four TypeScript scopes, 295 unit tests, both production builds, bundle budgets, and 39 production-browser tests in installed Google Chrome 155.0.8059.40. These are local checks; hosted checks and deployment are separate.
 
-Browser coverage includes inert startup, both hosting paths, local image/audio/video import, real preview/playback/seek, properties and history, reload/reopen, actual MP4/WebM download and decoding, cancellation, and responsive layouts down to 320 px. Controlled OpenRouter responses verify explicit sharing, reviewed proposal application, stale-proposal rejection, cancelled streaming, retry, and both OAuth callback paths. No paid provider inference or interactive account consent was exercised.
+Browser coverage includes inert startup, both hosting paths, local image/audio/video import, real preview/playback/seek, properties and history, reload/reopen, actual MP4/WebM download and decoding, cancellation, and responsive layouts down to 320 px. Controlled OpenRouter responses verify explicit sharing, reviewed proposal application, stale-proposal rejection, cancelled streaming, retry, and both OAuth callback paths. Additional regressions cover exact source bounds at fractional durations, concurrent manual edits, long-reply scrolling, animated collapse/expand without losing the conversation, reduced motion, grouped menus and keyboard focus. No paid provider inference or interactive account consent was exercised.
 
-The final root build measured 152,331 bytes initial JavaScript, 9,736 bytes initial CSS, and 540,116 bytes aggregate JavaScript/CSS (all gzip). The `/LocalCut/` build measured 152,336, 9,736, and 540,128 bytes respectively. The initial JavaScript budget is 153,600 bytes, so additions need careful measurement. No model weights or large inference runtime binaries are deployed.
+The final root build measured 133,329 bytes initial JavaScript, 10,126 bytes initial CSS, and 561,586 bytes aggregate JavaScript/CSS (all gzip). The `/LocalCut/` build measured 133,339, 10,126, and 561,603 bytes respectively. The initial JavaScript budget is 153,600 bytes. Settings menus and selectors load on demand. No model weights or large inference runtime binaries are deployed.
 
 Real Whisper preparation/inference and a fresh-worker cached replay with remote hosts blocked passed. The repeated-source five-minute 1080p30 MP4 workload completed in 34.13 seconds after warmup; the two-minute workload took 14.06 seconds. The steady total browser/worker RSS difference was 71.4 MiB, below the 128 MiB gate. Both outputs reopened at the expected durations and a preview seek completed during export. Raw measurements are retained in [workspace-performance-evidence.json](workspace-performance-evidence.json); this generated workload does not prove performance for every source or effect combination.
+
+The independent review and three corrected findings are recorded in [workspace-review.md](workspace-review.md). Later user-directed settings/chat refinements have production Chrome coverage and author validation; they were not subjected to another independent review cycle.
+
+The same 39 normal Chrome tests passed in 62.86 seconds with one worker and 33.0 seconds with two. Normal checks now use two isolated workers; heavy acceptance stays serial. The focused UI command verifies input/output fingerprints before reusing builds. See [validation](validation.md) for commands and cache checks.
 
 ## Earlier headless foundation
 

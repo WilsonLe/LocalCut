@@ -5,6 +5,9 @@ import config from './playwright.config';
 export default defineConfig({
   ...config,
   testDir: 'tests/live',
+  projects: [{ name: 'ai-live', workers: 1, fullyParallel: false }],
+  workers: 1,
+  fullyParallel: false,
   timeout: 180000,
   reporter: [['list']],
   outputDir: 'test-results/ai-live',

@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import {
   ArrowUpRight,
   Check,
@@ -9,6 +16,7 @@ import {
   LoaderCircle,
   Plus,
   Scissors,
+  Settings2,
   Upload,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -32,17 +40,11 @@ import {
 } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../components/ui/select';
 import { Toaster } from '../components/ui/sonner';
 import { Conversation } from './Conversation';
 import { Preview } from './Preview';
 import { Timeline } from './Timeline';
+import { SettingsSelect } from './SettingsSelect';
 import {
   appendAsset,
   clipName,
@@ -52,6 +54,7 @@ import {
 } from './helpers';
 
 type DialogName = 'new' | 'projects' | 'properties' | 'export' | null;
+const WorkspaceMenu = lazy(() => import('./WorkspaceMenu'));
 type Artifact = ExportResult & { dispose: () => Promise<void> };
 interface Progress {
   label: string;
@@ -68,6 +71,9 @@ export function Workspace() {
   const [seekRevision, setSeekRevision] = useState(0);
   const [dialog, setDialog] = useState<DialogName>(null);
   const [drawer, setDrawer] = useState(false);
+  const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [format, setFormat] = useState<'mp4' | 'webm'>('mp4');
@@ -96,6 +102,10 @@ export function Workspace() {
         : '';
     if (detail === 'CANCELLED') {
       toast('Operation cancelled');
+      return;
+    }
+    if (detail === 'REVISION_CONFLICT') {
+      toast.error('Project changed. Review the latest values and try again.');
       return;
     }
     const message =
@@ -192,6 +202,13 @@ export function Workspace() {
     try {
       await work();
     } catch (failure) {
+      if (
+        failure &&
+        typeof failure === 'object' &&
+        'code' in failure &&
+        failure.code === 'REVISION_CONFLICT'
+      )
+        await refresh().catch(error);
       if (alive.current) error(failure);
     } finally {
       lock.current = false;
@@ -233,12 +250,13 @@ export function Workspace() {
     await refresh();
   };
   const apply = async (operations: EditOperation[]) => {
+    if (!project) throw new Error('Create or open a project first.');
     const engine = await ensureEditor();
-    if (!projectId.current) throw new Error('Create or open a project first.');
-    const snapshot = await engine.projects.snapshot(projectId.current);
+    if (project.id !== projectId.current)
+      throw new Error('The active project changed. Try again.');
     await engine.commands.apply({
-      projectId: snapshot.id,
-      expectedRevision: snapshot.revision,
+      projectId: project.id,
+      expectedRevision: project.revision,
       requestId: crypto.randomUUID(),
       operations,
     });
@@ -334,8 +352,53 @@ export function Workspace() {
     setTimeUs(value);
     setSeekRevision((value) => value + 1);
   };
+  const showProjects = () =>
+    void action(async () => {
+      const engine = await ensureEditor();
+      setProjects(await engine.projects.list());
+      setDialog('projects');
+    });
+  const backupProject = () =>
+    void action(async () => {
+      if (!project) return;
+      const engine = await ensureEditor();
+      downloadFile(
+        new Blob([await engine.projects.exportJSON(project.id)], {
+          type: 'application/json',
+        }),
+        `${project.name}.localcut.json`,
+      );
+    });
+  const showExport = () => {
+    setExportError('');
+    setDialog('export');
+  };
+  const openSettings = () => {
+    setSettingsLoaded(true);
+    setSettingsOpen(true);
+  };
+  const settingsTrigger = (
+    <Button
+      id="workspace-settings-trigger"
+      variant="ghost"
+      size="icon-sm"
+      aria-label="Workspace settings"
+      aria-haspopup="menu"
+      aria-controls="workspace-settings-menu"
+      aria-expanded={settingsOpen}
+      onClick={openSettings}
+      onKeyDown={(event) => {
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          openSettings();
+        }
+      }}
+    >
+      <Settings2 />
+    </Button>
+  );
   return (
-    <div className="workspace">
+    <div className="workspace" data-chat-collapsed={chatCollapsed}>
       <header className="workspace-header">
         <a
           className="brand"
@@ -350,13 +413,7 @@ export function Workspace() {
           className="project-picker"
           aria-label="Open project"
           disabled={busy}
-          onClick={() =>
-            void action(async () => {
-              const engine = await ensureEditor();
-              setProjects(await engine.projects.list());
-              setDialog('projects');
-            })
-          }
+          onClick={showProjects}
         >
           {project?.name ?? 'Untitled project'}
           <ChevronDown />
@@ -381,16 +438,33 @@ export function Workspace() {
           >
             <Files /> Media
           </Button>
-          <Button
-            size="sm"
-            disabled={!total || busy}
-            onClick={() => {
-              setExportError('');
-              setDialog('export');
-            }}
-          >
+          <Button size="sm" disabled={!total || busy} onClick={showExport}>
             <ArrowUpRight /> Export
           </Button>
+          {settingsLoaded ? (
+            <Suspense fallback={settingsTrigger}>
+              <WorkspaceMenu
+                open={settingsOpen}
+                onOpenChange={setSettingsOpen}
+                busy={busy}
+                hasProject={!!project}
+                canExport={!!total}
+                mediaOpen={drawer}
+                chatCollapsed={chatCollapsed}
+                format={format}
+                onNew={() => setDialog('new')}
+                onOpen={showProjects}
+                onBackup={backupProject}
+                onImportBackup={() => backupInput.current?.click()}
+                onToggleMedia={() => setDrawer((open) => !open)}
+                onToggleChat={() => setChatCollapsed((collapsed) => !collapsed)}
+                onExport={showExport}
+                onFormatChange={setFormat}
+              />
+            </Suspense>
+          ) : (
+            settingsTrigger
+          )}
         </div>
       </header>
       <div className="workspace-columns">
@@ -401,6 +475,8 @@ export function Workspace() {
           onApplied={refresh}
           onError={error}
           registerCleanup={registerCleanup}
+          collapsed={chatCollapsed}
+          onToggle={() => setChatCollapsed((collapsed) => !collapsed)}
         />
         <main className="editing-area">
           {drawer && (
@@ -420,18 +496,7 @@ export function Workspace() {
                     variant="ghost"
                     size="sm"
                     disabled={!project || busy}
-                    onClick={() =>
-                      void action(async () => {
-                        const engine = await ensureEditor();
-                        downloadFile(
-                          new Blob(
-                            [await engine.projects.exportJSON(project!.id)],
-                            { type: 'application/json' },
-                          ),
-                          `${project!.name}.localcut.json`,
-                        );
-                      })
-                    }
+                    onClick={backupProject}
                   >
                     <Download /> Backup
                   </Button>
@@ -507,11 +572,10 @@ export function Workspace() {
             onUndo={() =>
               void action(async () => {
                 const engine = await ensureEditor();
-                const snapshot = await engine.projects.snapshot(project!.id);
                 await engine.commands.undo(
-                  snapshot.id,
+                  project!.id,
                   crypto.randomUUID(),
-                  snapshot.revision,
+                  project!.revision,
                 );
                 await refresh();
                 toast.success('Edit undone');
@@ -520,11 +584,10 @@ export function Workspace() {
             onRedo={() =>
               void action(async () => {
                 const engine = await ensureEditor();
-                const snapshot = await engine.projects.snapshot(project!.id);
                 await engine.commands.redo(
-                  snapshot.id,
+                  project!.id,
                   crypto.randomUUID(),
-                  snapshot.revision,
+                  project!.revision,
                 );
                 await refresh();
                 toast.success('Edit restored');
@@ -768,20 +831,18 @@ export function Workspace() {
           {!artifact && !busy && (
             <>
               <Label htmlFor="export-format">Format</Label>
-              <Select
+              <SettingsSelect
+                id="export-format"
+                label="Format"
                 value={format}
-                onValueChange={(value) => {
+                onChange={(value) => {
                   if (value === 'mp4' || value === 'webm') setFormat(value);
                 }}
-              >
-                <SelectTrigger id="export-format" aria-label="Format">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="mp4">MP4</SelectItem>
-                  <SelectItem value="webm">WebM</SelectItem>
-                </SelectContent>
-              </Select>
+                options={[
+                  { value: 'mp4', label: 'MP4' },
+                  { value: 'webm', label: 'WebM' },
+                ]}
+              />
               <dl className="export-details">
                 <div>
                   <dt>Resolution</dt>
@@ -903,10 +964,9 @@ function Properties({
           speed = Number(form.get('speed')),
           gain = Number(form.get('gain'));
         const isTimedSource = clip.kind === 'video' || clip.kind === 'audio';
+        const durationChanged = enteredDurationUs !== clip.durationUs;
         const durationUs =
-          isTimedSource &&
-          enteredDurationUs === clip.durationUs &&
-          speed !== clip.speed
+          isTimedSource && !durationChanged && speed !== clip.speed
             ? Math.round((clip.sourceOutUs! - clip.sourceInUs) / speed)
             : enteredDurationUs;
         const patch: Extract<EditOperation, { type: 'updateClip' }>['patch'] = {
@@ -915,7 +975,7 @@ function Properties({
           speed,
           gain,
         };
-        if (clip.kind === 'video' || clip.kind === 'audio')
+        if (isTimedSource && durationChanged)
           patch.sourceOutUs = clip.sourceInUs + Math.round(durationUs * speed);
         if (clip.text)
           patch.text = { ...clip.text, text: String(form.get('text') ?? '') };

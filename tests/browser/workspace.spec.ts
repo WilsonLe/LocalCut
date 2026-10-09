@@ -9,6 +9,12 @@ async function createProject(page: Page, name: string) {
   await page
     .getByRole('button', { name: 'Create project', exact: true })
     .click();
+  await expect(
+    page.getByRole('dialog', { name: 'New project', exact: true }),
+  ).not.toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'New project', exact: true }),
+  ).toBeEnabled();
   await expect(page.getByLabel('Import media', { exact: true })).toBeAttached();
 }
 
@@ -52,9 +58,8 @@ async function redPng(page: Page) {
   return { name: 'red.png', mimeType: 'image/png', buffer: Buffer.from(bytes) };
 }
 
-function toneWav() {
-  const sampleRate = 48000,
-    frames = sampleRate / 2;
+function toneWav(frames = 24000) {
+  const sampleRate = 48000;
   const bytes = Buffer.alloc(44 + frames * 4);
   bytes.write('RIFF', 0);
   bytes.writeUInt32LE(bytes.length - 8, 4);
@@ -675,3 +680,83 @@ test('workspace imports image, audio and video, handles invalid input and cancel
     dialog.getByRole('button', { name: 'Export video', exact: true }),
   ).toBeEnabled();
 });
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`speed rounding preserves exact source bounds ${base}`, async ({
+    page,
+  }) => {
+    await page.goto(base);
+    const name = 'Fractional sample duration ' + base;
+    await createProject(page, name);
+    await page
+      .getByLabel('Import media', { exact: true })
+      .setInputFiles(toneWav(48001));
+    const track = page.getByRole('button', { name: 'tone.wav', exact: true });
+    await expect(track).toBeVisible();
+    const originalProject = await snapshot(page, base, name);
+    const original = originalProject.tracks.flatMap((item) => item.clips)[0]!;
+    expect(original).toMatchObject({
+      kind: 'audio',
+      sourceInUs: 0,
+      sourceOutUs: 1000021,
+      durationUs: 1000021,
+      speed: 1,
+    });
+    const readClip = async () =>
+      (await snapshot(page, base, name)).tracks
+        .flatMap((item) => item.clips)
+        .find((clip) => clip.id === original.id)!;
+    const update = async (label: string, value: string) => {
+      await track.click();
+      await page
+        .getByRole('button', { name: 'Clip properties', exact: true })
+        .click();
+      await page.getByLabel(label, { exact: true }).fill(value);
+      const before = await snapshot(page, base, name);
+      await page
+        .getByRole('button', { name: 'Apply properties', exact: true })
+        .click();
+      await expect
+        .poll(
+          async () =>
+            (await snapshot(page, base, name)).revision > before.revision ||
+            (await page
+              .locator('[data-sonner-toast][data-type="error"]')
+              .count()) > 0,
+        )
+        .toBe(true);
+      return readClip();
+    };
+    const sped = await update('Speed', '2');
+    expect(sped).toMatchObject({
+      sourceInUs: original.sourceInUs,
+      sourceOutUs: original.sourceOutUs,
+      durationUs: 500011,
+      speed: 2,
+    });
+    const gained = await update('Gain', '0.25');
+    expect(gained).toMatchObject({
+      sourceInUs: original.sourceInUs,
+      sourceOutUs: original.sourceOutUs,
+      durationUs: 500011,
+      speed: 2,
+      gain: 0.25,
+    });
+    const fractional = await update('Speed', '1.75');
+    expect(fractional).toMatchObject({
+      sourceInUs: original.sourceInUs,
+      sourceOutUs: original.sourceOutUs,
+      durationUs: 571441,
+      speed: 1.75,
+      gain: 0.25,
+    });
+    const trimmed = await update('Duration (seconds)', '0.25');
+    expect(trimmed).toMatchObject({
+      sourceInUs: 0,
+      sourceOutUs: 437500,
+      durationUs: 250000,
+      speed: 1.75,
+      gain: 0.25,
+    });
+  });
+}

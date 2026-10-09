@@ -11,6 +11,8 @@ import {
   Check,
   LoaderCircle,
   MousePointer2,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings2,
   Square,
   SquarePen,
@@ -37,14 +39,8 @@ import {
 } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
+import { SettingsSelect } from './SettingsSelect';
 
 type AiModule = typeof import('../ai');
 interface Connection {
@@ -59,6 +55,8 @@ export interface ConversationProps {
   onApplied: () => Promise<void>;
   onError: (error: unknown) => void;
   registerCleanup?: (cleanup: () => Promise<void>) => void;
+  collapsed: boolean;
+  onToggle: () => void;
 }
 
 // Capture and remove OAuth secrets synchronously, before any import/request.
@@ -322,93 +320,114 @@ export function Conversation(props: ConversationProps) {
   return (
     <aside
       aria-label="Editing conversation"
-      className="flex min-h-96 min-w-0 flex-col border-b bg-muted/35 lg:h-full lg:border-r lg:border-b-0"
+      className="conversation-panel flex min-h-96 min-w-0 flex-col border-b bg-muted/35 lg:h-full lg:border-r lg:border-b-0"
+      data-collapsed={props.collapsed}
     >
-      <div className="flex items-center justify-between gap-2 px-5 pt-5 pb-3">
-        <h2 className="text-sm font-semibold">Editing conversation</h2>
-        <div className="flex items-center gap-1">
+      <Button
+        className="conversation-toggle"
+        variant="ghost"
+        size="icon-sm"
+        aria-label={props.collapsed ? 'Expand chat' : 'Collapse chat'}
+        aria-expanded={!props.collapsed}
+        aria-controls="editing-conversation-content"
+        onClick={props.onToggle}
+        title={props.collapsed ? 'Expand chat' : 'Collapse chat'}
+      >
+        {props.collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+      </Button>
+      <div
+        id="editing-conversation-content"
+        className="conversation-content"
+        inert={props.collapsed}
+        aria-hidden={props.collapsed}
+      >
+        <div className="conversation-heading flex items-center justify-between gap-2 px-4 pt-4 pb-2">
+          <h2 className="text-sm font-semibold">Editing conversation</h2>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="New conversation"
+              title="New conversation"
+              disabled={!ready}
+              onClick={() => setConversationNumber((value) => value + 1)}
+            >
+              <SquarePen aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
+        <div className="openrouter-connection px-4 pb-3">
           <Button
-            variant="ghost"
-            size="icon-sm"
+            variant="outline"
+            className="w-full justify-between gap-2 text-xs"
             aria-label={connection ? 'AI settings' : 'Connect AI'}
-            title={connection ? 'AI settings' : 'Connect AI'}
             onClick={() => setSettingsOpen(true)}
           >
-            <Settings2 aria-hidden="true" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="New conversation"
-            title="New conversation"
-            disabled={!ready}
-            onClick={() => setConversationNumber((value) => value + 1)}
-          >
-            <SquarePen aria-hidden="true" />
+            <span className="truncate">
+              {connection
+                ? `OpenRouter · ${selectedModel?.name ?? 'Choose a model'}`
+                : 'OpenRouter · Connect'}
+            </span>
+            <Settings2 className="shrink-0" aria-hidden="true" />
           </Button>
         </div>
-      </div>
-      <div className="px-5 pb-4 text-xs text-muted-foreground">
-        {connection
-          ? `OpenRouter · ${selectedModel?.name ?? 'Choose a model'}`
-          : 'AI is optional. Your media stays on this device.'}
-      </div>
-      {ready ? (
-        <ConversationSession
-          key={sessionKey}
-          {...props}
-          editor={props.editor!}
-          project={props.project!}
-          connection={connection}
-          model={model}
-          privacy={privacy}
-          registerSession={registerSession}
-          retireSession={retireSession}
-          waitForRetired={waitForRetired}
-        />
-      ) : (
-        <div className="flex flex-1 flex-col px-5 pb-5">
-          <div className="flex-1 py-8 text-sm leading-relaxed">
-            <p className="font-medium">Describe the cut you want.</p>
-            <p className="mt-2 text-muted-foreground">
-              {!props.project
-                ? 'Create or open a project, then import your media to start editing.'
-                : !connection
-                  ? 'Connect OpenRouter to discuss your edit and review proposed changes before applying them.'
-                  : 'Choose a tool-capable model in AI settings to start your conversation.'}
-            </p>
-            {!connection && (
-              <Button
-                variant="outline"
-                className="mt-4"
-                onClick={() => setSettingsOpen(true)}
-              >
-                Connect AI
-              </Button>
-            )}
-            {connection && !model && (
-              <Button
-                variant="outline"
-                className="mt-4"
-                onClick={() => setSettingsOpen(true)}
-              >
-                Choose a model
-              </Button>
-            )}
-          </div>
-          <Textarea
-            aria-label="Describe your edit"
-            placeholder="What would you like to change?"
-            disabled
-            className="min-h-24 resize-none bg-background"
+        {ready ? (
+          <ConversationSession
+            key={sessionKey}
+            {...props}
+            editor={props.editor!}
+            project={props.project!}
+            connection={connection}
+            model={model}
+            privacy={privacy}
+            registerSession={registerSession}
+            retireSession={retireSession}
+            waitForRetired={waitForRetired}
           />
-          <p className="mt-2 text-xs text-muted-foreground">
-            {connection
-              ? 'Select a project and model to send a request.'
-              : 'No AI provider connected. Manual editing is available.'}
-          </p>
-        </div>
-      )}
+        ) : (
+          <div className="flex flex-1 flex-col px-5 pb-5">
+            <div className="flex-1 py-8 text-sm leading-relaxed">
+              <p className="font-medium">Describe the cut you want.</p>
+              <p className="mt-2 text-muted-foreground">
+                {!props.project
+                  ? 'Create or open a project, then import your media to start editing.'
+                  : !connection
+                    ? 'Connect OpenRouter to discuss your edit and review proposed changes before applying them.'
+                    : 'Choose a tool-capable model in AI settings to start your conversation.'}
+              </p>
+              {!connection && (
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onClick={() => setSettingsOpen(true)}
+                >
+                  Connect AI
+                </Button>
+              )}
+              {connection && !model && (
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onClick={() => setSettingsOpen(true)}
+                >
+                  Choose a model
+                </Button>
+              )}
+            </div>
+            <Textarea
+              aria-label="Describe your edit"
+              placeholder="What would you like to change?"
+              disabled
+              className="min-h-24 resize-none bg-background"
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              {connection
+                ? 'Select a project and model to send a request.'
+                : 'No AI provider connected. Manual editing is available.'}
+            </p>
+          </div>
+        )}
+      </div>
       <Dialog
         open={settingsOpen}
         onOpenChange={(open) => {
@@ -490,27 +509,18 @@ export function Conversation(props: ConversationProps) {
                   placeholder="Find a model by name or ID"
                 />
                 <Label id="ai-model-label">AI model</Label>
-                <Select
+                <SettingsSelect
+                  label="AI model"
                   value={model || null}
-                  onValueChange={(value) => setModel(value ?? '')}
-                >
-                  <SelectTrigger
-                    aria-labelledby="ai-model-label"
-                    className="w-full"
-                    disabled={connecting || !models.length}
-                  >
-                    <SelectValue placeholder="Choose a tool-capable model">
-                      {selectedModel?.name}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {visibleModels.map((item) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {item.name} · {item.id}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={setModel}
+                  disabled={connecting || !models.length}
+                  placeholder="Choose a tool-capable model"
+                  selectedLabel={selectedModel?.name}
+                  options={visibleModels.map((item) => ({
+                    value: item.id,
+                    label: `${item.name} · ${item.id}`,
+                  }))}
+                />
                 <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                   <span>
                     {connecting
@@ -818,7 +828,7 @@ function ConversationSession({
         aria-label="Conversation messages"
         aria-live="polite"
         aria-relevant="additions text"
-        className="min-h-40 flex-1 space-y-5 overflow-y-auto px-5 pb-5"
+        className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 pb-5"
         onScroll={() => {
           if (list.current)
             nearBottom.current =

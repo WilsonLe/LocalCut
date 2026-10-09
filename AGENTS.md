@@ -1,5 +1,6 @@
 # LocalCut contributor contract
 
+- Read [user preferences](docs/user-preferences.md) before changing the workspace, and update that record when the user specifies a durable preference.
 - The approved production interface is a conversation-led workspace: editing conversation at left, preview and compact timeline at right. Use the existing neutral Vega shadcn/Base UI foundation; do not add sample media or simulated editing behavior to production.
 - Initial page load must not start workers, initialize storage, fetch models, request permissions, or instantiate the editor. Open/create/import actions explicitly initialize the engine. An explicit OpenRouter OAuth return may complete authentication after removing callback secrets from the address.
 - All future controls and agent transports must invoke the shared engine API. Keep one canonical project document and explicit revision/request contracts.

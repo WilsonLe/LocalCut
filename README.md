@@ -9,7 +9,7 @@ A local video editor that builds to static files. The conversation-led workspace
 3. Optionally connect OpenRouter, choose a model, and describe an edit. Review the proposed operations, then Apply or Discard. Prompts and permitted metadata go to OpenRouter; raw media stays local. Sharing names, on-screen text and transcripts is off by default.
 4. Export MP4 or WebM after browser capability checks, then Save video. Keep a project JSON backup and copies of the original media separately.
 
-The workspace starts without opening storage or starting media/AI services. Projects remain on this origin and browser; credentials and conversation state do not survive reload. Open a saved project after reloading. See [workspace behavior](docs/workspace.md).
+The workspace starts without opening storage or starting media/AI services. Projects remain on this origin and browser; credentials and conversation state do not survive reload. Open a saved project after reloading. See [workspace behavior](docs/workspace.md) and the maintained [user preferences](docs/user-preferences.md).
 
 ## Setup
 
@@ -24,23 +24,26 @@ pnpm dev
 
 Current desktop Google Chrome is required for native codec, OPFS, Web Locks, and production integration tests. Local editing requires no runtime environment variables, accounts, servers, or secrets. Optional remote AI needs an explicitly connected user-owned OpenRouter key. HTTPS or localhost is required for browser storage.
 
-| Command                   | Purpose                                                     |
-| ------------------------- | ----------------------------------------------------------- |
-| `pnpm dev`                | Local editor workspace at the root path                     |
-| `pnpm typecheck`          | Strict browser, worker, Node/test/config checks             |
-| `pnpm lint`               | ESLint and pure-core import boundaries                      |
-| `pnpm format:check`       | Prettier                                                    |
-| `pnpm test`               | Domain and service unit tests                               |
-| `pnpm build`              | App + `editor.js` + `ai.js` + worker assets + declarations  |
-| `pnpm build:root`         | Equivalent build at `/` in `dist-root`                      |
-| `pnpm test:browser`       | Production integration in Google Chrome                     |
-| `pnpm test:transcription` | Real pinned Whisper preparation and cached replay           |
-| `pnpm test:performance`   | Warmup, two- and five-minute 1080p exports                  |
-| `pnpm test:ai:live`       | Opt-in real OpenRouter test; private key and model required |
-| `pnpm check:bundle`       | Actual entry graph and static artifact budgets              |
-| `pnpm check`              | Normal formatting/lint/type/unit/build/bundle/browser gates |
+| Command                   | Purpose                                                       |
+| ------------------------- | ------------------------------------------------------------- |
+| `pnpm dev`                | Local editor workspace at the root path                       |
+| `pnpm typecheck`          | Strict browser, worker, Node/test/config checks               |
+| `pnpm lint`               | ESLint and pure-core import boundaries                        |
+| `pnpm format:check`       | Prettier                                                      |
+| `pnpm test`               | Domain and service unit tests                                 |
+| `pnpm build`              | App + `editor.js` + `ai.js` + worker assets + declarations    |
+| `pnpm build:root`         | Equivalent build at `/` in `dist-root`                        |
+| `pnpm test:browser`       | Production integration in Google Chrome                       |
+| `pnpm test:ui`            | Focused workspace tests; rebuild only stale production assets |
+| `pnpm test:transcription` | Real pinned Whisper preparation and cached replay             |
+| `pnpm test:performance`   | Warmup, two- and five-minute 1080p exports                    |
+| `pnpm test:ai:live`       | Opt-in real OpenRouter test; private key and model required   |
+| `pnpm check:bundle`       | Actual entry graph and static artifact budgets                |
+| `pnpm check`              | Normal formatting/lint/type/unit/build/bundle/browser gates   |
 
-Browser commands require both production builds first. The harness server is test-only and never enters `dist`. Transcription and performance are explicit additional acceptance gates; neither is included in ordinary `check`.
+Browser commands require both production builds first, except `test:ui`, which verifies or builds them automatically. The harness server is test-only and never enters `dist`. Normal browser tests use two independent Chrome workers; set `LOCALCUT_BROWSER_WORKERS=1` for a serial run, or an integer up to 4 on a suitable machine. Transcription, performance, and live-provider tests remain serial, explicit additional gates; none is included in ordinary `check`.
+
+For UI iteration, run `pnpm test:ui`, or narrow it with `pnpm test:ui --grep 'speed rounding'`. It runs workspace tests at both static base paths. Content hashes verify build inputs and every output file before reuse; changed source, build configuration, dependencies, or missing/tampered output triggers a rebuild. Documentation and test-only edits do not. The stamps live in ignored `.cache/build-state/`, outside deployed assets. `pnpm check` still performs clean production builds and the complete normal suite.
 
 TypeScript 7.0.2 supplies `tsc` through the `@typescript/native` alias. The `typescript` alias supplies Microsoft's pinned v6 compatibility API for typescript-eslint; it does not replace the production compiler. Dependencies and the lockfile are exact.
 
