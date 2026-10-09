@@ -1,0 +1,131 @@
+name: Required checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  quality:
+    name: Formatting, lint and types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check && pnpm lint && pnpm typecheck
+  unit:
+    name: Engine unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+  build:
+    name: Static builds and bundle budgets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build && pnpm build:root && pnpm check:bundle > bundle-report.jsonl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: production-builds
+          path: |
+            dist/
+            dist-root/
+            bundle-report.jsonl
+          include-hidden-files: true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: failed-build-reports
+          path: bundle-report.jsonl
+  chrome:
+    name: Production integration in stable Chrome
+    needs: build
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        with:
+          chrome-version: stable
+      - uses: actions/download-artifact@v4
+        with:
+          name: production-builds
+      - run: pnpm test:browser
+        env:
+          LOCALCUT_CHROME_EXECUTABLE: ${{ steps.chrome.outputs.chrome-path }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: chrome-failure-evidence
+          path: |
+            playwright-report/
+            test-results/
+  transcription:
+    name: Real transcription and cached replay
+    needs: build
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        with:
+          chrome-version: stable
+      - uses: actions/download-artifact@v4
+        with:
+          name: production-builds
+      - uses: actions/cache@v4
+        with:
+          path: .cache/asr-5332fcc35e32a33b86612b9a57a89be7906102b1
+          key: localcut-asr-4.3.1-q8-5332fcc35e32a33b86612b9a57a89be7906102b1-ort-1.31.0-dev.20260914-8d85527a0
+      - run: node scripts/cache-transcription-assets.mjs
+      - run: pnpm test:transcription
+        env:
+          LOCALCUT_CHROME_EXECUTABLE: ${{ steps.chrome.outputs.chrome-path }}
+          LOCALCUT_ASR_CACHE: .cache/asr-5332fcc35e32a33b86612b9a57a89be7906102b1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: transcription-evidence
+          path: |
+            playwright-report/
+            test-results/
