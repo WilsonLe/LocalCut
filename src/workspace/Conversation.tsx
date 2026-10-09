@@ -35,6 +35,7 @@ export interface ConversationProps {
   editor: Editor | null;
   project: Project | null;
   selectedClipId?: string;
+  readOnly?: boolean;
   onApplied: () => Promise<void>;
   onError: (error: unknown) => void;
   registerCleanup?: (cleanup: () => Promise<void>) => void;

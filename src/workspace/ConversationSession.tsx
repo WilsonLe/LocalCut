@@ -108,6 +108,7 @@ export default function ConversationSession({
   composerControl,
   onBusy,
   onTitle,
+  readOnly,
 }: SessionProps) {
   const [prompt, setPrompt] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -154,6 +155,7 @@ export default function ConversationSession({
   }, [messages, proposals, activity]);
   const send = async (event: FormEvent) => {
     event.preventDefault();
+    if (readOnly) return;
     const text = prompt.trim();
     if (!text || runningRef.current || applyingRef.current) return;
     runningRef.current = true;
@@ -305,7 +307,13 @@ export default function ConversationSession({
     }
   };
   const apply = async (proposal: EditProposal) => {
-    if (!assistant.current || runningRef.current || applyingRef.current) return;
+    if (
+      readOnly ||
+      !assistant.current ||
+      runningRef.current ||
+      applyingRef.current
+    )
+      return;
     applyingRef.current = true;
     onBusy(true);
     try {
@@ -550,7 +558,7 @@ export default function ConversationSession({
                           <Button
                             size="sm"
                             aria-label="Apply proposal"
-                            disabled={stale || running || applying}
+                            disabled={readOnly || stale || running || applying}
                             onClick={() => void apply(proposal)}
                           >
                             {proposal.action ? 'Approve' : 'Apply'}
@@ -619,6 +627,7 @@ export default function ConversationSession({
           <Textarea
             ref={composer}
             rows={1}
+            disabled={readOnly}
             aria-label="Describe your edit"
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
@@ -679,7 +688,7 @@ export default function ConversationSession({
                   type="submit"
                   size="icon-sm"
                   aria-label="Send edit request"
-                  disabled={!prompt.trim() || applying}
+                  disabled={readOnly || !prompt.trim() || applying}
                 >
                   <ArrowUp aria-hidden="true" />
                 </Button>

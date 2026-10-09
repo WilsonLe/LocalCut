@@ -35,6 +35,12 @@ This is the project record of the user's durable product and workflow choices. U
 - Provide an appearance section inspired by shadcn Create. The actual workspace is the live preview, and appearance preferences survive reload locally in the browser.
 - Keep the existing Base UI and Lucide foundations. System font stacks provide body/heading choices without downloading fonts. Appearance changes must preserve the active editing session and conversation.
 
+## Project versions — 10 October 2026
+
+- Autosave a project version after one second without a committed edit; keep working edits immediately durable in local storage.
+- Browse historical versions by recreating the complete project in the real editor, timeline and playback preview in read-only mode. Do not use screenshots as version previews.
+- Past versions are immutable. Restoring a version appends a new version containing that saved state and advances the current revision; it never rewrites or removes later versions.
+
 ## Delivery and validation
 
 - Pull and rebase onto current `main`, including the OpenRouter integration, before completing the workspace.

@@ -15,6 +15,7 @@ import { Tooltip } from '../components/ui/tooltip';
 import { formatTime, projectDuration } from './helpers';
 
 interface Props {
+  versionId?: string;
   editor: Editor | null;
   project: Project | null;
   timeUs: number;
@@ -29,6 +30,7 @@ export interface PreviewControls {
 }
 export function Preview({
   editor,
+  versionId,
   project,
   timeUs,
   seekRevision,
@@ -40,7 +42,7 @@ export function Preview({
   const canvas = useRef<HTMLCanvasElement>(null);
   const session = useRef<PreviewSession | null>(null);
   const audio = useRef<AudioContext | null>(null);
-  const playIdentity = `${project?.id}:${project?.revision}:${seekRevision}`;
+  const playIdentity = `${project?.id}:${project?.revision}:${versionId}:${seekRevision}`;
   const [playingIdentity, setPlayingIdentity] = useState<string | null>(null);
   const playing = playingIdentity === playIdentity;
   const generation = useRef(0);
@@ -60,7 +62,7 @@ export function Preview({
     generation.current++;
     session.current?.dispose();
     session.current = null;
-  }, [project?.id, project?.revision]);
+  }, [project?.id, project?.revision, versionId]);
   useEffect(() => {
     generation.current++;
     session.current?.pause();
@@ -76,10 +78,15 @@ export function Preview({
   useEffect(() => {
     if (!editor || !project || !total || !canvas.current || playing) return;
     let stale = false;
-    const job = editor.preview.frame(project.id, Math.round(displayedTime), {
-      width: 960,
-      height: Math.round((960 * project.height) / project.width),
-    });
+    const job = editor.preview.frame(
+      project.id,
+      Math.round(displayedTime),
+      {
+        width: 960,
+        height: Math.round((960 * project.height) / project.width),
+      },
+      versionId,
+    );
     const unsubscribe = job.subscribe((event) => {
       if (!stale) setLoading(event.state === 'running');
     });
@@ -111,7 +118,7 @@ export function Preview({
       unsubscribe();
       job.cancel();
     };
-  }, [editor, project, displayedTime, total, playing]);
+  }, [editor, project, versionId, displayedTime, total, playing]);
   useEffect(() => {
     if (!playing) return;
     let animation: number;
@@ -152,6 +159,7 @@ export function Preview({
           project.id,
           canvas.current,
           audio.current,
+          versionId,
         );
         session.current.onError((error) => {
           setPlayingIdentity(null);
@@ -197,7 +205,7 @@ export function Preview({
         {!total && (
           <div className="empty-preview">
             <Film aria-hidden="true" />
-            <h1>Start with your footage.</h1>
+            <h1>{versionId ? 'Empty timeline' : 'Start with your footage.'}</h1>
             <Button onClick={onImport}>Import media</Button>
           </div>
         )}

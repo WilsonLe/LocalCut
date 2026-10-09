@@ -1,4 +1,6 @@
 import { Store } from '../storage/store';
+import { Autosave } from '../services/autosave';
+export type { ProjectVersion, ProjectVersionInfo } from '../storage/store';
 import { Jobs, checkAbort } from '../services/jobs';
 import type { JobEvent } from '../services/jobs';
 import { WorkerClient } from '../services/worker-client';
@@ -29,6 +31,10 @@ export interface EditorOptions {
 export interface ProjectImportOptions {
   repairLegacyIdentities?: boolean;
 }
+export interface VersionEvent {
+  projectId: string;
+  error?: unknown;
+}
 export interface ProjectEvent {
   projectId: string;
   revision?: number;
@@ -41,6 +47,23 @@ export async function createEditor(options: EditorOptions = {}) {
   let disposed = false;
   const sessions = new Set<PreviewSession>();
   const projectListeners = new Set<(event: ProjectEvent) => void>();
+  const versionListeners = new Set<(event: VersionEvent) => void>();
+  const versionNotify = (event: VersionEvent) => {
+    for (const listener of versionListeners) {
+      try {
+        listener(event);
+      } catch {
+        /* Consumer isolation. */
+      }
+    }
+  };
+  const autosave = new Autosave(
+    async (id) => {
+      await store.saveVersion(id);
+      versionNotify({ projectId: id });
+    },
+    (projectId, error) => versionNotify({ projectId, error }),
+  );
   const broadcast = new BroadcastChannel(`${namespace}-projects`);
   const interactive = new WorkerClient(
     () =>
@@ -66,6 +89,8 @@ export async function createEditor(options: EditorOptions = {}) {
     invariant(!disposed, 'DISPOSED', 'Editor disposed');
   };
   const notify = (event: ProjectEvent, send = true) => {
+    if (event.type === 'deleted') autosave.cancel(event.projectId);
+    else autosave.schedule(event.projectId);
     for (const listener of projectListeners) {
       try {
         listener(event);
@@ -153,11 +178,48 @@ export async function createEditor(options: EditorOptions = {}) {
       },
       async open(id: string) {
         active();
-        return store.getProject(id);
+        const project = await store.getProject(id);
+        await autosave.flush(id);
+        return project;
       },
       async snapshot(id: string) {
         active();
         return store.getProject(id);
+      },
+      versions: {
+        async list(projectId: string) {
+          active();
+          return store.versions(projectId);
+        },
+        async snapshot(projectId: string, versionId: string) {
+          active();
+          return store.version(projectId, versionId);
+        },
+        async save(projectId: string) {
+          active();
+          await autosave.flush(projectId);
+        },
+        async restore(
+          projectId: string,
+          versionId: string,
+          requestId: string,
+          expectedRevision: number,
+        ) {
+          active();
+          const receipt = await store.restoreVersion(
+            projectId,
+            versionId,
+            requestId,
+            expectedRevision,
+          );
+          notify({
+            projectId,
+            revision: receipt.appliedRevision,
+            type: 'changed',
+          });
+          versionNotify({ projectId });
+          return receipt;
+        },
       },
       async delete(id: string) {
         active();
@@ -344,6 +406,7 @@ export async function createEditor(options: EditorOptions = {}) {
         projectId: string,
         timeUs: number,
         size?: { width: number; height: number },
+        versionId?: string,
       ) {
         active();
         return jobs.start(
@@ -353,7 +416,9 @@ export async function createEditor(options: EditorOptions = {}) {
               'INVALID_COMMAND',
               'Invalid frame timestamp',
             );
-            const p = await store.getProject(projectId);
+            const p = versionId
+              ? (await store.version(projectId, versionId)).project
+              : await store.getProject(projectId);
             return interactive.run<FrameResult>(
               'frame',
               { namespace, jobId: id, project: p, timeUs, ...size },
@@ -368,10 +433,14 @@ export async function createEditor(options: EditorOptions = {}) {
         projectId: string,
         canvas: HTMLCanvasElement,
         audioContext: AudioContext,
+        versionId?: string,
       ) {
         active();
         const session = createPreviewSession(
-          () => store.getProject(projectId),
+          () =>
+            versionId
+              ? store.version(projectId, versionId).then((v) => v.project)
+              : store.getProject(projectId),
           canvas,
           audioContext,
           render,
@@ -509,6 +578,11 @@ export async function createEditor(options: EditorOptions = {}) {
       },
     },
     events: {
+      versions(listener: (event: VersionEvent) => void) {
+        active();
+        versionListeners.add(listener);
+        return () => versionListeners.delete(listener);
+      },
       jobs(listener: (event: JobEvent) => void) {
         active();
         return jobs.subscribe(listener);
@@ -523,13 +597,21 @@ export async function createEditor(options: EditorOptions = {}) {
       if (disposed) return;
       disposed = true;
       for (const session of sessions) session.dispose();
+      let saveError: unknown;
+      try {
+        await autosave.flushAll();
+      } catch (error) {
+        saveError = error;
+      }
       await jobs.dispose();
       interactive.reset();
       background.reset();
       speech.reset();
       broadcast.close();
       projectListeners.clear();
+      versionListeners.clear();
       store.close();
+      if (saveError) throw saveError;
     },
   };
 }

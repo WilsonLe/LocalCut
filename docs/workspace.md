@@ -40,6 +40,14 @@ Focus the preview or timeline to use single-key shortcuts. `Space` plays/pauses,
 
 Command on macOS or Ctrl elsewhere works with `Z` for Undo, Shift+`Z` for Redo, `O` for Open project, `I` for Import media, and `E` for Export. Ctrl+`Y` also redoes. Shortcuts never intercept text inputs, IME composition, dialogs or menus; Space on a focused button retains its native action. Editing shortcuts call the same revision-aware operations as the visible controls.
 
+## Version browsing
+
+Versions in the header opens the saved history and checkpoints pending edits. Select a version to recreate its full timeline, project dimensions, media references and preview. You can select clips, inspect read-only properties, scrub and play the saved state. Editing controls, imports, relinking, export and AI requests/application are disabled while browsing. The conversation stays mounted and refers to the current project; transient chat and playhead state are not part of the saved project document.
+
+Return to current resumes the latest project, including changes from another tab. Restore as new version copies the selected state into a new current revision and appends a new version; earlier and later historical entries stay unchanged. If another tab changes the current revision before restoration, review its latest state and retry. Undo can reverse the restoration without deleting the restored version. Closing history returns to the current project.
+
+Autosave appends a version one second after the last committed edit. Rapid edits form one settled version; Undo/Redo also autosave. Pending work is checkpointed when switching projects, browsing history or closing the editor. A forced tab close still retains committed edits; reopening checkpoints the recovered current state. Version history is local to this browser and project; a JSON backup carries its current state and source references, not the version list.
+
 ## Optional AI
 
 Connect AI accepts a user-owned OpenRouter key or starts its PKCE login. Keys stay in memory and are cleared from the input after use; reload requires connection again. Choose a tool-capable model explicitly. The model catalog is requested only by connecting or refreshing it.

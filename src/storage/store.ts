@@ -13,8 +13,42 @@ import {
 } from '../core/model';
 import { commitWithSignal } from './transaction';
 import type { Asset, Project, Transcript, ProjectBackup } from '../core/model';
+export interface ProjectVersion {
+  id: string;
+  number: number;
+  createdAt: number;
+  kind: 'initial' | 'autosave' | 'restore';
+  restoredFrom?: string;
+  project: Project;
+}
+export type ProjectVersionInfo = Omit<ProjectVersion, 'project'> & {
+  revision: number;
+};
+function appendVersion(
+  state: RecordState,
+  kind: ProjectVersion['kind'],
+  restoredFrom?: string,
+) {
+  const versions = (state.versions ??= []);
+  if (
+    kind !== 'restore' &&
+    versions.at(-1)?.project.revision === state.project.revision
+  )
+    return versions.at(-1)!;
+  const version: ProjectVersion = {
+    id: crypto.randomUUID(),
+    number: versions.length + 1,
+    createdAt: Date.now(),
+    kind,
+    ...(restoredFrom ? { restoredFrom } : {}),
+    project: structuredClone(state.project),
+  };
+  versions.push(version);
+  return version;
+}
 interface RecordState {
   identityVersion?: 1;
+  versions?: ProjectVersion[];
   project: Project;
   undo: Project[];
   redo: Project[];
@@ -36,8 +70,11 @@ function normalizeState(state: RecordState): RecordState {
     'INVALID_DOCUMENT',
     'Invalid project history',
   );
-  if (state.identityVersion === 1)
-    return { ...state, project: validateProject(state.project) };
+  if (state.identityVersion === 1) {
+    const normalized = { ...state, project: validateProject(state.project) };
+    if (!normalized.versions?.length) appendVersion(normalized, 'initial');
+    return normalized;
+  }
   // Oldest undo first; redo is a stack, so its reverse is chronological.
   const snapshots = [
     ...state.undo,
@@ -45,12 +82,15 @@ function normalizeState(state: RecordState): RecordState {
     ...[...state.redo].reverse(),
   ];
   const normalized = repairLegacyIdentities(snapshots);
-  return {
+  const result: RecordState = {
+    ...state,
     identityVersion: 1,
     project: normalized[state.undo.length]!,
     undo: normalized.slice(0, state.undo.length),
     redo: normalized.slice(state.undo.length + 1).reverse(),
   };
+  if (!result.versions?.length) appendVersion(result, 'initial');
+  return result;
 }
 export interface Journal {
   id: string;
@@ -142,7 +182,7 @@ export class Store {
       const record = (await tx.store.get(id)) as RecordState | undefined;
       invariant(record, 'NOT_FOUND', `Project ${id} missing`);
       const state = normalizeState(record);
-      if (record.identityVersion === undefined)
+      if (record.identityVersion === undefined || !record.versions?.length)
         await tx.store.put({ ...state, id });
       return state.project;
     });
@@ -159,13 +199,14 @@ export class Store {
         (id) => tx.objectStore('assets').get(id),
         (id) => tx.objectStore('transcripts').get(id),
       );
-      await tx.objectStore('projects').add({
+      const state: RecordState = {
         identityVersion: 1,
-        id: value.id,
         project: value,
         undo: [],
         redo: [],
-      });
+      };
+      appendVersion(state, 'initial');
+      await tx.objectStore('projects').add({ ...state, id: value.id });
       return value;
     });
   }
@@ -179,7 +220,7 @@ export class Store {
         RecordState | undefined;
       invariant(record, 'NOT_FOUND', 'Project missing');
       const state = normalizeState(record);
-      if (record.identityVersion === undefined)
+      if (record.identityVersion === undefined || !record.versions?.length)
         await tx.objectStore('projects').put({ ...state, id });
       const project = state.project;
       const transcriptIds = [
@@ -248,13 +289,14 @@ export class Store {
       'readwrite',
     );
     try {
-      await tx.objectStore('projects').add({
+      const state: RecordState = {
         identityVersion: 1,
-        id: project.id,
         project,
         undo: [],
         redo: [],
-      });
+      };
+      appendVersion(state, 'initial');
+      await tx.objectStore('projects').add({ ...state, id: project.id });
       for (const asset of backup.assets)
         await tx
           .objectStore('assets')
@@ -284,7 +326,7 @@ export class Store {
       const projects: Project[] = [];
       for (const record of records) {
         const state = normalizeState(record);
-        if (record.identityVersion === undefined)
+        if (record.identityVersion === undefined || !record.versions?.length)
           await tx.store.put({ ...state, id: state.project.id });
         projects.push(state.project);
       }
@@ -301,6 +343,67 @@ export class Store {
       if (r.receipt.projectId === id)
         await tx.objectStore('receipts').delete(r.key);
     await tx.done;
+  }
+  async versions(projectId: string): Promise<ProjectVersionInfo[]> {
+    await this.getProject(projectId);
+    const state = (await this.db.get('projects', projectId)) as
+      RecordState | undefined;
+    invariant(state, 'NOT_FOUND', 'Project missing');
+    return (state.versions ?? [])
+      .map(({ project, ...info }) => ({ ...info, revision: project.revision }))
+      .reverse();
+  }
+  async version(projectId: string, versionId: string): Promise<ProjectVersion> {
+    await this.getProject(projectId);
+    const state = (await this.db.get('projects', projectId)) as
+      RecordState | undefined;
+    invariant(state, 'NOT_FOUND', 'Project missing');
+    const version = state.versions?.find((v) => v.id === versionId);
+    invariant(version, 'NOT_FOUND', 'Project version missing');
+    return { ...version, project: validateProject(version.project) };
+  }
+  async saveVersion(projectId: string): Promise<ProjectVersion> {
+    const tx = this.db.transaction('projects', 'readwrite');
+    return commitWithSignal(tx, undefined, async () => {
+      const record = (await tx.store.get(projectId)) as RecordState | undefined;
+      invariant(record, 'NOT_FOUND', 'Project missing');
+      const state = normalizeState(record);
+      const version = appendVersion(state, 'autosave');
+      await tx.store.put({ ...state, id: projectId });
+      return version;
+    });
+  }
+  async restoreVersion(
+    projectId: string,
+    versionId: string,
+    requestId: string,
+    expectedRevision: number,
+  ) {
+    return this.commit(
+      projectId,
+      requestId,
+      expectedRevision,
+      canonical({
+        projectId,
+        versionId,
+        requestId,
+        expectedRevision,
+        action: 'restoreVersion',
+      }),
+      (state) => {
+        const version = state.versions?.find((v) => v.id === versionId);
+        invariant(version, 'NOT_FOUND', 'Project version missing');
+        // Preserve the current working state, even before its debounce expires.
+        appendVersion(state, 'autosave');
+        state.undo.push(state.project);
+        state.undo = state.undo.slice(-100);
+        state.redo = [];
+        state.project = validateProject(version.project);
+        return [projectId];
+      },
+      undefined,
+      versionId,
+    );
   }
   async apply(input: CommandBatch) {
     const batch = parseBatch(input);
@@ -351,6 +454,7 @@ export class Store {
     content: string,
     mutate: (state: RecordState) => string[],
     legacyContent: () => string | undefined = () => content,
+    restoredFrom?: string,
   ): Promise<EditReceipt> {
     invariant(
       requestId.length > 0 && Number.isSafeInteger(expected) && expected >= 0,
@@ -400,6 +504,7 @@ export class Store {
         (id) => tx.objectStore('assets').get(id),
         (id) => tx.objectStore('transcripts').get(id),
       );
+      if (restoredFrom) appendVersion(state, 'restore', restoredFrom);
       const receipt: EditReceipt = {
         requestId,
         projectId,
