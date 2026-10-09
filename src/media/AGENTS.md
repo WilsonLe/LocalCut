@@ -10,6 +10,7 @@ composition, codec preflight, and streaming export. Read [architecture](../../do
 - Mix bounded 48 kHz stereo windows. Derive resampling phase from absolute sample indices, retain interpolation halos, apply gain/fades/mute, and clamp output without allocating full-project audio.
 - Probe the exact requested video/audio configuration. Unsupported settings fail explicitly; export must not silently switch format or omit audio.
 - Schedule export from frame indices, round the end to a full frame, and align/pad audio to that endpoint. Preserve the configuration-specific AAC priming correction.
+- Normalize encoded AAC decoder metadata in both priming and muxing. WebKit can return an ES descriptor instead of AudioSpecificConfig; preserve valid native configurations and reject malformed envelopes. The regression fixture is in `tests/unit/audio-config.test.ts`.
 - Stream with backpressure into journaled OPFS output. Publish only after finalization; failures and cancellation clean temporary output. The caller disposes delivered artifacts.
 
 Run focused checks from the repository root:

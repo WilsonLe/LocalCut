@@ -90,22 +90,66 @@ The adapter sends requests only to fixed HTTPS OpenRouter endpoints with omitted
 
 Provider reasoning text and signed/encrypted reasoning details are retained as bounded opaque conversation state for subsequent tool rounds. They are not emitted as user-visible text events or interpreted as tools.
 
+Each `tool` event carries a locally generated `callId`, name and phase. After schema validation, the start event includes the parsed input; terminal events include the redacted result or a safe structured error. Match updates by `callId`, including repeated calls to the same tool. Details are limited to 32 KiB per field and at most 128 KiB per turn (or the configured context limit, if lower). Oversized details are omitted whole and marked with `inputOmitted`, `resultOmitted` or `errorOmitted`; raw invalid arguments and provider continuation data are never exposed. The workspace renders these as independently expandable calls.
+
 Streaming uses bounded UTF-8/SSE parsing and handles comments, split network chunks, CR/LF boundaries, multiline data, incremental tool arguments and final usage accounting. The adapter requires a complete terminal response and `[DONE]` before exposing executable tool calls. Truncated, malformed, refused, oversized and provider-error streams fail. No automatic retry can duplicate a provider charge. Abort cancels local consumption and HTTP work; whether upstream billing stops depends on the provider.
 
-The assistant exposes only these local tools:
+The assistant exposes these local tools. Tool arguments derive from the canonical edit schemas; optional service tools are advertised only when the supplied engine supports them.
 
-| Tool              | Scope                                                                |
-| ----------------- | -------------------------------------------------------------------- |
-| `inspect_project` | Selected revision, redacted by the context policy                    |
-| `inspect_asset`   | Metadata for project assets or explicitly selected library asset IDs |
-| `read_transcript` | Explicitly enabled source transcripts referenced by that project     |
-| `propose_edits`   | Validated atomic operations; creates a pending proposal only         |
+| Tool                    | Scope                                                                                                                                                                 |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `inspect_project`       | Selected revision, redacted by the context policy                                                                                                                     |
+| `inspect_asset`         | Metadata for project assets or explicitly selected library asset IDs                                                                                                  |
+| `inspect_timeline`      | Active clips, source positions, exact frame time, evaluated keyframes, audio gain, and transition weights at an integer microsecond time; no decoding or frame upload |
+| `inspect_capabilities`  | Every supported edit operation, timing/effect rules, available local services, and approval boundaries                                                                |
+| `inspect_proposals`     | Pending/applied proposal status and sanitized result metadata                                                                                                         |
+| `inspect_transcription` | Cached model readiness and missing-asset count, without a download                                                                                                    |
+| `read_transcript`       | Explicitly shared source transcripts referenced by the project or produced by approved actions in this session                                                        |
+| `validate_edits`        | A complete dry run through the engine, returning affected IDs and the redacted resulting project; no commit or proposal                                               |
+| `check_export`          | Native codec preflight for requested settings, with no encoding or output download                                                                                    |
+| `propose_edits`         | Validated atomic operations; creates a pending proposal only                                                                                                          |
+| `propose_action`        | A pending Undo, Redo, export, transcription, or model-preparation request; no service executes until approval                                                         |
 
-Tool definitions derive operation schemas from the existing core contract. Unknown tools, extra fields, invalid IDs/ranges, unselected assets or foreign transcripts and invalid operations fail locally. All streamed text, model tool arguments, media names and transcript content are untrusted data. The model cannot fetch arbitrary URLs, run JavaScript, import media, read credentials or modify project storage. A prompt injection cannot expand the tool allowlist or bypass apply/revision validation.
+All fourteen edit operations are available: add/remove/reorder tracks; insert/remove/update/trim/split/move/duplicate clips; constant speed; ripple placement; and add/remove transitions. `updateClip` exposes the full existing engine schema for position, dimensions, rotation, crop, opacity, brightness/contrast/saturation/grayscale/blur, gain/mute/fades, keyframes, text styles, caption cues, and transcript linkage. There is no smaller, independently maintained AI editing schema. Dry runs validate the final atomic state, including source bounds, unique IDs, and transition overlap. Validation errors return stable codes and bounded structural hints rather than local text, provider error bodies, or media names.
 
-A completed turn publishes cloned proposals with host-generated IDs and immutable internal command batches. `getProposal()` returns a copy; editing it cannot change what Apply commits. The batch is bound to the snapshot revision and has a stable request ID. Apply delegates to the existing atomic engine transaction, preserving its idempotency, asset validation, history and Undo. A concurrent project edit produces `REVISION_CONFLICT` and requires a new proposal. Concurrent application of the same proposal shares one result. Cancellation/disposal does not roll back an already committed edit or erase its receipt.
+A completed turn publishes cloned proposals with host-generated IDs and immutable internal requests. `getProposal()` returns a copy; editing it cannot change what approval executes. Every proposal carries `batch.projectId`, `batch.expectedRevision`, and a stable `batch.requestId`. Ordinary edits retain their complete command batch. A service/history proposal carries an `action` and an empty `batch.operations` array used only as a revision envelope; that array is never sent to `commands.apply`.
 
-The assistant stages proposals until the whole turn succeeds. A fatal malformed response, cancellation or turn-budget error discards staged proposals, leaving project state unchanged. Recoverable tool errors return sanitized error results to the model for correction within the same budget; invalid operations are never staged. Consumers should clearly distinguish streamed narration from the eventual completed proposal. Sessions permit one active turn, bounded history, explicit `clearHistory`, disposal, turn cancellation, and listener unsubscription.
+`applyProposal(id)` remains the compatible edit-only API and returns its receipt. The workspace uses `approveProposal(id)` for any card:
+
+```ts
+const proposal = assistant.getProposal(selectedProposalId);
+// Only from an explicit Apply/Approve action, after showing its action/settings:
+const result = await assistant.approveProposal(proposal.id);
+if (result.kind === 'export') {
+  const artifact = assistant.exportArtifact(result.artifactId);
+  // Keep artifact.file local. Offer a separate browser Save action.
+  offerSave(artifact.file, result.name);
+  // After Save or dismissal:
+  await artifact.dispose();
+}
+// For a running export, transcription, or model-preparation card:
+assistant.cancelProposal(selectedProposalId);
+```
+
+`approveProposal` returns a discriminated result: an edit/history receipt, local export metadata and artifact ID, transcript ID/source/cue count, or model-preparation readiness. Export files and storage paths never enter provider context. Progress appears in `proposal_progress` events and `proposal.progress`; worker details and raw errors are excluded. Export artifacts remain owned by the assistant until explicitly disposed or the assistant is disposed. Disposal cancels active service jobs and releases retained outputs. A service retry is always another explicit user approval, never an automatic model retry. Preparation and inference are separate approvals; an unprepared transcription fails without automatically downloading a model. Approving local transcription does not opt its text into remote context. Its new transcript can be linked to the source clip without sharing text, or read by the model only when `includeTranscripts` is enabled.
+
+Edits and history delegate to the engine's atomic revision checks, persistent idempotency receipts, asset validation, and history. Export validates the authored revision before starting and the actual captured revision before publishing. A concurrent project edit produces `REVISION_CONFLICT` and requires a new proposal. Concurrent approval of one proposal shares one result; approving a completed export does not encode it again. Cancellation/disposal does not roll back an already committed edit or persisted transcript. No model tool can approve or cancel another proposal, trigger Save, or bypass the host approval action.
+
+Atomic edit and history commits cannot be cancelled after submission. `cancelProposal` rejects those proposal types and treats a late cancellation of a completed service job as a no-op, preserving its artifact. Consumers should show cancellation only on running export, transcription and preparation jobs.
+
+The API coverage boundary is explicit:
+
+| Public engine family    | Assistant access                                                                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Commands                | Every edit operation through a dry run and reviewed batch; Undo/Redo through reviewed actions                                                                       |
+| Export                  | Read-only native preflight; reviewed encoding; user-owned Save and artifact disposal                                                                                |
+| Transcription           | Read-only cache status; separate reviewed preparation and inference; opt-in source-text inspection                                                                  |
+| Assets                  | Selected/project metadata; local file selection, import and relink stay with the user                                                                               |
+| Projects                | Selected snapshot; create/open/import/backup/delete stay in project UI, preventing cross-project access                                                             |
+| Preview and derivatives | Structural timeline evaluation; presentation surfaces, playback activation, thumbnails, waveforms, and media bytes remain local and unavailable to the remote model |
+| Lifecycle               | Caller-owned run cancellation, proposal service cancellation, session disposal and export cleanup; no arbitrary worker or storage access                            |
+
+The assistant stages proposals until the whole turn succeeds. A fatal malformed response, cancellation or turn-budget error discards staged proposals, leaving project state unchanged. Recoverable tool errors return sanitized results to the model for correction within the same budget; invalid operations are never staged. All streamed text, arguments, names and transcript content remain untrusted data. The model cannot fetch arbitrary URLs, run JavaScript, import files, read credentials, delete projects, clear caches, expand asset selections, or approve its own proposal. Consumers should distinguish streamed narration from a completed proposal. Sessions permit one active turn, bounded history, explicit `clearHistory`, disposal, turn cancellation, and listener unsubscription.
 
 ## Privacy and resource limits
 
@@ -119,7 +163,7 @@ Errors use stable `AiError.code` values: authentication/expiry, credits, rate li
 
 ## Verification
 
-Local `pnpm check` includes unit protocol/auth/controller tests, both static builds and production Chrome integration with intercepted OpenRouter responses and the real local editor. Interception makes deterministic failure-path tests possible; it does not prove authenticated live provider behavior. Tests cover privacy redaction, OAuth callback reload, explicit proposal/apply/Undo and persistence, stale revisions, idempotency, cancellation, malformed streams, credential races, resource bounds and inert imports. The initial workspace graph excludes both optional entries and all AI dependencies count toward the aggregate budget.
+Local `pnpm check` includes unit protocol/auth/controller tests, both static builds and production Chrome integration with intercepted OpenRouter responses and the real local editor. Interception makes deterministic failure-path tests possible; it does not prove authenticated live provider behavior. Tests cover privacy redaction, OAuth callback reload, all fourteen edit operations, structural planning feedback, explicit proposal/apply/Undo/Redo and persistence, service approval, stale revisions, idempotency, cancellation, malformed streams, credential races, resource bounds and inert imports. Production-entry tests approve both native export formats through the assistant, reopen the files, and check decoded pixels. Controlled service tests cover separate preparation/inference approvals and text opt-in; the real Whisper acceptance suite remains the inference capability evidence. The initial workspace graph excludes both optional entries and all AI dependencies count toward the aggregate budget.
 
 The public catalog and CORS were checked without a key on 2026-10-10 (Sydney): model GET returned 200, and auth/chat OPTIONS returned 204 permitting bearer-header browser calls. This verifies public connectivity only.
 

@@ -20,6 +20,16 @@ This is the project record of the user's durable product and workflow choices. U
 - Keep a usable stacked layout on narrow screens, with the editing area before the conversation.
 - Use real editing, progress and export results in production. Illustrative clips and simulated replies belong only in explicitly labelled prototypes.
 
+## Workspace cleanup and editing access — 10 October 2026
+
+- Keep the workspace free of explanatory filler and repeated status text. Remove redundant empty-state copy, device/privacy labels, preview metadata and frame-rate labels from the default view; disclose useful details through accessible shadcn tooltips or expandable settings. Keep actionable errors and operation progress visible.
+- Match the CYOBot instructor dashboard chat's structure and interactions, using LocalCut's styling. Use its compact conversation header, transcript, tool/approval disclosures and composer instead of a separate invented chat layout.
+- Keep one OpenRouter configuration entry point in chat. Remove the long duplicate provider bar.
+- Give the new-project dialog comfortable field spacing and padding. Remove the visible “Save your edits on this device” explanation there as well.
+- Keep media in its own right-side panel with an always-reachable edge toggle, independent of chat. Remove the header Media action.
+- Provide useful video-editing keyboard shortcuts and discoverable help. Preserve normal typing, native control activation, menu/dialog keyboard handling and assistive interaction.
+- Give the assistant the tools needed to inspect, plan and perform supported video-editing workflows. Continue requiring explicit approval for edits and consequential local service actions, and keep source media local.
+
 ## Delivery and validation
 
 - Pull and rebase onto current `main`, including the OpenRouter integration, before completing the workspace.

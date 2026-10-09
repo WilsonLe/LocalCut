@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState } from 'react';
+import type { Ref } from 'react';
 import {
   Film,
+  Info,
   LoaderCircle,
   Pause,
   Play,
@@ -9,6 +11,7 @@ import {
 } from 'lucide-react';
 import type { Editor, Project, PreviewSession } from '../editor';
 import { Button } from '../components/ui/button';
+import { Tooltip } from '../components/ui/tooltip';
 import { formatTime, projectDuration } from './helpers';
 
 interface Props {
@@ -19,6 +22,10 @@ interface Props {
   onTime: (timeUs: number) => void;
   onImport: () => void;
   onError: (error: unknown) => void;
+  controlsRef?: Ref<PreviewControls>;
+}
+export interface PreviewControls {
+  togglePlayback: () => void;
 }
 export function Preview({
   editor,
@@ -28,6 +35,7 @@ export function Preview({
   onTime,
   onImport,
   onError,
+  controlsRef,
 }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const session = useRef<PreviewSession | null>(null);
@@ -165,14 +173,11 @@ export function Preview({
       setLoading(false);
     }
   };
+  useImperativeHandle(controlsRef, () => ({
+    togglePlayback: () => void play(),
+  }));
   return (
     <section className="preview" aria-label="Project preview">
-      <div className="preview-heading">
-        <span>Preview</span>
-        <span>
-          {project ? `${project.width} × ${project.height}` : '16:9 · 1080p'}
-        </span>
-      </div>
       <div
         className="preview-stage"
         style={{
@@ -186,13 +191,13 @@ export function Preview({
             project ? Math.round((960 * project.height) / project.width) : 540
           }
           aria-label="Video preview"
+          tabIndex={0}
           hidden={!total}
         />
         {!total && (
           <div className="empty-preview">
             <Film aria-hidden="true" />
             <h1>Start with your footage.</h1>
-            <p>Bring in a clip, then shape your story.</p>
             <Button onClick={onImport}>Import media</Button>
           </div>
         )}
@@ -246,12 +251,13 @@ export function Preview({
             <SkipForward />
           </Button>
         </div>
-        <span className="preview-fps">
-          {project
-            ? (project.frameRate.num / project.frameRate.den).toFixed(0)
-            : 30}{' '}
-          fps
-        </span>
+        <Tooltip
+          content={`${project?.width ?? 1920} × ${project?.height ?? 1080} · ${project ? (project.frameRate.num / project.frameRate.den).toFixed(2).replace(/\.00$/, '') : 30} fps`}
+        >
+          <Button variant="ghost" size="icon-sm" aria-label="Preview settings">
+            <Info />
+          </Button>
+        </Tooltip>
       </div>
     </section>
   );

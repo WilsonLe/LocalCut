@@ -12,6 +12,9 @@ import {
   parseBatch,
 } from '../../src/core/commands';
 import { EditorError } from '../../src/core/errors';
+import { Jobs } from '../../src/services/jobs';
+import { supportedEditOperations, toolDefinitions } from '../../src/ai/tools';
+import type { EditOperation } from '../../src/core/commands';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -235,6 +238,62 @@ describe('headless assistant boundaries', () => {
     ]);
     expect(f.project().revision).toBe(1);
   });
+  it.each(['edits', 'undo', 'redo'] as const)(
+    'does not offer cancellation semantics for an atomic %s commit',
+    async (kind) => {
+      const f = fixture(),
+        started = deferred<void>(),
+        finish = deferred<void>();
+      const commit = async (requestId: string): Promise<EditReceipt> => {
+        started.resolve();
+        await finish.promise;
+        return {
+          requestId,
+          projectId: f.project().id,
+          appliedRevision: 1,
+          affectedIds: ['video'],
+          warnings: [],
+        };
+      };
+      f.editor.commands.apply = vi.fn((batch) => commit(batch.requestId));
+      f.editor.commands.undo = vi.fn((_project, requestId) =>
+        commit(requestId),
+      );
+      f.editor.commands.redo = vi.fn((_project, requestId) =>
+        commit(requestId),
+      );
+      const p = provider([
+        [
+          kind === 'edits'
+            ? proposal()
+            : final('', [
+                call('propose_action', {
+                  summary: kind,
+                  action: { type: kind },
+                }),
+              ]),
+        ],
+        [final()],
+      ]);
+      const assistant = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test/model',
+      });
+      const id = (await assistant.run(kind).completion).proposalIds[0]!;
+      const pending = assistant.approveProposal(id);
+      await started.promise;
+      expect(assistant.getProposal(id).status).toBe('applying');
+      expect(() => assistant.cancelProposal(id)).toThrow(
+        expect.objectContaining({ code: 'INVALID_REQUEST' }),
+      );
+      finish.resolve();
+      expect(await pending).toMatchObject({ receipt: { appliedRevision: 1 } });
+      expect(assistant.getProposal(id).status).toBe('applied');
+      await assistant.dispose();
+    },
+  );
   it('rejects stale proposals through the canonical engine without changing state', async () => {
     const f = setup(),
       id = (await f.assistant.run('Move').completion).proposalIds[0]!;
@@ -490,6 +549,127 @@ describe('headless assistant boundaries', () => {
     });
     expect(f.editor.commands.validate).not.toHaveBeenCalled();
     expect(f.assistant.snapshot().proposals).toEqual([]);
+  });
+  it('publishes independently identified, redacted tool details and safe validation errors', async () => {
+    const f = setup([
+      [
+        final('', [
+          call('inspect_project', {}, 'repeat'),
+          call(
+            'validate_edits',
+            {
+              operations: [{ type: 'removeClip', clipId: 'missing' }],
+            },
+            'invalid-edit',
+          ),
+          call(
+            'inspect_project',
+            { secret: 'raw-provider-secret' },
+            'invalid-input',
+          ),
+        ]),
+      ],
+      [final('', [call('inspect_project', {}, 'repeat')])],
+      [final()],
+    ]);
+    const events: Extract<AssistantEvent, { type: 'tool' }>[] = [];
+    f.assistant.subscribe((event) => {
+      if (event.type === 'tool') events.push(event);
+    });
+    await f.assistant.run('Inspect and validate').completion;
+    const starts = events.filter((event) => event.phase === 'started');
+    expect(starts).toHaveLength(4);
+    expect(new Set(starts.map((event) => event.callId)).size).toBe(4);
+    for (const start of starts) {
+      expect(
+        events.filter((event) => event.callId === start.callId),
+      ).toHaveLength(2);
+    }
+    const inspections = events.filter((event) => event.phase === 'completed');
+    expect(inspections).toHaveLength(2);
+    expect(inspections[0]!.result).toMatchObject({
+      revision: 0,
+      id: f.project().id,
+    });
+    expect(inspections[1]!.callId).not.toBe(inspections[0]!.callId);
+    const rejected = events.find(
+      (event) => event.name === 'validate_edits' && event.phase === 'failed',
+    )!;
+    expect(rejected.error).toMatchObject({
+      code: 'EDIT_REJECTED',
+      details: { editorCode: 'NOT_FOUND' },
+    });
+    expect(
+      events.find(
+        (event) =>
+          event.callId === rejected.callId && event.phase === 'started',
+      )!.input,
+    ).toEqual({
+      operations: [{ type: 'removeClip', clipId: 'missing' }],
+    });
+    const malformed = events.find(
+      (event) => event.error?.code === 'INVALID_TOOL_ARGUMENTS',
+    )!;
+    expect(
+      events.find(
+        (event) =>
+          event.callId === malformed.callId && event.phase === 'started',
+      )!.input,
+    ).toBeUndefined();
+    expect(JSON.stringify(events)).not.toMatch(
+      /Private client|Private overlay|Private cue|Private transcript|raw-provider-secret/,
+    );
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+  });
+  it('caps cumulative activity details while preserving completed calls and provider results', async () => {
+    const f = fixture();
+    f.project().tracks[1]!.clips[0]!.text!.text = 'x'.repeat(24000);
+    const p = provider([
+      [
+        final(
+          '',
+          Array.from({ length: 7 }, (_, index) =>
+            call('inspect_project', {}, String(index)),
+          ),
+        ),
+      ],
+      [final()],
+    ]);
+    const assistant = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      context: { includeText: true },
+    });
+    const events: Extract<AssistantEvent, { type: 'tool' }>[] = [];
+    assistant.subscribe((event) => {
+      if (event.type === 'tool') events.push(event);
+    });
+    await assistant.run('Inspect repeatedly').completion;
+    const completed = events.filter((event) => event.phase === 'completed');
+    expect(completed).toHaveLength(7);
+    expect(completed.some((event) => event.resultOmitted)).toBe(true);
+    expect(completed.some((event) => event.result !== undefined)).toBe(true);
+    const bytes = events.reduce(
+      (sum, event) =>
+        sum +
+        ['input', 'result', 'error'].reduce((total, key) => {
+          const value = event[key as 'input' | 'result' | 'error'];
+          return (
+            total +
+            (value === undefined
+              ? 0
+              : new TextEncoder().encode(JSON.stringify(value)).length)
+          );
+        }, 0),
+      0,
+    );
+    expect(bytes).toBeLessThanOrEqual(128 * 1024);
+    expect(
+      p.requests[1]!.messages.filter((message) => message.role === 'tool'),
+    ).toHaveLength(7);
+    await assistant.dispose();
   });
   it('requires clean stream completion before executing a completed tool message', async () => {
     const f = setup([[proposal(), { type: 'text', text: 'late data' }]]);
@@ -998,5 +1178,642 @@ describe('headless assistant boundaries', () => {
     expect((await apply).appliedRevision).toBe(1);
     expect(f.assistant.getProposal(id).receipt?.appliedRevision).toBe(1);
     expect(f.assistant.snapshot().state).toBe('disposed');
+  });
+  it('evaluates timing, dry-runs every canonical editing operation and redacts planning feedback', async () => {
+    const f = fixture();
+    const operations: EditOperation[] = [
+      { type: 'addTrack', track: { id: 'temporary', kind: 'overlay' } },
+      { type: 'reorderTrack', trackId: 'temporary', index: 0 },
+      {
+        type: 'insertClip',
+        trackId: 'main',
+        clip: {
+          id: 'second',
+          kind: 'video',
+          assetId: 'asset',
+          startUs: 3e6,
+          durationUs: 4e6,
+          sourceOutUs: 4e6,
+        },
+      },
+      { type: 'trimClip', clipId: 'video', sourceInUs: 0, sourceOutUs: 3e6 },
+      { type: 'splitClip', clipId: 'video', atUs: 1e6, rightClipId: 'right' },
+      { type: 'setSpeed', clipId: 'right', speed: 2 },
+      {
+        type: 'duplicateClip',
+        clipId: 'right',
+        newClipId: 'copy',
+        trackId: 'main',
+        startUs: 8e6,
+      },
+      { type: 'moveClip', clipId: 'second', trackId: 'main', startUs: 0.5e6 },
+      {
+        type: 'updateClip',
+        clipId: 'right',
+        patch: {
+          x: 10,
+          y: 20,
+          width: 640,
+          height: 360,
+          rotation: 25,
+          opacity: 0.5,
+          crop: { x: 0, y: 0, width: 0.75, height: 0.75 },
+          gain: 0.25,
+          muted: false,
+          fadeInUs: 100000,
+          fadeOutUs: 100000,
+          brightness: 1.2,
+          contrast: 0.8,
+          saturation: 1.4,
+          grayscale: 0.2,
+          blur: 4,
+          keyframes: {
+            x: [
+              { timeUs: 0, value: 10 },
+              { timeUs: 1e6, value: 100 },
+            ],
+          },
+          cues: [{ id: 'new-cue', timeUs: 0, endUs: 1e6, text: 'New caption' }],
+        },
+      },
+      { type: 'ripple', trackId: 'main', fromUs: 8e6, deltaUs: 1e6 },
+      {
+        type: 'addTransition',
+        transition: {
+          id: 'dissolve',
+          trackId: 'main',
+          fromClipId: 'video',
+          toClipId: 'second',
+          kind: 'crossfade',
+        },
+      },
+      { type: 'removeTransition', transitionId: 'dissolve' },
+      { type: 'removeClip', clipId: 'copy' },
+      { type: 'removeTrack', trackId: 'temporary' },
+    ];
+    expect(new Set(operations.map((operation) => operation.type))).toEqual(
+      new Set(supportedEditOperations),
+    );
+    const p = provider([
+      [
+        final('', [
+          call('inspect_capabilities', {}, 'caps'),
+          call('inspect_timeline', { timeUs: 1e6 }, 'time'),
+          call('validate_edits', { operations }, 'validate'),
+        ]),
+      ],
+      [proposal(operations)],
+      [final()],
+    ]);
+    const assistant = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    const before = structuredClone(f.project());
+    const response = await assistant.run(
+      'Plan and validate all supported edits',
+    ).completion;
+    expect(f.project()).toEqual(before);
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+    const feedback = p.requests[1]!.messages.filter(
+      (message) => message.role === 'tool',
+    ).map((message) => JSON.parse(message.content));
+    expect(feedback[0].editOperations).toEqual(supportedEditOperations);
+    expect(feedback[1]).toMatchObject({ frameIndex: 30, frameTimeUs: 1e6 });
+    expect(feedback[1].tracks[0].clips[0]).toMatchObject({
+      sourceTimeUs: 1e6,
+      localTimeUs: 1e6,
+      audibleGain: 0.7,
+    });
+    expect(
+      feedback[2].project.tracks[0].clips.find(
+        (clip: { id: string }) => clip.id === 'right',
+      ),
+    ).toMatchObject({
+      id: 'right',
+      speed: 2,
+      durationUs: 1e6,
+    });
+    expect(JSON.stringify(p.requests)).not.toMatch(
+      /Private client project|Private overlay text|Private cue text/,
+    );
+    await assistant.applyProposal(response.proposalIds[0]!);
+    expect(
+      f.project().tracks[0]!.clips.find((clip) => clip.id === 'right'),
+    ).toMatchObject({ brightness: 1.2, crop: { width: 0.75 }, gain: 0.25 });
+  });
+  it('reports exact transition and animated values without decoding or leaking hidden text', async () => {
+    const f = fixture();
+    f.project().tracks[0]!.clips[0]!.keyframes = {
+      opacity: [
+        { id: 'fade-start', timeUs: 0, value: 0, interpolation: 'linear' },
+        { id: 'fade-end', timeUs: 4e6, value: 1, interpolation: 'linear' },
+      ],
+    };
+    f.project().tracks[0]!.clips.push(
+      clipSchema.parse({
+        id: 'overlap',
+        kind: 'video',
+        assetId: 'asset',
+        startUs: 2e6,
+        durationUs: 4e6,
+        sourceOutUs: 4e6,
+      }),
+    );
+    f.project().transitions.push({
+      id: 'black',
+      kind: 'black',
+      trackId: 'main',
+      fromClipId: 'video',
+      toClipId: 'overlap',
+    });
+    const p = provider([
+      [final('', [call('inspect_timeline', { timeUs: 3e6 })])],
+      [final()],
+    ]);
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    await a.run('Evaluate').completion;
+    const response = JSON.parse(p.requests[1]!.messages.at(-1)!.content!);
+    expect(response.tracks[0].clips[0].values.opacity).toBe(0.75);
+    expect(response.transitions).toEqual([
+      expect.objectContaining({
+        fromWeight: 0,
+        toWeight: 0,
+        blackBackground: true,
+        progress: 0.5,
+      }),
+    ]);
+    expect(f.editor.assets.inspect).not.toHaveBeenCalled();
+    expect(JSON.stringify(response)).not.toContain('Private overlay text');
+  });
+  it('exposes optional services honestly and never accepts undeclared action tools', async () => {
+    expect(
+      toolDefinitions(false).map((tool) => tool.function.name),
+    ).not.toContain('propose_action');
+    const f = setup([
+      [
+        final('', [
+          call('propose_action', { summary: 'Undo', action: { type: 'undo' } }),
+        ]),
+      ],
+      [final()],
+    ]);
+    expect((await f.assistant.run('Undo').completion).proposalIds).toEqual([]);
+    expect(JSON.stringify(f.provider.requests[1])).toContain(
+      'TOOL_NOT_ALLOWED',
+    );
+  });
+  it('requires explicit approval for history and preserves its request ID and committed receipt', async () => {
+    const f = fixture();
+    const historyReceipt = {
+      requestId: '',
+      projectId: f.project().id,
+      appliedRevision: 1,
+      affectedIds: ['video'],
+      warnings: [],
+    };
+    f.editor.commands.undo = vi.fn(async (_projectId, requestId) => ({
+      ...historyReceipt,
+      requestId,
+    }));
+    const p = provider([
+      [
+        final('', [
+          call('propose_action', {
+            summary: 'Undo previous edit',
+            action: { type: 'undo' },
+          }),
+        ]),
+      ],
+      [final()],
+    ]);
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    const id = (await a.run('Undo').completion).proposalIds[0]!;
+    expect(f.editor.commands.undo).not.toHaveBeenCalled();
+    expect(() => a.applyProposal(id)).toThrow('approveProposal');
+    const [one, two] = await Promise.all([
+      a.approveProposal(id),
+      a.approveProposal(id),
+    ]);
+    expect(one).toEqual(two);
+    expect(one).toMatchObject({
+      kind: 'history',
+      receipt: {
+        appliedRevision: 1,
+        requestId: a.getProposal(id).batch.requestId,
+      },
+    });
+    expect(f.editor.commands.undo).toHaveBeenCalledTimes(1);
+    expect(await a.approveProposal(id)).toEqual(one);
+  });
+  it('preflights explicitly and exports only after approval, retaining a disposable local artifact', async () => {
+    const f = fixture(),
+      jobs = new Jobs(),
+      dispose = vi.fn(async () => {});
+    const file = new File(['private video bytes'], 'source-name.mp4');
+    f.editor.exports = {
+      preflight: vi.fn(() =>
+        jobs.start(async () => ({
+          supported: true,
+          video: true,
+          audio: true,
+          videoCodec: 'avc' as const,
+          audioCodec: 'aac' as const,
+          videoBitrate: 8e6,
+          audioBitrate: 192000,
+        })),
+      ),
+      start: vi.fn(() =>
+        jobs.start(async (_signal, progress) => {
+          progress({
+            stage: 'encoding',
+            progress: 0.5,
+            detail: 'private path',
+          });
+          return {
+            file,
+            path: 'private-output-path',
+            projectId: f.project().id,
+            revision: 0,
+            format: 'mp4' as const,
+            durationUs: 4e6,
+            settings: { format: 'mp4' as const },
+            dispose,
+          };
+        }),
+      ),
+    };
+    const p = provider([
+      [
+        final('', [
+          call('check_export', { options: { format: 'mp4' } }, 'check'),
+          call(
+            'propose_action',
+            {
+              summary: 'Export video',
+              action: { type: 'export', options: { format: 'mp4' } },
+            },
+            'export',
+          ),
+        ]),
+      ],
+      [final()],
+      [final('', [call('inspect_proposals', {})])],
+      [final()],
+    ]);
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    const events: AssistantEvent[] = [];
+    a.subscribe((event) => events.push(event));
+    const id = (await a.run('Export').completion).proposalIds[0]!;
+    expect(f.editor.exports.preflight).toHaveBeenCalledTimes(1);
+    expect(f.editor.exports.start).not.toHaveBeenCalled();
+    const result = await a.approveProposal(id);
+    expect(result).toMatchObject({
+      kind: 'export',
+      artifactId: id,
+      size: file.size,
+      name: 'LocalCut.mp4',
+      revision: 0,
+    });
+    expect(events).toContainEqual({
+      type: 'proposal_progress',
+      proposalId: id,
+      progress: { stage: 'encoding', progress: 0.5 },
+    });
+    expect(a.exportArtifact(id).file).toBe(file);
+    // A stale Cancel click after completion must preserve the published artifact.
+    expect(() => a.cancelProposal(id)).not.toThrow();
+    expect(a.exportArtifact(id).file).toBe(file);
+    expect(dispose).not.toHaveBeenCalled();
+    expect(await a.approveProposal(id)).toEqual(result);
+    expect(f.editor.exports.start).toHaveBeenCalledTimes(1);
+    await a.run('What is ready?').completion;
+    expect(JSON.stringify(p.requests)).not.toMatch(
+      /private video bytes|source-name|private-output-path|private path/,
+    );
+    await a.exportArtifact(id).dispose();
+    await a.dispose();
+    expect(dispose).toHaveBeenCalledTimes(1);
+    await jobs.dispose();
+  });
+  it('cancels approved service jobs and releases late export outputs without publication', async () => {
+    const f = fixture(),
+      jobs = new Jobs(),
+      started = deferred<void>(),
+      finish = deferred<void>(),
+      dispose = vi.fn(async () => {});
+    f.editor.exports = {
+      preflight: vi.fn(),
+      start: vi.fn(() =>
+        jobs.start(
+          async () => {
+            started.resolve();
+            await finish.promise;
+            return {
+              file: new File(['bytes'], 'out.webm'),
+              path: 'out',
+              projectId: f.project().id,
+              revision: 0,
+              format: 'webm' as const,
+              durationUs: 4e6,
+              settings: { format: 'webm' as const },
+              dispose,
+            };
+          },
+          { discard: (artifact) => artifact.dispose() },
+        ),
+      ),
+    };
+    const p = provider([
+      [
+        final('', [
+          call('propose_action', {
+            summary: 'Export',
+            action: { type: 'export', options: { format: 'webm' } },
+          }),
+        ]),
+      ],
+      [final()],
+    ]);
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    const id = (await a.run('Export').completion).proposalIds[0]!;
+    const pending = a.approveProposal(id);
+    await started.promise;
+    a.cancelProposal(id);
+    finish.resolve();
+    await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(a.getProposal(id).status).toBe('pending');
+    expect(a.getProposal(id).result).toBeUndefined();
+    expect(() => a.exportArtifact(id)).toThrow('unavailable');
+    expect(dispose).toHaveBeenCalledTimes(1);
+    await a.dispose();
+    await jobs.dispose();
+  });
+  it.each([
+    'export',
+    'transcribe',
+    'prepare_transcription',
+    'undo',
+    'redo',
+  ] as const)(
+    'blocks stale %s action before starting a service',
+    async (type) => {
+      const f = fixture();
+      f.editor.commands.undo = vi.fn();
+      f.editor.commands.redo = vi.fn();
+      f.editor.exports = { preflight: vi.fn(), start: vi.fn() };
+      f.editor.transcription.prepare = vi.fn();
+      f.editor.transcription.transcribe = vi.fn();
+      f.editor.assets.inspect = vi.fn(async () =>
+        assetSchema.parse({
+          id: 'asset',
+          name: 'private',
+          kind: 'video',
+          size: 10,
+          type: 'video/mp4',
+          durationUs: 4e6,
+          width: 1920,
+          height: 1080,
+          rotation: 0,
+          status: 'ready',
+          audioCodec: 'aac',
+        }),
+      );
+      const action =
+        type === 'export'
+          ? { type, options: { format: 'mp4' } }
+          : type === 'transcribe'
+            ? { type, assetId: 'asset' }
+            : { type };
+      const p = provider([
+        [final('', [call('propose_action', { summary: type, action })])],
+        [final()],
+      ]);
+      const a = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test/model',
+      });
+      const id = (await a.run(type).completion).proposalIds[0]!;
+      f.changeRevision();
+      await expect(a.approveProposal(id)).rejects.toMatchObject({
+        code: 'REVISION_CONFLICT',
+      });
+      expect(f.editor.exports.start).not.toHaveBeenCalled();
+      expect(f.editor.transcription.prepare).not.toHaveBeenCalled();
+      expect(f.editor.transcription.transcribe).not.toHaveBeenCalled();
+      expect(f.editor.commands.undo).not.toHaveBeenCalled();
+      expect(f.editor.commands.redo).not.toHaveBeenCalled();
+    },
+  );
+  it('requires separate model preparation and inference approvals, sharing generated text only by opt-in', async () => {
+    const f = fixture(),
+      jobs = new Jobs();
+    let ready = false;
+    f.editor.transcription.status = vi.fn(async () => ({
+      ready,
+      missing: ready ? [] : ['https://model.test/weights'],
+    }));
+    f.editor.transcription.prepare = vi.fn(() =>
+      jobs.start(async () => {
+        ready = true;
+        return { ready, missing: [] };
+      }),
+    );
+    const transcript = {
+      id: 'generated',
+      assetId: 'asset',
+      model: 'local-model',
+      revision: 'pinned',
+      cues: [
+        {
+          id: 'generated-cue',
+          timeUs: 0,
+          endUs: 1e6,
+          text: 'SECRET GENERATED TRANSCRIPT',
+        },
+      ],
+    };
+    f.editor.transcription.transcript = vi.fn(async () => transcript);
+    f.editor.transcription.transcribe = vi.fn(() =>
+      jobs.start(async () => {
+        if (!ready) throw new EditorError('MODEL_REQUIRED', 'not prepared');
+        return transcript;
+      }),
+    );
+    f.editor.assets.inspect = vi.fn(async () =>
+      assetSchema.parse({
+        id: 'asset',
+        name: 'private',
+        kind: 'video',
+        size: 10,
+        type: 'video/mp4',
+        durationUs: 4e6,
+        width: 1920,
+        height: 1080,
+        rotation: 0,
+        status: 'ready',
+        audioCodec: 'aac',
+      }),
+    );
+    const transcribe = call('propose_action', {
+      summary: 'Transcribe',
+      action: { type: 'transcribe', assetId: 'asset' },
+    });
+    const prepare = call('propose_action', {
+      summary: 'Download local model',
+      action: { type: 'prepare_transcription' },
+    });
+    const p = provider([
+      [final('', [call('inspect_transcription', {}, 'status'), transcribe])],
+      [final()],
+      [final('', [prepare])],
+      [final()],
+      [final('', [transcribe])],
+      [final()],
+      [final('', [call('read_transcript', { transcriptId: 'generated' })])],
+      [final()],
+    ]);
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    const first = (await a.run('Transcribe').completion).proposalIds[0]!;
+    expect(f.editor.transcription.prepare).not.toHaveBeenCalled();
+    expect(f.editor.transcription.transcribe).not.toHaveBeenCalled();
+    await expect(a.approveProposal(first)).rejects.toMatchObject({
+      code: 'EDIT_REJECTED',
+      details: { editorCode: 'MODEL_REQUIRED' },
+    });
+    expect(f.editor.transcription.prepare).not.toHaveBeenCalled();
+    const preparation = (await a.run('Prepare').completion).proposalIds[0]!;
+    expect(await a.approveProposal(preparation)).toEqual({
+      kind: 'preparation',
+      ready: true,
+    });
+    const inference = (await a.run('Transcribe').completion).proposalIds[0]!;
+    expect(await a.approveProposal(inference)).toEqual({
+      kind: 'transcription',
+      transcriptId: 'generated',
+      assetId: 'asset',
+      cueCount: 1,
+    });
+    await a.run('Read').completion;
+    expect(f.editor.transcription.transcript).not.toHaveBeenCalled();
+    expect(JSON.stringify(p.requests)).not.toContain(
+      'SECRET GENERATED TRANSCRIPT',
+    );
+    expect(f.editor.transcription.prepare).toHaveBeenCalledTimes(1);
+    expect(f.editor.transcription.transcribe).toHaveBeenCalledTimes(2);
+    await a.dispose();
+    await jobs.dispose();
+  });
+  it('allows explicitly shared generated transcripts to drive source-linked captions', async () => {
+    const f = fixture(),
+      jobs = new Jobs();
+    const transcript = {
+      id: 'generated',
+      assetId: 'asset',
+      model: 'model',
+      revision: 'pinned',
+      cues: [
+        {
+          id: 'generated-cue',
+          timeUs: 0,
+          endUs: 1e6,
+          text: 'Shared generated transcript',
+        },
+      ],
+    };
+    f.editor.transcription.transcript = vi.fn(async () => transcript);
+    f.editor.transcription.transcribe = vi.fn(() =>
+      jobs.start(async () => transcript),
+    );
+    f.editor.assets.inspect = vi.fn(async () =>
+      assetSchema.parse({
+        id: 'asset',
+        name: 'private',
+        kind: 'video',
+        size: 10,
+        type: 'video/mp4',
+        durationUs: 4e6,
+        width: 1920,
+        height: 1080,
+        rotation: 0,
+        status: 'ready',
+        audioCodec: 'aac',
+      }),
+    );
+    const p = provider([
+      [
+        final('', [
+          call('propose_action', {
+            summary: 'Transcribe',
+            action: { type: 'transcribe', assetId: 'asset' },
+          }),
+        ]),
+      ],
+      [final()],
+      [
+        final('', [
+          call('read_transcript', { transcriptId: 'generated' }, 'read'),
+          call(
+            'propose_edits',
+            {
+              summary: 'Link captions',
+              operations: [
+                {
+                  type: 'updateClip',
+                  clipId: 'video',
+                  patch: { transcriptId: 'generated' },
+                },
+              ],
+            },
+            'captions',
+          ),
+        ]),
+      ],
+      [final()],
+    ]);
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      context: { includeTranscripts: true },
+    });
+    const inference = (await a.run('Transcribe').completion).proposalIds[0]!;
+    await a.approveProposal(inference);
+    const captions = (await a.run('Caption').completion).proposalIds[0]!;
+    expect(JSON.stringify(p.requests)).toContain('Shared generated transcript');
+    await a.applyProposal(captions);
+    expect(f.project().tracks[0]!.clips[0]!.transcriptId).toBe('generated');
+    await a.dispose();
+    await jobs.dispose();
   });
 });
