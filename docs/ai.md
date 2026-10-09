@@ -1,6 +1,6 @@
 # OpenRouter integration
 
-The optional `ai.js` entry provides authentication, a text-only OpenRouter transport, and a headless editing assistant. It does not add UI or start work. The blank application imports neither the editor nor the AI entry. Both entries and their declarations are produced at `/` and `/LocalCut/`; no backend, callback rewrite, runtime environment variable, or bundled key is required.
+The optional `ai.js` entry provides authentication, a text-only OpenRouter transport, and a headless editing assistant. Importing it does not start work. The workspace loads it only for explicit AI connection or an OAuth return; initial navigation imports neither the editor nor the AI entry. Both entries and their declarations are produced at `/` and `/LocalCut/`; no backend, callback rewrite, runtime environment variable, or bundled key is required.
 
 ## Frontend wiring
 
@@ -51,7 +51,7 @@ provider.dispose();
 await editor.dispose();
 ```
 
-These examples show application integration points such as `renderAssistantEvent`; they are not product controls shipped by this change. Generated public declarations are in `dist/types/ai/index.d.ts` and `dist/types/editor/index.d.ts`. The source import is `src/ai/index.ts`. A frontend may dynamically import it; keep it out of the application's initial import graph until needed.
+These examples show application integration points such as `renderAssistantEvent`; the workspace provides those controls through this same API. Generated public declarations are in `dist/types/ai/index.d.ts` and `dist/types/editor/index.d.ts`. The source import is `src/ai/index.ts`. A frontend may dynamically import it; keep it out of the application's initial import graph until needed.
 
 One assistant is bound to one project, model and immutable context policy. Create another session to change these. `assetIds` is a copied allowlist of up to 1,000 additional imported library assets; selected media are inspected on demand and must be ready before a proposal can reference them. Multiple assistants may share a provider; disposing an assistant cancels its own turn and does not dispose the provider or editor. Disconnecting/disposing the provider cancels its in-flight requests. Await `assistant.dispose()` before disposing the editor; this waits for any already-started apply to settle. A browser reload loses API credentials and conversation state; project edits already committed through the editor remain.
 
@@ -67,7 +67,7 @@ const { authorizationUrl } = await provider.beginAuthorization({ callbackUrl });
 location.assign(authorizationUrl);
 ```
 
-Use the existing static page as the callback, `/` for a root deployment or `/LocalCut/` for GitHub Pages. A future frontend must explicitly handle the callback; the current blank shell does not. On return, capture the full URL, then remove `code`, `state` and OAuth error fields from the visible address before asynchronous work or analytics. Keep any original non-OAuth query parameters unchanged:
+Use the existing static page as the callback, `/` for a root deployment or `/LocalCut/` for GitHub Pages. The workspace handles the callback on the same static page and immediately removes its OAuth query fields. On return, capture the full URL, then remove `code`, `state` and OAuth error fields from the visible address before asynchronous work or analytics. Keep any original non-OAuth query parameters unchanged:
 
 ```ts
 const callbackUrl = location.href;
@@ -119,7 +119,7 @@ Errors use stable `AiError.code` values: authentication/expiry, credits, rate li
 
 ## Verification
 
-`pnpm check` includes unit protocol/auth/controller tests, both static builds and production Chrome integration with intercepted OpenRouter responses and the real local editor. Interception makes deterministic failure-path tests possible; it does not prove authenticated live provider behavior. Tests cover privacy redaction, OAuth callback reload, explicit proposal/apply/Undo and persistence, stale revisions, idempotency, cancellation, malformed streams, credential races, resource bounds and inert imports. The initial app graph excludes both optional entries and all AI dependencies count toward the aggregate budget.
+`pnpm check` includes unit protocol/auth/controller tests, both static builds and production Chrome integration with intercepted OpenRouter responses and the real local editor. Interception makes deterministic failure-path tests possible; it does not prove authenticated live provider behavior. Tests cover privacy redaction, OAuth callback reload, explicit proposal/apply/Undo and persistence, stale revisions, idempotency, cancellation, malformed streams, credential races, resource bounds and inert imports. The initial workspace graph excludes both optional entries and all AI dependencies count toward the aggregate budget.
 
 The public catalog and CORS were checked without a key on 2026-10-10 (Sydney): model GET returned 200, and auth/chat OPTIONS returned 204 permitting bearer-header browser calls. This verifies public connectivity only.
 
@@ -129,6 +129,6 @@ For a separately authorized real-provider acceptance run, inject a user-owned ke
 LOCALCUT_OPENROUTER_LIVE=1 LOCALCUT_OPENROUTER_MODEL=provider/model pnpm test:ai:live
 ```
 
-`OPENROUTER_API_KEY` must already be set securely; never paste a real key into a tracked script or command history. This command can incur provider charges. It asks for one synthetic track, validates the returned proposal, applies it through the actual engine and undoes it. Missing opt-in/key/model fails before any provider request, rather than becoming a passing skip. Tracing, screenshots, videos and response attachments are disabled for this suite. Normal CI never needs or receives a real provider key. OAuth login/consent still needs an interactive account test once a frontend exists.
+`OPENROUTER_API_KEY` must already be set securely; never paste a real key into a tracked script or command history. This command can incur provider charges. It asks for one synthetic track, validates the returned proposal, applies it through the actual engine and undoes it. Missing opt-in/key/model fails before any provider request, rather than becoming a passing skip. Tracing, screenshots, videos and response attachments are disabled for this suite. Normal CI never needs or receives a real provider key. OAuth login/consent still needs an interactive account test with an authorized user account.
 
-No UI, model account, backend, schema migration or deployment change is included. Rollback consists of reverting the additive AI module/build/docs changes; existing project documents remain compatible.
+No model account, backend or schema migration is included. Rollback consists of reverting the additive AI module/build/docs changes; existing project documents remain compatible.

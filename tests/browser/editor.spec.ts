@@ -8,19 +8,33 @@ declare global {
   }
 }
 for (const base of ['/', '/LocalCut/']) {
-  test(`blank inert shell ${base}`, async ({ page }) => {
+  test(`inert initial workspace ${base}`, async ({ page }) => {
     const errors: string[] = [],
-      requests: string[] = [];
+      requests: string[] = [],
+      workers: string[] = [],
+      dialogs: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('console', (m) => {
       if (m.type() === 'error') errors.push(m.text());
     });
     page.on('request', (r) => requests.push(r.url()));
+    page.on('worker', (worker) => workers.push(worker.url()));
+    page.on('dialog', async (dialog) => {
+      dialogs.push(dialog.message());
+      await dialog.dismiss();
+    });
     await page.goto(base);
     await expect(page).toHaveTitle('LocalCut');
     await page.waitForTimeout(300);
-    expect(await page.locator('#root').innerHTML()).toBe('');
+    await expect(
+      page.getByRole('button', { name: 'New project', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Open project', exact: true }),
+    ).toBeVisible();
     expect(errors).toEqual([]);
+    expect(workers).toEqual([]);
+    expect(dialogs).toEqual([]);
     expect(requests.every((url) => url.startsWith('http://127.0.0.1:'))).toBe(
       true,
     );

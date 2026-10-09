@@ -55,7 +55,7 @@ for (const base of ['/', '/LocalCut/']) {
       )) as typeof import('../../src/ai');
       window.aiProvider = ai.createOpenRouter();
       return {
-        root: document.querySelector('#root')!.innerHTML,
+        workspace: !!document.querySelector('.workspace'),
         databases: await indexedDB.databases(),
         local: Object.keys(localStorage),
         session: Object.keys(sessionStorage),
@@ -63,7 +63,7 @@ for (const base of ['/', '/LocalCut/']) {
       };
     }, base);
     expect(before).toEqual({
-      root: '',
+      workspace: true,
       databases: [],
       local: [],
       session: [],
@@ -168,7 +168,9 @@ for (const base of ['/', '/LocalCut/']) {
       connected: false,
       session: [],
     });
-    expect(await page.locator('#root').innerHTML()).toBe('');
+    await expect(
+      page.getByRole('heading', { name: 'Start with your footage.' }),
+    ).toBeVisible();
   });
 
   test(`AI proposal uses real persisted engine, explicit apply and Undo ${base}`, async ({
@@ -389,7 +391,9 @@ for (const base of ['/', '/LocalCut/']) {
       require_parameters: true,
       data_collection: 'deny',
     });
-    expect(await page.locator('#root').innerHTML()).toBe('');
+    await expect(
+      page.getByRole('heading', { name: 'Start with your footage.' }),
+    ).toBeVisible();
   });
 }
 

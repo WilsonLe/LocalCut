@@ -1,6 +1,15 @@
 # LocalCut
 
-A local, headless video editor foundation that builds to static files. The production React page intentionally renders nothing. Import the separately built editor module to exercise the engine. The optional `ai.js` module connects OpenRouter to validated edit proposals; product controls will follow.
+A local video editor that builds to static files. The conversation-led workspace combines local media import, preview, timeline editing and export with optional OpenRouter editing proposals. The separately built `editor.js` and `ai.js` entries remain available to other consumers.
+
+## Editing
+
+1. Create a project or open a project saved in this browser. Import video, audio or images; files are added to the matching timeline track in selection order.
+2. Select clips to adjust timing, speed, gain or text. Scrub or play the preview. Use Undo and Redo to reverse committed edits.
+3. Optionally connect OpenRouter, choose a model, and describe an edit. Review the proposed operations, then Apply or Discard. Prompts and permitted metadata go to OpenRouter; raw media stays local. Sharing names, on-screen text and transcripts is off by default.
+4. Export MP4 or WebM after browser capability checks, then Save video. Keep a project JSON backup and copies of the original media separately.
+
+The workspace starts without opening storage or starting media/AI services. Projects remain on this origin and browser; credentials and conversation state do not survive reload. Open a saved project after reloading. See [workspace behavior](docs/workspace.md).
 
 ## Setup
 
@@ -17,7 +26,7 @@ Current desktop Google Chrome is required for native codec, OPFS, Web Locks, and
 
 | Command                   | Purpose                                                     |
 | ------------------------- | ----------------------------------------------------------- |
-| `pnpm dev`                | Blank application at the root path                          |
+| `pnpm dev`                | Local editor workspace at the root path                     |
 | `pnpm typecheck`          | Strict browser, worker, Node/test/config checks             |
 | `pnpm lint`               | ESLint and pure-core import boundaries                      |
 | `pnpm format:check`       | Prettier                                                    |

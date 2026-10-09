@@ -1,8 +1,8 @@
 # Architecture
 
-One application package produces three independent entry points. index.html mounts a blank React 19 application and semantic Tailwind/shadcn tokens. editor.js exports the explicitly opened headless engine. ai.js exports optional OpenRouter authentication, streaming and the headless assistant. Workers are loaded on demand; the blank app imports no engine or AI code. Vite emits ESM workers and paths suitable for both /LocalCut/ and /.
+One application package produces three independent entry points. index.html mounts the approved React conversation-led workspace with semantic Tailwind/shadcn tokens. editor.js exports the explicitly opened headless engine. ai.js exports optional OpenRouter authentication, streaming and the headless assistant. Workers are loaded on demand. The initial workspace imports neither engine nor AI runtime; explicit project actions and AI connection load them dynamically. Vite emits ESM workers and paths suitable for both /LocalCut/ and /.
 
-The design-system configuration is shadcn Base UI, neutral Vega, CSS-first Tailwind 4, light/dark variables, and system fonts. No UI component consumers exist yet.
+The design-system configuration is shadcn Base UI, neutral Vega, CSS-first Tailwind 4, light/dark variables, and system fonts. The workspace uses shared button, dialog, input, select, checkbox, label, textarea and toast components. Its project, preview and conversation controls invoke the public engine/assistant APIs; they do not own a second project document.
 
 | Boundary     | Responsibility                                                                                                       |
 | ------------ | -------------------------------------------------------------------------------------------------------------------- |
