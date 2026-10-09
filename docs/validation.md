@@ -1,5 +1,7 @@
 # Validation
 
+Use the [development guide](development.md) to choose focused checks while editing. This document defines the broader acceptance evidence and CI gates; a focused pass does not replace the applicable handoff checks.
+
 Normal CI separates formatting/lint/type checking, unit tests, production builds/artifact budgets, Chrome integration, and real transcription/cached replay. Native codec support is required; missing AAC/H.264/VP9/Opus fails the gate. Browser tests use installed stable Google Chrome, never a generic Chromium-only substitute. CI downloads Google's signed stable macOS application, preserves the complete app bundle and helpers, verifies its signature, and passes its path through LOCALCUT_CHROME_EXECUTABLE; local runs use the installed Chrome channel. The Chrome for Testing tool-cache installation timed out during page creation on the hosted arm64 runner, so CI uses the official desktop distribution. Tests and capability requirements remain identical.
 
 Tests serve the real production outputs at / and /LocalCut/. Workspace tests use the production interface; headless engine tests create their own presentation surfaces. Test harnesses and fixtures are absent from deployed assets. Generated PNG/WAV fixtures exercise known colors, transforms, timing, tone frequency, and waveform behavior. The attributed JFK speech fixture checks actual local inference.

@@ -24,6 +24,8 @@ pnpm dev
 
 Current desktop Google Chrome is required for native codec, OPFS, Web Locks, and production integration tests. Local editing requires no runtime environment variables, accounts, servers, or secrets. Optional remote AI needs an explicitly connected user-owned OpenRouter key. HTTPS or localhost is required for browser storage.
 
+Contributors and coding agents: start with [AGENTS.md](AGENTS.md) and the [development guide](docs/development.md) for module ownership, fast check selection, build reuse, and the single review-and-address cycle.
+
 | Command                   | Purpose                                                       |
 | ------------------------- | ------------------------------------------------------------- |
 | `pnpm dev`                | Local editor workspace at the root path                       |
