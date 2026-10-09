@@ -18,6 +18,7 @@ import type { Progress } from '../services/jobs';
 import { checkAbort } from '../services/jobs';
 import { outputTarget } from './assets';
 import { audioPrimingFrames } from './audio-priming';
+import { normalizeEncodedAudioMetadata } from './audio-config';
 import { Renderer } from './composition';
 export interface ExportOptions {
   format: 'mp4' | 'webm';
@@ -164,17 +165,25 @@ async function exportAttempt(
       let encodingError: unknown;
       const encoder = new AudioEncoder({
         output(chunk, meta) {
-          const raw = EncodedPacket.fromEncodedChunk(chunk),
-            packet = raw.clone({ timestamp: raw.timestamp - priming });
-          if (packet.timestamp >= endUs / 1e6) return;
-          const bounded = packet.clone({
-            duration: Math.min(packet.duration, endUs / 1e6 - packet.timestamp),
-          });
-          packetQueue = packetQueue
-            .then(() => audio.add(bounded, meta))
-            .catch((error) => {
-              encodingError = error;
+          try {
+            const metadata = normalizeEncodedAudioMetadata(meta);
+            const raw = EncodedPacket.fromEncodedChunk(chunk),
+              packet = raw.clone({ timestamp: raw.timestamp - priming });
+            if (packet.timestamp >= endUs / 1e6) return;
+            const bounded = packet.clone({
+              duration: Math.min(
+                packet.duration,
+                endUs / 1e6 - packet.timestamp,
+              ),
             });
+            packetQueue = packetQueue
+              .then(() => audio.add(bounded, metadata))
+              .catch((error) => {
+                encodingError = error;
+              });
+          } catch (error) {
+            encodingError = error;
+          }
         },
         error(error) {
           encodingError = error;

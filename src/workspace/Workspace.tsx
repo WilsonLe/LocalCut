@@ -6,14 +6,15 @@ import {
   useRef,
   useState,
 } from 'react';
+import type { CSSProperties } from 'react';
 import {
   ArrowUpRight,
-  Check,
+  HardDrive,
+  Keyboard,
+  PanelRightClose,
   ChevronDown,
   Download,
   Files,
-  FolderOpen,
-  LoaderCircle,
   Plus,
   Scissors,
   Settings2,
@@ -22,7 +23,6 @@ import {
 import { toast } from 'sonner';
 import type {
   Asset,
-  Clip,
   EditOperation,
   Editor,
   ExportResult,
@@ -30,36 +30,25 @@ import type {
   Project,
 } from '../editor';
 import { Button } from '../components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../components/ui/dialog';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
 import { Toaster } from '../components/ui/sonner';
 import { Conversation } from './Conversation';
 import { Preview } from './Preview';
+import type { PreviewControls } from './Preview';
+import { Tooltip } from '../components/ui/tooltip';
+import { frameStep } from './shortcuts';
+import { useEditorShortcuts } from './useEditorShortcuts';
 import { Timeline } from './Timeline';
-import { SettingsSelect } from './SettingsSelect';
 import {
   appendAsset,
-  clipName,
   downloadFile,
   formatTime,
   projectDuration,
 } from './helpers';
 
-type DialogName = 'new' | 'projects' | 'properties' | 'export' | null;
+import type { DialogName, Progress } from './WorkspaceDialogs';
+const WorkspaceDialogs = lazy(() => import('./WorkspaceDialogs'));
 const WorkspaceMenu = lazy(() => import('./WorkspaceMenu'));
 type Artifact = ExportResult & { dispose: () => Promise<void> };
-interface Progress {
-  label: string;
-  fraction?: number;
-}
 
 export function Workspace() {
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -72,6 +61,7 @@ export function Workspace() {
   const [dialog, setDialog] = useState<DialogName>(null);
   const [drawer, setDrawer] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [chatWidth, setChatWidth] = useState(320);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -79,6 +69,7 @@ export function Workspace() {
   const [format, setFormat] = useState<'mp4' | 'webm'>('mp4');
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [exportError, setExportError] = useState('');
+  const previewControls = useRef<PreviewControls>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const backupInput = useRef<HTMLInputElement>(null);
   const instance = useRef<Promise<Editor> | null>(null);
@@ -377,6 +368,148 @@ export function Workspace() {
     setSettingsLoaded(true);
     setSettingsOpen(true);
   };
+  const undo = () => {
+    if (!project) return;
+    void action(async () => {
+      const engine = await ensureEditor();
+      await engine.commands.undo(
+        project!.id,
+        crypto.randomUUID(),
+        project!.revision,
+      );
+      await refresh();
+      toast.success('Edit undone');
+    });
+  };
+  const redo = () => {
+    if (!project) return;
+    void action(async () => {
+      const engine = await ensureEditor();
+      await engine.commands.redo(
+        project!.id,
+        crypto.randomUUID(),
+        project!.revision,
+      );
+      await refresh();
+      toast.success('Edit restored');
+    });
+  };
+  const split = () => {
+    if (!project || !selectedClip) return;
+    void action(async () => {
+      await apply([
+        {
+          type: 'splitClip',
+          clipId: selected!,
+          atUs: Math.round(timeUs),
+          rightClipId: crypto.randomUUID(),
+        },
+      ]);
+      toast.success('Clip split');
+    });
+  };
+  const deleteClip = () => {
+    if (!project || !selectedClip) return;
+    void action(async () => {
+      await apply([{ type: 'removeClip', clipId: selected! }]);
+      toast.success('Clip removed');
+    });
+  };
+  const addText = () => {
+    if (!project) return;
+    void action(async () => {
+      const track = project!.tracks.find((track) => track.kind === 'overlay');
+      const trackId = track?.id ?? crypto.randomUUID();
+      const id = crypto.randomUUID();
+      await apply([
+        ...(!track
+          ? [
+              {
+                type: 'addTrack' as const,
+                track: { id: trackId, kind: 'overlay' as const },
+              },
+            ]
+          : []),
+        {
+          type: 'insertClip',
+          trackId,
+          clip: {
+            id,
+            kind: 'text',
+            startUs: Math.round(timeUs),
+            durationUs: 3_000_000,
+            width: project!.width,
+            height: project!.height,
+            y: project!.height * 0.3,
+            text: { text: 'Your story starts here', fontSize: 64 },
+          },
+        },
+      ]);
+      setSelected(id);
+      setDialog('properties');
+    });
+  };
+  const duplicate = () => {
+    const track = project?.tracks.find((track) =>
+      track.clips.some((clip) => clip.id === selected),
+    );
+    if (!selectedClip || !track) return;
+    void action(async () => {
+      const id = crypto.randomUUID();
+      await apply([
+        {
+          type: 'duplicateClip',
+          clipId: selectedClip.id,
+          newClipId: id,
+          trackId: track.id,
+          startUs: selectedClip.startUs + selectedClip.durationUs,
+        },
+      ]);
+      setSelected(id);
+      toast.success('Clip duplicated');
+    });
+  };
+  const canSplit =
+    !!selectedClip &&
+    timeUs > selectedClip.startUs &&
+    timeUs < selectedClip.startUs + selectedClip.durationUs;
+  useEditorShortcuts({
+    enabled: !busy,
+    actions: {
+      playPause: total
+        ? () => previewControls.current?.togglePlayback()
+        : undefined,
+      previousFrame: project
+        ? () => seek(frameStep(timeUs, -1, project.frameRate, total))
+        : undefined,
+      nextFrame: project
+        ? () => seek(frameStep(timeUs, 1, project.frameRate, total))
+        : undefined,
+      previousTenFrames: project
+        ? () => seek(frameStep(timeUs, -10, project.frameRate, total))
+        : undefined,
+      nextTenFrames: project
+        ? () => seek(frameStep(timeUs, 10, project.frameRate, total))
+        : undefined,
+      start: project ? () => seek(0) : undefined,
+      end: project
+        ? () => seek(frameStep(total, 0, project.frameRate, total))
+        : undefined,
+      split: canSplit ? split : undefined,
+      delete: selectedClip ? deleteClip : undefined,
+      duplicate: selectedClip ? duplicate : undefined,
+      addText: project ? addText : undefined,
+      undo: project ? undo : undefined,
+      redo: project ? redo : undefined,
+      newProject: () => setDialog('new'),
+      openProject: showProjects,
+      import: () => fileInput.current?.click(),
+      export: total ? showExport : undefined,
+      toggleChat: () => setChatCollapsed((collapsed) => !collapsed),
+      toggleMedia: () => setDrawer((open) => !open),
+      shortcuts: () => setDialog('shortcuts'),
+    },
+  });
   const settingsTrigger = (
     <Button
       id="workspace-settings-trigger"
@@ -398,7 +531,12 @@ export function Workspace() {
     </Button>
   );
   return (
-    <div className="workspace" data-chat-collapsed={chatCollapsed}>
+    <div
+      className="workspace"
+      data-chat-collapsed={chatCollapsed}
+      data-media-open={drawer}
+      style={{ '--chat-preferred-width': `${chatWidth}px` } as CSSProperties}
+    >
       <header className="workspace-header">
         <a
           className="brand"
@@ -418,9 +556,22 @@ export function Workspace() {
           {project?.name ?? 'Untitled project'}
           <ChevronDown />
         </Button>
-        <span className="local-indicator">
-          <Check /> On this device
-        </span>
+        <Tooltip
+          content={
+            project
+              ? `Revision ${project.revision} · Saved locally. Original media stays on this device.`
+              : 'Projects and media are saved on this device.'
+          }
+        >
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Local storage information"
+            className="local-indicator"
+          >
+            <HardDrive />
+          </Button>
+        </Tooltip>
         <div className="header-actions">
           <Button
             variant="outline"
@@ -430,17 +581,19 @@ export function Workspace() {
           >
             <Plus /> New project
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            aria-expanded={drawer}
-            onClick={() => setDrawer(!drawer)}
-          >
-            <Files /> Media
-          </Button>
           <Button size="sm" disabled={!total || busy} onClick={showExport}>
             <ArrowUpRight /> Export
           </Button>
+          <Tooltip content="Keyboard shortcuts (?)">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Keyboard shortcuts"
+              onClick={() => setDialog('shortcuts')}
+            >
+              <Keyboard />
+            </Button>
+          </Tooltip>
           {settingsLoaded ? (
             <Suspense fallback={settingsTrigger}>
               <WorkspaceMenu
@@ -476,10 +629,66 @@ export function Workspace() {
           onError={error}
           registerCleanup={registerCleanup}
           collapsed={chatCollapsed}
+          width={chatWidth}
+          onResize={setChatWidth}
           onToggle={() => setChatCollapsed((collapsed) => !collapsed)}
         />
-        <main className="editing-area">
-          {drawer && (
+        <main
+          className="editing-area"
+          data-editor-shortcuts
+          tabIndex={0}
+          aria-label="Video editor"
+        >
+          <Preview
+            controlsRef={previewControls}
+            editor={editor}
+            project={project}
+            timeUs={timeUs}
+            seekRevision={seekRevision}
+            onTime={setTimeUs}
+            onImport={() => fileInput.current?.click()}
+            onError={error}
+          />
+          <Timeline
+            project={project}
+            assets={assets}
+            selected={selected}
+            timeUs={timeUs}
+            busy={busy}
+            onSelect={setSelected}
+            onTime={seek}
+            onUndo={undo}
+            onRedo={redo}
+            onSplit={split}
+            onDelete={deleteClip}
+            onProperties={() => setDialog('properties')}
+            onText={addText}
+          />
+        </main>
+        <aside
+          className="media-panel"
+          aria-label="Media library"
+          data-collapsed={!drawer}
+        >
+          <Tooltip content={drawer ? 'Collapse media' : 'Open media'}>
+            <Button
+              className="media-toggle"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={drawer ? 'Collapse media' : 'Expand media'}
+              aria-expanded={drawer}
+              aria-controls="workspace-media-content"
+              onClick={() => setDrawer((open) => !open)}
+            >
+              {drawer ? <PanelRightClose /> : <Files />}
+            </Button>
+          </Tooltip>
+          <div
+            id="workspace-media-content"
+            className="media-content"
+            inert={!drawer}
+            aria-hidden={!drawer}
+          >
             <section className="media-library" aria-label="Project media">
               <div className="section-heading">
                 <h2>Media</h2>
@@ -551,114 +760,9 @@ export function Workspace() {
                 </p>
               )}
             </section>
-          )}
-          <Preview
-            editor={editor}
-            project={project}
-            timeUs={timeUs}
-            seekRevision={seekRevision}
-            onTime={setTimeUs}
-            onImport={() => fileInput.current?.click()}
-            onError={error}
-          />
-          <Timeline
-            project={project}
-            assets={assets}
-            selected={selected}
-            timeUs={timeUs}
-            busy={busy}
-            onSelect={setSelected}
-            onTime={seek}
-            onUndo={() =>
-              void action(async () => {
-                const engine = await ensureEditor();
-                await engine.commands.undo(
-                  project!.id,
-                  crypto.randomUUID(),
-                  project!.revision,
-                );
-                await refresh();
-                toast.success('Edit undone');
-              })
-            }
-            onRedo={() =>
-              void action(async () => {
-                const engine = await ensureEditor();
-                await engine.commands.redo(
-                  project!.id,
-                  crypto.randomUUID(),
-                  project!.revision,
-                );
-                await refresh();
-                toast.success('Edit restored');
-              })
-            }
-            onSplit={() =>
-              void action(async () => {
-                await apply([
-                  {
-                    type: 'splitClip',
-                    clipId: selected!,
-                    atUs: Math.round(timeUs),
-                    rightClipId: crypto.randomUUID(),
-                  },
-                ]);
-                toast.success('Clip split');
-              })
-            }
-            onDelete={() =>
-              void action(async () => {
-                await apply([{ type: 'removeClip', clipId: selected! }]);
-                toast.success('Clip removed');
-              })
-            }
-            onProperties={() => setDialog('properties')}
-            onText={() =>
-              void action(async () => {
-                const track = project!.tracks.find(
-                  (track) => track.kind === 'overlay',
-                );
-                const trackId = track?.id ?? crypto.randomUUID();
-                const id = crypto.randomUUID();
-                await apply([
-                  ...(!track
-                    ? [
-                        {
-                          type: 'addTrack' as const,
-                          track: { id: trackId, kind: 'overlay' as const },
-                        },
-                      ]
-                    : []),
-                  {
-                    type: 'insertClip',
-                    trackId,
-                    clip: {
-                      id,
-                      kind: 'text',
-                      startUs: Math.round(timeUs),
-                      durationUs: 3_000_000,
-                      width: project!.width,
-                      height: project!.height,
-                      y: project!.height * 0.3,
-                      text: { text: 'Your story starts here', fontSize: 64 },
-                    },
-                  },
-                ]);
-                setSelected(id);
-                setDialog('properties');
-              })
-            }
-          />
-        </main>
+          </div>
+        </aside>
       </div>
-      <footer className="workspace-footer">
-        <span>Local media · Private by default</span>
-        <span>
-          {project
-            ? `Revision ${project.revision} · Saved locally`
-            : 'No project open'}
-        </span>
-      </footer>
       <input
         ref={fileInput}
         className="sr-only"
@@ -690,350 +794,50 @@ export function Workspace() {
             });
         }}
       />
-      <Dialog
-        open={dialog === 'new'}
-        onOpenChange={(open) => {
-          if (!open && !busy) setDialog(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New project</DialogTitle>
-            <DialogDescription>
-              Save your edits on this device. Media stays in your browser.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              const name = String(
-                new FormData(event.currentTarget).get('name') ?? '',
-              ).trim();
-              if (!name) return;
+      {(dialog || (busy && progress)) && (
+        <Suspense fallback={null}>
+          <WorkspaceDialogs
+            dialog={dialog}
+            busy={busy}
+            project={project}
+            projects={projects}
+            selectedClip={selectedClip}
+            assets={assets}
+            format={format}
+            artifact={artifact}
+            exportError={exportError}
+            progress={progress}
+            total={total}
+            onDialogChange={setDialog}
+            onCloseExport={closeExport}
+            onStartExport={startExport}
+            onFormatChange={setFormat}
+            onCancelWork={cancelWork}
+            onImportBackup={() => backupInput.current?.click()}
+            onOpenProject={(snapshot) =>
+              void action(() => openProject(snapshot))
+            }
+            onCreateProject={(name) =>
               void action(async () => {
                 const engine = await ensureEditor();
                 await openProject(await engine.projects.create(name));
                 toast.success('Project created');
-              });
-            }}
-          >
-            <Label htmlFor="project-name">Project name</Label>
-            <Input
-              id="project-name"
-              name="name"
-              defaultValue="Untitled project"
-              required
-              maxLength={1000}
-              autoFocus
-            />
-            <DialogFooter className="mt-6">
-              <Button disabled={busy} type="submit">
-                {busy && <LoaderCircle className="animate-spin" />}Create
-                project
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-      <Dialog
-        open={dialog === 'projects'}
-        onOpenChange={(open) => {
-          if (!open) setDialog(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Open project</DialogTitle>
-            <DialogDescription>
-              Projects saved in this browser.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="project-list">
-            {projects.length ? (
-              projects.map((item) => (
-                <Button
-                  className="justify-between h-auto py-3"
-                  variant="outline"
-                  key={item.id}
-                  disabled={busy}
-                  onClick={() => void action(() => openProject(item))}
-                >
-                  <span className="truncate">{item.name}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {formatTime(projectDuration(item))}
-                  </span>
-                </Button>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No saved projects yet.
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              disabled={busy}
-              onClick={() => backupInput.current?.click()}
-            >
-              <FolderOpen /> Import backup
-            </Button>
-            <Button disabled={busy} onClick={() => setDialog('new')}>
-              New project
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog
-        open={dialog === 'properties' && !!selectedClip}
-        onOpenChange={(open) => {
-          if (!open && !busy) setDialog(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Clip properties</DialogTitle>
-            <DialogDescription>
-              {selectedClip ? clipName(selectedClip, assets) : ''}
-            </DialogDescription>
-          </DialogHeader>
-          {selectedClip && (
-            <Properties
-              key={`${selectedClip.id}:${project?.revision}`}
-              clip={selectedClip}
-              busy={busy}
-              onSave={(operations) =>
-                void action(async () => {
-                  await apply(operations);
-                  setDialog(null);
-                  toast.success('Clip updated');
-                })
-              }
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-      <Dialog
-        open={dialog === 'export'}
-        onOpenChange={(open) => {
-          if (!open) closeExport();
-        }}
-      >
-        <DialogContent showCloseButton={!busy}>
-          <DialogHeader>
-            <DialogTitle>Export video</DialogTitle>
-            <DialogDescription>
-              {artifact
-                ? 'Your video is ready. Save a copy to your device.'
-                : 'Export locally with your browser’s video and audio codecs.'}
-            </DialogDescription>
-          </DialogHeader>
-          {!artifact && !busy && (
-            <>
-              <Label htmlFor="export-format">Format</Label>
-              <SettingsSelect
-                id="export-format"
-                label="Format"
-                value={format}
-                onChange={(value) => {
-                  if (value === 'mp4' || value === 'webm') setFormat(value);
-                }}
-                options={[
-                  { value: 'mp4', label: 'MP4' },
-                  { value: 'webm', label: 'WebM' },
-                ]}
-              />
-              <dl className="export-details">
-                <div>
-                  <dt>Resolution</dt>
-                  <dd>
-                    {project?.width} × {project?.height}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Frame rate</dt>
-                  <dd>
-                    {project
-                      ? project.frameRate.num / project.frameRate.den
-                      : 30}{' '}
-                    fps
-                  </dd>
-                </div>
-                <div>
-                  <dt>Duration</dt>
-                  <dd>{formatTime(total)}</dd>
-                </div>
-              </dl>
-            </>
-          )}
-          {busy && progress && <ProgressView progress={progress} />}
-          {artifact && (
-            <p className="text-sm">
-              {(artifact.file.size / 1024 / 1024).toFixed(1)} MB ·{' '}
-              {artifact.format.toUpperCase()} · Revision {artifact.revision}
-            </p>
-          )}
-          {exportError && (
-            <p role="alert" className="text-sm text-destructive">
-              {exportError}
-            </p>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={closeExport}>
-              {busy ? 'Cancel export' : 'Close'}
-            </Button>
-            {artifact ? (
-              <Button
-                onClick={() =>
-                  downloadFile(
-                    artifact.file,
-                    `${project?.name ?? 'LocalCut'}.${artifact.format}`,
-                  )
-                }
-              >
-                <Download /> Save video
-              </Button>
-            ) : (
-              <Button disabled={busy || !total} onClick={startExport}>
-                Export video
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog
-        open={busy && !!progress && dialog !== 'export'}
-        onOpenChange={() => {}}
-      >
-        <DialogContent showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle>{progress?.label ?? 'Working'}</DialogTitle>
-            <DialogDescription>Processing on this device.</DialogDescription>
-          </DialogHeader>
-          {progress && <ProgressView progress={progress} />}
-          <DialogFooter>
-            <Button variant="outline" onClick={cancelWork}>
-              Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              })
+            }
+            onSaveProperties={(operations) =>
+              void action(async () => {
+                await apply(operations);
+                setDialog(null);
+                toast.success('Clip updated');
+              })
+            }
+          />
+        </Suspense>
+      )}
       <Toaster position="bottom-right" closeButton />
     </div>
   );
 }
 function FilmIcon() {
   return <Files aria-hidden="true" />;
-}
-function ProgressView({ progress }: { progress: Progress }) {
-  return progress.fraction === undefined ? (
-    <LoaderCircle aria-label={progress.label} className="animate-spin" />
-  ) : (
-    <div
-      role="progressbar"
-      aria-label={progress.label}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(progress.fraction * 100)}
-      className="job-progress"
-    >
-      <div
-        style={{
-          width: `${Math.max(0, Math.min(1, progress.fraction)) * 100}%`,
-        }}
-      />
-    </div>
-  );
-}
-function Properties({
-  clip,
-  busy,
-  onSave,
-}: {
-  clip: Clip;
-  busy: boolean;
-  onSave: (operations: EditOperation[]) => void;
-}) {
-  return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault();
-        const form = new FormData(event.currentTarget);
-        const startUs = Math.round(Number(form.get('start')) * 1e6),
-          enteredDurationUs = Math.round(Number(form.get('duration')) * 1e6),
-          speed = Number(form.get('speed')),
-          gain = Number(form.get('gain'));
-        const isTimedSource = clip.kind === 'video' || clip.kind === 'audio';
-        const durationChanged = enteredDurationUs !== clip.durationUs;
-        const durationUs =
-          isTimedSource && !durationChanged && speed !== clip.speed
-            ? Math.round((clip.sourceOutUs! - clip.sourceInUs) / speed)
-            : enteredDurationUs;
-        const patch: Extract<EditOperation, { type: 'updateClip' }>['patch'] = {
-          startUs,
-          durationUs,
-          speed,
-          gain,
-        };
-        if (isTimedSource && durationChanged)
-          patch.sourceOutUs = clip.sourceInUs + Math.round(durationUs * speed);
-        if (clip.text)
-          patch.text = { ...clip.text, text: String(form.get('text') ?? '') };
-        onSave([{ type: 'updateClip', clipId: clip.id, patch }]);
-      }}
-      className="grid gap-4"
-    >
-      <div className="grid grid-cols-2 gap-4">
-        {[
-          {
-            name: 'start',
-            label: 'Start (seconds)',
-            value: clip.startUs / 1e6,
-            min: 0,
-            max: undefined,
-          },
-          {
-            name: 'duration',
-            label: 'Duration (seconds)',
-            value: clip.durationUs / 1e6,
-            min: 0.000001,
-            max: undefined,
-          },
-          {
-            name: 'speed',
-            label: 'Speed',
-            value: clip.speed,
-            min: 0.25,
-            max: 4,
-          },
-          { name: 'gain', label: 'Gain', value: clip.gain, min: 0, max: 16 },
-        ].map((field) => (
-          <div className="grid gap-2" key={field.name}>
-            <Label htmlFor={`clip-${field.name}`}>{field.label}</Label>
-            <Input
-              id={`clip-${field.name}`}
-              name={field.name}
-              type="number"
-              required
-              min={field.min}
-              max={field.max}
-              step="any"
-              defaultValue={field.value}
-            />
-          </div>
-        ))}
-      </div>
-      {clip.text && (
-        <div className="grid gap-2">
-          <Label htmlFor="clip-text">Text</Label>
-          <Input id="clip-text" name="text" defaultValue={clip.text.text} />
-        </div>
-      )}
-      <DialogFooter>
-        <Button type="submit" disabled={busy}>
-          Apply properties
-        </Button>
-      </DialogFooter>
-    </form>
-  );
 }

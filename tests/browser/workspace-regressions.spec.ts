@@ -113,7 +113,10 @@ test('long assistant replies scroll inside the conversation and keep the compose
   await expect
     .poll(() =>
       log.evaluate(
-        (element, reply) => element.textContent?.includes(reply),
+        (element, reply) =>
+          element.textContent
+            ?.replace(/\s/g, '')
+            .includes(reply.replace(/\s/g, '')),
         reply,
       ),
     )
@@ -179,7 +182,17 @@ test('long assistant replies scroll inside the conversation and keep the compose
   ).toBeInViewport();
   await page.screenshot({ path: testInfo.outputPath('chat-collapsed.png') });
   await page.getByRole('button', { name: 'Expand chat', exact: true }).click();
-  await expect(log).toContainText(reply);
+  await expect
+    .poll(() =>
+      log.evaluate(
+        (element, value) =>
+          element.textContent
+            ?.replace(/\s/g, '')
+            .includes(value.replace(/\s/g, '')),
+        reply,
+      ),
+    )
+    .toBe(true);
   await expect
     .poll(() =>
       page
@@ -225,7 +238,17 @@ test('long assistant replies scroll inside the conversation and keep the compose
     .click();
   await expect(log).toBeHidden();
   await page.getByRole('button', { name: 'Expand chat', exact: true }).click();
-  await expect(log).toContainText(reply);
+  await expect
+    .poll(() =>
+      log.evaluate(
+        (element, value) =>
+          element.textContent
+            ?.replace(/\s/g, '')
+            .includes(value.replace(/\s/g, '')),
+        reply,
+      ),
+    )
+    .toBe(true);
 });
 
 test('stale property forms reject before overwriting a concurrent engine edit and can retry fresh', async ({

@@ -12,6 +12,7 @@ Dependencies retain their upstream licenses in installed packages. Copies for th
 - ONNX Runtime: Microsoft and contributors, MIT.
 - Whisper: OpenAI and contributors, MIT. The pinned Xenova/whisper-tiny model conversion declares Apache-2.0 in its model card. Model card: https://huggingface.co/Xenova/whisper-tiny. Pinned revision: 5332fcc35e32a33b86612b9a57a89be7906102b1.
 - cn, class-variance-authority, lucide-react, tw-animate-css: upstream package notices/licenses.
+- react-markdown, remark-gfm and their Markdown-processing dependencies: MIT and related upstream licenses, preserved in `public/notices/markdown-LICENSES.txt`.
 
 ## Speech test fixture
 

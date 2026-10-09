@@ -1,4 +1,5 @@
 import { invariant } from '../core/errors';
+import { normalizeAudioDecoderConfig } from './audio-config';
 const delays = new Map<string, Promise<number>>();
 /** WebCodecs does not expose AAC priming. Measure the exact native encoder/decoder pair once. */
 export function audioPrimingFrames(
@@ -24,7 +25,12 @@ async function measure(config: AudioEncoderConfig) {
   const encoder = new AudioEncoder({
     output(chunk, meta) {
       packets.push(chunk);
-      decoderConfig ??= meta?.decoderConfig;
+      try {
+        if (!decoderConfig && meta?.decoderConfig)
+          decoderConfig = normalizeAudioDecoderConfig(meta.decoderConfig);
+      } catch (cause) {
+        error = cause;
+      }
     },
     error(e) {
       error = e;
