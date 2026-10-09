@@ -82,21 +82,22 @@ export class Store {
       fn,
     );
   }
-  async lease(key: string): Promise<() => void> {
+  async lease(key: string, signal?: AbortSignal): Promise<() => void> {
     let release!: () => void;
-    let acquired!: () => void;
-    const ready = new Promise<void>((r) => {
-        acquired = r;
-      }),
-      held = new Promise<void>((r) => {
-        release = r;
-      });
-    void this.lock(key, 'shared', async () => {
-      acquired();
-      await held;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
     });
-    await ready;
-    return release;
+    return new Promise((resolve, reject) => {
+      void this.lock(
+        key,
+        'shared',
+        async () => {
+          resolve(release);
+          await held;
+        },
+        signal,
+      ).catch(reject);
+    });
   }
   async getProject(id: string): Promise<Project> {
     const record = (await this.db.get('projects', id)) as
@@ -266,7 +267,7 @@ export class Store {
       'Invalid command envelope',
     );
     const tx = this.db.transaction(
-      ['projects', 'receipts', 'assets'],
+      ['projects', 'receipts', 'assets', 'transcripts'],
       'readwrite',
     );
     try {
@@ -296,8 +297,10 @@ export class Store {
         ...state.project,
         revision: revision + 1,
       });
-      await this.validateAssets(state.project, (id) =>
-        tx.objectStore('assets').get(id),
+      await this.validateAssets(
+        state.project,
+        (id) => tx.objectStore('assets').get(id),
+        (id) => tx.objectStore('transcripts').get(id),
       );
       const receipt: EditReceipt = {
         requestId,
@@ -324,6 +327,8 @@ export class Store {
     project: Project,
     get: (id: string) => Promise<Asset | undefined> = (id) =>
       this.db.get('assets', id),
+    getTranscript: (id: string) => Promise<Transcript | undefined> = (id) =>
+      this.db.get('transcripts', id),
   ) {
     for (const assetId of assetIds(project)) {
       const asset = await get(assetId);
@@ -348,6 +353,15 @@ export class Store {
           'Clip exceeds source duration',
         );
       }
+    }
+    for (const clip of project.tracks.flatMap((track) => track.clips)) {
+      if (!clip.transcriptId) continue;
+      const transcript = await getTranscript(clip.transcriptId);
+      invariant(
+        transcript && transcript.assetId === clip.assetId,
+        'INVALID_COMMAND',
+        'Clip requires an existing transcript from its source asset',
+      );
     }
   }
   async getAsset(id: string): Promise<Asset> {
@@ -391,16 +405,19 @@ export class Store {
         { ifAvailable: true },
         async (lock) => {
           if (!lock) return;
+          const current = (await this.db.get('journal', j.id)) as
+            Journal | undefined;
+          if (!current) return;
           if (
-            j.kind === 'import' &&
-            j.committed &&
-            (await this.db.get('assets', j.target))
+            current.kind === 'import' &&
+            current.committed &&
+            (await this.db.get('assets', current.target))
           ) {
-            await this.finishJournal(j.id);
+            await this.finishJournal(current.id);
             return;
           }
-          await this.remove(j.target);
-          await this.finishJournal(j.id);
+          await this.remove(current.target);
+          await this.finishJournal(current.id);
         },
       );
     }

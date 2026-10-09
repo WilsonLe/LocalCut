@@ -324,7 +324,7 @@ export class Renderer {
         const asset = await this.store.getAsset(id);
         if (!asset.audioCodec) continue;
         if (!this.leases.has(id))
-          this.leases.set(id, await this.store.lease('asset:' + id));
+          this.leases.set(id, await this.store.lease('asset:' + id, signal));
         try {
           this.pcm.set(
             id,

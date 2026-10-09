@@ -463,7 +463,7 @@ export async function waveform(
     'INVALID_COMMAND',
     'Invalid waveform bins',
   );
-  const release = await store.lease('asset:' + assetId);
+  const release = await store.lease('asset:' + assetId, signal);
   try {
     const file = await convertCache(
         store,
