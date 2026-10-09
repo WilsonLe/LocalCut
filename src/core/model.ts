@@ -210,6 +210,7 @@ export const transcriptSchema = z
 export const backupSchema = z
   .object({
     backupVersion: z.literal(1),
+    identityVersion: z.literal(1).optional(),
     project: projectSchema,
     assets: z.array(assetSchema),
     transcripts: z.array(transcriptSchema),

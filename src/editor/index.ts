@@ -6,6 +6,7 @@ import { EditorError, invariant } from '../core/errors';
 import { newProject, validateProject, assetIds } from '../core/model';
 import type { Asset, Project, Transcript } from '../core/model';
 import { applyOperations, parseBatch } from '../core/commands';
+import { repairLegacyIdentities } from '../core/legacy-identities';
 import type { CommandBatch } from '../core/commands';
 import type { ExportOptions, ExportResult } from '../media/export';
 import { modelStatus } from '../services/transcription-status';
@@ -24,6 +25,9 @@ export type { ExportOptions, ExportResult } from '../media/export';
 export type { PreviewSession, FrameResult } from '../services/preview';
 export interface EditorOptions {
   namespace?: string;
+}
+export interface ProjectImportOptions {
+  repairLegacyIdentities?: boolean;
 }
 export interface ProjectEvent {
   projectId: string;
@@ -164,8 +168,19 @@ export async function createEditor(options: EditorOptions = {}) {
         active();
         return JSON.stringify(await store.backup(id), null, 2);
       },
-      async importJSON(text: string) {
+      async importJSON(text: string, options: ProjectImportOptions = {}) {
         active();
+        invariant(
+          options !== null &&
+            typeof options === 'object' &&
+            Object.keys(options).every(
+              (key) => key === 'repairLegacyIdentities',
+            ) &&
+            (options.repairLegacyIdentities === undefined ||
+              typeof options.repairLegacyIdentities === 'boolean'),
+          'INVALID_DOCUMENT',
+          'Invalid project import options',
+        );
         let value: unknown;
         try {
           value = JSON.parse(text);
@@ -174,8 +189,10 @@ export async function createEditor(options: EditorOptions = {}) {
         }
         let p: Project;
         if (value && typeof value === 'object' && 'backupVersion' in value)
-          p = await store.restore(value);
+          p = await store.restore(value, options.repairLegacyIdentities);
         else {
+          if (options.repairLegacyIdentities)
+            value = repairLegacyIdentities([value])[0];
           p = validateProject(value);
           p.id = crypto.randomUUID();
           p.revision = 0;

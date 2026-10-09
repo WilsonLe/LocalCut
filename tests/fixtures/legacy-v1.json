@@ -1,0 +1,1797 @@
+{
+  "provenance": {
+    "commit": "984107dbf63dc95cc72f980b65bfaae6e86bc727",
+    "generation": "git show of the listed base modules, loaded with Vite SSR; actual base Store.create/apply/history against a clone-on-read in-memory IDB adapter",
+    "node": "v24.21.0",
+    "moduleSha256": {
+      "src/core/model.ts": "118fc40a6941bf5ab2760d69b9c75e205ea0c306850e40eceb5a12646a957233",
+      "src/core/commands.ts": "0399c541bec01aee7f3acf63c3cf2554da62f8fb39799a04d707de53b21b59d7",
+      "src/core/errors.ts": "6d86a872621708ae13e59b16b87bd5aea85f7b66c3ace334fb237a4fe114a05c",
+      "src/core/timing.ts": "ec055840b4e48dc0a971aa78153c5ff287e2da3099e5c8fb52ae868b371df681",
+      "src/storage/store.ts": "d1c639a9fd55840d7d2f25822726bf2e4aa827e3a09ec19901f3b26c1896dfbb"
+    }
+  },
+  "requests": {
+    "addTrack": {
+      "input": {
+        "projectId": "legacy-project",
+        "requestId": "addTrack",
+        "expectedRevision": 0,
+        "operations": [
+          {
+            "type": "addTrack",
+            "track": {
+              "id": "captions",
+              "kind": "overlay"
+            }
+          }
+        ]
+      },
+      "saved": {
+        "key": "legacy-project:addTrack",
+        "content": "{\"expectedRevision\":0,\"operations\":[{\"track\":{\"clips\":[],\"id\":\"captions\",\"kind\":\"overlay\",\"muted\":false},\"type\":\"addTrack\"}],\"projectId\":\"legacy-project\",\"requestId\":\"addTrack\"}",
+        "receipt": {
+          "requestId": "addTrack",
+          "projectId": "legacy-project",
+          "appliedRevision": 1,
+          "affectedIds": ["captions"],
+          "warnings": []
+        }
+      }
+    },
+    "insertClip": {
+      "input": {
+        "projectId": "legacy-project",
+        "requestId": "insertClip",
+        "expectedRevision": 1,
+        "operations": [
+          {
+            "type": "insertClip",
+            "trackId": "captions",
+            "clip": {
+              "id": "original-caption",
+              "kind": "caption",
+              "startUs": 250000,
+              "durationUs": 4000000,
+              "x": 24,
+              "y": 30,
+              "width": 800,
+              "height": 220,
+              "opacity": 0.9,
+              "gain": 0.7,
+              "brightness": 1.1,
+              "rotation": 3,
+              "text": {
+                "text": "",
+                "fontSize": 28,
+                "color": "#eeeeee",
+                "align": "left"
+              },
+              "cues": [
+                {
+                  "id": "sentence-a",
+                  "timeUs": 100000,
+                  "endUs": 1200000,
+                  "text": "First caption"
+                },
+                {
+                  "id": "sentence-b",
+                  "timeUs": 1500000,
+                  "endUs": 3200000,
+                  "text": "Second caption"
+                }
+              ],
+              "keyframes": {
+                "opacity": [
+                  {
+                    "timeUs": 0,
+                    "value": 0.2
+                  },
+                  {
+                    "timeUs": 1000000,
+                    "value": 0.8
+                  },
+                  {
+                    "timeUs": 4000000,
+                    "value": 1,
+                    "interpolation": "hold"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "saved": {
+        "key": "legacy-project:insertClip",
+        "content": "{\"expectedRevision\":1,\"operations\":[{\"clip\":{\"blur\":0,\"brightness\":1.1,\"contrast\":1,\"cues\":[{\"endUs\":1200000,\"id\":\"sentence-a\",\"text\":\"First caption\",\"timeUs\":100000},{\"endUs\":3200000,\"id\":\"sentence-b\",\"text\":\"Second caption\",\"timeUs\":1500000}],\"durationUs\":4000000,\"fadeInUs\":0,\"fadeOutUs\":0,\"gain\":0.7,\"grayscale\":0,\"height\":220,\"id\":\"original-caption\",\"keyframes\":{\"opacity\":[{\"interpolation\":\"linear\",\"timeUs\":0,\"value\":0.2},{\"interpolation\":\"linear\",\"timeUs\":1000000,\"value\":0.8},{\"interpolation\":\"hold\",\"timeUs\":4000000,\"value\":1}]},\"kind\":\"caption\",\"muted\":false,\"opacity\":0.9,\"rotation\":3,\"saturation\":1,\"sourceInUs\":0,\"speed\":1,\"startUs\":250000,\"text\":{\"align\":\"left\",\"background\":\"transparent\",\"color\":\"#eeeeee\",\"fontSize\":28,\"text\":\"\"},\"width\":800,\"x\":24,\"y\":30},\"trackId\":\"captions\",\"type\":\"insertClip\"}],\"projectId\":\"legacy-project\",\"requestId\":\"insertClip\"}",
+        "receipt": {
+          "requestId": "insertClip",
+          "projectId": "legacy-project",
+          "appliedRevision": 2,
+          "affectedIds": ["captions", "original-caption"],
+          "warnings": []
+        }
+      }
+    },
+    "updateClip": {
+      "input": {
+        "projectId": "legacy-project",
+        "requestId": "updateClip",
+        "expectedRevision": 2,
+        "operations": [
+          {
+            "type": "updateClip",
+            "clipId": "original-caption",
+            "patch": {
+              "rotation": 7,
+              "width": 640,
+              "height": 180,
+              "cues": [
+                {
+                  "id": "sentence-a",
+                  "timeUs": 100000,
+                  "endUs": 1200000,
+                  "text": "First caption"
+                },
+                {
+                  "id": "sentence-b",
+                  "timeUs": 1500000,
+                  "endUs": 3200000,
+                  "text": "Second caption"
+                }
+              ],
+              "keyframes": {
+                "opacity": [
+                  {
+                    "timeUs": 0,
+                    "value": 0.3
+                  },
+                  {
+                    "timeUs": 2000000,
+                    "value": 0.9
+                  },
+                  {
+                    "timeUs": 4000000,
+                    "value": 1,
+                    "interpolation": "hold"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "saved": {
+        "key": "legacy-project:updateClip",
+        "content": "{\"expectedRevision\":2,\"operations\":[{\"clipId\":\"original-caption\",\"patch\":{\"blur\":0,\"brightness\":1,\"contrast\":1,\"cues\":[{\"endUs\":1200000,\"id\":\"sentence-a\",\"text\":\"First caption\",\"timeUs\":100000},{\"endUs\":3200000,\"id\":\"sentence-b\",\"text\":\"Second caption\",\"timeUs\":1500000}],\"fadeInUs\":0,\"fadeOutUs\":0,\"gain\":1,\"grayscale\":0,\"height\":180,\"keyframes\":{\"opacity\":[{\"interpolation\":\"linear\",\"timeUs\":0,\"value\":0.3},{\"interpolation\":\"linear\",\"timeUs\":2000000,\"value\":0.9},{\"interpolation\":\"hold\",\"timeUs\":4000000,\"value\":1}]},\"muted\":false,\"opacity\":1,\"rotation\":7,\"saturation\":1,\"sourceInUs\":0,\"speed\":1,\"width\":640,\"x\":0,\"y\":0},\"type\":\"updateClip\"}],\"projectId\":\"legacy-project\",\"requestId\":\"updateClip\"}",
+        "receipt": {
+          "requestId": "updateClip",
+          "projectId": "legacy-project",
+          "appliedRevision": 3,
+          "affectedIds": ["original-caption"],
+          "warnings": []
+        }
+      }
+    },
+    "addCopyTrack": {
+      "input": {
+        "projectId": "legacy-project",
+        "requestId": "addCopyTrack",
+        "expectedRevision": 3,
+        "operations": [
+          {
+            "type": "addTrack",
+            "track": {
+              "id": "copied-captions",
+              "kind": "overlay"
+            }
+          }
+        ]
+      },
+      "saved": {
+        "key": "legacy-project:addCopyTrack",
+        "content": "{\"expectedRevision\":3,\"operations\":[{\"track\":{\"clips\":[],\"id\":\"copied-captions\",\"kind\":\"overlay\",\"muted\":false},\"type\":\"addTrack\"}],\"projectId\":\"legacy-project\",\"requestId\":\"addCopyTrack\"}",
+        "receipt": {
+          "requestId": "addCopyTrack",
+          "projectId": "legacy-project",
+          "appliedRevision": 4,
+          "affectedIds": ["copied-captions"],
+          "warnings": []
+        }
+      }
+    },
+    "duplicateClip": {
+      "input": {
+        "projectId": "legacy-project",
+        "requestId": "duplicateClip",
+        "expectedRevision": 4,
+        "operations": [
+          {
+            "type": "duplicateClip",
+            "clipId": "original-caption",
+            "newClipId": "duplicate-caption",
+            "trackId": "copied-captions",
+            "startUs": 5000000
+          }
+        ]
+      },
+      "saved": {
+        "key": "legacy-project:duplicateClip",
+        "content": "{\"expectedRevision\":4,\"operations\":[{\"clipId\":\"original-caption\",\"newClipId\":\"duplicate-caption\",\"startUs\":5000000,\"trackId\":\"copied-captions\",\"type\":\"duplicateClip\"}],\"projectId\":\"legacy-project\",\"requestId\":\"duplicateClip\"}",
+        "receipt": {
+          "requestId": "duplicateClip",
+          "projectId": "legacy-project",
+          "appliedRevision": 5,
+          "affectedIds": [
+            "original-caption",
+            "copied-captions",
+            "duplicate-caption"
+          ],
+          "warnings": []
+        }
+      }
+    },
+    "reordered": {
+      "input": {
+        "projectId": "legacy-project",
+        "requestId": "reordered",
+        "expectedRevision": 5,
+        "operations": [
+          {
+            "type": "reorderTrack",
+            "trackId": "copied-captions",
+            "index": 0
+          }
+        ]
+      },
+      "saved": {
+        "key": "legacy-project:reordered",
+        "content": "{\"expectedRevision\":5,\"operations\":[{\"index\":0,\"trackId\":\"copied-captions\",\"type\":\"reorderTrack\"}],\"projectId\":\"legacy-project\",\"requestId\":\"reordered\"}",
+        "receipt": {
+          "requestId": "reordered",
+          "projectId": "legacy-project",
+          "appliedRevision": 6,
+          "affectedIds": ["copied-captions"],
+          "warnings": []
+        }
+      }
+    }
+  },
+  "states": {
+    "initial": {
+      "schemaVersion": 1,
+      "id": "legacy-project",
+      "name": "Legacy caption identities",
+      "revision": 0,
+      "width": 1280,
+      "height": 720,
+      "frameRate": {
+        "num": 30000,
+        "den": 1001
+      },
+      "audio": {
+        "sampleRate": 48000,
+        "channels": 2
+      },
+      "tracks": [],
+      "transitions": []
+    },
+    "addTrack": {
+      "schemaVersion": 1,
+      "id": "legacy-project",
+      "name": "Legacy caption identities",
+      "revision": 1,
+      "width": 1280,
+      "height": 720,
+      "frameRate": {
+        "num": 30000,
+        "den": 1001
+      },
+      "audio": {
+        "sampleRate": 48000,
+        "channels": 2
+      },
+      "tracks": [
+        {
+          "id": "captions",
+          "kind": "overlay",
+          "muted": false,
+          "clips": []
+        }
+      ],
+      "transitions": []
+    },
+    "insertClip": {
+      "schemaVersion": 1,
+      "id": "legacy-project",
+      "name": "Legacy caption identities",
+      "revision": 2,
+      "width": 1280,
+      "height": 720,
+      "frameRate": {
+        "num": 30000,
+        "den": 1001
+      },
+      "audio": {
+        "sampleRate": 48000,
+        "channels": 2
+      },
+      "tracks": [
+        {
+          "id": "captions",
+          "kind": "overlay",
+          "muted": false,
+          "clips": [
+            {
+              "id": "original-caption",
+              "kind": "caption",
+              "startUs": 250000,
+              "durationUs": 4000000,
+              "sourceInUs": 0,
+              "speed": 1,
+              "x": 24,
+              "y": 30,
+              "width": 800,
+              "height": 220,
+              "rotation": 3,
+              "opacity": 0.9,
+              "gain": 0.7,
+              "muted": false,
+              "brightness": 1.1,
+              "contrast": 1,
+              "saturation": 1,
+              "grayscale": 0,
+              "blur": 0,
+              "fadeInUs": 0,
+              "fadeOutUs": 0,
+              "text": {
+                "text": "",
+                "fontSize": 28,
+                "color": "#eeeeee",
+                "background": "transparent",
+                "align": "left"
+              },
+              "cues": [
+                {
+                  "id": "sentence-a",
+                  "timeUs": 100000,
+                  "endUs": 1200000,
+                  "text": "First caption"
+                },
+                {
+                  "id": "sentence-b",
+                  "timeUs": 1500000,
+                  "endUs": 3200000,
+                  "text": "Second caption"
+                }
+              ],
+              "keyframes": {
+                "opacity": [
+                  {
+                    "timeUs": 0,
+                    "value": 0.2,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 1000000,
+                    "value": 0.8,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 4000000,
+                    "value": 1,
+                    "interpolation": "hold"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "transitions": []
+    },
+    "updateClip": {
+      "schemaVersion": 1,
+      "id": "legacy-project",
+      "name": "Legacy caption identities",
+      "revision": 3,
+      "width": 1280,
+      "height": 720,
+      "frameRate": {
+        "num": 30000,
+        "den": 1001
+      },
+      "audio": {
+        "sampleRate": 48000,
+        "channels": 2
+      },
+      "tracks": [
+        {
+          "id": "captions",
+          "kind": "overlay",
+          "muted": false,
+          "clips": [
+            {
+              "id": "original-caption",
+              "kind": "caption",
+              "startUs": 250000,
+              "durationUs": 4000000,
+              "sourceInUs": 0,
+              "speed": 1,
+              "x": 0,
+              "y": 0,
+              "width": 640,
+              "height": 180,
+              "rotation": 7,
+              "opacity": 1,
+              "gain": 1,
+              "muted": false,
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "grayscale": 0,
+              "blur": 0,
+              "fadeInUs": 0,
+              "fadeOutUs": 0,
+              "text": {
+                "text": "",
+                "fontSize": 28,
+                "color": "#eeeeee",
+                "background": "transparent",
+                "align": "left"
+              },
+              "cues": [
+                {
+                  "id": "sentence-a",
+                  "timeUs": 100000,
+                  "endUs": 1200000,
+                  "text": "First caption"
+                },
+                {
+                  "id": "sentence-b",
+                  "timeUs": 1500000,
+                  "endUs": 3200000,
+                  "text": "Second caption"
+                }
+              ],
+              "keyframes": {
+                "opacity": [
+                  {
+                    "timeUs": 0,
+                    "value": 0.3,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 2000000,
+                    "value": 0.9,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 4000000,
+                    "value": 1,
+                    "interpolation": "hold"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "transitions": []
+    },
+    "addCopyTrack": {
+      "schemaVersion": 1,
+      "id": "legacy-project",
+      "name": "Legacy caption identities",
+      "revision": 4,
+      "width": 1280,
+      "height": 720,
+      "frameRate": {
+        "num": 30000,
+        "den": 1001
+      },
+      "audio": {
+        "sampleRate": 48000,
+        "channels": 2
+      },
+      "tracks": [
+        {
+          "id": "captions",
+          "kind": "overlay",
+          "muted": false,
+          "clips": [
+            {
+              "id": "original-caption",
+              "kind": "caption",
+              "startUs": 250000,
+              "durationUs": 4000000,
+              "sourceInUs": 0,
+              "speed": 1,
+              "x": 0,
+              "y": 0,
+              "width": 640,
+              "height": 180,
+              "rotation": 7,
+              "opacity": 1,
+              "gain": 1,
+              "muted": false,
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "grayscale": 0,
+              "blur": 0,
+              "fadeInUs": 0,
+              "fadeOutUs": 0,
+              "text": {
+                "text": "",
+                "fontSize": 28,
+                "color": "#eeeeee",
+                "background": "transparent",
+                "align": "left"
+              },
+              "cues": [
+                {
+                  "id": "sentence-a",
+                  "timeUs": 100000,
+                  "endUs": 1200000,
+                  "text": "First caption"
+                },
+                {
+                  "id": "sentence-b",
+                  "timeUs": 1500000,
+                  "endUs": 3200000,
+                  "text": "Second caption"
+                }
+              ],
+              "keyframes": {
+                "opacity": [
+                  {
+                    "timeUs": 0,
+                    "value": 0.3,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 2000000,
+                    "value": 0.9,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 4000000,
+                    "value": 1,
+                    "interpolation": "hold"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "copied-captions",
+          "kind": "overlay",
+          "muted": false,
+          "clips": []
+        }
+      ],
+      "transitions": []
+    },
+    "beforeDuplicate": {
+      "schemaVersion": 1,
+      "id": "legacy-project",
+      "name": "Legacy caption identities",
+      "revision": 4,
+      "width": 1280,
+      "height": 720,
+      "frameRate": {
+        "num": 30000,
+        "den": 1001
+      },
+      "audio": {
+        "sampleRate": 48000,
+        "channels": 2
+      },
+      "tracks": [
+        {
+          "id": "captions",
+          "kind": "overlay",
+          "muted": false,
+          "clips": [
+            {
+              "id": "original-caption",
+              "kind": "caption",
+              "startUs": 250000,
+              "durationUs": 4000000,
+              "sourceInUs": 0,
+              "speed": 1,
+              "x": 0,
+              "y": 0,
+              "width": 640,
+              "height": 180,
+              "rotation": 7,
+              "opacity": 1,
+              "gain": 1,
+              "muted": false,
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "grayscale": 0,
+              "blur": 0,
+              "fadeInUs": 0,
+              "fadeOutUs": 0,
+              "text": {
+                "text": "",
+                "fontSize": 28,
+                "color": "#eeeeee",
+                "background": "transparent",
+                "align": "left"
+              },
+              "cues": [
+                {
+                  "id": "sentence-a",
+                  "timeUs": 100000,
+                  "endUs": 1200000,
+                  "text": "First caption"
+                },
+                {
+                  "id": "sentence-b",
+                  "timeUs": 1500000,
+                  "endUs": 3200000,
+                  "text": "Second caption"
+                }
+              ],
+              "keyframes": {
+                "opacity": [
+                  {
+                    "timeUs": 0,
+                    "value": 0.3,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 2000000,
+                    "value": 0.9,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 4000000,
+                    "value": 1,
+                    "interpolation": "hold"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "copied-captions",
+          "kind": "overlay",
+          "muted": false,
+          "clips": []
+        }
+      ],
+      "transitions": []
+    },
+    "duplicateClip": {
+      "schemaVersion": 1,
+      "id": "legacy-project",
+      "name": "Legacy caption identities",
+      "revision": 5,
+      "width": 1280,
+      "height": 720,
+      "frameRate": {
+        "num": 30000,
+        "den": 1001
+      },
+      "audio": {
+        "sampleRate": 48000,
+        "channels": 2
+      },
+      "tracks": [
+        {
+          "id": "captions",
+          "kind": "overlay",
+          "muted": false,
+          "clips": [
+            {
+              "id": "original-caption",
+              "kind": "caption",
+              "startUs": 250000,
+              "durationUs": 4000000,
+              "sourceInUs": 0,
+              "speed": 1,
+              "x": 0,
+              "y": 0,
+              "width": 640,
+              "height": 180,
+              "rotation": 7,
+              "opacity": 1,
+              "gain": 1,
+              "muted": false,
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "grayscale": 0,
+              "blur": 0,
+              "fadeInUs": 0,
+              "fadeOutUs": 0,
+              "text": {
+                "text": "",
+                "fontSize": 28,
+                "color": "#eeeeee",
+                "background": "transparent",
+                "align": "left"
+              },
+              "cues": [
+                {
+                  "id": "sentence-a",
+                  "timeUs": 100000,
+                  "endUs": 1200000,
+                  "text": "First caption"
+                },
+                {
+                  "id": "sentence-b",
+                  "timeUs": 1500000,
+                  "endUs": 3200000,
+                  "text": "Second caption"
+                }
+              ],
+              "keyframes": {
+                "opacity": [
+                  {
+                    "timeUs": 0,
+                    "value": 0.3,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 2000000,
+                    "value": 0.9,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 4000000,
+                    "value": 1,
+                    "interpolation": "hold"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "copied-captions",
+          "kind": "overlay",
+          "muted": false,
+          "clips": [
+            {
+              "id": "duplicate-caption",
+              "kind": "caption",
+              "startUs": 5000000,
+              "durationUs": 4000000,
+              "sourceInUs": 0,
+              "speed": 1,
+              "x": 0,
+              "y": 0,
+              "width": 640,
+              "height": 180,
+              "rotation": 7,
+              "opacity": 1,
+              "gain": 1,
+              "muted": false,
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "grayscale": 0,
+              "blur": 0,
+              "fadeInUs": 0,
+              "fadeOutUs": 0,
+              "text": {
+                "text": "",
+                "fontSize": 28,
+                "color": "#eeeeee",
+                "background": "transparent",
+                "align": "left"
+              },
+              "cues": [
+                {
+                  "id": "sentence-a",
+                  "timeUs": 100000,
+                  "endUs": 1200000,
+                  "text": "First caption"
+                },
+                {
+                  "id": "sentence-b",
+                  "timeUs": 1500000,
+                  "endUs": 3200000,
+                  "text": "Second caption"
+                }
+              ],
+              "keyframes": {
+                "opacity": [
+                  {
+                    "timeUs": 0,
+                    "value": 0.3,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 2000000,
+                    "value": 0.9,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 4000000,
+                    "value": 1,
+                    "interpolation": "hold"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "transitions": []
+    },
+    "reordered": {
+      "schemaVersion": 1,
+      "id": "legacy-project",
+      "name": "Legacy caption identities",
+      "revision": 6,
+      "width": 1280,
+      "height": 720,
+      "frameRate": {
+        "num": 30000,
+        "den": 1001
+      },
+      "audio": {
+        "sampleRate": 48000,
+        "channels": 2
+      },
+      "tracks": [
+        {
+          "id": "copied-captions",
+          "kind": "overlay",
+          "muted": false,
+          "clips": [
+            {
+              "id": "duplicate-caption",
+              "kind": "caption",
+              "startUs": 5000000,
+              "durationUs": 4000000,
+              "sourceInUs": 0,
+              "speed": 1,
+              "x": 0,
+              "y": 0,
+              "width": 640,
+              "height": 180,
+              "rotation": 7,
+              "opacity": 1,
+              "gain": 1,
+              "muted": false,
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "grayscale": 0,
+              "blur": 0,
+              "fadeInUs": 0,
+              "fadeOutUs": 0,
+              "text": {
+                "text": "",
+                "fontSize": 28,
+                "color": "#eeeeee",
+                "background": "transparent",
+                "align": "left"
+              },
+              "cues": [
+                {
+                  "id": "sentence-a",
+                  "timeUs": 100000,
+                  "endUs": 1200000,
+                  "text": "First caption"
+                },
+                {
+                  "id": "sentence-b",
+                  "timeUs": 1500000,
+                  "endUs": 3200000,
+                  "text": "Second caption"
+                }
+              ],
+              "keyframes": {
+                "opacity": [
+                  {
+                    "timeUs": 0,
+                    "value": 0.3,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 2000000,
+                    "value": 0.9,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 4000000,
+                    "value": 1,
+                    "interpolation": "hold"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "captions",
+          "kind": "overlay",
+          "muted": false,
+          "clips": [
+            {
+              "id": "original-caption",
+              "kind": "caption",
+              "startUs": 250000,
+              "durationUs": 4000000,
+              "sourceInUs": 0,
+              "speed": 1,
+              "x": 0,
+              "y": 0,
+              "width": 640,
+              "height": 180,
+              "rotation": 7,
+              "opacity": 1,
+              "gain": 1,
+              "muted": false,
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "grayscale": 0,
+              "blur": 0,
+              "fadeInUs": 0,
+              "fadeOutUs": 0,
+              "text": {
+                "text": "",
+                "fontSize": 28,
+                "color": "#eeeeee",
+                "background": "transparent",
+                "align": "left"
+              },
+              "cues": [
+                {
+                  "id": "sentence-a",
+                  "timeUs": 100000,
+                  "endUs": 1200000,
+                  "text": "First caption"
+                },
+                {
+                  "id": "sentence-b",
+                  "timeUs": 1500000,
+                  "endUs": 3200000,
+                  "text": "Second caption"
+                }
+              ],
+              "keyframes": {
+                "opacity": [
+                  {
+                    "timeUs": 0,
+                    "value": 0.3,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 2000000,
+                    "value": 0.9,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 4000000,
+                    "value": 1,
+                    "interpolation": "hold"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "transitions": []
+    }
+  },
+  "record": {
+    "id": "legacy-project",
+    "project": {
+      "schemaVersion": 1,
+      "id": "legacy-project",
+      "name": "Legacy caption identities",
+      "revision": 7,
+      "width": 1280,
+      "height": 720,
+      "frameRate": {
+        "num": 30000,
+        "den": 1001
+      },
+      "audio": {
+        "sampleRate": 48000,
+        "channels": 2
+      },
+      "tracks": [
+        {
+          "id": "captions",
+          "kind": "overlay",
+          "muted": false,
+          "clips": [
+            {
+              "id": "original-caption",
+              "kind": "caption",
+              "startUs": 250000,
+              "durationUs": 4000000,
+              "sourceInUs": 0,
+              "speed": 1,
+              "x": 0,
+              "y": 0,
+              "width": 640,
+              "height": 180,
+              "rotation": 7,
+              "opacity": 1,
+              "gain": 1,
+              "muted": false,
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "grayscale": 0,
+              "blur": 0,
+              "fadeInUs": 0,
+              "fadeOutUs": 0,
+              "text": {
+                "text": "",
+                "fontSize": 28,
+                "color": "#eeeeee",
+                "background": "transparent",
+                "align": "left"
+              },
+              "cues": [
+                {
+                  "id": "sentence-a",
+                  "timeUs": 100000,
+                  "endUs": 1200000,
+                  "text": "First caption"
+                },
+                {
+                  "id": "sentence-b",
+                  "timeUs": 1500000,
+                  "endUs": 3200000,
+                  "text": "Second caption"
+                }
+              ],
+              "keyframes": {
+                "opacity": [
+                  {
+                    "timeUs": 0,
+                    "value": 0.3,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 2000000,
+                    "value": 0.9,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 4000000,
+                    "value": 1,
+                    "interpolation": "hold"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "copied-captions",
+          "kind": "overlay",
+          "muted": false,
+          "clips": [
+            {
+              "id": "duplicate-caption",
+              "kind": "caption",
+              "startUs": 5000000,
+              "durationUs": 4000000,
+              "sourceInUs": 0,
+              "speed": 1,
+              "x": 0,
+              "y": 0,
+              "width": 640,
+              "height": 180,
+              "rotation": 7,
+              "opacity": 1,
+              "gain": 1,
+              "muted": false,
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "grayscale": 0,
+              "blur": 0,
+              "fadeInUs": 0,
+              "fadeOutUs": 0,
+              "text": {
+                "text": "",
+                "fontSize": 28,
+                "color": "#eeeeee",
+                "background": "transparent",
+                "align": "left"
+              },
+              "cues": [
+                {
+                  "id": "sentence-a",
+                  "timeUs": 100000,
+                  "endUs": 1200000,
+                  "text": "First caption"
+                },
+                {
+                  "id": "sentence-b",
+                  "timeUs": 1500000,
+                  "endUs": 3200000,
+                  "text": "Second caption"
+                }
+              ],
+              "keyframes": {
+                "opacity": [
+                  {
+                    "timeUs": 0,
+                    "value": 0.3,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 2000000,
+                    "value": 0.9,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 4000000,
+                    "value": 1,
+                    "interpolation": "hold"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "transitions": []
+    },
+    "undo": [
+      {
+        "schemaVersion": 1,
+        "id": "legacy-project",
+        "name": "Legacy caption identities",
+        "revision": 0,
+        "width": 1280,
+        "height": 720,
+        "frameRate": {
+          "num": 30000,
+          "den": 1001
+        },
+        "audio": {
+          "sampleRate": 48000,
+          "channels": 2
+        },
+        "tracks": [],
+        "transitions": []
+      },
+      {
+        "schemaVersion": 1,
+        "id": "legacy-project",
+        "name": "Legacy caption identities",
+        "revision": 1,
+        "width": 1280,
+        "height": 720,
+        "frameRate": {
+          "num": 30000,
+          "den": 1001
+        },
+        "audio": {
+          "sampleRate": 48000,
+          "channels": 2
+        },
+        "tracks": [
+          {
+            "id": "captions",
+            "kind": "overlay",
+            "muted": false,
+            "clips": []
+          }
+        ],
+        "transitions": []
+      },
+      {
+        "schemaVersion": 1,
+        "id": "legacy-project",
+        "name": "Legacy caption identities",
+        "revision": 2,
+        "width": 1280,
+        "height": 720,
+        "frameRate": {
+          "num": 30000,
+          "den": 1001
+        },
+        "audio": {
+          "sampleRate": 48000,
+          "channels": 2
+        },
+        "tracks": [
+          {
+            "id": "captions",
+            "kind": "overlay",
+            "muted": false,
+            "clips": [
+              {
+                "id": "original-caption",
+                "kind": "caption",
+                "startUs": 250000,
+                "durationUs": 4000000,
+                "sourceInUs": 0,
+                "speed": 1,
+                "x": 24,
+                "y": 30,
+                "width": 800,
+                "height": 220,
+                "rotation": 3,
+                "opacity": 0.9,
+                "gain": 0.7,
+                "muted": false,
+                "brightness": 1.1,
+                "contrast": 1,
+                "saturation": 1,
+                "grayscale": 0,
+                "blur": 0,
+                "fadeInUs": 0,
+                "fadeOutUs": 0,
+                "text": {
+                  "text": "",
+                  "fontSize": 28,
+                  "color": "#eeeeee",
+                  "background": "transparent",
+                  "align": "left"
+                },
+                "cues": [
+                  {
+                    "id": "sentence-a",
+                    "timeUs": 100000,
+                    "endUs": 1200000,
+                    "text": "First caption"
+                  },
+                  {
+                    "id": "sentence-b",
+                    "timeUs": 1500000,
+                    "endUs": 3200000,
+                    "text": "Second caption"
+                  }
+                ],
+                "keyframes": {
+                  "opacity": [
+                    {
+                      "timeUs": 0,
+                      "value": 0.2,
+                      "interpolation": "linear"
+                    },
+                    {
+                      "timeUs": 1000000,
+                      "value": 0.8,
+                      "interpolation": "linear"
+                    },
+                    {
+                      "timeUs": 4000000,
+                      "value": 1,
+                      "interpolation": "hold"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ],
+        "transitions": []
+      },
+      {
+        "schemaVersion": 1,
+        "id": "legacy-project",
+        "name": "Legacy caption identities",
+        "revision": 3,
+        "width": 1280,
+        "height": 720,
+        "frameRate": {
+          "num": 30000,
+          "den": 1001
+        },
+        "audio": {
+          "sampleRate": 48000,
+          "channels": 2
+        },
+        "tracks": [
+          {
+            "id": "captions",
+            "kind": "overlay",
+            "muted": false,
+            "clips": [
+              {
+                "id": "original-caption",
+                "kind": "caption",
+                "startUs": 250000,
+                "durationUs": 4000000,
+                "sourceInUs": 0,
+                "speed": 1,
+                "x": 0,
+                "y": 0,
+                "width": 640,
+                "height": 180,
+                "rotation": 7,
+                "opacity": 1,
+                "gain": 1,
+                "muted": false,
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "grayscale": 0,
+                "blur": 0,
+                "fadeInUs": 0,
+                "fadeOutUs": 0,
+                "text": {
+                  "text": "",
+                  "fontSize": 28,
+                  "color": "#eeeeee",
+                  "background": "transparent",
+                  "align": "left"
+                },
+                "cues": [
+                  {
+                    "id": "sentence-a",
+                    "timeUs": 100000,
+                    "endUs": 1200000,
+                    "text": "First caption"
+                  },
+                  {
+                    "id": "sentence-b",
+                    "timeUs": 1500000,
+                    "endUs": 3200000,
+                    "text": "Second caption"
+                  }
+                ],
+                "keyframes": {
+                  "opacity": [
+                    {
+                      "timeUs": 0,
+                      "value": 0.3,
+                      "interpolation": "linear"
+                    },
+                    {
+                      "timeUs": 2000000,
+                      "value": 0.9,
+                      "interpolation": "linear"
+                    },
+                    {
+                      "timeUs": 4000000,
+                      "value": 1,
+                      "interpolation": "hold"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ],
+        "transitions": []
+      },
+      {
+        "schemaVersion": 1,
+        "id": "legacy-project",
+        "name": "Legacy caption identities",
+        "revision": 4,
+        "width": 1280,
+        "height": 720,
+        "frameRate": {
+          "num": 30000,
+          "den": 1001
+        },
+        "audio": {
+          "sampleRate": 48000,
+          "channels": 2
+        },
+        "tracks": [
+          {
+            "id": "captions",
+            "kind": "overlay",
+            "muted": false,
+            "clips": [
+              {
+                "id": "original-caption",
+                "kind": "caption",
+                "startUs": 250000,
+                "durationUs": 4000000,
+                "sourceInUs": 0,
+                "speed": 1,
+                "x": 0,
+                "y": 0,
+                "width": 640,
+                "height": 180,
+                "rotation": 7,
+                "opacity": 1,
+                "gain": 1,
+                "muted": false,
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "grayscale": 0,
+                "blur": 0,
+                "fadeInUs": 0,
+                "fadeOutUs": 0,
+                "text": {
+                  "text": "",
+                  "fontSize": 28,
+                  "color": "#eeeeee",
+                  "background": "transparent",
+                  "align": "left"
+                },
+                "cues": [
+                  {
+                    "id": "sentence-a",
+                    "timeUs": 100000,
+                    "endUs": 1200000,
+                    "text": "First caption"
+                  },
+                  {
+                    "id": "sentence-b",
+                    "timeUs": 1500000,
+                    "endUs": 3200000,
+                    "text": "Second caption"
+                  }
+                ],
+                "keyframes": {
+                  "opacity": [
+                    {
+                      "timeUs": 0,
+                      "value": 0.3,
+                      "interpolation": "linear"
+                    },
+                    {
+                      "timeUs": 2000000,
+                      "value": 0.9,
+                      "interpolation": "linear"
+                    },
+                    {
+                      "timeUs": 4000000,
+                      "value": 1,
+                      "interpolation": "hold"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "copied-captions",
+            "kind": "overlay",
+            "muted": false,
+            "clips": []
+          }
+        ],
+        "transitions": []
+      }
+    ],
+    "redo": [
+      {
+        "schemaVersion": 1,
+        "id": "legacy-project",
+        "name": "Legacy caption identities",
+        "revision": 6,
+        "width": 1280,
+        "height": 720,
+        "frameRate": {
+          "num": 30000,
+          "den": 1001
+        },
+        "audio": {
+          "sampleRate": 48000,
+          "channels": 2
+        },
+        "tracks": [
+          {
+            "id": "copied-captions",
+            "kind": "overlay",
+            "muted": false,
+            "clips": [
+              {
+                "id": "duplicate-caption",
+                "kind": "caption",
+                "startUs": 5000000,
+                "durationUs": 4000000,
+                "sourceInUs": 0,
+                "speed": 1,
+                "x": 0,
+                "y": 0,
+                "width": 640,
+                "height": 180,
+                "rotation": 7,
+                "opacity": 1,
+                "gain": 1,
+                "muted": false,
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "grayscale": 0,
+                "blur": 0,
+                "fadeInUs": 0,
+                "fadeOutUs": 0,
+                "text": {
+                  "text": "",
+                  "fontSize": 28,
+                  "color": "#eeeeee",
+                  "background": "transparent",
+                  "align": "left"
+                },
+                "cues": [
+                  {
+                    "id": "sentence-a",
+                    "timeUs": 100000,
+                    "endUs": 1200000,
+                    "text": "First caption"
+                  },
+                  {
+                    "id": "sentence-b",
+                    "timeUs": 1500000,
+                    "endUs": 3200000,
+                    "text": "Second caption"
+                  }
+                ],
+                "keyframes": {
+                  "opacity": [
+                    {
+                      "timeUs": 0,
+                      "value": 0.3,
+                      "interpolation": "linear"
+                    },
+                    {
+                      "timeUs": 2000000,
+                      "value": 0.9,
+                      "interpolation": "linear"
+                    },
+                    {
+                      "timeUs": 4000000,
+                      "value": 1,
+                      "interpolation": "hold"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "captions",
+            "kind": "overlay",
+            "muted": false,
+            "clips": [
+              {
+                "id": "original-caption",
+                "kind": "caption",
+                "startUs": 250000,
+                "durationUs": 4000000,
+                "sourceInUs": 0,
+                "speed": 1,
+                "x": 0,
+                "y": 0,
+                "width": 640,
+                "height": 180,
+                "rotation": 7,
+                "opacity": 1,
+                "gain": 1,
+                "muted": false,
+                "brightness": 1,
+                "contrast": 1,
+                "saturation": 1,
+                "grayscale": 0,
+                "blur": 0,
+                "fadeInUs": 0,
+                "fadeOutUs": 0,
+                "text": {
+                  "text": "",
+                  "fontSize": 28,
+                  "color": "#eeeeee",
+                  "background": "transparent",
+                  "align": "left"
+                },
+                "cues": [
+                  {
+                    "id": "sentence-a",
+                    "timeUs": 100000,
+                    "endUs": 1200000,
+                    "text": "First caption"
+                  },
+                  {
+                    "id": "sentence-b",
+                    "timeUs": 1500000,
+                    "endUs": 3200000,
+                    "text": "Second caption"
+                  }
+                ],
+                "keyframes": {
+                  "opacity": [
+                    {
+                      "timeUs": 0,
+                      "value": 0.3,
+                      "interpolation": "linear"
+                    },
+                    {
+                      "timeUs": 2000000,
+                      "value": 0.9,
+                      "interpolation": "linear"
+                    },
+                    {
+                      "timeUs": 4000000,
+                      "value": 1,
+                      "interpolation": "hold"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ],
+        "transitions": []
+      }
+    ]
+  },
+  "backup": {
+    "backupVersion": 1,
+    "project": {
+      "schemaVersion": 1,
+      "id": "legacy-project",
+      "name": "Legacy caption identities",
+      "revision": 7,
+      "width": 1280,
+      "height": 720,
+      "frameRate": {
+        "num": 30000,
+        "den": 1001
+      },
+      "audio": {
+        "sampleRate": 48000,
+        "channels": 2
+      },
+      "tracks": [
+        {
+          "id": "captions",
+          "kind": "overlay",
+          "muted": false,
+          "clips": [
+            {
+              "id": "original-caption",
+              "kind": "caption",
+              "startUs": 250000,
+              "durationUs": 4000000,
+              "sourceInUs": 0,
+              "speed": 1,
+              "x": 0,
+              "y": 0,
+              "width": 640,
+              "height": 180,
+              "rotation": 7,
+              "opacity": 1,
+              "gain": 1,
+              "muted": false,
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "grayscale": 0,
+              "blur": 0,
+              "fadeInUs": 0,
+              "fadeOutUs": 0,
+              "text": {
+                "text": "",
+                "fontSize": 28,
+                "color": "#eeeeee",
+                "background": "transparent",
+                "align": "left"
+              },
+              "cues": [
+                {
+                  "id": "sentence-a",
+                  "timeUs": 100000,
+                  "endUs": 1200000,
+                  "text": "First caption"
+                },
+                {
+                  "id": "sentence-b",
+                  "timeUs": 1500000,
+                  "endUs": 3200000,
+                  "text": "Second caption"
+                }
+              ],
+              "keyframes": {
+                "opacity": [
+                  {
+                    "timeUs": 0,
+                    "value": 0.3,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 2000000,
+                    "value": 0.9,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 4000000,
+                    "value": 1,
+                    "interpolation": "hold"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "copied-captions",
+          "kind": "overlay",
+          "muted": false,
+          "clips": [
+            {
+              "id": "duplicate-caption",
+              "kind": "caption",
+              "startUs": 5000000,
+              "durationUs": 4000000,
+              "sourceInUs": 0,
+              "speed": 1,
+              "x": 0,
+              "y": 0,
+              "width": 640,
+              "height": 180,
+              "rotation": 7,
+              "opacity": 1,
+              "gain": 1,
+              "muted": false,
+              "brightness": 1,
+              "contrast": 1,
+              "saturation": 1,
+              "grayscale": 0,
+              "blur": 0,
+              "fadeInUs": 0,
+              "fadeOutUs": 0,
+              "text": {
+                "text": "",
+                "fontSize": 28,
+                "color": "#eeeeee",
+                "background": "transparent",
+                "align": "left"
+              },
+              "cues": [
+                {
+                  "id": "sentence-a",
+                  "timeUs": 100000,
+                  "endUs": 1200000,
+                  "text": "First caption"
+                },
+                {
+                  "id": "sentence-b",
+                  "timeUs": 1500000,
+                  "endUs": 3200000,
+                  "text": "Second caption"
+                }
+              ],
+              "keyframes": {
+                "opacity": [
+                  {
+                    "timeUs": 0,
+                    "value": 0.3,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 2000000,
+                    "value": 0.9,
+                    "interpolation": "linear"
+                  },
+                  {
+                    "timeUs": 4000000,
+                    "value": 1,
+                    "interpolation": "hold"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "transitions": []
+    },
+    "assets": [],
+    "transcripts": []
+  }
+}
