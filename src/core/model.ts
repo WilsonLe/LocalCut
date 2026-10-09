@@ -19,11 +19,28 @@ export const parameterSchema = z.enum([
 ]);
 export const keyframeSchema = z
   .object({
+    id,
     timeUs: time,
     value: finite,
     interpolation: z.enum(['linear', 'hold']).default('linear'),
   })
   .strict();
+const keyframeInputSchema = keyframeSchema.extend({ id: id.optional() });
+
+/** Stable IDs for implicit entities, including legacy version-one keyframes. */
+export function nestedId(
+  kind: 'keyframe' | 'cue',
+  owner: string,
+  identity: string,
+) {
+  const text = JSON.stringify([kind, owner, identity]);
+  let hash = 0x6c62272e07bb014262b821756295c58dn;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= BigInt(text.charCodeAt(i));
+    hash = BigInt.asUintN(128, hash * 0x1000000000000000000013bn);
+  }
+  return `${kind}-${hash.toString(16).padStart(32, '0')}`;
+}
 export const textStyleSchema = z
   .object({
     text: z.string().max(100000),
@@ -36,7 +53,7 @@ export const textStyleSchema = z
 export const cueSchema = z
   .object({ id, timeUs: time, endUs: time, text: z.string() })
   .strict();
-export const clipSchema = z
+const clipInputSchema = z
   .object({
     id,
     kind: z.enum(['video', 'audio', 'image', 'text', 'caption']),
@@ -78,10 +95,42 @@ export const clipSchema = z
     cues: z.array(cueSchema).default([]),
     transcriptId: id.optional(),
     keyframes: z
-      .partialRecord(parameterSchema, z.array(keyframeSchema))
+      .partialRecord(parameterSchema, z.array(keyframeInputSchema))
       .default({}),
   })
   .strict();
+const clipPatchBase = clipInputSchema.omit({ id: true, kind: true });
+// Zod's partial() retains defaults, which would reset omitted clip fields.
+// Only top-level defaults are removed: a supplied replacement text style may
+// still use its own defaults when parsed as a complete style.
+const clipPatchShape = Object.fromEntries(
+  Object.entries(clipPatchBase.shape).map(([key, schema]) => [
+    key,
+    (schema instanceof z.ZodDefault
+      ? schema.removeDefault()
+      : schema
+    ).optional(),
+  ]),
+) as unknown as {
+  [K in keyof typeof clipPatchBase.shape]: z.ZodOptional<
+    (typeof clipPatchBase.shape)[K]
+  >;
+};
+export const clipPatchSchema = z.object(clipPatchShape).strict();
+export const clipSchema = clipInputSchema.transform((clip) => {
+  const keyframes: Partial<
+    Record<z.infer<typeof parameterSchema>, z.infer<typeof keyframeSchema>[]>
+  > = {};
+  for (const name of Object.keys(clip.keyframes) as z.infer<
+    typeof parameterSchema
+  >[]) {
+    keyframes[name] = clip.keyframes[name]!.map((key) => ({
+      ...key,
+      id: key.id ?? nestedId('keyframe', clip.id, `${name}:${key.timeUs}`),
+    }));
+  }
+  return { ...clip, keyframes };
+});
 export const trackSchema = z
   .object({
     id,
@@ -174,7 +223,7 @@ export function validateBackup(value: unknown): ProjectBackup {
   if (!result.success)
     throw new EditorError('INVALID_DOCUMENT', result.error.message);
   const backup = result.data;
-  validateProject(backup.project);
+  backup.project = validateProject(backup.project);
   const assets = new Map(backup.assets.map((a) => [a.id, a]));
   const transcripts = new Map(backup.transcripts.map((t) => [t.id, t]));
   invariant(
@@ -221,7 +270,14 @@ export function validateBackup(value: unknown): ProjectBackup {
     const asset = assets.get(transcript.assetId);
     invariant(asset, 'INVALID_DOCUMENT', 'Transcript lacks source metadata');
     let previous = -1;
+    const cueIds = new Set<string>();
     for (const cue of transcript.cues) {
+      invariant(
+        !cueIds.has(cue.id),
+        'INVALID_DOCUMENT',
+        `Duplicate transcript cue ID: ${cue.id}`,
+      );
+      cueIds.add(cue.id);
       invariant(
         cue.timeUs >= previous &&
           cue.endUs > cue.timeUs &&
@@ -295,6 +351,7 @@ export function validateProject(value: unknown): Project {
       for (const [parameter, keys] of Object.entries(clip.keyframes)) {
         let previous = -1;
         for (const key of keys) {
+          unique(key.id);
           invariant(
             key.timeUs > previous && key.timeUs <= clip.durationUs,
             'INVALID_DOCUMENT',
@@ -312,12 +369,14 @@ export function validateProject(value: unknown): Project {
           );
         }
       }
-      for (const cue of clip.cues)
+      for (const cue of clip.cues) {
+        unique(cue.id);
         invariant(
           cue.endUs > cue.timeUs && cue.endUs <= clip.durationUs,
           'INVALID_DOCUMENT',
           'Caption outside clip',
         );
+      }
       if (track.kind === 'audio')
         invariant(
           clip.kind === 'audio',
@@ -338,9 +397,13 @@ export function validateProject(value: unknown): Project {
     const a = track?.clips.find((x) => x.id === t.fromClipId),
       b = track?.clips.find((x) => x.id === t.toClipId);
     invariant(
-      track?.kind === 'video' && a?.kind === 'video' && b?.kind === 'video',
+      track?.kind === 'video' &&
+        a &&
+        b &&
+        ['video', 'image'].includes(a.kind) &&
+        ['video', 'image'].includes(b.kind),
       'INVALID_DOCUMENT',
-      'Transition requires two video clips on same track',
+      'Transition requires two visual media clips on the same video track',
     );
     invariant(
       a.startUs < b.startUs &&

@@ -15,6 +15,12 @@ export interface Job<T> {
   cancel(): void;
   subscribe(listener: (event: JobEvent) => void): () => void;
 }
+interface JobOptions<T> {
+  /** Successful persisted commits are authoritative over a late cancellation. */
+  acceptCommittedResult?: boolean;
+  /** Release a produced resource when cancellation wins before delivery. */
+  discard?: (result: T) => void | Promise<void>;
+}
 export class Jobs {
   private active = new Map<string, AbortController>();
   private listeners = new Set<(event: JobEvent) => void>();
@@ -30,6 +36,7 @@ export class Jobs {
       progress: (event: Progress) => void,
       id: string,
     ) => Promise<T>,
+    options: JobOptions<T> = {},
   ): Job<T> {
     if (this.disposed) throw new EditorError('DISPOSED', 'Engine disposed');
     const id = crypto.randomUUID(),
@@ -59,9 +66,11 @@ export class Jobs {
         ),
       )
       .then(
-        (result) => {
-          if (controller.signal.aborted)
+        async (result) => {
+          if (controller.signal.aborted && !options.acceptCommittedResult) {
+            await options.discard?.(result);
             throw new EditorError('CANCELLED', 'Operation cancelled');
+          }
           emit({
             jobId: id,
             state: 'completed',

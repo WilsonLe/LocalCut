@@ -3,7 +3,13 @@ import type { IDBPDatabase } from 'idb';
 import { asEditorError, EditorError, invariant } from '../core/errors';
 import { applyOperations, canonical, parseBatch } from '../core/commands';
 import type { CommandBatch, EditReceipt } from '../core/commands';
-import { assetIds, validateProject, validateBackup } from '../core/model';
+import {
+  assetIds,
+  validateProject,
+  validateBackup,
+  transcriptSchema,
+} from '../core/model';
+import { commitWithSignal } from './transaction';
 import type { Asset, Project, Transcript, ProjectBackup } from '../core/model';
 interface RecordState {
   project: Project;
@@ -107,13 +113,24 @@ export class Store {
   }
   async create(project: Project) {
     const value = validateProject(project);
-    await this.db.add('projects', {
-      id: value.id,
-      project: value,
-      undo: [],
-      redo: [],
+    const tx = this.db.transaction(
+      ['projects', 'assets', 'transcripts'],
+      'readwrite',
+    );
+    return commitWithSignal(tx, undefined, async () => {
+      await this.validateAssets(
+        value,
+        (id) => tx.objectStore('assets').get(id),
+        (id) => tx.objectStore('transcripts').get(id),
+      );
+      await tx.objectStore('projects').add({
+        id: value.id,
+        project: value,
+        undo: [],
+        redo: [],
+      });
+      return value;
     });
-    return value;
   }
   async backup(id: string): Promise<ProjectBackup> {
     const tx = this.db.transaction(['projects', 'assets', 'transcripts']);
@@ -487,8 +504,30 @@ export class Store {
   async transcript(id: string): Promise<Transcript | undefined> {
     return this.db.get('transcripts', id);
   }
-  async saveTranscript(value: Transcript) {
-    await this.db.put('transcripts', value);
+  async saveTranscript(value: Transcript, signal?: AbortSignal) {
+    const parsed = transcriptSchema.safeParse(value);
+    invariant(parsed.success, 'INVALID_DOCUMENT', 'Invalid transcript');
+    const tx = this.db.transaction(['assets', 'transcripts'], 'readwrite');
+    return commitWithSignal(tx, signal, async () => {
+      const asset = (await tx.objectStore('assets').get(value.assetId)) as
+        Asset | undefined;
+      invariant(asset, 'MISSING_ASSET', 'Transcript source asset missing');
+      let previous = -1;
+      const ids = new Set<string>();
+      for (const cue of value.cues) {
+        invariant(
+          !ids.has(cue.id) &&
+            cue.timeUs >= previous &&
+            cue.endUs > cue.timeUs &&
+            cue.endUs <= asset.durationUs,
+          'INVALID_DOCUMENT',
+          'Invalid source transcript timing or identity',
+        );
+        ids.add(cue.id);
+        previous = cue.timeUs;
+      }
+      await tx.objectStore('transcripts').put(parsed.data);
+    });
   }
   close() {
     this.db.close();

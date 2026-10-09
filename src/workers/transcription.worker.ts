@@ -11,6 +11,7 @@ import {
 } from '../services/transcription-config';
 import { asEditorError, EditorError, invariant } from '../core/errors';
 import type { Transcript } from '../core/model';
+import { sourceCues } from '../services/transcript-cues';
 let recognizer: AutomaticSpeechRecognitionPipeline | undefined;
 let namespace = 'localcut';
 let allowDownloads = false;
@@ -72,6 +73,7 @@ self.onmessage = async ({
     assetId?: string;
     language?: string;
     startUs?: number;
+    endUs?: number;
   };
 }>) => {
   const progress = (stage: string, value?: number) =>
@@ -149,31 +151,17 @@ self.onmessage = async ({
         stride_length_s: 2.5,
       })) as AutomaticSpeechRecognitionOutput;
       const startUs = data.payload.startUs ?? 0,
-        endUs = startUs + Math.round((data.payload.audio.length * 1e6) / 16000);
+        endUs =
+          data.payload.endUs ??
+          startUs + Math.round((data.payload.audio.length * 1e6) / 16000);
       const transcript: Transcript = {
         id: crypto.randomUUID(),
         assetId: data.payload.assetId!,
         model: MODEL,
         revision: MODEL_REVISION,
         language: data.payload.language,
-        cues: [],
+        cues: sourceCues(output.chunks ?? [], startUs, endUs),
       };
-      for (const chunk of output.chunks ?? []) {
-        const [start, end] = chunk.timestamp;
-        if (start === null) continue;
-        const timeUs = Math.max(startUs, startUs + Math.round(start * 1e6)),
-          cueEnd =
-            end === null
-              ? endUs
-              : Math.min(endUs, startUs + Math.round(end * 1e6));
-        if (cueEnd > timeUs)
-          transcript.cues.push({
-            id: crypto.randomUUID(),
-            timeUs,
-            endUs: cueEnd,
-            text: chunk.text.trim(),
-          });
-      }
       self.postMessage({ id: data.id, kind: 'result', data: transcript });
     } else
       throw new EditorError(

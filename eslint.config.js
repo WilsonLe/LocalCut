@@ -30,14 +30,20 @@ export default ts.config(
         'error',
         {
           patterns: [
-            'react*',
-            'idb',
-            'mediabunny',
-            '@huggingface/*',
-            '../storage/*',
-            '../media/*',
-            '../workers/*',
+            { group: ['react*', 'idb', 'mediabunny', '@huggingface/*'] },
+            {
+              regex: '(^|/)(storage|media|services|workers|editor)(/|$)',
+              message:
+                'The editing core must not depend on browser or engine layers, including through aliases.',
+            },
           ],
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ImportExpression',
+          message: 'The editing core must use statically checkable imports.',
         },
       ],
     },

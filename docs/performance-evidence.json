@@ -1,42 +1,325 @@
 {
-  "capturedAt": "2026-10-09T20:50:33.604002+00:00",
+  "capturedAt": "2026-10-09T21:14:20.538938+00:00",
   "browser": "Google Chrome 155.0.8059.40",
   "node": "24.21.0",
   "pnpm": "11.25.0",
   "platform": "macOS arm64",
   "cpu": "Apple M5 Pro",
   "physicalMemoryBytes": 51539607552,
-  "workload": "1080p30 MP4; 600 sequential image/text clips for five minutes; one generated gradient source; animated text; native silent audio; separate interactive seeking",
+  "browserContext": "isolated temporary disk-backed persistent profile",
+  "workload": {
+    "width": 1920,
+    "height": 1080,
+    "frameRate": 30,
+    "sourceDurationSeconds": 1,
+    "videoCodec": "avc",
+    "audioCodec": "aac",
+    "audioSampleRate": 48000,
+    "audioChannels": 2,
+    "sourceToneHz": [440, 660],
+    "sourceAudioPeak": 0.25014010071754456,
+    "description": "Repeated one-second H.264/AAC source with animated gradient and stereo tones; sequential video clips and animated text overlays."
+  },
   "measurements": [
     {
       "duration": 10,
-      "elapsedMs": 2009,
-      "bytes": 328736,
-      "rss": [1054441472]
+      "elapsedMs": 2010,
+      "bytes": 1960425,
+      "rss": [1277493248],
+      "processRss": [
+        {
+          "atMs": 1791580400554,
+          "byType": {
+            "browser": 239697920,
+            "GPU": 198246400,
+            "network.mojom.NetworkService": 102465536,
+            "storage.mojom.StorageService": 80117760,
+            "renderer": 656965632
+          }
+        }
+      ]
     },
     {
       "duration": 120,
-      "elapsedMs": 14074,
-      "bytes": 22480349,
+      "elapsedMs": 14054,
+      "bytes": 41561617,
       "rss": [
-        1167998976, 1199456256, 1193607168, 1190100992, 1195360256, 1200422912,
-        1207664640
+        1339523072, 1359659008, 1348599808, 1352826880, 1356611584, 1374650368,
+        1375813632
+      ],
+      "processRss": [
+        {
+          "atMs": 1791580402565,
+          "byType": {
+            "browser": 246136832,
+            "GPU": 204095488,
+            "network.mojom.NetworkService": 106004480,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 703021056
+          }
+        },
+        {
+          "atMs": 1791580404571,
+          "byType": {
+            "browser": 247857152,
+            "GPU": 206159872,
+            "network.mojom.NetworkService": 106020864,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 719355904
+          }
+        },
+        {
+          "atMs": 1791580406579,
+          "byType": {
+            "browser": 249135104,
+            "GPU": 187187200,
+            "network.mojom.NetworkService": 106053632,
+            "storage.mojom.StorageService": 80248832,
+            "renderer": 725975040
+          }
+        },
+        {
+          "atMs": 1791580408586,
+          "byType": {
+            "browser": 250937344,
+            "GPU": 187105280,
+            "network.mojom.NetworkService": 106053632,
+            "storage.mojom.StorageService": 80248832,
+            "renderer": 728481792
+          }
+        },
+        {
+          "atMs": 1791580410593,
+          "byType": {
+            "browser": 252231680,
+            "GPU": 187105280,
+            "network.mojom.NetworkService": 106086400,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 730923008
+          }
+        },
+        {
+          "atMs": 1791580412600,
+          "byType": {
+            "browser": 253231104,
+            "GPU": 187187200,
+            "network.mojom.NetworkService": 106086400,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 747880448
+          }
+        },
+        {
+          "atMs": 1791580414608,
+          "byType": {
+            "browser": 253640704,
+            "GPU": 187170816,
+            "network.mojom.NetworkService": 106086400,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 748650496
+          }
+        }
       ]
     },
     {
       "duration": 300,
-      "elapsedMs": 34188,
-      "bytes": 46445018,
+      "elapsedMs": 34132,
+      "bytes": 94032091,
       "rss": [
-        1229029376, 1232699392, 1237467136, 1232797696, 1244233728, 1248837632,
-        1253457920, 1246461952, 1243152384, 1246134272, 1249476608, 1252458496,
-        1255538688, 1258569728, 1262944256, 1264926720, 1267892224
+        1387020288, 1389953024, 1393197056, 1395539968, 1397948416, 1398046720,
+        1399488512, 1431715840, 1424064512, 1426128896, 1428471808, 1430994944,
+        1434091520, 1434451968, 1435303936, 1439416320, 1442021376
+      ],
+      "processRss": [
+        {
+          "atMs": 1791580416622,
+          "byType": {
+            "browser": 253673472,
+            "GPU": 187138048,
+            "network.mojom.NetworkService": 106086400,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 759857152
+          }
+        },
+        {
+          "atMs": 1791580418631,
+          "byType": {
+            "browser": 254001152,
+            "GPU": 187187200,
+            "network.mojom.NetworkService": 106086400,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 762413056
+          }
+        },
+        {
+          "atMs": 1791580420637,
+          "byType": {
+            "browser": 255393792,
+            "GPU": 187088896,
+            "network.mojom.NetworkService": 106086400,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 764362752
+          }
+        },
+        {
+          "atMs": 1791580422646,
+          "byType": {
+            "browser": 257687552,
+            "GPU": 187138048,
+            "network.mojom.NetworkService": 106266624,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 764182528
+          }
+        },
+        {
+          "atMs": 1791580424653,
+          "byType": {
+            "browser": 258932736,
+            "GPU": 187138048,
+            "network.mojom.NetworkService": 106397696,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 765214720
+          }
+        },
+        {
+          "atMs": 1791580426660,
+          "byType": {
+            "browser": 258932736,
+            "GPU": 187138048,
+            "network.mojom.NetworkService": 106397696,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 765313024
+          }
+        },
+        {
+          "atMs": 1791580428667,
+          "byType": {
+            "browser": 259162112,
+            "GPU": 187138048,
+            "network.mojom.NetworkService": 106397696,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 766525440
+          }
+        },
+        {
+          "atMs": 1791580430673,
+          "byType": {
+            "browser": 260390912,
+            "GPU": 187236352,
+            "network.mojom.NetworkService": 106397696,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 797425664
+          }
+        },
+        {
+          "atMs": 1791580432681,
+          "byType": {
+            "browser": 260390912,
+            "GPU": 187219968,
+            "network.mojom.NetworkService": 106790912,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 789397504
+          }
+        },
+        {
+          "atMs": 1791580434689,
+          "byType": {
+            "browser": 260997120,
+            "GPU": 187318272,
+            "network.mojom.NetworkService": 106790912,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 790757376
+          }
+        },
+        {
+          "atMs": 1791580436696,
+          "byType": {
+            "browser": 261095424,
+            "GPU": 187252736,
+            "network.mojom.NetworkService": 106790912,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 793067520
+          }
+        },
+        {
+          "atMs": 1791580438701,
+          "byType": {
+            "browser": 261095424,
+            "GPU": 187236352,
+            "network.mojom.NetworkService": 106790912,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 795607040
+          }
+        },
+        {
+          "atMs": 1791580440708,
+          "byType": {
+            "browser": 261652480,
+            "GPU": 187236352,
+            "network.mojom.NetworkService": 106790912,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 798146560
+          }
+        },
+        {
+          "atMs": 1791580442717,
+          "byType": {
+            "browser": 261652480,
+            "GPU": 187351040,
+            "network.mojom.NetworkService": 106790912,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 798392320
+          }
+        },
+        {
+          "atMs": 1791580444724,
+          "byType": {
+            "browser": 262127616,
+            "GPU": 187301888,
+            "network.mojom.NetworkService": 106790912,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 798818304
+          }
+        },
+        {
+          "atMs": 1791580446731,
+          "byType": {
+            "browser": 263290880,
+            "GPU": 187318272,
+            "network.mojom.NetworkService": 106790912,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 801751040
+          }
+        },
+        {
+          "atMs": 1791580448740,
+          "byType": {
+            "browser": 263290880,
+            "GPU": 187416576,
+            "network.mojom.NetworkService": 106790912,
+            "storage.mojom.StorageService": 80265216,
+            "renderer": 804257792
+          }
+        }
       ]
     }
   ],
   "steadyRssBytes": {
-    "two": 1195360256,
-    "five": 1255538688,
-    "delta": 60178432
+    "two": 1356611584,
+    "five": 1434091520,
+    "delta": 77479936
+  },
+  "storageProbe": {
+    "payloadBytes": 104857600,
+    "incognitoAsync": {
+      "browserBeforeBytes": 215826432,
+      "browserAfterWriteBytes": 323993600,
+      "browserAfterRemovalBytes": 219463680
+    },
+    "persistentAsync": {
+      "browserBeforeBytes": 219381760,
+      "browserAfterWriteBytes": 225509376,
+      "browserAfterRemovalBytes": 225837056
+    },
+    "finding": "Incognito OPFS stores output payloads in RAM; the retained performance gate uses a disk-backed profile with the same total RSS budget."
   }
 }

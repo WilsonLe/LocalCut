@@ -1,4 +1,5 @@
 import { withQuotaRecovery } from '../storage/quota';
+import { commitWithSignal } from '../storage/transaction';
 import {
   Input,
   BlobSource,
@@ -17,7 +18,7 @@ import {
 } from 'mediabunny';
 import type { StreamTargetChunk } from 'mediabunny';
 import type { Asset } from '../core/model';
-import { invariant } from '../core/errors';
+import { EditorError, invariant } from '../core/errors';
 import { checkAbort } from '../services/jobs';
 import type { Progress } from '../services/jobs';
 import type { Store } from '../storage/store';
@@ -30,19 +31,32 @@ export async function inspect(
   name: string,
   id: string = crypto.randomUUID(),
 ): Promise<Asset> {
-  if (file.type.startsWith('image/')) {
-    invariant(
-      ['image/png', 'image/jpeg', 'image/webp'].includes(file.type),
-      'UNSUPPORTED_CODEC',
-      'Unsupported image',
-    );
-    const bitmap = await createImageBitmap(file);
+  const signature = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const matches = (offset: number, bytes: number[]) =>
+    bytes.every((value, index) => signature[offset + index] === value);
+  const imageType = matches(0, [137, 80, 78, 71, 13, 10, 26, 10])
+    ? 'image/png'
+    : matches(0, [255, 216, 255])
+      ? 'image/jpeg'
+      : matches(0, [82, 73, 70, 70]) && matches(8, [87, 69, 66, 80])
+        ? 'image/webp'
+        : undefined;
+  if (imageType || file.type.startsWith('image/')) {
+    invariant(imageType, 'UNSUPPORTED_CODEC', 'Unsupported image');
+    let bitmap: ImageBitmap;
+    try {
+      bitmap = await createImageBitmap(file);
+    } catch {
+      throw new EditorError('UNSUPPORTED_CODEC', 'Cannot decode image', {
+        format: imageType,
+      });
+    }
     const asset: Asset = {
       id,
       name,
       kind: 'image',
       size: file.size,
-      type: file.type,
+      type: imageType,
       durationUs: 0,
       width: bitmap.width,
       height: bitmap.height,
@@ -162,15 +176,17 @@ export async function importAsset(
                 ['assets', 'journal'],
                 'readwrite',
               );
-              await tx.objectStore('assets').put(asset);
-              await tx.objectStore('journal').put({
-                id: jobId,
-                target: asset.id,
-                kind: 'import',
-                committed: true,
+              await commitWithSignal(tx, signal, async () => {
+                await tx.objectStore('assets').put(asset);
+                await tx.objectStore('journal').put({
+                  id: jobId,
+                  target: asset.id,
+                  kind: 'import',
+                  committed: true,
+                });
               });
-              await tx.done;
-              await store.finishJournal(jobId);
+              // Recovery can remove a committed journal if cleanup is interrupted.
+              await store.finishJournal(jobId).catch(() => {});
               progress({ stage: 'ready', progress: 1 });
               return asset;
             } catch (e) {

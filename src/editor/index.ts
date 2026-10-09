@@ -75,8 +75,15 @@ export async function createEditor(options: EditorOptions = {}) {
     notify(data, false);
   const run = <T>(client: WorkerClient, operation: string, payload: object) => {
     active();
-    return jobs.start<T>((signal, progress, jobId) =>
-      client.run(operation, { ...payload, namespace, jobId }, signal, progress),
+    return jobs.start<T>(
+      (signal, progress, jobId) =>
+        client.run(
+          operation,
+          { ...payload, namespace, jobId },
+          signal,
+          progress,
+        ),
+      { acceptCommittedResult: operation === 'import' },
     );
   };
   const render = async (p: Project, t: number, signal: AbortSignal) =>
@@ -322,20 +329,23 @@ export async function createEditor(options: EditorOptions = {}) {
         size?: { width: number; height: number },
       ) {
         active();
-        return jobs.start(async (signal, progress, id) => {
-          invariant(
-            Number.isSafeInteger(timeUs) && timeUs >= 0,
-            'INVALID_COMMAND',
-            'Invalid frame timestamp',
-          );
-          const p = await store.getProject(projectId);
-          return interactive.run<FrameResult>(
-            'frame',
-            { namespace, jobId: id, project: p, timeUs, ...size },
-            signal,
-            progress,
-          );
-        });
+        return jobs.start(
+          async (signal, progress, id) => {
+            invariant(
+              Number.isSafeInteger(timeUs) && timeUs >= 0,
+              'INVALID_COMMAND',
+              'Invalid frame timestamp',
+            );
+            const p = await store.getProject(projectId);
+            return interactive.run<FrameResult>(
+              'frame',
+              { namespace, jobId: id, project: p, timeUs, ...size },
+              signal,
+              progress,
+            );
+          },
+          { discard: (result) => result.image.close() },
+        );
       },
       session(
         projectId: string,
@@ -375,19 +385,22 @@ export async function createEditor(options: EditorOptions = {}) {
       },
       start(projectId: string, options: ExportOptions) {
         active();
-        return jobs.start(async (signal, progress, id) => {
-          const p = await store.getProject(projectId);
-          return store.lock('project-assets-' + p.id, 'shared', async () => {
-            for (const assetId of assetIds(p)) await store.file(assetId);
-            const result = await background.run<ExportResult>(
-              'export',
-              { namespace, jobId: id, project: p, options },
-              signal,
-              progress,
-            );
-            return { ...result, dispose: () => store.remove(result.path) };
-          });
-        });
+        return jobs.start(
+          async (signal, progress, id) => {
+            const p = await store.getProject(projectId);
+            return store.lock('project-assets-' + p.id, 'shared', async () => {
+              for (const assetId of assetIds(p)) await store.file(assetId);
+              const result = await background.run<ExportResult>(
+                'export',
+                { namespace, jobId: id, project: p, options },
+                signal,
+                progress,
+              );
+              return { ...result, dispose: () => store.remove(result.path) };
+            });
+          },
+          { discard: (result) => result.dispose() },
+        );
       },
     },
     transcription: {
@@ -406,63 +419,67 @@ export async function createEditor(options: EditorOptions = {}) {
         options: { language?: string; startUs?: number; endUs?: number } = {},
       ) {
         active();
-        return jobs.start(async (signal, progress, id) => {
-          const asset = await store.getAsset(assetId);
-          invariant(
-            asset.audioCodec,
-            'UNSUPPORTED_CODEC',
-            'Asset has no audio',
-          );
-          const startUs = options.startUs ?? 0,
-            endUs = options.endUs ?? asset.durationUs;
-          invariant(
-            Number.isSafeInteger(startUs) &&
-              Number.isSafeInteger(endUs) &&
-              startUs >= 0 &&
-              endUs > startUs &&
-              endUs <= asset.durationUs,
-            'INVALID_COMMAND',
-            'Invalid transcription range',
-          );
-          invariant(
-            (await modelStatus(namespace)).ready,
-            'MODEL_REQUIRED',
-            'Prepare transcription before inference',
-          );
-          const audio = await background.run<Float32Array>(
-            'speechAudio',
-            {
-              namespace,
-              jobId: id,
+        return jobs.start(
+          async (signal, progress, id) => {
+            const asset = await store.getAsset(assetId);
+            invariant(
+              asset.audioCodec,
+              'UNSUPPORTED_CODEC',
+              'Asset has no audio',
+            );
+            const startUs = options.startUs ?? 0,
+              endUs = options.endUs ?? asset.durationUs;
+            invariant(
+              Number.isSafeInteger(startUs) &&
+                Number.isSafeInteger(endUs) &&
+                startUs >= 0 &&
+                endUs > startUs &&
+                endUs <= asset.durationUs,
+              'INVALID_COMMAND',
+              'Invalid transcription range',
+            );
+            invariant(
+              (await modelStatus(namespace)).ready,
+              'MODEL_REQUIRED',
+              'Prepare transcription before inference',
+            );
+            const audio = await background.run<Float32Array>(
+              'speechAudio',
+              {
+                namespace,
+                jobId: id,
+                assetId,
+                startFrame: Math.round((startUs * 16000) / 1e6),
+                count: Math.ceil(((endUs - startUs) * 16000) / 1e6),
+              },
+              signal,
+              progress,
+            );
+            const task = speechRun<Transcript>('transcribe', {
+              audio,
               assetId,
-              startFrame: Math.round((startUs * 16000) / 1e6),
-              count: Math.ceil(((endUs - startUs) * 16000) / 1e6),
-            },
-            signal,
-            progress,
-          );
-          const task = speechRun<Transcript>('transcribe', {
-            audio,
-            assetId,
-            language: options.language,
-            startUs,
-          });
-          const abort = () => task.cancel();
-          signal.addEventListener('abort', abort, { once: true });
-          const unsubscribe = task.subscribe((e) =>
-            progress({ stage: e.stage, progress: e.progress }),
-          );
-          try {
-            checkAbort(signal);
-            const transcript = await task.completion;
-            checkAbort(signal);
-            await store.saveTranscript(transcript);
-            return transcript;
-          } finally {
-            unsubscribe();
-            signal.removeEventListener('abort', abort);
-          }
-        });
+              language: options.language,
+              startUs,
+              endUs,
+            });
+            const abort = () => task.cancel();
+            signal.addEventListener('abort', abort, { once: true });
+            const unsubscribe = task.subscribe((e) =>
+              progress({ stage: e.stage, progress: e.progress }),
+            );
+            try {
+              checkAbort(signal);
+              const transcript = await task.completion;
+              checkAbort(signal);
+              await store.saveTranscript(transcript, signal);
+              return transcript;
+            } finally {
+              unsubscribe();
+              signal.removeEventListener('abort', abort);
+            }
+          },
+          { acceptCommittedResult: true },
+        );
       },
       async transcript(id: string) {
         active();

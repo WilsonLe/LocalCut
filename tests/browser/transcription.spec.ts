@@ -99,10 +99,92 @@ test('@transcription real Whisper preparation, inference and cached reload', asy
     const overlap = await window.editor.transcription.transcribe(longer.id, {
       language: 'english',
     }).completion;
+    const transcriptCount = async () => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open('test-asr-v1');
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        return await new Promise<number>((resolve, reject) => {
+          const request = db
+            .transaction('transcripts')
+            .objectStore('transcripts')
+            .count();
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+      } finally {
+        db.close();
+      }
+    };
+    const beforeCancel = await transcriptCount();
+    const cancelledJob = window.editor.transcription.transcribe(asset.id);
+    const unsubscribe = cancelledJob.subscribe((event) => {
+      if (event.stage === 'inference') cancelledJob.cancel();
+    });
+    const cancelled = await cancelledJob.completion.then(
+      () => 'unexpected-success',
+      (error: { code: string }) => error.code,
+    );
+    unsubscribe();
+    const afterCancel = await transcriptCount();
+    // A fresh worker performs automatic language detection after cancellation.
+    // Deliberately use endpoints not aligned to a 16 kHz sample.
+    const ranged = await window.editor.transcription.transcribe(asset.id, {
+      startUs: 1,
+      endUs: asset.durationUs - 1,
+    }).completion;
+    const project = await window.editor.projects.create(
+      'Source-timed transcript',
+    );
+    await window.editor.commands.apply({
+      projectId: project.id,
+      requestId: 'link-range',
+      expectedRevision: 0,
+      operations: [
+        { type: 'addTrack', track: { id: 'speech', kind: 'audio' } },
+        {
+          type: 'insertClip',
+          trackId: 'speech',
+          clip: {
+            id: 'speech-clip',
+            kind: 'audio',
+            assetId: asset.id,
+            transcriptId: ranged.id,
+            startUs: 0,
+            durationUs: asset.durationUs,
+            sourceOutUs: asset.durationUs,
+          },
+        },
+      ],
+    });
+    const backup = JSON.parse(
+      await window.editor.projects.exportJSON(project.id),
+    );
     await window.editor.dispose();
-    return { missing, assetId: asset.id, transcript, overlap };
+    return {
+      missing,
+      assetId: asset.id,
+      durationUs: asset.durationUs,
+      transcript,
+      overlap,
+      cancelled,
+      beforeCancel,
+      afterCancel,
+      ranged,
+      backupTranscriptCount: backup.transcripts.length,
+    };
   });
   expect(info.missing).toBe('MODEL_REQUIRED');
+  expect(info.cancelled).toBe('CANCELLED');
+  expect(info.afterCancel).toBe(info.beforeCancel);
+  expect(info.backupTranscriptCount).toBe(1);
+  expect(info.ranged.cues.length).toBeGreaterThan(0);
+  for (const cue of info.ranged.cues) {
+    expect(cue.timeUs).toBeGreaterThanOrEqual(1);
+    expect(cue.endUs).toBeLessThanOrEqual(info.durationUs - 1);
+  }
   expect(
     info.transcript.cues
       .map((c) => c.text)
