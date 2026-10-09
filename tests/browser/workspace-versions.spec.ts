@@ -104,6 +104,8 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Return to current', exact: true })
       .click();
+    await page.clock.install();
+    await page.clock.pauseAt(new Date(Date.now() + 1000));
     await timeline
       .getByRole('button', { name: 'First state', exact: true })
       .click();
@@ -122,6 +124,29 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       timeline.getByRole('button', { name: 'Second state', exact: true }),
     ).not.toBeVisible();
+    // Re-entering through an already-open history button checkpoints the edit,
+    // even though the one-second autosave clock has not advanced.
+    const checkpointedText = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const engine = await createEditor();
+      try {
+        const project = (await engine.projects.list()).find(
+          (p) => p.name === 'Version journey',
+        )!;
+        const versions = await engine.projects.versions.list(project.id);
+        const latest = await engine.projects.versions.snapshot(
+          project.id,
+          versions[0]!.id,
+        );
+        return latest.project.tracks[0]!.clips[0]!.text!.text;
+      } finally {
+        await engine.dispose();
+      }
+    }, base);
+    expect(checkpointedText).toBe('Second state');
+    await page.clock.resume();
     await page
       .getByRole('button', { name: 'Restore as new version', exact: true })
       .click();

@@ -417,6 +417,8 @@ export function Workspace() {
   const browseVersion = (id: string) =>
     void action(async () => {
       if (!project || !editor) return;
+      await editor.projects.versions.save(project.id);
+      setVersions(await editor.projects.versions.list(project.id));
       const version = await editor.projects.versions.snapshot(project.id, id);
       const ids = [
         ...new Set(
