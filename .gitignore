@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dist-root/
+coverage/
+playwright-report/
+test-results/
+.artifacts/
+.cache/
+.env*
+!.env.example
+.cli/
+*.tsbuildinfo

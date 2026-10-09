@@ -1,0 +1,42 @@
+{
+  "capturedAt": "2026-10-09T20:50:33.604002+00:00",
+  "browser": "Google Chrome 155.0.8059.40",
+  "node": "24.21.0",
+  "pnpm": "11.25.0",
+  "platform": "macOS arm64",
+  "cpu": "Apple M5 Pro",
+  "physicalMemoryBytes": 51539607552,
+  "workload": "1080p30 MP4; 600 sequential image/text clips for five minutes; one generated gradient source; animated text; native silent audio; separate interactive seeking",
+  "measurements": [
+    {
+      "duration": 10,
+      "elapsedMs": 2009,
+      "bytes": 328736,
+      "rss": [1054441472]
+    },
+    {
+      "duration": 120,
+      "elapsedMs": 14074,
+      "bytes": 22480349,
+      "rss": [
+        1167998976, 1199456256, 1193607168, 1190100992, 1195360256, 1200422912,
+        1207664640
+      ]
+    },
+    {
+      "duration": 300,
+      "elapsedMs": 34188,
+      "bytes": 46445018,
+      "rss": [
+        1229029376, 1232699392, 1237467136, 1232797696, 1244233728, 1248837632,
+        1253457920, 1246461952, 1243152384, 1246134272, 1249476608, 1252458496,
+        1255538688, 1258569728, 1262944256, 1264926720, 1267892224
+      ]
+    }
+  ],
+  "steadyRssBytes": {
+    "two": 1195360256,
+    "five": 1255538688,
+    "delta": 60178432
+  }
+}

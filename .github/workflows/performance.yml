@@ -1,0 +1,31 @@
+name: Manual performance
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  performance:
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install signed stable Google Chrome
+        id: chrome
+        run: node scripts/install-chrome.mjs | tee -a "$GITHUB_OUTPUT"
+      - run: pnpm build && pnpm build:root && pnpm test:performance
+        env:
+          LOCALCUT_CHROME_EXECUTABLE: ${{ steps.chrome.outputs.chrome-path }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-evidence
+          path: |
+            test-results/
+            playwright-report/
