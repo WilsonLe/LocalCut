@@ -1,6 +1,6 @@
 # Local acceptance evidence
 
-Current acceptance runs locally, as described in [validation](validation.md). Hosted CI is disabled; earlier hosted checks linked from release history remain historical evidence for those revisions. Manual Pages deployment and its live verification remain separate.
+Current acceptance runs locally, as described in [validation](validation.md). Hosted CI is disabled; earlier hosted checks linked from release history remain historical evidence for those revisions. Pages deploys automatically on pushes to `main`; live release verification remains separate. See [deployment and rollback](../DEPLOY.md).
 
 ## Conversation-led workspace
 
@@ -36,6 +36,6 @@ Completion regressions cover legacy import reference validation, partial updates
 
 Upgrade regressions seed actual base-release receipts and project/history records into production Chrome. They verify exact old request replay despite changed defaults/ID generation, conflict rejection for changed fields, persistent raw fingerprints for new receipts, and atomic two-tab migration without revision changes. Original caption cue ownership survives reordered undo/redo and backup round trips. Unmarked legacy import repair is explicit; marked invalid backups and cross-kind collisions remain rejected.
 
-GitHub Pages is configured for the manual Actions workflow; the release issue records dispatch and live verification separately. That foundation release had no product UI. The subsequent approved workspace adds controls without an automatic editor instance, router, or browser Pilot panel.
+At that foundation release, GitHub Pages used the manual Actions workflow; its release issue records dispatch and live verification separately. That foundation release had no product UI. The subsequent approved workspace adds controls without an automatic editor instance, router, or browser Pilot panel.
 
 The independent review findings and author corrections are documented in [review.md](review.md). Additional regressions verify fresh-namespace backup restoration and source-caption pixels, remapped missing-asset metadata, interrupted and concurrent relinking, cancellation while waiting on an asset lock, playback failure reporting and successful play/pause/seek, height changes, checksum tampering, bounded quota retry, and original/active-reader preservation.

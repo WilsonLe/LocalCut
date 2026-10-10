@@ -1,5 +1,7 @@
-name: Manual GitHub Pages deployment
+name: GitHub Pages deployment
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       confirm_deploy:
@@ -14,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build:
-    if: inputs.confirm_deploy && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.confirm_deploy)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
