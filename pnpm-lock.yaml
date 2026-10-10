@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  react-resizable-panels@4.14.3: 330ed83f638c051d678054a13afa86d9793908b176fe770a3ccd40286c806f98
+
 importers:
 
   .:
@@ -46,7 +49,7 @@ importers:
         version: 10.1.0(@types/react@19.3.0)(react@19.3.0)
       react-resizable-panels:
         specifier: 4.14.3
-        version: 4.14.3(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 4.14.3(patch_hash=330ed83f638c051d678054a13afa86d9793908b176fe770a3ccd40286c806f98)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       remark-gfm:
         specifier: 4.0.1
         version: 4.0.1
@@ -5966,7 +5969,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.3.0
 
-  react-resizable-panels@4.14.3(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
+  react-resizable-panels@4.14.3(patch_hash=330ed83f638c051d678054a13afa86d9793908b176fe770a3ccd40286c806f98)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)

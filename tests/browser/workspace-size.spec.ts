@@ -272,7 +272,7 @@ for (const base of ['/', '/LocalCut/']) {
         name: 'Resize workspace chat',
       });
       await resize.press('Home');
-      await expect(resize).toHaveAttribute('aria-valuenow', '280');
+      await expect(resize).toHaveAttribute('aria-valuetext', '280 pixels');
       const handle = (await resize.boundingBox())!;
       await page.mouse.move(handle.x + handle.width / 2, handle.y + 30);
       await page.mouse.down();
@@ -282,7 +282,7 @@ for (const base of ['/', '/LocalCut/']) {
         { steps: 5 },
       );
       await page.mouse.up();
-      await expect(resize).toHaveAttribute('aria-valuenow', '360');
+      await expect(resize).toHaveAttribute('aria-valuetext', '360 pixels');
       // The same view anchor under the pointer survives wheel zoom and middle-button pan.
       await expect(page.locator('[role="listbox"], [role="menu"]')).toHaveCount(
         0,
