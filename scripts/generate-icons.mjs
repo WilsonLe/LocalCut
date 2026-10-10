@@ -7,7 +7,6 @@ const svg = await readFile(
 );
 const browser = await chromium.launch({ channel: 'chrome' });
 try {
-  const page = await browser.newPage();
   for (const [name, size, maskable] of [
     ['favicon-32', 32, false],
     ['apple-touch-icon', 180, false],
@@ -15,7 +14,10 @@ try {
     ['icon-512', 512, false],
     ['maskable-512', 512, true],
   ]) {
-    await page.setViewportSize({ width: size, height: size });
+    // A fresh, final-sized surface avoids stale compositor pixels after resizing.
+    const page = await browser.newPage({
+      viewport: { width: size, height: size },
+    });
     const image = maskable
       ? svg
           .replace('rx="14"', 'rx="0"')
@@ -27,10 +29,19 @@ try {
     await page.setContent(
       `<style>html,body{margin:0;width:100%;height:100%}svg{display:block;width:100%;height:100%}</style>${image}`,
     );
+    await page.evaluate(
+      () =>
+        new Promise((resolve) =>
+          globalThis.requestAnimationFrame(() =>
+            globalThis.requestAnimationFrame(resolve),
+          ),
+        ),
+    );
     await writeFile(
       new URL(`../public/icons/${name}.png`, import.meta.url),
       await page.screenshot({ omitBackground: true }),
     );
+    await page.close();
   }
 } finally {
   await browser.close();
