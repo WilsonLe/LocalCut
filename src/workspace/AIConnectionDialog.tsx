@@ -79,17 +79,20 @@ export default function AIConnectionDialog({
         </DialogHeader>
         {!connection ? (
           <div className="space-y-5">
+            {connecting && (
+              <p role="status" className="flex items-center gap-2 text-sm">
+                <LoaderCircle
+                  className="size-4 motion-safe:animate-spin"
+                  aria-hidden="true"
+                />
+                Connecting OpenRouter…
+              </p>
+            )}
             <Button
               className="w-full"
               disabled={connecting}
               onClick={() => void authorize()}
             >
-              {connecting && (
-                <LoaderCircle
-                  className="motion-safe:animate-spin"
-                  aria-hidden="true"
-                />
-              )}
               Connect with OpenRouter
             </Button>
             <form

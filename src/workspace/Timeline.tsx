@@ -40,70 +40,72 @@ export function Timeline(props: Props) {
     <section className="timeline" aria-label="Video timeline">
       <div className="timeline-toolbar">
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={!project || busy}
-            aria-label="Undo"
-            onClick={props.onUndo}
-          >
-            <Undo2 />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={!project || busy}
-            aria-label="Redo"
-            onClick={props.onRedo}
-          >
-            <Redo2 />
-          </Button>
+          {!!project && !busy && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Undo"
+              onClick={props.onUndo}
+            >
+              <Undo2 />
+            </Button>
+          )}
+          {!!project && !busy && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Redo"
+              onClick={props.onRedo}
+            >
+              <Redo2 />
+            </Button>
+          )}
           <span className="toolbar-divider" />
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={
-              !selectedClip ||
-              busy ||
-              timeUs <= selectedClip.startUs ||
-              timeUs >= selectedClip.startUs + selectedClip.durationUs
-            }
-            aria-label="Split clip"
-            onClick={props.onSplit}
-          >
-            <Scissors />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={!selected || busy}
-            aria-label="Delete clip"
-            onClick={props.onDelete}
-          >
-            <Trash2 />
-          </Button>
+          {!(
+            !selectedClip ||
+            busy ||
+            timeUs <= selectedClip.startUs ||
+            timeUs >= selectedClip.startUs + selectedClip.durationUs
+          ) && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Split clip"
+              onClick={props.onSplit}
+            >
+              <Scissors />
+            </Button>
+          )}
+          {!!selected && !busy && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Delete clip"
+              onClick={props.onDelete}
+            >
+              <Trash2 />
+            </Button>
+          )}
           <span className="selected-label">
             {selectedClip ? clipName(selectedClip, assets) : 'Timeline'}
           </span>
         </div>
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={!project || busy}
-            onClick={props.onText}
-          >
-            <Type /> Add text
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={!selected}
-            aria-label="Clip properties"
-            onClick={props.onProperties}
-          >
-            <SlidersHorizontal />
-          </Button>
+          {!!project && !busy && (
+            <Button variant="ghost" size="sm" onClick={props.onText}>
+              <Type /> Add text
+            </Button>
+          )}
+          {!!selected && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Clip properties"
+              onClick={props.onProperties}
+            >
+              <SlidersHorizontal />
+            </Button>
+          )}
         </div>
       </div>
       {total > 0 ? (

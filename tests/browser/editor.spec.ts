@@ -27,7 +27,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(page).toHaveTitle('LocalCut');
     await page.waitForTimeout(300);
     await expect(
-      page.getByRole('button', { name: 'New project', exact: true }),
+      page.getByRole('button', { name: 'Commands', exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Open project', exact: true }),

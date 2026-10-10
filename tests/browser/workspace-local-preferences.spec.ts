@@ -223,7 +223,11 @@ for (const base of ['/', '/LocalCut/']) {
   }) => {
     await page.goto(base);
     await page
-      .getByRole('button', { name: 'New project', exact: true })
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .click();
+    await page.getByRole('menuitem', { name: 'Project', exact: true }).click();
+    await page
+      .getByRole('menuitem', { name: 'New project', exact: true })
       .click();
     await page
       .getByLabel('Project name', { exact: true })

@@ -78,7 +78,11 @@ for (const base of ['/', '/LocalCut/']) {
       '1920 × 1080 · 30 fps',
     );
     await page
-      .getByRole('button', { name: 'New project', exact: true })
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .click();
+    await page.getByRole('menuitem', { name: 'Project', exact: true }).click();
+    await page
+      .getByRole('menuitem', { name: 'New project', exact: true })
       .click();
     const dialog = page.getByRole('dialog', {
       name: 'New project',
@@ -127,7 +131,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page.setViewportSize({ width: 768, height: 900 });
     await page.getByRole('button', { name: 'Expand media' }).click();
     const properties = page.getByRole('button', {
-      name: 'Clip properties',
+      name: 'Add text',
       exact: true,
     });
     await expect(properties).toBeVisible();
@@ -203,7 +207,13 @@ test('CYOBot chat structure keeps local sessions, markdown, drafts and keyboard 
       ),
   );
   await page.goto('/LocalCut/');
-  await page.getByRole('button', { name: 'New project', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Workspace settings', exact: true })
+    .click();
+  await page.getByRole('menuitem', { name: 'Project', exact: true }).click();
+  await page
+    .getByRole('menuitem', { name: 'New project', exact: true })
+    .click();
   await page.getByLabel('Project name').fill('Chat structure');
   await page.getByRole('button', { name: 'Create project' }).click();
   await page.getByRole('button', { name: 'Connect AI', exact: true }).click();

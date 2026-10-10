@@ -63,13 +63,19 @@ Preview uses the same engine compositor as export. Playback creates its audio co
 
 ## Keyboard editing
 
-Focus the preview or timeline to use single-key shortcuts. `Space` plays/pauses, arrows step one frame, Shift+arrows step ten frames, and Home/End seek to the first/last frame. `S` splits, `D` duplicates, Delete/Backspace removes the selected clip, and `T` adds text. `N` opens a new project; `C` and `M` toggle chat and media. `?` opens the complete shortcut reference in the header.
+Focus the preview or timeline to use single-key shortcuts. `Space` plays/pauses, arrows step one frame, Shift+arrows step ten frames, and Home/End seek to the first/last frame. `S` splits, `D` duplicates, Delete/Backspace removes the selected clip, and `T` adds text. `N` opens a new project; `C` and `M` toggle chat and media. `?` opens the complete shortcut reference, also available under Workspace settings → Keyboard shortcuts.
+
+Mod+K opens Commands from outside text fields and dialogs. The header search icon and Workspace settings → Commands also open it. Search project, media, editing, clip selection, playback, version, export, view, appearance and chat operations; use arrows and Enter to run an available action. File, property, export and AI configuration commands open their existing workflows. AI proposals still require explicit approval. Unavailable actions are omitted, including mutations and export in a historical version. Escape dismisses the palette and returns focus to its header control.
+
+See the [desktop palette](images/workspace-commands.png) and [narrow palette](images/workspace-commands-narrow.png).
 
 Command on macOS or Ctrl elsewhere works with `Z` for Undo, Shift+`Z` for Redo, `O` for Open project, `I` for Import media, and `E` for Export. Ctrl+`Y` also redoes. Shortcuts never intercept text inputs, IME composition, dialogs or menus; Space on a focused button retains its native action. Editing shortcuts call the same revision-aware operations as the visible controls.
 
 ## Version browsing
 
-Versions in the header opens the saved history and checkpoints pending edits. Select a version to recreate its full timeline, project dimensions, media references and preview. You can select clips, inspect read-only properties, scrub and play the saved state. Editing controls, imports, relinking, export and AI requests/application are disabled while browsing. The conversation stays mounted and refers to the current project; transient chat and playhead state are not part of the saved project document.
+The workspace omits unavailable editing, media and playback buttons; the header omits unavailable Versions and Export actions, the duplicate New project button and local-storage information icon. Create projects through Workspace settings → Project → New project or Commands. Scrollbars are hidden throughout the workspace and popup surfaces; wheel, touch, trackpad and keyboard scrolling remain available.
+
+Versions in the header opens the saved history and checkpoints pending edits. Select a version to recreate its full timeline, project dimensions, media references and preview. You can select clips, inspect read-only properties, scrub and play the saved state. Editing controls, imports, relinking and export are hidden while browsing; AI requests/application remain blocked. The conversation stays mounted and refers to the current project; transient chat and playhead state are not part of the saved project document.
 
 Return to current resumes the latest project, including changes from another tab. Restore as new version copies the selected state into a new current revision and appends a new version; earlier and later historical entries stay unchanged. If another tab changes the current revision before restoration, review its latest state and retry. Undo can reverse the restoration without deleting the restored version. Closing history returns to the current project.
 

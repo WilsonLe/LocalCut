@@ -4,6 +4,7 @@
 - Use the shared semantic color, border, radius, and typography tokens from [styles.css](../../styles.css). Preserve caller `className`, typed props, and existing variant/data-slot contracts.
 - Keep project state, network work, storage, and editor operations in consumers. A primitive renders interaction semantics; it does not initialize application services.
 - Preserve keyboard interaction, focus visibility, disabled/invalid states, popup positioning, and focus return. Keep primitive refs/props usable by wrappers and callers.
+- The shared Button omits disabled actions, following the user's workspace preference. Owners must keep pending progress and actionable errors visible separately; availability must not bypass revision checks or approval.
 - Consumers supply meaningful labels and dialog titles/descriptions; icon-only actions need accessible names. Do not replace semantic controls with styled generic elements.
 - Check affected consumers at desktop and narrow widths. Shared styling changes must preserve scrolling, portal layering, and reduced-motion behavior.
 

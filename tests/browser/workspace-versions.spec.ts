@@ -5,7 +5,11 @@ for (const base of ['/', '/LocalCut/']) {
   }) => {
     await page.goto(base);
     await page
-      .getByRole('button', { name: 'New project', exact: true })
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .click();
+    await page.getByRole('menuitem', { name: 'Project', exact: true }).click();
+    await page
+      .getByRole('menuitem', { name: 'New project', exact: true })
       .click();
     await page.getByLabel('Project name').fill('Version journey');
     await page.getByRole('button', { name: 'Create project' }).click();
@@ -30,10 +34,10 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
     await expect(
       timeline.getByRole('button', { name: 'Undo', exact: true }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     await expect(
       timeline.getByRole('button', { name: 'Add text', exact: true }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     await timeline
       .getByRole('button', { name: 'First state', exact: true })
       .click();

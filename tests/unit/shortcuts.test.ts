@@ -51,6 +51,12 @@ describe('editor keyboard commands', () => {
       resolveShortcut(key('Z', { metaKey: true, shiftKey: true }), outside),
     ).toBe('redo');
     expect(resolveShortcut(key('y', { ctrlKey: true }), outside)).toBe('redo');
+    expect(resolveShortcut(key('k', { ctrlKey: true }), outside)).toBe(
+      'commands',
+    );
+    expect(resolveShortcut(key('k', { metaKey: true }), outside)).toBe(
+      'commands',
+    );
     expect(resolveShortcut(key('o', { ctrlKey: true }), outside)).toBe(
       'openProject',
     );

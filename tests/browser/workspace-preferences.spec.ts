@@ -17,7 +17,7 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await expect(menu).toBeVisible();
     await expect(settings).toHaveAttribute('aria-expanded', 'true');
-    await expect(menu.getByRole('menuitem')).toHaveCount(4);
+    await expect(menu.getByRole('menuitem')).toHaveCount(6);
     await expect(
       page.getByRole('menuitem', {
         name: 'Download project backup',
@@ -47,7 +47,7 @@ for (const base of ['/', '/LocalCut/']) {
         name: 'Download project backup',
         exact: true,
       }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     await page.keyboard.press('ArrowLeft');
     await expect(projectMenu).not.toBeVisible();
     await expect(project).toBeFocused();
@@ -121,7 +121,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(exports).toBeVisible();
     await expect(
       exports.getByRole('menuitem', { name: 'Export video', exact: true }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
     await expect(settings).toBeFocused();

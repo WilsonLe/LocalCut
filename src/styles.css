@@ -133,3 +133,11 @@
     font-family: var(--font-heading);
   }
 }
+
+/* Keep all app and portal surfaces scrollable without visible scrollbar chrome. */
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}

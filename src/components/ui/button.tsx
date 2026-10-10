@@ -45,6 +45,9 @@ function Button({
   size = 'default',
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+  // Unavailable actions are disclosed when they become usable, including
+  // disabled props supplied by a Base UI trigger's render composition.
+  if (props.disabled) return null;
   return (
     <ButtonPrimitive
       data-slot="button"
