@@ -92,6 +92,8 @@ This is the project record of the user's durable product and workflow choices. U
 ## Project navigation — 10 October 2026
 
 - Provide a workspace screen for navigating saved projects, alongside the existing editor.
+- Keep the current project in the URL so reload, direct project links and browser Back/Forward restore the intended local project. Use a pinned router package where useful; routes must work on root and GitHub Pages hosting.
+- Keep route, project loading and catalog state in focused React hooks consumed by components. The engine remains the canonical project owner. Explicit project URLs may reopen local editing on startup; the bare app URL remains inert. This supersedes the earlier session-only active-project navigation choice.
 
 ## Keyboard and mouse editing — 10 October 2026
 
@@ -138,7 +140,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Save pasted and OAuth-issued OpenRouter credentials locally in this browser/origin and restore the connection after refresh or navigation. This supersedes the earlier memory-only credential choices.
 - Keep credentials separate from preferences, project data and all portable backups. Disconnect removes the saved credential; ordinary cleanup preserves it. Removing or replacing it in another tab retires the old connection.
-- Restoring a connection may refresh the model catalog, but never sends chat, generates speech or indexes media automatically. Text/name/transcript sharing remains off after reload; conversations and active project selection remain session-only.
+- Restoring a connection may refresh the model catalog, but never sends chat, generates speech or indexes media automatically. Text/name/transcript sharing remains off after reload; conversations remain session-only. Active project restoration follows the newer project-routing choice above.
 
 ## Mobile usability — 10 October 2026
 
@@ -149,6 +151,11 @@ This is the project record of the user's durable product and workflow choices. U
 - Keep the desktop timeline against the bottom of its editor at every interface size and browser zoom.
 - Offer Default (100%), Small (75%) and Large (125%) under Settings → Appearance, remembered locally and included with appearance backups. Scale the complete interface, including popups and dialogs, while retaining editing/chat state and authored media geometry.
 - Intercept page-delivered browser zoom shortcuts and gestures. Browser-menu zoom, saved site zoom and OS controls remain outside a static web app's authority; keep the layout correct when they change. Independent timeline and preview editing zoom remains available. This supersedes the older choice to leave browser zoom gestures active outside editing surfaces.
+
+## AI settings and disclosures — 10 October 2026
+
+- Keep AI settings in a larger dialog with more space between configuration sections; no separate routed settings page is requested.
+- Adopt the configured shadcn Base UI Accordion and Collapsible components for expandable content. Animate expansion, collapse and indicators; respect reduced motion and preserve input, keyboard and focus behavior.
 
 ## Workspace resizing — 10 October 2026
 

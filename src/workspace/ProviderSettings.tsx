@@ -4,6 +4,13 @@ import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '../components/ui/accordion';
+import { CollapsibleDisclosure } from '../components/ui/collapsible';
 import { SettingsSelect } from './SettingsSelect';
 import type {
   ProviderConfiguration,
@@ -49,16 +56,13 @@ export function ProviderSettings(props: ProviderSettingsProps) {
   };
   return (
     <div className="space-y-4">
-      <details>
-        <summary className="cursor-pointer text-sm font-medium">
-          Providers & services
-        </summary>
-        <div className="mt-4 space-y-4">
+      <CollapsibleDisclosure summary="Providers & services">
+        <div className="space-y-6 pt-4 pb-2">
           <div className="space-y-2">
             {config.profiles.map((p) => (
               <div
                 key={p.id}
-                className="flex items-center justify-between gap-2 rounded-lg border p-2"
+                className="flex items-center justify-between gap-3 rounded-lg border p-4"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{p.name}</p>
@@ -124,7 +128,7 @@ export function ProviderSettings(props: ProviderSettingsProps) {
             </Button>
           </div>
           {showForm && (
-            <div className="space-y-3 rounded-lg border p-3">
+            <div className="space-y-5 rounded-lg border p-4 sm:p-6">
               <SettingsSelect
                 label="Provider type"
                 value={kind}
@@ -145,7 +149,7 @@ export function ProviderSettings(props: ProviderSettingsProps) {
               />
               {kind === 'compatible' ? (
                 <form
-                  className="space-y-3"
+                  className="space-y-5"
                   onSubmit={(event) => {
                     event.preventDefault();
                     const profile: ProviderProfile = {
@@ -218,10 +222,7 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                       onChange={(e) => setModel(e.target.value)}
                     />
                   </div>
-                  <details>
-                    <summary className="cursor-pointer text-sm">
-                      Text to speech
-                    </summary>
+                  <CollapsibleDisclosure summary="Text to speech">
                     <div className="mt-3 space-y-2">
                       <Label htmlFor="provider-speech-model">
                         Speech model
@@ -244,11 +245,8 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                         kHz mono PCM.
                       </p>
                     </div>
-                  </details>
-                  <details>
-                    <summary className="cursor-pointer text-sm">
-                      Speech to text
-                    </summary>
+                  </CollapsibleDisclosure>
+                  <CollapsibleDisclosure summary="Speech to text">
                     <div className="mt-3 space-y-2">
                       <Label htmlFor="provider-transcription-model">
                         Transcription model
@@ -264,7 +262,7 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                         transcription approval.
                       </p>
                     </div>
-                  </details>
+                  </CollapsibleDisclosure>
                   <Button
                     type="submit"
                     disabled={
@@ -366,199 +364,209 @@ export function ProviderSettings(props: ProviderSettingsProps) {
               )}
             </div>
           )}
-          {(['llm', 'tts', 'stt'] as const).map((service) => (
-            <details key={service} className="rounded-lg border p-3">
-              <summary className="cursor-pointer text-sm font-medium">
-                {service === 'llm'
-                  ? 'LLM · Chat'
-                  : service === 'tts'
-                    ? 'TTS · Speech'
-                    : 'STT · Transcription'}
-              </summary>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {config.routes[service]
-                  .map((r) =>
-                    r.providerId === 'local'
-                      ? 'Local Whisper'
-                      : config.profiles.find((p) => p.id === r.providerId)
-                          ?.name,
-                  )
-                  .join(' → ') || 'Disabled'}
-              </p>
-              <fieldset className="mt-3 space-y-2" disabled={props.connecting}>
-                {config.routes[service].map((route, index) => {
-                  const profile =
-                    route.providerId === 'local'
-                      ? { id: 'local', name: 'Local Whisper' }
-                      : config.profiles.find((p) => p.id === route.providerId)!;
-                  return (
-                    <div
-                      key={`${route.providerId}:${route.model}:${route.voice}`}
-                      className="space-y-2 border-b pb-3 last:border-b-0"
-                    >
-                      <div className="flex items-center gap-1">
-                        <span className="flex-1 text-sm">
-                          {index + 1}. {profile.name}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`Move ${profile.name} up in ${service}`}
-                          disabled={props.connecting || index === 0}
-                          onClick={() =>
-                            patch((next) => {
-                              [
-                                next.routes[service][index - 1],
-                                next.routes[service][index],
-                              ] = [
-                                next.routes[service][index]!,
-                                next.routes[service][index - 1]!,
-                              ];
-                            })
-                          }
+          <Accordion multiple>
+            {(['llm', 'tts', 'stt'] as const).map((service) => (
+              <AccordionItem value={service} key={service}>
+                <AccordionTrigger>
+                  {service === 'llm'
+                    ? 'LLM · Chat'
+                    : service === 'tts'
+                      ? 'TTS · Speech'
+                      : 'STT · Transcription'}
+                </AccordionTrigger>
+                <AccordionContent keepMounted>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {config.routes[service]
+                      .map((r) =>
+                        r.providerId === 'local'
+                          ? 'Local Whisper'
+                          : config.profiles.find((p) => p.id === r.providerId)
+                              ?.name,
+                      )
+                      .join(' → ') || 'Disabled'}
+                  </p>
+                  <fieldset
+                    className="mt-3 space-y-2"
+                    disabled={props.connecting}
+                  >
+                    {config.routes[service].map((route, index) => {
+                      const profile =
+                        route.providerId === 'local'
+                          ? { id: 'local', name: 'Local Whisper' }
+                          : config.profiles.find(
+                              (p) => p.id === route.providerId,
+                            )!;
+                      return (
+                        <div
+                          key={`${route.providerId}:${route.model}:${route.voice}`}
+                          className="space-y-2 border-b pb-3 last:border-b-0"
                         >
-                          <ArrowUp />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`Move ${profile.name} down in ${service}`}
-                          disabled={
-                            props.connecting ||
-                            index === config.routes[service].length - 1
-                          }
-                          onClick={() =>
-                            patch((next) => {
-                              [
-                                next.routes[service][index + 1],
-                                next.routes[service][index],
-                              ] = [
-                                next.routes[service][index]!,
-                                next.routes[service][index + 1]!,
-                              ];
-                            })
-                          }
-                        >
-                          <ArrowDown />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`Remove ${profile.name} from ${service}`}
-                          disabled={props.connecting}
-                          onClick={() =>
-                            patch((next) => {
-                              next.routes[service].splice(index, 1);
-                            })
-                          }
-                        >
-                          <Trash2 />
-                        </Button>
-                      </div>
-                      <Input
-                        disabled={route.providerId === 'local'}
-                        aria-label={`${profile.name} ${service} route model`}
-                        placeholder={
-                          index === 0
-                            ? service === 'llm'
-                              ? 'Choose AI model below'
-                              : 'Speech model ID'
-                            : 'Fallback model ID'
-                        }
-                        defaultValue={route.model}
-                        onBlur={(e) =>
-                          patch((next) => {
-                            next.routes[service][index]!.model = e.target.value;
-                          })
-                        }
-                      />
-                      {service === 'tts' && (
-                        <Input
-                          aria-label={`${profile.name} fallback voice`}
-                          placeholder="Fallback voice"
-                          defaultValue={route.voice ?? ''}
-                          onBlur={(e) =>
-                            patch((next) => {
-                              next.routes[service][index]!.voice =
-                                e.target.value;
-                            })
-                          }
-                        />
-                      )}
+                          <div className="flex items-center gap-1">
+                            <span className="flex-1 text-sm">
+                              {index + 1}. {profile.name}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`Move ${profile.name} up in ${service}`}
+                              disabled={props.connecting || index === 0}
+                              onClick={() =>
+                                patch((next) => {
+                                  [
+                                    next.routes[service][index - 1],
+                                    next.routes[service][index],
+                                  ] = [
+                                    next.routes[service][index]!,
+                                    next.routes[service][index - 1]!,
+                                  ];
+                                })
+                              }
+                            >
+                              <ArrowUp />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`Move ${profile.name} down in ${service}`}
+                              disabled={
+                                props.connecting ||
+                                index === config.routes[service].length - 1
+                              }
+                              onClick={() =>
+                                patch((next) => {
+                                  [
+                                    next.routes[service][index + 1],
+                                    next.routes[service][index],
+                                  ] = [
+                                    next.routes[service][index]!,
+                                    next.routes[service][index + 1]!,
+                                  ];
+                                })
+                              }
+                            >
+                              <ArrowDown />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`Remove ${profile.name} from ${service}`}
+                              disabled={props.connecting}
+                              onClick={() =>
+                                patch((next) => {
+                                  next.routes[service].splice(index, 1);
+                                })
+                              }
+                            >
+                              <Trash2 />
+                            </Button>
+                          </div>
+                          <Input
+                            disabled={route.providerId === 'local'}
+                            aria-label={`${profile.name} ${service} route model`}
+                            placeholder={
+                              index === 0
+                                ? service === 'llm'
+                                  ? 'Choose AI model below'
+                                  : 'Speech model ID'
+                                : 'Fallback model ID'
+                            }
+                            defaultValue={route.model}
+                            onBlur={(e) =>
+                              patch((next) => {
+                                next.routes[service][index]!.model =
+                                  e.target.value;
+                              })
+                            }
+                          />
+                          {service === 'tts' && (
+                            <Input
+                              aria-label={`${profile.name} fallback voice`}
+                              placeholder="Fallback voice"
+                              defaultValue={route.voice ?? ''}
+                              onBlur={(e) =>
+                                patch((next) => {
+                                  next.routes[service][index]!.voice =
+                                    e.target.value;
+                                })
+                              }
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                    <div className="flex flex-wrap gap-1">
+                      {service === 'stt' &&
+                        !config.routes.stt.some(
+                          (r) => r.providerId === 'local',
+                        ) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              patch((next) => {
+                                next.routes.stt.push({
+                                  providerId: 'local',
+                                  model: 'whisper',
+                                });
+                              })
+                            }
+                          >
+                            <Plus />
+                            Local Whisper
+                          </Button>
+                        )}
+                      {config.profiles
+                        .filter(
+                          (p) =>
+                            !config.routes[service].some(
+                              (r) => r.providerId === p.id,
+                            ) &&
+                            (service === 'llm'
+                              ? p.kind !== 'compatible' || !!p.model
+                              : service === 'tts'
+                                ? p.kind === 'openrouter' || !!p.speechModel
+                                : !!p.transcriptionModel),
+                        )
+                        .map((p) => (
+                          <Button
+                            key={p.id}
+                            variant="outline"
+                            size="sm"
+                            disabled={props.connecting}
+                            onClick={() =>
+                              patch((next) => {
+                                next.routes[service].push({
+                                  providerId: p.id,
+                                  model:
+                                    service === 'llm'
+                                      ? (p.model ?? '')
+                                      : service === 'tts'
+                                        ? (p.speechModel ?? '')
+                                        : (p.transcriptionModel ?? ''),
+                                  ...(service === 'tts' && p.voices?.[0]
+                                    ? { voice: p.voices[0] }
+                                    : {}),
+                                });
+                              })
+                            }
+                          >
+                            <Plus />
+                            {p.name}
+                          </Button>
+                        ))}
                     </div>
-                  );
-                })}
-                <div className="flex flex-wrap gap-1">
-                  {service === 'stt' &&
-                    !config.routes.stt.some(
-                      (r) => r.providerId === 'local',
-                    ) && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          patch((next) => {
-                            next.routes.stt.push({
-                              providerId: 'local',
-                              model: 'whisper',
-                            });
-                          })
-                        }
-                      >
-                        <Plus />
-                        Local Whisper
-                      </Button>
-                    )}
-                  {config.profiles
-                    .filter(
-                      (p) =>
-                        !config.routes[service].some(
-                          (r) => r.providerId === p.id,
-                        ) &&
-                        (service === 'llm'
-                          ? p.kind !== 'compatible' || !!p.model
-                          : service === 'tts'
-                            ? p.kind === 'openrouter' || !!p.speechModel
-                            : !!p.transcriptionModel),
-                    )
-                    .map((p) => (
-                      <Button
-                        key={p.id}
-                        variant="outline"
-                        size="sm"
-                        disabled={props.connecting}
-                        onClick={() =>
-                          patch((next) => {
-                            next.routes[service].push({
-                              providerId: p.id,
-                              model:
-                                service === 'llm'
-                                  ? (p.model ?? '')
-                                  : service === 'tts'
-                                    ? (p.speechModel ?? '')
-                                    : (p.transcriptionModel ?? ''),
-                              ...(service === 'tts' && p.voices?.[0]
-                                ? { voice: p.voices[0] }
-                                : {}),
-                            });
-                          })
-                        }
-                      >
-                        <Plus />
-                        {p.name}
-                      </Button>
-                    ))}
-                </div>
-              </fieldset>
-            </details>
-          ))}
+                  </fieldset>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
           <p className="text-xs text-muted-foreground">
             Fallback shares this request with each listed provider in order and
             may incur charges. Chat stops switching after output begins.
             Indexing stays on OpenRouter.
           </p>
         </div>
-      </details>
+      </CollapsibleDisclosure>
     </div>
   );
 }

@@ -65,6 +65,13 @@ import type { ClipClipboard } from './editing-actions';
 import type { EditorShortcut } from './shortcuts';
 import { frameStep, dispatchViewCommand } from './shortcuts';
 import { useEditorShortcuts } from './useEditorShortcuts';
+import { useWorkspaceRoute } from './useWorkspaceRoute';
+import {
+  useWorkspaceProject,
+  readWorkspaceProject,
+} from './useWorkspaceProject';
+import { useProjectNavigation } from './useProjectNavigation';
+import { useProjectCatalog } from './useProjectCatalog';
 import { selectionIds, transitionPairs } from '../core/timeline';
 import type { TransitionTemplate } from '../core/timeline';
 import { interfaceScale, useAppearance } from './appearance';
@@ -193,19 +200,25 @@ export function Workspace() {
     document.getElementById('workspace-settings-trigger')?.focus();
   };
   const [editor, setEditor] = useState<Editor | null>(null);
-  const [project, setProject] = useState<Project | null>(null);
+  const editorRef = useRef<Editor | null>(null);
+  const {
+    project,
+    assets,
+    getProjectId,
+    activate,
+    clear: clearProject,
+    refresh: refreshProject,
+  } = useWorkspaceProject(editorRef);
+  const { route, routeKey, go } = useWorkspaceRoute();
+  const projectsOpen = route.screen === 'projects';
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [versions, setVersions] = useState<ProjectVersionInfo[]>([]);
   const [browsed, setBrowsed] = useState<ProjectVersion | null>(null);
   const [versionAssets, setVersionAssets] = useState<Asset[]>([]);
   const browsing = useRef(false);
   const viewProject = browsed?.project ?? project;
-  const [assets, setAssets] = useState<Asset[]>([]);
   const [indexConnection, setIndexConnection] =
     useState<IndexConnection | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectsOpen, setProjectsOpen] = useState(false);
-  const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [selected, setSelected] = useState<string>();
   const [selection, setSelection] = useState<string[]>([]);
   const [clipboard, setClipboard] = useState<ClipClipboard | null>(null);
@@ -237,7 +250,7 @@ export function Workspace() {
   const conversationControls = useRef<ConversationControls>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [operationBusy, setBusy] = useState(false);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [exportError, setExportError] = useState('');
@@ -245,15 +258,11 @@ export function Workspace() {
   const fileInput = useRef<HTMLInputElement>(null);
   const backupInput = useRef<HTMLInputElement>(null);
   const instance = useRef<Promise<Editor> | null>(null);
-  const editorRef = useRef<Editor | null>(null);
-  const projectId = useRef<string | null>(null);
   const currentJob = useRef<{ cancel(): void } | null>(null);
   const cancelRequested = useRef(false);
   const artifactRef = useRef<Artifact | null>(null);
   const alive = useRef(true);
   const lock = useRef(false);
-  const refreshToken = useRef(0);
-  const projectsToken = useRef(0);
   const unsubscribeVersions = useRef<(() => void) | null>(null);
   const unsubscribe = useRef<(() => void) | null>(null);
   const disposeAssistant = useRef<(() => Promise<void>) | null>(null);
@@ -284,29 +293,8 @@ export function Workspace() {
     );
   }, []);
   const refresh = useCallback(async () => {
-    const id = projectId.current,
-      engine = editorRef.current,
-      token = ++refreshToken.current;
-    if (!id || !engine) return;
-    const snapshot = await engine.projects.snapshot(id);
-    const ids = [
-      ...new Set(
-        snapshot.tracks.flatMap((track) =>
-          track.clips.flatMap((clip) => (clip.assetId ? [clip.assetId] : [])),
-        ),
-      ),
-    ];
-    const media = await Promise.all(
-      ids.map((assetId) => engine.assets.inspect(assetId)),
-    );
-    if (
-      !alive.current ||
-      id !== projectId.current ||
-      token !== refreshToken.current
-    )
-      return;
-    setProject(snapshot);
-    setAssets(media);
+    const snapshot = await refreshProject();
+    if (!snapshot || !alive.current) return;
     if (!browsing.current) {
       setSelection((previous) =>
         previous.filter((id) =>
@@ -324,7 +312,7 @@ export function Workspace() {
         Math.min(previous, Math.max(0, projectDuration(snapshot) - 1)),
       );
     }
-  }, [setTimeUs]);
+  }, [refreshProject, setTimeUs]);
   const ensureEditor = useCallback(async () => {
     instance.current ??= import('../editor')
       .then(async ({ createEditor }) => {
@@ -336,27 +324,25 @@ export function Workspace() {
         editorRef.current = engine;
         setEditor(engine);
         unsubscribeVersions.current = engine.events.versions((event) => {
-          if (event.projectId !== projectId.current) return;
+          if (event.projectId !== getProjectId()) return;
           if (event.error) error(event.error);
           else
             void engine.projects.versions
               .list(event.projectId)
               .then((value) => {
-                if (alive.current && event.projectId === projectId.current)
+                if (alive.current && event.projectId === getProjectId())
                   setVersions(value);
               })
               .catch(error);
         });
         unsubscribe.current = engine.events.projects((event) => {
-          if (event.projectId !== projectId.current) return;
+          if (event.projectId !== getProjectId()) return;
           if (event.type === 'deleted') {
-            projectId.current = null;
-            setProject(null);
+            clearProject();
             browsing.current = false;
             setBrowsed(null);
             setVersionsOpen(false);
             setVersions([]);
-            setAssets([]);
             setSelected(undefined);
             setSelection([]);
             toast('This project was deleted in another window.');
@@ -369,30 +355,8 @@ export function Workspace() {
         throw failure;
       });
     return instance.current;
-  }, [refresh, error]);
-  useEffect(() => {
-    if (!editor || !projectsOpen) return;
-    let stale = false;
-    const stop = editor.events.projects(() => {
-      const request = ++projectsToken.current;
-      void editor.projects
-        .list()
-        .then((value) => {
-          if (!stale && request === projectsToken.current) {
-            setProjects(value);
-            setProjectsLoaded(true);
-          }
-        })
-        .catch((failure) => {
-          if (!stale) error(failure);
-        });
-    });
-    return () => {
-      stale = true;
-      projectsToken.current++;
-      stop();
-    };
-  }, [editor, projectsOpen, error]);
+  }, [refresh, error, clearProject, getProjectId]);
+  const catalog = useProjectCatalog(projectsOpen, editor, ensureEditor, error);
   useEffect(
     () => () => {
       alive.current = false;
@@ -455,36 +419,103 @@ export function Workspace() {
       currentJob.current = null;
     }
   };
-  const openProject = async (snapshot: Project) => {
-    const engine = await ensureEditor();
-    if (projectId.current)
-      await engine.projects.versions.save(projectId.current);
-    await engine.projects.open(snapshot.id);
+  const resetProjectView = useCallback(() => {
     browsing.current = false;
     setBrowsed(null);
     setVersionsOpen(false);
     setVersions([]);
-    projectId.current = snapshot.id;
+    setVersionAssets([]);
     setSelected(undefined);
     setSelection([]);
     setTimeUs(0);
     setDialog(null);
-    await refresh();
-    await artifactRef.current?.dispose();
-    artifactRef.current = null;
-    setArtifact(null);
-    setExportError('');
-    setProjectsOpen(false);
-    requestAnimationFrame(() =>
-      document.querySelector<HTMLElement>('[data-editor-shortcuts]')?.focus(),
-    );
-  };
+    setAppearanceOpen(false);
+    previewControls.current?.pause();
+  }, [setTimeUs, setDialog]);
+  const openProject = useCallback(
+    async (snapshot: Project, signal?: AbortSignal, updateRoute = true) => {
+      const startingUrl = window.location.href;
+      const current = () =>
+        alive.current &&
+        !signal?.aborted &&
+        (!updateRoute || window.location.href === startingUrl);
+      const engine = await ensureEditor();
+      const previousId = getProjectId();
+      if (previousId) await engine.projects.versions.save(previousId);
+      await engine.projects.open(snapshot.id);
+      const next = await readWorkspaceProject(engine, snapshot.id);
+      if (!current()) return;
+      await artifactRef.current?.dispose();
+      if (!current()) return;
+      artifactRef.current = null;
+      setArtifact(null);
+      setExportError('');
+      resetProjectView();
+      activate(next);
+      if (updateRoute) go('editor', snapshot.id);
+      requestAnimationFrame(() => {
+        if (!alive.current || getProjectId() !== snapshot.id) return;
+        const target = document.querySelector<HTMLElement>(
+          '[data-editor-shortcuts]',
+        );
+        if (target?.getClientRects().length && !target.closest('[inert]'))
+          target.focus();
+      });
+    },
+    [ensureEditor, getProjectId, activate, go, resetProjectView],
+  );
+  const restoreProject = useCallback(
+    async (id: string | undefined, signal: AbortSignal) => {
+      previewControls.current?.pause();
+      setDialog(null);
+      setTransfer(null);
+      setCommandsOpen(false);
+      setSettingsOpen(false);
+      setAppearanceOpen(false);
+      if (id) {
+        const engine = await ensureEditor();
+        const snapshot = await engine.projects.snapshot(id);
+        if (!signal.aborted) await openProject(snapshot, signal, false);
+      } else {
+        const engine = editorRef.current;
+        const previousId = getProjectId();
+        if (engine && previousId)
+          await engine.projects.versions.save(previousId);
+        if (signal.aborted || !alive.current) return;
+        await artifactRef.current?.dispose();
+        if (signal.aborted || !alive.current) return;
+        artifactRef.current = null;
+        setArtifact(null);
+        setExportError('');
+        resetProjectView();
+        clearProject();
+      }
+    },
+    [
+      ensureEditor,
+      openProject,
+      getProjectId,
+      clearProject,
+      resetProjectView,
+      setDialog,
+      setCommandsOpen,
+      setSettingsOpen,
+    ],
+  );
+  const navigation = useProjectNavigation({
+    route,
+    routeKey,
+    currentProjectId: project?.id,
+    enabled: !operationBusy,
+    restore: restoreProject,
+  });
+  const busy = operationBusy || navigation.blocked;
   const apply = async (operations: EditOperation[]) => {
     if (browsing.current)
       throw new Error('Return to the current version to edit.');
     if (!project) throw new Error('Create or open a project first.');
     const engine = await ensureEditor();
-    if (project.id !== projectId.current)
+    if (project.id !== getProjectId())
       throw new Error('The active project changed. Try again.');
     await engine.commands.apply({
       projectId: project.id,
@@ -498,7 +529,7 @@ export function Workspace() {
     void action(async () => {
       if (browsing.current) return;
       const engine = await ensureEditor();
-      if (!projectId.current)
+      if (!getProjectId())
         await openProject(await engine.projects.create('Untitled project'));
       for (const file of files) {
         checkCancelled();
@@ -507,7 +538,7 @@ export function Workspace() {
           `Importing ${file.name}`,
         );
         checkCancelled();
-        const snapshot = await engine.projects.snapshot(projectId.current!);
+        const snapshot = await engine.projects.snapshot(getProjectId()!);
         const operations = appendAsset(snapshot, asset);
         await engine.commands.apply({
           projectId: snapshot.id,
@@ -609,21 +640,13 @@ export function Workspace() {
   const showProjects = () => {
     if (lock.current) return;
     previewControls.current?.pause();
-    setProjectsOpen(true);
     setDialog(null);
     setAppearanceOpen(false);
-    const request = ++projectsToken.current;
-    void action(async () => {
-      const engine = await ensureEditor();
-      const value = await engine.projects.list();
-      if (alive.current && request === projectsToken.current) {
-        setProjects(value);
-        setProjectsLoaded(true);
-      }
-    });
+    go('projects', getProjectId() ?? undefined);
+    if (projectsOpen) void catalog.refresh();
   };
   const returnToEditor = () => {
-    setProjectsOpen(false);
+    go('editor', getProjectId() ?? undefined);
     requestAnimationFrame(() =>
       document.querySelector<HTMLElement>('[data-editor-shortcuts]')?.focus(),
     );
@@ -1302,7 +1325,7 @@ export function Workspace() {
             <MediaLibrary
               editor={editor}
               indexConnection={indexConnection}
-              readOnly={!!browsed}
+              readOnly={!!browsed || navigation.blocked}
               assets={browsed ? versionAssets : assets}
               canEdit={!busy && !browsed}
               hasProject={!!project}
@@ -1427,9 +1450,40 @@ export function Workspace() {
       <div
         className="workspace-body"
         data-appearance-open={appearanceOpen}
-        data-projects-open={projectsOpen}
+        data-projects-open={projectsOpen || navigation.blocked}
       >
-        {projectsOpen && (
+        {navigation.blocked && (
+          <section
+            className="project-browser"
+            aria-label="Project navigation"
+            aria-busy={navigation.loading}
+          >
+            <div className="project-browser-inner space-y-4">
+              {navigation.error ? (
+                <>
+                  <p role="alert">{navigation.error}</p>
+                  <div className="flex gap-2">
+                    {route.screen !== 'invalid' && (
+                      <Button onClick={navigation.retry}>Try again</Button>
+                    )}
+                    <Button variant="outline" onClick={() => go('projects')}>
+                      Open saved projects
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <p role="status" className="flex items-center gap-2">
+                  <LoaderCircle
+                    className="size-5 animate-spin"
+                    aria-hidden="true"
+                  />
+                  Opening project…
+                </p>
+              )}
+            </div>
+          </section>
+        )}
+        {projectsOpen && !navigation.blocked && (
           <Suspense
             fallback={
               <div
@@ -1442,12 +1496,12 @@ export function Workspace() {
             }
           >
             <ProjectBrowser
-              projects={projects}
+              projects={catalog.projects}
               currentProjectId={project?.id}
-              busy={busy}
-              loaded={projectsLoaded}
+              busy={busy || catalog.pending}
+              loaded={catalog.loaded}
               onOpen={(snapshot) =>
-                snapshot.id === projectId.current
+                snapshot.id === getProjectId()
                   ? returnToEditor()
                   : void action(() => openProject(snapshot))
               }
@@ -1469,7 +1523,7 @@ export function Workspace() {
         >
           <WorkspacePanels
             narrow={narrow}
-            inert={projectsOpen}
+            inert={projectsOpen || navigation.blocked}
             chatCollapsed={chatCollapsed}
             mediaOpen={drawer}
             media={!narrow ? mediaPanel : null}
@@ -1488,7 +1542,7 @@ export function Workspace() {
                 onIndexConnection={setIndexConnection}
                 editor={editor}
                 project={project}
-                readOnly={!!browsed}
+                readOnly={!!browsed || navigation.blocked}
                 selectedClipId={selected}
                 onApplied={refresh}
                 onError={error}
@@ -1611,7 +1665,7 @@ export function Workspace() {
                     project={viewProject}
                     assets={browsed ? versionAssets : assets}
                     versionId={browsed?.id}
-                    readOnly={!!browsed}
+                    readOnly={!!browsed || navigation.blocked}
                     selected={selectedIds}
                     timeUs={timeUs}
                     busy={busy}
@@ -1664,8 +1718,7 @@ export function Workspace() {
               getEditor={ensureEditor}
               onBusyChange={setBusy}
               onImported={async () => {
-                const engine = await ensureEditor();
-                setProjects(await engine.projects.list());
+                await catalog.refresh();
               }}
               onClose={() => {
                 setTransfer(null);
@@ -1738,7 +1791,7 @@ export function Workspace() {
             dialog={dialog}
             busy={busy}
             project={viewProject}
-            readOnly={!!browsed}
+            readOnly={!!browsed || navigation.blocked}
             selectedClip={selectedClip}
             assets={browsed ? versionAssets : assets}
             format={format}

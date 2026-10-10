@@ -6,6 +6,7 @@
 - Preserve keyboard interaction, focus visibility, disabled/invalid states, popup positioning, and focus return. Keep primitive refs/props usable by wrappers and callers.
 - The shared Button omits disabled actions, following the user's workspace preference. Owners must keep pending progress and actionable errors visible separately; availability must not bypass revision checks or approval.
 - Consumers supply meaningful labels and dialog titles/descriptions; icon-only actions need accessible names. Do not replace semantic controls with styled generic elements.
+- Use the shared shadcn Base UI Accordion and Collapsible for disclosures. Keep open/close height and indicator motion, respect reduced motion, and preserve form state where a disclosure hides editable controls.
 - Check affected consumers at desktop and narrow widths. Shared styling changes must preserve scrolling, portal layering, and reduced-motion behavior.
 
 Run type checking, then the affected real workspace controls; settings exercise keyboard/focus and narrow popup placement:

@@ -13,7 +13,7 @@
 .workspace-body > .workspace-columns {
   min-width: 0;
 }
-.workspace-body[data-projects-open='true'] > .workspace-columns[data-slot] {
+.workspace .workspace-body[data-projects-open='true'] > .workspace-columns {
   display: none !important;
 }
 .project-browser {
