@@ -5,8 +5,9 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+import { createServer } from 'node:net';
 import { runBrowserTests } from '../../scripts/test-browser.mjs';
-import { runPnpm } from '../../scripts/build-state.mjs';
+import { runProcess } from '../../scripts/build-state.mjs';
 
 test('browser discovery forwards selection without launching Chrome', async () => {
   const env = { LOCALCUT_BROWSER_WORKERS: '8' };
@@ -22,8 +23,6 @@ test('browser discovery forwards selection without launching Chrome', async () =
     0,
   );
   assert.deepEqual(command, [
-    'exec',
-    'playwright',
     'test',
     '--project=chrome',
     'workspace.spec.ts',
@@ -141,80 +140,85 @@ test('interruption waits for runner cleanup before closing its shared browser', 
   assert.deepEqual(signals.eventNames(), []);
 });
 
-for (const detached of [false, true])
-  test(
-    `pnpm cancellation waits for ${detached ? 'runner cleanup of a detached server' : 'owned descendants'} and preserves failed exit codes`,
-    { skip: process.platform === 'win32' },
-    async () => {
-      const directory = await mkdtemp(join(tmpdir(), 'localcut-runner-'));
-      const entry = join(directory, 'fake-pnpm.mjs');
-      const readyPath = join(directory, 'ready');
-      const closedPath = join(directory, 'closed');
-      const grandchildPath = join(directory, 'grandchild-closed');
-      const pidPath = join(directory, 'server-pid');
-      const descendant = `
-    const { writeFileSync } = require('node:fs');
-    process.on('SIGTERM', () => setTimeout(() => {
-      writeFileSync(${JSON.stringify(grandchildPath)}, 'closed');
-      process.exit(0);
-    }, 80));
-    process.send('ready');
-    setInterval(() => {}, 1000);`;
-      await writeFile(
-        entry,
-        `import { writeFileSync } from 'node:fs';
-     import { spawn } from 'node:child_process';
-     if (process.argv.includes('fail')) process.exit(7);
-     const child = spawn(process.execPath, ['-e', ${JSON.stringify(descendant)}], {
-       detached: ${JSON.stringify(detached)},
-       stdio: ['ignore', 'inherit', 'inherit', 'ipc']
-     });
-     writeFileSync(${JSON.stringify(pidPath)}, String(child.pid));
-     process.on(${JSON.stringify(detached ? 'SIGINT' : 'SIGTERM')}, () => {
-       if (${JSON.stringify(detached)}) {
-         child.once('exit', () => {
-           writeFileSync(${JSON.stringify(closedPath)}, 'closed');
-           process.exit(0);
-         });
-         child.kill('SIGTERM');
-       } else setTimeout(() => {
-         writeFileSync(${JSON.stringify(closedPath)}, 'closed');
-         process.exit(0);
-       }, 30);
-     });
-     child.once('message', () => writeFileSync(${JSON.stringify(readyPath)}, 'ready'));
-     setInterval(() => {}, 1000);`,
-      );
-      const controller = new globalThis.AbortController();
-      const env = { ...process.env, npm_execpath: entry };
-      const running = runPnpm([], env, { signal: controller.signal });
-      try {
-        const deadline = Date.now() + 5000;
-        while (Date.now() < deadline) {
-          if (await readFile(readyPath, 'utf8').catch(() => '')) break;
-          await delay(10);
-        }
-        assert.equal(await readFile(readyPath, 'utf8'), 'ready');
-        controller.abort(detached ? 'SIGINT' : 'SIGTERM');
-        await running;
-        assert.equal(await readFile(closedPath, 'utf8'), 'closed');
-        if (process.platform !== 'win32')
-          assert.equal(await readFile(grandchildPath, 'utf8'), 'closed');
-        await assert.rejects(
-          runPnpm(['fail'], env),
-          (error) => error.exitCode === 7,
-        );
-      } finally {
-        controller.abort(detached ? 'SIGINT' : 'SIGTERM');
-        await running.catch(() => {});
-        const pid = Number(await readFile(pidPath, 'utf8').catch(() => 0));
-        if (pid)
-          try {
-            process.kill(detached ? -pid : pid, 'SIGKILL');
-          } catch (error) {
-          assert.equal(error.code, 'ESRCH');
-          }
-        await rm(directory, { recursive: true, force: true });
+test(
+  'browser cancellation lets the real Playwright runner close its detached web server',
+  { timeout: 15000 },
+  async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'localcut-runner-'));
+    const readyPath = join(directory, 'ready');
+    const pidPath = join(directory, 'server-pid');
+    const configPath = join(directory, 'playwright.config.mjs');
+    const serverPath = join(directory, 'server.mjs');
+    const listener = createServer();
+    await new Promise((resolve) => listener.listen(0, '127.0.0.1', resolve));
+    const port = listener.address().port;
+    await new Promise((resolve) => listener.close(resolve));
+    const url = `http://127.0.0.1:${port}`;
+    const playwright = import.meta.resolve('@playwright/test');
+    await Promise.all([
+      writeFile(
+        serverPath,
+        `import { createServer } from 'node:http';
+          import { writeFileSync } from 'node:fs';
+          writeFileSync(${JSON.stringify(pidPath)}, String(process.pid));
+          createServer((_request, response) => response.end('ready')).listen(${port}, '127.0.0.1');`,
+      ),
+      writeFile(
+        configPath,
+        `export default {
+          testDir: '.', testMatch: 'probe.spec.mjs', workers: 1, reporter: 'list',
+          projects: [{ name: 'chrome' }],
+          webServer: { command: ${JSON.stringify(JSON.stringify(process.execPath) + ' ' + JSON.stringify(serverPath))}, url: ${JSON.stringify(url)} }
+        };`,
+      ),
+      writeFile(
+        join(directory, 'probe.spec.mjs'),
+        `import { test } from ${JSON.stringify(playwright)};
+          import { writeFileSync } from 'node:fs';
+          test('interruption probe without browser fixtures', async () => {
+            writeFileSync(${JSON.stringify(readyPath)}, 'ready');
+            await new Promise(resolve => setTimeout(resolve, 60000));
+          });`,
+      ),
+    ]);
+    const signals = new EventEmitter();
+    let closed = false;
+    const running = runBrowserTests(['--config', configPath], process.env, {
+      signals,
+      launchServer: async () => ({
+        wsEndpoint: () => 'ws://127.0.0.1/unused',
+        close: async () => {
+          closed = true;
+        },
+      }),
+    });
+    try {
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline) {
+        if (await readFile(readyPath, 'utf8').catch(() => '')) break;
+        await delay(10);
       }
-    },
-  );
+      assert.equal(await readFile(readyPath, 'utf8'), 'ready');
+      assert.equal((await globalThis.fetch(url)).status, 200);
+      signals.emit('SIGTERM');
+      assert.equal(await running, 143);
+      assert.equal(closed, true);
+      await assert.rejects(globalThis.fetch(url));
+      await assert.rejects(
+        runProcess(process.execPath, ['-e', 'process.exit(7)']),
+        (error) => error.exitCode === 7,
+      );
+    } finally {
+      signals.emit('SIGTERM');
+      await running.catch(() => {});
+      const pid = Number(await readFile(pidPath, 'utf8').catch(() => 0));
+      if (pid)
+        try {
+          process.kill(pid, 'SIGKILL');
+        } catch (error) {
+          assert.equal(error.code, 'ESRCH');
+        }
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);

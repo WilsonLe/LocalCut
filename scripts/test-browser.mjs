@@ -1,5 +1,13 @@
-import { pathToFileURL } from 'node:url';
-import { runPnpm } from './build-state.mjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { runProcess } from './build-state.mjs';
+
+const runPlaywright = (args, env, options) =>
+  runProcess(
+    process.execPath,
+    [fileURLToPath(import.meta.resolve('@playwright/test/cli')), ...args],
+    env,
+    options,
+  );
 
 // Multiple Playwright workers own isolated contexts in one Chrome process.
 // Use Playwright's transport so the standard tracing and context teardown stay
@@ -7,9 +15,9 @@ import { runPnpm } from './build-state.mjs';
 export async function runBrowserTests(
   args = [],
   env = process.env,
-  { launchServer, run = runPnpm, signals = process } = {},
+  { launchServer, run = runPlaywright, signals = process } = {},
 ) {
-  const command = ['exec', 'playwright', 'test', '--project=chrome', ...args];
+  const command = ['test', '--project=chrome', ...args];
   if (args.some((arg) => ['--list', '--help', '-h'].includes(arg))) {
     await run(command, env);
     return 0;
