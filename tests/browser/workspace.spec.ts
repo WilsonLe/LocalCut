@@ -327,7 +327,8 @@ for (const base of ['/', '/LocalCut/']) {
       await save.click();
       const download = await downloading;
       expect(download.suggestedFilename().endsWith('.' + format)).toBe(true);
-      const path = await download.path();
+      const path = testInfo.outputPath('export.' + format);
+      await download.saveAs(path);
       if (!path) throw new Error('No saved export file');
       const exported = await downloadedVideo(
         page,
