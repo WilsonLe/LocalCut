@@ -896,6 +896,12 @@ for (const base of ['/', '/LocalCut/']) {
       [1, 0.5, 'smooth'],
     ]);
     expect(saved.sourceOutUs).toBe(4000000);
+    // The success toast overlaps the mobile media toggle and pauses while hovered.
+    for (const close of await page
+      .getByRole('button', { name: 'Close toast', exact: true })
+      .all())
+      await close.click();
+    await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
     // Mobile media starts closed independently of the desktop rail preference.
     await page
       .getByRole('button', { name: 'Expand media', exact: true })
