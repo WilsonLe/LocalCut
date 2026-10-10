@@ -32,7 +32,13 @@ import type {
 } from '../editor';
 import { Button } from '../components/ui/button';
 import { Toaster } from '../components/ui/sonner';
-import { Conversation } from './Conversation';
+// Capture callback secrets before loading the conversation or any asynchronous work.
+import './oauth-callback';
+const Conversation = lazy(() =>
+  import('./Conversation').then(({ Conversation }) => ({
+    default: Conversation,
+  })),
+);
 import type { ConversationControls } from './Conversation';
 import type { WorkspaceCommand } from './commands';
 import type { IndexConnection } from './Conversation';
@@ -1318,21 +1324,31 @@ export function Workspace() {
           </Suspense>
         )}
         <div className="workspace-columns" inert={projectsOpen}>
-          <Conversation
-            controlsRef={conversationControls}
-            onIndexConnection={setIndexConnection}
-            editor={editor}
-            project={project}
-            readOnly={!!browsed}
-            selectedClipId={selected}
-            onApplied={refresh}
-            onError={error}
-            registerCleanup={registerCleanup}
-            collapsed={chatCollapsed}
-            width={chatWidth}
-            onResize={setChatWidth}
-            onToggle={toggleChat}
-          />
+          <Suspense
+            fallback={
+              <aside
+                aria-label="Editing conversation"
+                data-collapsed={chatCollapsed}
+                className="conversation-panel min-w-0 border-b bg-background lg:border-r lg:border-b-0"
+              />
+            }
+          >
+            <Conversation
+              controlsRef={conversationControls}
+              onIndexConnection={setIndexConnection}
+              editor={editor}
+              project={project}
+              readOnly={!!browsed}
+              selectedClipId={selected}
+              onApplied={refresh}
+              onError={error}
+              registerCleanup={registerCleanup}
+              collapsed={chatCollapsed}
+              width={chatWidth}
+              onResize={setChatWidth}
+              onToggle={toggleChat}
+            />
+          </Suspense>
           <main
             className="editing-area"
             data-editor-shortcuts

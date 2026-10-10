@@ -309,9 +309,7 @@ test('rate-limit errors remain visible and retry requires a fresh send', async (
   await connect(page);
   await send(page, 'Add an overlay track.');
   await expect(
-    page
-      .getByRole('alert')
-      .filter({ hasText: 'OpenRouter is rate limiting requests.' }),
+    page.getByRole('alert').filter({ hasText: /rate limiting requests/ }),
   ).toBeVisible();
   expect(requests).toBe(1);
   expect((await snapshot(page, name)).revision).toBe(0);
@@ -408,6 +406,16 @@ for (const base of ['/', '/LocalCut/']) {
             mediaOpen: false,
             exportFormat: 'mp4',
             aiModel: model,
+            aiProviders: JSON.stringify({
+              profiles: [
+                { id: 'openrouter', name: 'OpenRouter', kind: 'openrouter' },
+              ],
+              routes: {
+                llm: [{ providerId: 'openrouter', model }],
+                tts: [{ providerId: 'openrouter', model: '' }],
+                stt: [{ providerId: 'local', model: 'whisper' }],
+              },
+            }),
           },
         }),
       },

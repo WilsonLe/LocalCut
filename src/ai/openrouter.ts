@@ -1,3 +1,4 @@
+import { transcriptionBody, transcriptionSegments } from './transcription';
 import { AuthorizationFlow } from './auth.ts';
 import { speechModelsFrom, speechBody, readSpeechAudio } from './speech';
 import { AiError, aiInvariant, httpError } from './errors.ts';
@@ -16,6 +17,27 @@ import type {
 } from './types.ts';
 
 const API = 'https://openrouter.ai/api/v1';
+export function compatibleBaseUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    aiInvariant(
+      value.length <= 2048 &&
+        !url.username &&
+        !url.password &&
+        !url.search &&
+        !url.hash &&
+        (url.protocol === 'https:' ||
+          (url.protocol === 'http:' &&
+            ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))),
+      'INVALID_REQUEST',
+      'Use an HTTPS API base URL or an HTTP loopback endpoint, without credentials or query parameters.',
+    );
+    return url.href.replace(/\/+$/, '');
+  } catch (error) {
+    if (error instanceof AiError) throw error;
+    throw new AiError('INVALID_REQUEST', 'Invalid provider API base URL.');
+  }
+}
 export const OPENROUTER_LIMITS = Object.freeze({
   requestBytes: 2_097_152,
   maxOutputTokens: 32_768,
@@ -119,7 +141,10 @@ function modelsFrom(value: unknown): OpenRouterModel[] {
   }
   return models;
 }
-function validateRequest(request: ChatRequest): string {
+export function validateRequest(
+  request: ChatRequest,
+  compatible = false,
+): string {
   aiInvariant(
     typeof request.model === 'string' && request.model.length > 0,
     'MODEL_REQUIRED',
@@ -238,7 +263,9 @@ function validateRequest(request: ChatRequest): string {
       ...(request.tools.length
         ? { tool_choice: 'auto', parallel_tool_calls: false }
         : {}),
-      provider: { data_collection: 'deny', require_parameters: true },
+      ...(!compatible
+        ? { provider: { data_collection: 'deny', require_parameters: true } }
+        : {}),
     });
   } catch {
     throw new AiError('INVALID_REQUEST', 'AI request could not be serialized.');
@@ -253,6 +280,8 @@ function validateRequest(request: ChatRequest): string {
 
 /** No network, storage, worker or navigation activity occurs during construction. */
 export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
+  const compatible = options.compatible;
+  const apiBase = compatible ? compatibleBaseUrl(compatible.baseUrl) : API;
   const requestFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
   const timeout = options.requestTimeoutMs ?? OPENROUTER_LIMITS.timeoutMs;
   aiInvariant(
@@ -298,6 +327,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
           | '/models'
           | '/models?output_modalities=speech'
           | '/audio/speech'
+          | '/audio/transcriptions'
           | '/chat/completions',
         init: RequestInit,
       ): Promise<Response> {
@@ -313,7 +343,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
             });
           });
           const response = await Promise.race([
-            requestFetch(`${API}${path}`, {
+            requestFetch(`${apiBase}${path}`, {
               ...init,
               signal: controller.signal,
               credentials: 'omit',
@@ -358,7 +388,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
   }
   function setKey(value: string) {
     assertActive();
-    const next = keyValue(value);
+    const next = compatible && value.trim() === '' ? '' : keyValue(value);
     disconnect();
     key = next;
   }
@@ -398,9 +428,34 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
     status: () => ({ connected: !disposed && key !== undefined }),
     setKey,
     disconnect,
-    beginAuthorization: (args) => auth.begin(args),
-    completeAuthorization: (args, signal) => auth.complete(args, signal),
+    beginAuthorization: (args) => {
+      aiInvariant(
+        !compatible,
+        'MODEL_UNSUPPORTED',
+        'This endpoint uses an API key.',
+      );
+      return auth.begin(args);
+    },
+    completeAuthorization: (args, signal) => {
+      aiInvariant(
+        !compatible,
+        'MODEL_UNSUPPORTED',
+        'This endpoint uses an API key.',
+      );
+      return auth.complete(args, signal);
+    },
     async listSpeechModels(signal) {
+      assertActive();
+      if (compatible)
+        return compatible.speechModel && compatible.voices?.length
+          ? [
+              {
+                id: compatible.speechModel,
+                name: compatible.speechModel,
+                voices: [...compatible.voices],
+              },
+            ]
+          : [];
       const op = operation(signal);
       try {
         const response = await op.fetch('/models?output_modalities=speech', {
@@ -420,12 +475,12 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
     async synthesizeSpeech(request, signal) {
       assertActive();
       aiInvariant(
-        key,
+        key !== undefined,
         'AUTH_REQUIRED',
         'Connect to OpenRouter before generating speech.',
       );
       // Capture/validate user input before any async catalog request.
-      const body = speechBody(request);
+      const body = speechBody(request, !!compatible);
       const { model, voice } = JSON.parse(body) as {
         model: string;
         voice: string;
@@ -448,7 +503,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         const response = await op.fetch('/audio/speech', {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${key}`,
+            ...(key ? { Authorization: `Bearer ${key}` } : {}),
             'Content-Type': 'application/json',
             Accept: 'audio/pcm',
           },
@@ -463,10 +518,52 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         op.finish();
       }
     },
+    async transcribeSpeech(request, signal) {
+      assertActive();
+      aiInvariant(
+        compatible?.transcriptionModel,
+        'MODEL_UNSUPPORTED',
+        'This connection does not support STT.',
+      );
+      aiInvariant(
+        key !== undefined,
+        'AUTH_REQUIRED',
+        'Connect the transcription provider.',
+      );
+      aiInvariant(
+        request.model === compatible.transcriptionModel,
+        'MODEL_UNSUPPORTED',
+        'Use the configured timestamp-capable transcription model.',
+      );
+      const body = transcriptionBody(request);
+      const op = operation(signal);
+      try {
+        const response = await op.fetch('/audio/transcriptions', {
+          method: 'POST',
+          headers: key ? { Authorization: `Bearer ${key}` } : {},
+          body,
+        });
+        const segments = transcriptionSegments(
+          await readJson(response, op.signal),
+          request.audio.length / 16000,
+        );
+        op.check();
+        return segments;
+      } catch (error) {
+        return op.error(error);
+      } finally {
+        op.finish();
+      }
+    },
     async label(request, signal) {
       assertActive();
       aiInvariant(
-        key,
+        !compatible,
+        'MODEL_UNSUPPORTED',
+        'Indexing evidence is only authorized for OpenRouter.',
+      );
+      aiInvariant(
+        key !== undefined,
         'AUTH_REQUIRED',
         'Connect to OpenRouter before indexing.',
       );
@@ -566,7 +663,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         const response = await op.fetch('/chat/completions', {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${key}`,
+            ...(key ? { Authorization: `Bearer ${key}` } : {}),
             'Content-Type': 'application/json',
             Accept: 'text/event-stream',
           },
@@ -606,6 +703,22 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
       }
     },
     async listModels(signal) {
+      assertActive();
+      if (compatible) {
+        const result = compatible.model
+          ? [
+              {
+                id: compatible.model,
+                name: compatible.model,
+                contextLength: 128000,
+                supportsTools: true,
+                supportedParameters: ['tools', 'tool_choice'],
+              },
+            ]
+          : [];
+        catalog = result;
+        return structuredClone(result);
+      }
       const op = operation(signal);
       try {
         const response = await op.fetch('/models', {
@@ -628,11 +741,11 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
     ): AsyncGenerator<ProviderEvent> {
       assertActive();
       aiInvariant(
-        key,
+        key !== undefined,
         'AUTH_REQUIRED',
         'Connect to OpenRouter before starting an AI request.',
       );
-      const body = validateRequest(request);
+      const body = validateRequest(request, !!compatible);
       const requestedModel = request.model;
       const requestedTokens = request.maxOutputTokens;
       const epoch = generation;
@@ -656,7 +769,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         const response = await op.fetch('/chat/completions', {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${key}`,
+            ...(key ? { Authorization: `Bearer ${key}` } : {}),
             'Content-Type': 'application/json',
             Accept: 'text/event-stream',
           },

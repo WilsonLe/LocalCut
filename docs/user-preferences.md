@@ -125,3 +125,10 @@ This is the project record of the user's durable product and workflow choices. U
 - Use the selected compatible chat model, with no fallback, dropped audio or automatic paid retry. Keep deterministic discovery distinct from nondeterministic model descriptions.
 - Save all analysis, generated evidence, safe request manifests, returned text, normalized labels and previous runs on this browser/origin. Project JSON backups remain unchanged; index transfer is deferred.
 - The latest choice is Klip (replacing the proposed Clippy name); name the assistant Klip and use an original film-cell mascot and matching LocalCut logo. Saved labels are untrusted observations; existing edit approvals remain required.
+
+## Service providers — 10 October 2026
+
+- Support named OpenAI-compatible endpoints alongside OpenRouter, with independent ordered provider/model routes for LLM, TTS and STT. Configured fallbacks authorize forwarding the same request to the listed providers in order; stop chat fallback after any visible output, and preserve edit approval.
+- Offer Continue with ChatGPT, then ask the user to copy the full loopback redirect URL and paste it into LocalCut. Exchange the one-use authorization code for tokens; save tokens separately from portable preferences and use them for LLM calls. Disconnect removes the saved tokens. API keys retain their existing session-only behavior pending the separate credential-persistence change.
+- Remember non-secret endpoints, capabilities, models, voices and routing choices locally and include them in the workspace preference backup group. Sharing consent and credentials stay outside backups. Indexing retains its dedicated OpenRouter evidence consent and no fallback.
+- Local Whisper remains the default STT provider. Configured OpenAI-compatible STT endpoints join the ordered route; each transcription proposal discloses possible source-audio recipients before approval. Transcript-text sharing stays a separate opt-in.

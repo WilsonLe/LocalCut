@@ -180,6 +180,7 @@ export default function ConversationSession({
           projectId: project.id,
           model,
           context: privacy,
+          transcription: connection.transcription,
         });
         unsubscribe.current = assistant.current.subscribe((event) => {
           if (!mounted.current) return;
@@ -482,6 +483,11 @@ export default function ConversationSession({
                       aria-label="Edit proposal"
                     >
                       <p className="text-sm font-medium">{proposal.summary}</p>
+                      {proposal.dataSharing && (
+                        <p className="text-sm text-muted-foreground">
+                          {proposal.dataSharing}
+                        </p>
+                      )}
                       <p className="text-xs text-muted-foreground">
                         {proposal.status === 'applied'
                           ? proposal.receipt

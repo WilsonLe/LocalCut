@@ -300,7 +300,7 @@ function parseUsage(value: unknown): Usage {
 /** SSE framing follows CR, LF, CRLF, comments and multiple data fields.
  * Each incoming character is scanned once, including adversarial tiny chunks.
  */
-async function* dataEvents(
+export async function* dataEvents(
   response: Response,
   signal: AbortSignal,
 ): AsyncGenerator<string> {

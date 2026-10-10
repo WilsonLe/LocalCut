@@ -1,6 +1,6 @@
 # Headless API
 
-Optional remote AI lives in the separately imported `ai.js` entry. Its connection, event, proposal, cancellation and frontend wiring contracts are documented in [OpenRouter integration](ai.md). Constructing either AI object starts no work; the editor is opened separately and supplied to the assistant.
+Optional remote AI lives in the separately imported `ai.js` entry. Its connection, event, proposal, cancellation and frontend wiring contracts are documented in [AI providers and service routing](ai.md). Constructing either AI object starts no work; the editor is opened separately and supplied to the assistant.
 
 Serve dist over HTTPS or localhost. Import from the deployment base:
 
@@ -124,3 +124,7 @@ The optional `createAssetIndexer({ editor, provider, model, consent })` returns 
 Changing a ramp, or returning from a ramp to constant speed, scales existing clip-local keyframes, cues and fade envelopes proportionally to the new duration while retaining IDs. Keyframes collapsed onto the same rounded timestamp retain the last key, and cues collapsed to zero duration are removed. Constant-only speed retains the established clip-local keyframe/cue/fade contract and rejects bounds that exceed its new duration. Trim preserves the normalized ramp shape and applies the existing keyframe/fade validation. Duplication, audio separation, history, project versions and backups preserve ramp/pitch settings.
 
 Keep pitch uses bounded, stereo-coherent WSOLA in shared preview/export PCM composition. It preserves pitch rather than promising identical timbre: extreme rates and abrupt staircases can produce overlap artifacts; seeking starts a fresh grain sequence. Change pitch follows instantaneous ramp speed with anti-alias filtering. Both stay local and honor source trim, mute, gain and fades. Existing version-one documents omit these fields and retain constant speed/change pitch. Older builds cannot read documents authored with the new fields; use this revision when opening such projects or backups. Frozen legacy receipt normalization remains unchanged.
+
+## Configured transcription execution
+
+`editor.transcription.transcribe(assetId, { language?, startUs?, endUs?, provider? })` accepts an optional per-job `TranscriptionExecutor`. This transient callback is not persisted or model-configurable. It receives mono 16 kHz samples, approved source bounds, a lazy local inference callback and the job abort signal. Default calls keep the pinned local model preparation requirement. All returned transcripts pass the existing storage validation plus exact requested-range checks before committing; cancellation before commit aborts saving, while committed results remain authoritative. The AI service router exposes `transcribe` for this hook and a trusted `transcriptionDisclosure`; pass both to the assistant's optional `transcription: { execute, disclosure }` setting. The workspace retires this session on route changes and shows the disclosure before user approval.

@@ -67,6 +67,11 @@ export interface AssistantOptions {
   /** Explicit library selection, in addition to media already referenced by the project. */
   assetIds?: readonly string[];
   context?: ContextPolicy;
+  /** Trusted service route, frozen with this session and disclosed on every transcription proposal. */
+  transcription?: {
+    execute: import('../editor').TranscriptionExecutor;
+    disclosure: string;
+  };
   limits?: AssistantLimits;
 }
 export interface EditProposal {
@@ -80,6 +85,7 @@ export interface EditProposal {
   action?: AssistantAction;
   result?: AssistantActionResult;
   progress?: Progress;
+  dataSharing?: string;
 }
 export interface AssistantResult {
   id: string;
@@ -212,6 +218,9 @@ export function createAssistant(options: AssistantOptions) {
       `Invalid assistant limit: ${key}.`,
     );
   const policy = { ...options.context };
+  const transcription = options.transcription
+    ? { ...options.transcription }
+    : undefined;
   const selectedAssetIds = [...(options.assetIds ?? [])];
   aiInvariant(
     selectedAssetIds.length <= 1000 &&
@@ -529,6 +538,9 @@ export function createAssistant(options: AssistantOptions) {
                 ready: status.ready,
                 missingAssetCount: status.missing.length,
                 preparationRequiresApproval: true,
+                ...(transcription
+                  ? { configuredRoute: transcription.disclosure }
+                  : {}),
               };
             }
             case 'check_export': {
@@ -694,6 +706,9 @@ export function createAssistant(options: AssistantOptions) {
                   operations: [],
                 },
                 action: structuredClone(action),
+                ...(action.type === 'transcribe' && transcription
+                  ? { dataSharing: transcription.disclosure }
+                  : {}),
                 status: 'pending',
               };
               staged.push(proposal);
@@ -1087,10 +1102,10 @@ export function createAssistant(options: AssistantOptions) {
                 'Asset was not selected or referenced by this project.',
               );
               const transcript = await runJob(
-                editor.transcription.transcribe(
-                  action.assetId,
-                  structuredClone(action.options ?? {}),
-                ),
+                editor.transcription.transcribe(action.assetId, {
+                  ...structuredClone(action.options ?? {}),
+                  ...(transcription ? { provider: transcription.execute } : {}),
+                }),
               );
               // Successful persisted transcripts remain authoritative over late cancellation.
               sessionTranscripts.set(transcript.id, transcript.assetId);
