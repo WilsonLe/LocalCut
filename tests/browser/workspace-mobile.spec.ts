@@ -20,6 +20,13 @@ async function create(page: Page) {
     page.getByRole('button', { name: 'Add text', exact: true }),
   ).toBeVisible();
 }
+async function addText(page: Page) {
+  await page.getByRole('button', { name: 'Add text', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: 'Add text', exact: true })
+    .getByRole('button', { name: 'Insert Plain text', exact: true })
+    .click();
+}
 async function fits(page: Page) {
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
@@ -210,7 +217,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(base);
     await create(page);
-    await page.getByRole('button', { name: 'Add text', exact: true }).click();
+    await addText(page);
     const properties = page.getByRole('dialog', {
       name: 'Clip properties',
       exact: true,
@@ -345,7 +352,7 @@ test('touch tablet controls fit with media and multi-selection open', async ({
   await page.goto('/LocalCut/');
   await create(page);
   for (let i = 0; i < 2; i++) {
-    await page.getByRole('button', { name: 'Add text', exact: true }).click();
+    await addText(page);
     await page
       .getByRole('dialog', { name: 'Clip properties', exact: true })
       .getByRole('button', { name: 'Close', exact: true })
@@ -416,7 +423,7 @@ test.describe('fine-pointer responsive selection', () => {
     await page.goto('/LocalCut/');
     await create(page);
     for (let i = 0; i < 3; i++) {
-      await page.getByRole('button', { name: 'Add text', exact: true }).click();
+      await addText(page);
       await page
         .getByRole('dialog', { name: 'Clip properties', exact: true })
         .getByRole('button', { name: 'Close', exact: true })
