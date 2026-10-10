@@ -1114,6 +1114,14 @@
 @media (pointer: coarse),
   (max-width: 700px),
   (max-width: 1000px) and (max-height: 500px) {
+  .timeline-toolbar > div {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .appearance-swatches {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
   button:not(.timeline-clip):not(.timeline-overlap) {
     min-height: 44px;
     min-width: 44px;

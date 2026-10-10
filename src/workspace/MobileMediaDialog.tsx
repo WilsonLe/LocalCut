@@ -21,6 +21,8 @@ export default function MobileMediaDialog({
         className="mobile-media-dialog translate-y-0"
         showCloseButton={false}
         keepMounted
+        inert={!open}
+        aria-hidden={!open || undefined}
         finalFocus={() =>
           document.getElementById('mobile-media-trigger') ??
           document.getElementById('desktop-media-trigger')

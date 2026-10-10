@@ -320,3 +320,52 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeHidden();
   });
 }
+
+test('touch tablet controls fit with media and multi-selection open', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.goto('/LocalCut/');
+  await create(page);
+  for (let i = 0; i < 2; i++) {
+    await page.getByRole('button', { name: 'Add text', exact: true }).click();
+    await page
+      .getByRole('dialog', { name: 'Clip properties', exact: true })
+      .getByRole('button', { name: 'Close', exact: true })
+      .click();
+  }
+  await page.getByRole('button', { name: 'Expand media', exact: true }).click();
+  await page.getByRole('button', { name: 'Select multiple clips' }).click();
+  await page.getByRole('combobox', { name: 'Select timeline clip' }).click();
+  await page.getByRole('option').first().click();
+  const editor = (await page
+    .getByRole('main', { name: 'Video editor' })
+    .boundingBox())!;
+  const buttons = await page
+    .locator('.timeline-toolbar button')
+    .evaluateAll((nodes) =>
+      nodes.map((node) => node.getBoundingClientRect().right),
+    );
+  for (const right of buttons)
+    expect(right).toBeLessThanOrEqual(editor.x + editor.width);
+  await page
+    .getByRole('button', { name: 'Workspace settings', exact: true })
+    .click();
+  await page.getByRole('menuitem', { name: 'Appearance', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Close appearance' }),
+  ).toBeVisible();
+  const colors = await page
+    .locator('.appearance-swatches button')
+    .evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        right: node.getBoundingClientRect().right,
+        width: node.getBoundingClientRect().width,
+      })),
+    );
+  for (const color of colors) {
+    expect(color.right).toBeLessThanOrEqual(768);
+    expect(color.width).toBeGreaterThanOrEqual(44);
+  }
+  await fits(page);
+});
