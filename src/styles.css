@@ -138,9 +138,21 @@
 }
 
 /* Scale portal surfaces with the workspace; viewport lengths stay in layout units. */
+html {
+  height: 100%;
+  overflow: clip;
+  overscroll-behavior: none;
+}
 body {
+  width: var(--app-viewport-width);
+  height: var(--app-viewport-height);
+  overflow: clip;
   zoom: var(--interface-scale);
   touch-action: pan-x pan-y;
+}
+#root {
+  height: 100%;
+  overflow: clip;
 }
 
 /* Give Base UI positioners an offset parent whose measured scale matches the UI.
@@ -158,6 +170,10 @@ body {
 [data-base-ui-portal] > :not([data-base-ui-portal]) {
   /* Nested, kept-mounted portals must remain transparent after their popup closes. */
   pointer-events: auto;
+}
+/* A popup's scroll boundary must not move its enclosing dialog or workspace. */
+[data-base-ui-portal] * {
+  overscroll-behavior: contain;
 }
 /* Retained select options stop participating as soon as their picker closes. */
 [data-slot='select-content'][data-closed] {
