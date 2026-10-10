@@ -11,6 +11,12 @@ export default defineConfig({
     {
       name: 'chrome',
       testIgnore: ['**/transcription.spec.ts', '**/performance.spec.ts'],
+      use: {
+        reducedMotion: 'reduce',
+        connectOptions: process.env.LOCALCUT_BROWSER_WS_ENDPOINT
+          ? { wsEndpoint: process.env.LOCALCUT_BROWSER_WS_ENDPOINT }
+          : undefined,
+      },
     },
     {
       name: 'acceptance',

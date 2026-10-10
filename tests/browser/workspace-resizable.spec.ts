@@ -4,6 +4,8 @@ for (const base of ['/', '/LocalCut/']) {
   test(`workspace resizable panels follow dragging without preference writes ${base}`, async ({
     page,
   }) => {
+    // Keep the panel-toggle and drag regression on the animated layout path.
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(base);
     const composer = page.getByRole('textbox', { name: 'Describe your edit' });

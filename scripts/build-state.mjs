@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { setTimeout as delay } from 'node:timers/promises';
 
 export const root = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -128,22 +129,74 @@ export async function buildStatus(build) {
   return { current: true, reason: 'source and every output file match' };
 }
 
-export async function runPnpm(args, env = process.env) {
+export async function runPnpm(args, env = process.env, { signal } = {}) {
   const executable = env.npm_execpath;
   const command = executable ? process.execPath : 'pnpm';
   const commandArgs = executable ? [executable, ...args] : args;
   await new Promise((resolve, reject) => {
+    const ownGroup = Boolean(signal) && process.platform !== 'win32';
     const child = spawn(command, commandArgs, {
       cwd: root,
       env,
       stdio: 'inherit',
+      detached: ownGroup,
     });
-    child.on('error', reject);
-    child.on('exit', (code, signal) =>
-      code === 0
-        ? resolve()
-        : reject(new Error(`pnpm ${args.join(' ')} exited ${code ?? signal}`)),
-    );
+    // Wait for close even after cancellation: the owned runner must finish its
+    // cleanup before a caller tears down the browser or other shared resources.
+    const kill = (name) => {
+      if (!ownGroup) return child.kill(name);
+      if (!child.pid) return;
+      try {
+        process.kill(-child.pid, name);
+      } catch (error) {
+        if (error.code !== 'ESRCH') throw error;
+      }
+    };
+    const abort = () =>
+      kill(typeof signal.reason === 'string' ? signal.reason : 'SIGTERM');
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
+    let error;
+    child.on('error', (cause) => {
+      error = cause;
+    });
+    child.on('close', async (code, exitSignal) => {
+      signal?.removeEventListener('abort', abort);
+      if (ownGroup && signal.aborted && child.pid) {
+        // pnpm may exit before its Playwright/server children. Reap only this
+        // invocation's process group before allowing the shared browser to close.
+        try {
+          const exists = () => {
+            try {
+              process.kill(-child.pid, 0);
+              return true;
+            } catch (cause) {
+              if (cause.code === 'ESRCH') return false;
+              throw cause;
+            }
+          };
+          const deadline = Date.now() + 5000;
+          while (exists() && Date.now() < deadline) await delay(10);
+          if (exists()) kill('SIGKILL');
+          const forcedDeadline = Date.now() + 1000;
+          while (exists() && Date.now() < forcedDeadline) await delay(10);
+          if (exists())
+            throw new Error('Cancelled test process group did not exit.');
+        } catch (cause) {
+          reject(Object.assign(cause, { cleanupFailed: true }));
+          return;
+        }
+      }
+      if (error) reject(error);
+      else if (code === 0) resolve();
+      else
+        reject(
+          Object.assign(
+            new Error(`pnpm ${args.join(' ')} exited ${code ?? exitSignal}`),
+            { exitCode: code, signal: exitSignal },
+          ),
+        );
+    });
   });
 }
 
