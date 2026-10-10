@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { averageSpeed, sourceDurationUs } from '../core/speed';
 import type { SpeedRamp } from '../core/speed';
 import { SpeedRampEditor } from './SpeedRampEditor';
+import { TextLibrary, TextStyleFields } from './TextLibrary';
+import type { TextStyleInput } from '../core/text-library';
+import { Textarea } from '../components/ui/textarea';
 import { Download, LoaderCircle } from 'lucide-react';
 import type {
   Asset,
@@ -24,7 +27,8 @@ import { Label } from '../components/ui/label';
 import { SettingsSelect } from './SettingsSelect';
 import { clipName, downloadFile, formatTime } from './helpers';
 import { SHORTCUT_GROUPS } from './shortcut-help';
-export type DialogName = 'new' | 'properties' | 'export' | 'shortcuts' | null;
+export type DialogName =
+  'new' | 'text' | 'properties' | 'export' | 'shortcuts' | null;
 export interface Progress {
   label: string;
   fraction?: number;
@@ -47,6 +51,7 @@ interface Props {
   onFormatChange: (format: 'mp4' | 'webm') => void;
   onCancelWork: () => void;
   onCreateProject: (name: string) => void;
+  onInsertText: (style: TextStyleInput) => void;
   onSaveProperties: (operations: EditOperation[]) => void;
 }
 export default function WorkspaceDialogs({
@@ -68,9 +73,28 @@ export default function WorkspaceDialogs({
   onCancelWork,
   onCreateProject,
   onSaveProperties,
+  onInsertText,
 }: Props) {
   return (
     <>
+      <Dialog
+        open={dialog === 'text' && !readOnly}
+        onOpenChange={(open) => {
+          if (!open && !busy) onDialogChange(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add text</DialogTitle>
+            <DialogDescription className="sr-only">
+              Choose a font or template to insert at the playhead.
+            </DialogDescription>
+          </DialogHeader>
+          {dialog === 'text' && (
+            <TextLibrary busy={busy} onInsert={onInsertText} />
+          )}
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={dialog === 'new'}
         onOpenChange={(open) => {
@@ -121,7 +145,7 @@ export default function WorkspaceDialogs({
           if (!open && !busy) onDialogChange(null);
         }}
       >
-        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden">
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Clip properties</DialogTitle>
             <DialogDescription>
@@ -321,6 +345,7 @@ function Properties({
     clip.pitchMode ?? 'change',
   );
   const isTimedSource = clip.kind === 'video' || clip.kind === 'audio';
+  const [style, setStyle] = useState<TextStyleInput | undefined>(clip.text);
   return (
     <form
       onSubmit={(event) => {
@@ -353,7 +378,7 @@ function Properties({
             clip.sourceInUs +
             Math.round(durationUs * averageSpeed({ speed, speedRamp: ramp }));
         if (clip.text)
-          patch.text = { ...clip.text, text: String(form.get('text') ?? '') };
+          patch.text = { ...style!, text: String(form.get('text') ?? '') };
         const operations: EditOperation[] = [];
         if (clip.groupId && startUs !== clip.startUs) {
           operations.push({
@@ -453,13 +478,23 @@ function Properties({
         {clip.text && (
           <div className="grid gap-2">
             <Label htmlFor="clip-text">Text</Label>
-            <Input
+            <Textarea
               id="clip-text"
               name="text"
               readOnly={readOnly}
               defaultValue={clip.text.text}
+              onChange={(event) =>
+                setStyle({ ...style!, text: event.target.value })
+              }
             />
           </div>
+        )}
+        {style && (
+          <TextStyleFields
+            style={style}
+            onChange={setStyle}
+            readOnly={readOnly}
+          />
         )}
       </div>
       <DialogFooter className="shrink-0">

@@ -72,6 +72,12 @@ This is the project record of the user's durable product and workflow choices. U
 - Export/import the workspace with all user settings/preferences and saved projects. Allow the user to select the preference groups, projects, versions and individual source files in either direction; originals are optional ZIP content.
 - Provide project-level export/import through the same flow, including asset checkboxes. Preserve existing projects by importing new copies and keep credentials/AI consent outside portable backups.
 
+## Text library — 10 October 2026
+
+- Offer searchable font names and style labels, including cute, minimal, script, serif, mono and display looks.
+- Offer editable placeholder text templates with a chosen font and formatting, including bold, curved, shadowed and highlighted text. Insert them as real timeline clips.
+- Keep workspace appearance fonts separate from authored text styles. Use local system font stacks under the existing no-download font policy; show that availability depends on the device.
+
 ## Timeline editing and transition templates — 10 October 2026
 
 - Provide audio separation from video, clip group/ungroup, and transition controls for overlapping visual clips on one video track.

@@ -65,7 +65,9 @@ Select a timeline clip to open its properties, split at the playhead or delete i
 
 Manual changes retain the revision shown in the workspace. If another window commits first, LocalCut rejects the stale change and refreshes the form. Review the latest values before retrying; concurrent edits are not silently overwritten.
 
-Add text creates an editable three-second overlay at the playhead. The form exposes timing, speed, gain and text. Advanced effects and transitions are available through assistant proposals and the documented engine API. Local transcription and export can also be proposed by the assistant, with explicit approval before any job starts.
+Add text opens a searchable library with Templates and Fonts views. Search names or labels such as cute, minimal, curved, shadowed and highlighted; select a card to create an editable three-second overlay at the playhead. Templates include placeholder text, font and formatting. The properties form exposes timing, text, a searchable font picker, size, alignment, bold/italic, spacing, curve, colors, outlines and shadow settings, with a live sample. Apply properties saves these through the engine; Undo/Redo, versions, reload and JSON backups retain them. The ten font choices use local system stacks with device-dependent fallback; there are no font downloads. Workspace appearance fonts remain separate. Advanced effects and transitions are available through assistant proposals and the documented engine API. Local transcription and export can also be proposed by the assistant, with explicit approval before any job starts.
+
+See the [text library](images/text-library.png) and [narrow text library](images/text-library-narrow.png). Gallery samples, preview and export share the same text drawing function.
 
 Preview uses the same engine compositor as export. Playback creates its audio context only from the Play action. Scrubbing supersedes pending frames; project changes stop the old playback session. Disposal releases image bitmaps, sessions, audio contexts and active jobs. No media is sent to a server.
 
@@ -86,7 +88,7 @@ Focus the preview or timeline to use single-key shortcuts. `Space` toggles playb
 | Trim start / end to playhead                    | Q / W                                                         |
 | Delete / safe ripple delete                     | Delete or Backspace / Shift+Delete                            |
 | Properties                                      | Enter on focused clip or double-click clip                    |
-| Add text                                        | T                                                             |
+| Open text library                               | T                                                             |
 | Zoom pointed timeline or preview                | Ctrl/Command+wheel or trackpad pinch                          |
 | Zoom focused view / fit                         | + or = / − / 0 or backslash                                   |
 | Pan                                             | Middle-button drag; Shift+wheel scrolls timeline horizontally |

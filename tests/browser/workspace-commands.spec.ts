@@ -77,6 +77,9 @@ for (const base of ['/', '/LocalCut/']) {
     ).toHaveCount(0);
 
     await run(page, 'Add text');
+    await page
+      .getByRole('button', { name: 'Insert Plain text', exact: true })
+      .click();
     const properties = page.getByRole('dialog', {
       name: 'Clip properties',
       exact: true,

@@ -1,4 +1,5 @@
 import { VideoSampleSink } from 'mediabunny';
+import { paintText } from './text';
 import type { Input, VideoSample } from 'mediabunny';
 import type { Clip, Project, Transcript } from '../core/model';
 import { EditorError, invariant } from '../core/errors';
@@ -171,36 +172,7 @@ export class Renderer {
           align: 'center' as const,
         };
         ctx.filter = 'none';
-        ctx.font = `${style.fontSize}px sans-serif`;
-        ctx.textAlign = style.align;
-        ctx.textBaseline = 'top';
-        const lines: string[] = [];
-        for (const paragraph of text.split('\n')) {
-          let line = '';
-          for (const word of paragraph.split(/\s+/)) {
-            const next = line ? line + ' ' + word : word;
-            if (line && ctx.measureText(next).width > width) {
-              lines.push(line);
-              line = word;
-            } else line = next;
-          }
-          lines.push(line);
-        }
-        const boxHeight = lines.length * style.fontSize * 1.25;
-        ctx.fillStyle = style.background;
-        ctx.fillRect(0, 0, width, Math.min(height, boxHeight));
-        ctx.fillStyle = style.color;
-        for (let i = 0; i < lines.length; i++)
-          ctx.fillText(
-            lines[i]!,
-            style.align === 'center'
-              ? width / 2
-              : style.align === 'right'
-                ? width
-                : 0,
-            i * style.fontSize * 1.25,
-            width,
-          );
+        paintText(ctx, { ...style, text }, width, height);
       }
     }
     if (clip.transcriptId) {
