@@ -216,6 +216,16 @@
 .workspace-resize-handle[aria-orientation='horizontal']::after {
   inset: -4px 0;
 }
+@media (pointer: coarse) {
+  /* Cover the primitive's physical 20px target so touch-action remains none
+     even when a finger starts beyond the visible divider under CSS zoom. */
+  .workspace-resize-handle::after {
+    inset: 0 calc(-10px / var(--interface-scale, 1));
+  }
+  .workspace-resize-handle[aria-orientation='horizontal']::after {
+    inset: calc(-10px / var(--interface-scale, 1)) 0;
+  }
+}
 .workspace-resize-handle:hover,
 .workspace-resize-handle[data-separator='active'] {
   background: var(--primary);

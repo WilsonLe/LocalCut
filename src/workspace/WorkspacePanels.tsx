@@ -26,7 +26,7 @@ function Divider({
   vertical = false,
   hidden = false,
   save,
-  begin,
+  resizeTarget,
 }: {
   label: string;
   panel: PanelRef;
@@ -38,7 +38,7 @@ function Divider({
   vertical?: boolean;
   hidden?: boolean;
   save: (size: number) => void;
-  begin?: () => void;
+  resizeTarget?: 'chat' | 'media';
 }) {
   const [size, setSize] = useState(min);
   useEffect(() => {
@@ -56,7 +56,7 @@ function Divider({
     <ResizableHandle
       withHandle
       disableDoubleClick
-      onPointerDownCapture={begin}
+      data-resize-target={resizeTarget}
       aria-label={label}
       aria-valuetext={`${size} pixels`}
       disabled={hidden}
@@ -191,6 +191,18 @@ export function WorkspacePanels({
       orientation="horizontal"
       disabled={narrow}
       inert={inert}
+      onPointerDownCapture={(event) => {
+        // The primitive focuses its active separator in document capture, including
+        // starts in the expanded hit region outside the separator's DOM bounds.
+        const active = document.activeElement;
+        const target = active?.getAttribute('data-resize-target');
+        resizing.current =
+          event.defaultPrevented &&
+          active?.parentElement === event.currentTarget &&
+          (target === 'chat' || target === 'media')
+            ? target
+            : null;
+      }}
       onLayoutChanged={(layout, meta) => {
         const target = resizing.current;
         if (!meta.isUserInteraction || narrow || !target) return;
@@ -230,9 +242,7 @@ export function WorkspacePanels({
         {conversation[0]}
       </ResizablePanel>
       <Divider
-        begin={() => {
-          resizing.current = 'chat';
-        }}
+        resizeTarget="chat"
         preferred={preferences.chatWidth}
         label="Resize workspace chat"
         panel={chat}
@@ -250,9 +260,7 @@ export function WorkspacePanels({
         {conversation[1]}
       </ResizablePanel>
       <Divider
-        begin={() => {
-          resizing.current = 'media';
-        }}
+        resizeTarget="media"
         preferred={preferences.mediaWidth}
         label="Resize media library"
         panel={library}
