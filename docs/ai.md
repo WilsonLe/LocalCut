@@ -4,7 +4,7 @@ The optional `ai.js` entry provides authentication, a text-only OpenRouter trans
 
 ## Frontend wiring
 
-Load the modules after the user chooses to connect. The frontend owns connection controls, the conversation view, model selection, progress, proposal review, and error presentation. The shared editor remains the only owner of project state.
+Load the modules after the user chooses to connect. The frontend owns connection controls, the conversation view, model selection, progress, proposal review, and error presentation. The shared editor remains the only owner of project state. The composer information icon reveals the selected provider/model and a Configure AI action. Its connection dialog uses one searchable model dropdown with an inline refresh icon; Data & analytics reveals the separate, initially unchecked sharing opt-ins. Session switching preserves drafts and transcripts within the current project/model/context scope. See [workspace behavior](workspace.md) for the UI contract.
 
 ```ts
 import { createEditor } from '/LocalCut/editor.js';

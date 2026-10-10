@@ -522,14 +522,22 @@ for (const base of ['/', '/LocalCut/']) {
         exact: true,
       })
       .click();
+    await settings
+      .getByRole('button', { name: 'Data & analytics', exact: true })
+      .click();
+    const sharing = page.getByRole('dialog', {
+      name: 'Data & analytics',
+      exact: true,
+    });
     for (const label of [
       'Share overlay and caption text',
       'Share project and media names',
       'Share source transcripts',
     ])
       await expect(
-        settings.getByRole('checkbox', { name: label, exact: true }),
+        sharing.getByRole('checkbox', { name: label, exact: true }),
       ).not.toBeChecked();
+    await page.keyboard.press('Escape');
     await settings.getByRole('button', { name: 'Done', exact: true }).click();
     await page
       .getByLabel('Describe your edit', { exact: true })

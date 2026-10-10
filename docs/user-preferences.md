@@ -30,6 +30,13 @@ This is the project record of the user's durable product and workflow choices. U
 - Provide useful video-editing keyboard shortcuts and discoverable help. Preserve normal typing, native control activation, menu/dialog keyboard handling and assistive interaction.
 - Give the assistant the tools needed to inspect, plan and perform supported video-editing workflows. Continue requiring explicit approval for edits and consequential local service actions, and keep source media local.
 
+## OpenRouter and chat controls — 10 October 2026
+
+- Keep the AI connection dialog compact. Show a clear connected status and disconnect action; remove explanatory filler from the default view.
+- Use one shadcn searchable single-select model dropdown. Search names and IDs inside its popup; place refresh as an icon at the far right of the search row.
+- Reveal optional OpenRouter sharing through a Data & analytics popover, with all choices off initially. Keep credentials in memory and source media local.
+- Put the model/provider information behind a small icon in the composer footer, revealing configuration progressively. Use the CYOBot instructor chat's searchable session switcher, transcript, and rounded composer structure.
+
 ## Appearance customization — 10 October 2026
 
 - Provide an appearance section inspired by shadcn Create. The actual workspace is the live preview, and appearance preferences survive reload locally in the browser.

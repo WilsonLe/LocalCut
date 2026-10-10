@@ -11,16 +11,16 @@ import {
   ChevronDown,
   PanelLeftClose,
   PanelLeftOpen,
-  Settings2,
+  Info,
 } from 'lucide-react';
 import type { Editor, Project } from '../editor';
 import type { ContextPolicy, OpenRouter, OpenRouterModel } from '../ai';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
-import { Tooltip } from '../components/ui/tooltip';
 import { ChatResizeHandle } from './ChatResizeHandle';
 import type { ChatSession } from './ChatSessionPicker';
 const AIConnectionDialog = lazy(() => import('./AIConnectionDialog'));
+const AIInfoPopover = lazy(() => import('./AIInfoPopover'));
 const ChatSessionPicker = lazy(() => import('./ChatSessionPicker'));
 const ConversationSession = lazy(() => import('./ConversationSession'));
 import { errorText } from './conversation-errors';
@@ -65,7 +65,6 @@ export function Conversation(props: ConversationProps) {
   const [connection, setConnection] = useState<Connection | null>(null);
   const [models, setModels] = useState<OpenRouterModel[]>([]);
   const [model, setModel] = useState('');
-  const [search, setSearch] = useState('');
   const [privacy, setPrivacy] = useState<Required<ContextPolicy>>({
     includeText: false,
     includeAssetNames: false,
@@ -81,6 +80,8 @@ export function Conversation(props: ConversationProps) {
   ]);
   const [sessionBusy, setSessionBusy] = useState(false);
   const [pickerLoaded, setPickerLoaded] = useState(false);
+  const [infoLoaded, setInfoLoaded] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const nextSession = useRef(0);
   const providerRef = useRef<OpenRouter | null>(null);
   const moduleRef = useRef<AiModule | null>(null);
@@ -167,7 +168,6 @@ export function Conversation(props: ConversationProps) {
         setConnection({ provider, api, id: token });
         setModels([]);
         setModel('');
-        setSearch('');
         setSettingsOpen(true);
         const catalog = await provider.listModels(controller.signal);
         if (current())
@@ -237,7 +237,6 @@ export function Conversation(props: ConversationProps) {
     setConnection(null);
     setModels([]);
     setModel('');
-    setSearch('');
     setPrivacy({
       includeText: false,
       includeAssetNames: false,
@@ -269,10 +268,6 @@ export function Conversation(props: ConversationProps) {
       if (mounted.current && token === attempt.current) setConnecting(false);
     }
   };
-  const filtered = models.filter((item) =>
-    `${item.name} ${item.id}`.toLowerCase().includes(search.toLowerCase()),
-  );
-  const visibleModels = filtered.slice(0, 100);
   const selectedModel = models.find((item) => item.id === model);
   const ready = connection && selectedModel && props.editor && props.project;
   const sessionKey = `${connection?.id}:${props.project?.id}:${model}:${privacy.includeText}:${privacy.includeAssetNames}:${privacy.includeTranscripts}`;
@@ -289,26 +284,38 @@ export function Conversation(props: ConversationProps) {
     setChatSessions((sessions) => [...sessions, { id, title: 'New chat' }]);
     setConversationNumber(id);
   };
-  const connectionControl = (
-    <Tooltip
-      content={
-        connection
-          ? `OpenRouter · ${selectedModel?.name ?? 'Choose a model'} · Connection and sharing settings`
-          : 'Connect OpenRouter'
-      }
+  const infoTrigger = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      aria-label={connection ? 'AI settings' : 'Connect AI'}
+      title={connection ? 'OpenRouter settings' : 'Connect OpenRouter'}
+      onClick={() => {
+        if (connection) {
+          setInfoLoaded(true);
+          setInfoOpen(true);
+        } else setSettingsOpen(true);
+      }}
     >
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="composer-connection"
-        aria-label={connection ? 'AI settings' : 'Connect AI'}
-        onClick={() => setSettingsOpen(true)}
-      >
-        <Settings2 aria-hidden="true" />
-        <span>OpenRouter</span>
-      </Button>
-    </Tooltip>
+      <Info aria-hidden="true" />
+    </Button>
+  );
+  const connectionControl = (
+    <div className="composer-ai-control">
+      {connection && infoLoaded ? (
+        <Suspense fallback={infoTrigger}>
+          <AIInfoPopover
+            open={infoOpen}
+            onOpenChange={setInfoOpen}
+            modelName={selectedModel?.name}
+            configure={() => setSettingsOpen(true)}
+          />
+        </Suspense>
+      ) : (
+        infoTrigger
+      )}
+    </div>
   );
   const sessionTrigger = (
     <Button
@@ -329,7 +336,7 @@ export function Conversation(props: ConversationProps) {
   return (
     <aside
       aria-label="Editing conversation"
-      className="conversation-panel flex min-h-96 min-w-0 flex-col border-b bg-muted/35 lg:h-full lg:border-r lg:border-b-0"
+      className="conversation-panel flex min-h-96 min-w-0 flex-col border-b bg-background lg:h-full lg:border-r lg:border-b-0"
       data-collapsed={props.collapsed}
       onKeyDown={(event) => {
         if (
@@ -399,7 +406,9 @@ export function Conversation(props: ConversationProps) {
                   registerSession={registerSession}
                   retireSession={retireSession}
                   waitForRetired={waitForRetired}
-                  composerControl={connectionControl}
+                  composerControl={
+                    session.id === conversationNumber ? connectionControl : null
+                  }
                   onBusy={setSessionBusy}
                   onTitle={(title) =>
                     setChatSessions((sessions) =>
@@ -446,14 +455,9 @@ export function Conversation(props: ConversationProps) {
             authorize={authorize}
             connect={connect}
             disconnect={disconnect}
-            search={search}
-            setSearch={setSearch}
             model={model}
             setModel={setModel}
             models={models}
-            filtered={filtered}
-            visibleModels={visibleModels}
-            selectedModel={selectedModel}
             refreshCatalog={refreshCatalog}
             privacy={privacy}
             setPrivacy={setPrivacy}
