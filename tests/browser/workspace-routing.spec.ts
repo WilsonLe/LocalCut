@@ -40,7 +40,7 @@ async function seed(page: Page, base: string) {
 const picker = (page: Page) =>
   page.getByRole('button', { name: 'Open project', exact: true });
 for (const base of ['/', '/LocalCut/']) {
-  test(`project routing captures navigation while the workspace chunk loads ${base}`, async ({
+  test(`project routing captures navigation while editor panels load ${base}`, async ({
     page,
   }) => {
     await page.goto(base);
@@ -49,7 +49,7 @@ for (const base of ['/', '/LocalCut/']) {
     const ready = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route(/\/assets\/Workspace-[^/]+\.js$/, async (route) => {
+    await page.route(/\/assets\/WorkspacePanels-[^/]+\.js$/, async (route) => {
       await ready;
       await route.continue();
     });
@@ -57,7 +57,10 @@ for (const base of ['/', '/LocalCut/']) {
       await page.goto(`${base}?routing-startup`, {
         waitUntil: 'domcontentloaded',
       });
-      await expect(page.getByRole('status')).toHaveText('Loading workspace…');
+      await expect(picker(page)).toBeVisible();
+      await expect(
+        page.getByRole('status', { name: 'Loading workspace', exact: true }),
+      ).toBeVisible();
       await page.evaluate((id) => {
         window.location.hash = `/project/${id}`;
       }, ids.first);

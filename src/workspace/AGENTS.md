@@ -1,5 +1,6 @@
 # Workspace
 
+- Render cached catalog summaries while revalidating; opening always reads an authoritative engine snapshot. Keep cold skeletons regional, theme-aware and reduced-motion safe. The lightweight shell/catalog may load eagerly within the bundle budget; engine, AI and heavy panels retain their lazy boundaries.
 - Use the router and focused workspace hooks for route identity, current snapshot, navigation loading and saved-project catalog state. Derive the active screen from the URL; abort superseded loads before publishing. Preserve pending/error recovery, bare startup and both hash-route hosting bases.
 - Own view state and interaction in this directory; the editor snapshot is the canonical saved project. Route edits, history, imports, preview, and export through the public editor API.
 - Submit property edits against the revision that authored the form. On conflict, refresh and let the user retry; never silently apply stale values to a newer snapshot.
