@@ -1,4 +1,4 @@
-import { strFromU8, strToU8, unzip, Zip, ZipPassThrough } from 'fflate';
+import { Inflate, strFromU8, strToU8, Zip, ZipPassThrough } from 'fflate';
 import { asEditorError, invariant } from '../core/errors';
 import { validateBackup } from '../core/model';
 import type { Asset, Transcript } from '../core/model';
@@ -220,7 +220,7 @@ async function crc32(bytes: Uint8Array, signal?: AbortSignal) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 // Inspect the central directory BEFORE inflation. ZIP64, encryption, unsafe/duplicate
-// entries and misleading expanded sizes never reach decompression or storage.
+// entries and excessive declared sizes never reach decompression or storage.
 function zipEntries(bytes: Uint8Array) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let end = bytes.length - 22;
@@ -248,7 +248,16 @@ function zipEntries(bytes: Uint8Array) {
     'INVALID_DOCUMENT',
     'Unsupported ZIP directory',
   );
-  const entries = new Map<string, { size: number; crc: number }>();
+  const entries = new Map<
+    string,
+    {
+      size: number;
+      crc: number;
+      method: number;
+      start: number;
+      compressed: number;
+    }
+  >();
   let at = offset,
     expanded = 0;
   for (let i = 0; i < count; i++) {
@@ -304,7 +313,13 @@ function zipEntries(bytes: Uint8Array) {
       'INVALID_DOCUMENT',
       'Workspace exceeds import size limits',
     );
-    entries.set(name, { size, crc: view.getUint32(at + 16, true) });
+    entries.set(name, {
+      size,
+      crc: view.getUint32(at + 16, true),
+      method,
+      start: local + 30 + localNameLength + localExtra,
+      compressed: view.getUint32(at + 20, true),
+    });
     at = next;
   }
   invariant(
@@ -313,6 +328,59 @@ function zipEntries(bytes: Uint8Array) {
     'Workspace manifest missing',
   );
   return entries;
+}
+async function decodeZip(
+  bytes: Uint8Array,
+  entries: ReturnType<typeof zipEntries>,
+  signal?: AbortSignal,
+) {
+  const files: Record<string, Uint8Array> = {};
+  let expanded = 0;
+  let work = 0;
+  for (const [name, entry] of entries) {
+    checkAbort(signal);
+    const output = new Uint8Array(entry.size);
+    let written = 0;
+    const receive = (chunk: Uint8Array) => {
+      written += chunk.length;
+      expanded += chunk.length;
+      work += chunk.length;
+      invariant(
+        written <= entry.size &&
+          expanded <= MAX_ARCHIVE_BYTES &&
+          (name !== 'workspace.json' || written <= MAX_METADATA_BYTES),
+        'INVALID_DOCUMENT',
+        'ZIP expansion exceeds declared size or import limits',
+      );
+      output.set(chunk, written - chunk.length);
+    };
+    // Do not supply an output size to fflate: its one-shot decoder silently
+    // truncates oversized streams. Count every streamed byte before copying it.
+    const decoder = entry.method === 8 ? new Inflate(receive) : null;
+    const input = bytes.subarray(entry.start, entry.start + entry.compressed);
+    let at = 0;
+    do {
+      checkAbort(signal);
+      const end = Math.min(at + 8192, input.length);
+      const chunk = input.subarray(at, end);
+      work += chunk.length;
+      if (decoder) decoder.push(chunk, end === input.length);
+      else receive(chunk);
+      at = end;
+      if (work >= 1024 * 1024) {
+        work = 0;
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        checkAbort(signal);
+      }
+    } while (at < input.length);
+    invariant(
+      written === entry.size,
+      'INVALID_DOCUMENT',
+      'ZIP contents differ from directory',
+    );
+    files[name] = output;
+  }
+  return files;
 }
 export async function readWorkspaceArchive(
   file: Blob,
@@ -332,33 +400,7 @@ export async function readWorkspaceArchive(
   if (isZip) {
     const entries = zipEntries(bytes);
     try {
-      files = await new Promise<Record<string, Uint8Array>>(
-        (resolve, reject) => {
-          let finished = false;
-          const abort = () => {
-            terminate();
-            reject(new Error('Operation cancelled'));
-          };
-          const terminate = unzip(
-            bytes,
-            {
-              filter: (entry) =>
-                entries.has(entry.name) &&
-                entries.get(entry.name)?.size === entry.originalSize,
-            },
-            (error, result) => {
-              finished = true;
-              signal?.removeEventListener('abort', abort);
-              if (error) reject(error);
-              else resolve(result);
-            },
-          );
-          if (!finished) {
-            signal?.addEventListener('abort', abort, { once: true });
-            if (signal?.aborted) abort();
-          }
-        },
-      );
+      files = await decodeZip(bytes, entries, signal);
     } catch {
       checkAbort(signal);
       invariant(false, 'INVALID_DOCUMENT', 'Cannot decode workspace ZIP');

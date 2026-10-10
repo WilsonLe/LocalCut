@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import { zipSync, strToU8 } from 'fflate';
 async function transfer(
   page: Page,
   scope: 'Workspace' | 'Project',
@@ -16,6 +17,52 @@ async function transfer(
   ).toBeVisible();
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`workspace ZIP rejects misleading actual metadata expansion before storage ${base}`, async ({
+    page,
+  }) => {
+    const json = strToU8(
+      JSON.stringify({
+        format: 'localcut-workspace',
+        workspaceVersion: 1,
+        createdAt: 1,
+        projects: [],
+        assets: [],
+        transcripts: [],
+        files: [],
+      }),
+    );
+    const padded = new Uint8Array(17 * 1024 * 1024).fill(32);
+    padded.set(json);
+    const bytes = zipSync({ 'workspace.json': padded });
+    const prefix = new DataView(zipSync({ 'workspace.json': json }).buffer);
+    const view = new DataView(bytes.buffer);
+    const crc = prefix.getUint32(14, true);
+    view.setUint32(14, crc, true);
+    view.setUint32(22, json.length, true);
+    let at = 0;
+    while (view.getUint32(at, true) !== 0x02014b50) at++;
+    view.setUint32(at + 16, crc, true);
+    view.setUint32(at + 24, json.length, true);
+    await page.goto(base);
+    const result = await page.evaluate(
+      async ({ base, bytes }) => {
+        const { readWorkspaceArchive } = (await import(
+          base + 'editor.js'
+        )) as typeof import('../../src/editor');
+        const before = (await indexedDB.databases()).length;
+        const code = await readWorkspaceArchive(
+          new Blob([new Uint8Array(bytes)]),
+        ).then(
+          () => 'accepted',
+          (e: { code: string }) => e.code,
+        );
+        return { code, before, after: (await indexedDB.databases()).length };
+      },
+      { base, bytes: Array.from(bytes) },
+    );
+    expect(result.code).toBe('INVALID_DOCUMENT');
+    expect(result.after).toBe(result.before);
+  });
   test(`workspace archive roundtrips real originals, shared sources, historical versions and selective copies ${base}`, async ({
     page,
   }) => {

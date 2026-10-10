@@ -165,6 +165,43 @@ describe('workspace backup validation and selection', () => {
       readWorkspaceArchive(blob(valid.subarray(0, valid.length - 5))),
     ).rejects.toMatchObject({ code: 'INVALID_DOCUMENT' });
   });
+  it.each([2, 17])(
+    'rejects %i MiB expansion disguised as a valid JSON prefix',
+    async (size) => {
+      const json = strToU8(JSON.stringify({ ...blank(), projects: [] }));
+      const padded = new Uint8Array(size * 1024 * 1024).fill(32);
+      padded.set(json);
+      const bytes = zipSync({ 'workspace.json': padded });
+      const prefix = new DataView(zipSync({ 'workspace.json': json }).buffer);
+      const view = new DataView(bytes.buffer);
+      const crc = prefix.getUint32(14, true);
+      view.setUint32(14, crc, true);
+      view.setUint32(22, json.length, true);
+      let at = 0;
+      while (view.getUint32(at, true) !== 0x02014b50) at++;
+      view.setUint32(at + 16, crc, true);
+      view.setUint32(at + 24, json.length, true);
+      await expect(readWorkspaceArchive(blob(bytes))).rejects.toMatchObject({
+        code: 'INVALID_DOCUMENT',
+      });
+    },
+  );
+  it('allows cancellation between bounded inflation chunks', async () => {
+    const json = strToU8(JSON.stringify(blank()));
+    const padded = new Uint8Array(4 * 1024 * 1024).fill(32);
+    padded.set(json);
+    const file = blob(zipSync({ 'workspace.json': padded }));
+    const controller = new AbortController();
+    const read = file.arrayBuffer.bind(file);
+    vi.spyOn(file, 'arrayBuffer').mockImplementation(async () => {
+      const bytes = await read();
+      setTimeout(() => controller.abort(), 0);
+      return bytes;
+    });
+    await expect(
+      readWorkspaceArchive(file, controller.signal),
+    ).rejects.toMatchObject({ code: 'CANCELLED' });
+  });
   it('removes staged files/journals and releases recovery locks on write failure', async () => {
     const b = blank();
     const source = new Blob(['original']);
