@@ -135,6 +135,7 @@ export function saveWorkspacePreferences(patch: Partial<WorkspacePreferences>) {
   }
   snapshot = { preferences, saved };
   publish();
+  return saved;
 }
 export const getWorkspacePreferences = () => snapshot;
 const subscribe = (listener: () => void) => {

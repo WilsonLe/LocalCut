@@ -45,6 +45,7 @@ await editor.dispose();
 
 | Family        | Methods                                                                 |
 | ------------- | ----------------------------------------------------------------------- |
+| workspace     | snapshot, export, import                                                |
 | projects      | create, list, open, snapshot, delete, exportJSON, importJSON            |
 | assets        | import, inspect, relink, thumbnails, contactSheet, waveform, derivative |
 | commands      | validate, apply, undo, redo                                             |
@@ -87,3 +88,9 @@ Preview play() resolves after initial scheduling and presentation succeed, and r
 `preview.frame(projectId, timeUs, size?, versionId?)` and `preview.session(projectId, canvas, audioContext, versionId?)` use a saved immutable version when supplied. They never swap the live project or create temporary project records. Historical preview uses the same compositor and local source files as current playback. Inspect a snapshot with timeline/property consumers; mutation controls must remain disabled while browsing.
 
 `events.versions(listener)` reports `{ projectId, error? }` after a version save or save failure. Unsubscribe when finished. Autosave uses a one-second trailing debounce per project; committed edits are already durable. Disposal flushes pending saves and propagates a failed save after releasing owned resources. A browser forced closed before the timer preserves edits; open the project again to checkpoint them.
+
+## Workspace archive API
+
+`editor.workspace.snapshot(projectIds, includeVersions = true, settings?)` reads an internally consistent metadata snapshot. `workspace.export({ projectIds, includeVersions, assetIds }, settings?)` returns a cancellable `Job<File>` containing JSON or a ZIP with deduplicated selected originals. `readWorkspaceArchive(blob, signal?, allowProjectBackup = false)` inspects/validates it without opening an editor. Project UI enables legacy version-one project-envelope compatibility with the final argument. Both transfer scopes use the same archive format.
+
+`workspace.import(archive, { projectIds, includeVersions, assetIds })` revalidates the complete metadata and selected original bytes, then returns a cancellable job resolving to newly created projects. It publishes selected projects atomically and emits normal project events afterward. It does not apply settings: the workspace consumer uses the appearance/preference owners after that commit, reporting localStorage failure separately. Imported projects and versions reset revision to zero and get fresh project/source/transcript/version IDs. See [workspace transfer storage](storage.md#workspace-and-project-transfer) for integrity, cancellation, resource limits and recovery.

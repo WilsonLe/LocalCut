@@ -227,8 +227,10 @@ export function saveAppearance(preferences: Appearance, reset = false) {
   }
   snapshot = { ...snapshot, preferences: { ...preferences }, saved };
   publish();
+  return saved;
 }
 
+export const getAppearance = () => snapshot;
 const subscribe = (listener: () => void) => {
   listeners.add(listener);
   return () => {

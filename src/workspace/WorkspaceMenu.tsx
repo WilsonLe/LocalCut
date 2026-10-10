@@ -23,6 +23,10 @@ export interface WorkspaceMenuProps {
   onAppearance: () => void;
   onShortcuts: () => void;
   onCommands: () => void;
+  onProjectExport: () => void;
+  onProjectImport: () => void;
+  onWorkspaceExport: () => void;
+  onWorkspaceImport: () => void;
 }
 
 const popupClass =
@@ -88,6 +92,10 @@ export function WorkspaceMenu({
   onAppearance,
   onShortcuts,
   onCommands,
+  onProjectExport,
+  onProjectImport,
+  onWorkspaceExport,
+  onWorkspaceImport,
 }: WorkspaceMenuProps) {
   return (
     <Menu.Root
@@ -139,6 +147,16 @@ export function WorkspaceMenu({
                   Open project
                 </Menu.Item>
               )}
+              {!busy && hasProject && (
+                <Menu.Item className={itemClass} onClick={onProjectExport}>
+                  Export project
+                </Menu.Item>
+              )}
+              {!busy && (
+                <Menu.Item className={itemClass} onClick={onProjectImport}>
+                  Import project
+                </Menu.Item>
+              )}
               <Menu.Separator className="my-1 h-px bg-border" />
               {!busy && hasProject && (
                 <Menu.Item className={itemClass} onClick={onBackup}>
@@ -148,6 +166,18 @@ export function WorkspaceMenu({
               {!busy && (
                 <Menu.Item className={itemClass} onClick={onImportBackup}>
                   Import project backup
+                </Menu.Item>
+              )}
+            </Submenu>
+            <Submenu label="Workspace">
+              {!busy && (
+                <Menu.Item className={itemClass} onClick={onWorkspaceExport}>
+                  Export workspace
+                </Menu.Item>
+              )}
+              {!busy && (
+                <Menu.Item className={itemClass} onClick={onWorkspaceImport}>
+                  Import workspace
                 </Menu.Item>
               )}
             </Submenu>

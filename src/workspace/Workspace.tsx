@@ -58,6 +58,7 @@ import type { DialogName, Progress } from './WorkspaceDialogs';
 const WorkspaceDialogs = lazy(() => import('./WorkspaceDialogs'));
 const CommandPalette = lazy(() => import('./CommandPalette'));
 const WorkspaceMenu = lazy(() => import('./WorkspaceMenu'));
+const WorkspaceTransferDialog = lazy(() => import('./WorkspaceTransferDialog'));
 const AppearancePanel = lazy(() => import('./AppearancePanel'));
 type Artifact = ExportResult & { dispose: () => Promise<void> };
 
@@ -89,6 +90,11 @@ export function Workspace() {
         'Workspace preferences could not be saved. Allow browser storage to keep them after reload.',
       );
   }, [preferencesSaved]);
+  const [transfer, setTransfer] = useState<{
+    mode: 'export' | 'import';
+    projectOnly?: boolean;
+    projectId?: string;
+  } | null>(null);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const closeAppearance = () => {
     setAppearanceOpen(false);
@@ -693,6 +699,34 @@ export function Workspace() {
       'N',
     );
     command('open', 'Open project', 'Project', !busy, showProjects, 'Mod+O');
+    command('export-project', 'Export project', 'Project', editable, () =>
+      setTransfer({
+        mode: 'export',
+        projectOnly: true,
+        projectId: project?.id,
+      }),
+    );
+    command(
+      'import-project',
+      'Import project',
+      'Project',
+      !busy && !browsed,
+      () => setTransfer({ mode: 'import', projectOnly: true }),
+    );
+    command(
+      'export-workspace',
+      'Export workspace',
+      'Workspace',
+      !busy && !browsed,
+      () => setTransfer({ mode: 'export' }),
+    );
+    command(
+      'import-workspace',
+      'Import workspace',
+      'Workspace',
+      !busy && !browsed,
+      () => setTransfer({ mode: 'import' }),
+    );
     command(
       'backup',
       'Download project backup',
@@ -1018,6 +1052,18 @@ export function Workspace() {
                 onToggleChat={toggleChat}
                 onExport={showExport}
                 onFormatChange={setFormat}
+                onProjectExport={() =>
+                  setTransfer({
+                    mode: 'export',
+                    projectOnly: true,
+                    projectId: project?.id,
+                  })
+                }
+                onProjectImport={() =>
+                  setTransfer({ mode: 'import', projectOnly: true })
+                }
+                onWorkspaceExport={() => setTransfer({ mode: 'export' })}
+                onWorkspaceImport={() => setTransfer({ mode: 'import' })}
                 onAppearance={() => setAppearanceOpen(true)}
                 onShortcuts={() => setDialog('shortcuts')}
                 onCommands={showCommands}
@@ -1230,6 +1276,25 @@ export function Workspace() {
             </div>
           </aside>
         </div>
+        {transfer && (
+          <Suspense
+            fallback={<div role="status">Loading workspace transfer…</div>}
+          >
+            <WorkspaceTransferDialog
+              {...transfer}
+              getEditor={ensureEditor}
+              onBusyChange={setBusy}
+              onImported={async () => {
+                const engine = await ensureEditor();
+                setProjects(await engine.projects.list());
+              }}
+              onClose={() => {
+                setTransfer(null);
+                document.getElementById('workspace-settings-trigger')?.focus();
+              }}
+            />
+          </Suspense>
+        )}
         {appearanceOpen && (
           <Suspense
             fallback={

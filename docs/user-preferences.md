@@ -66,6 +66,12 @@ This is the project record of the user's durable product and workflow choices. U
 - Render buttons only when they can be clicked, including Versions and Export. Keep actual progress and actionable errors visible while an action is unavailable. Keep keyboard shortcut help in settings.
 - Provide a shadcn Base Command palette for workspace operations, opened from the header or Mod+K. Show available actions for the current project, selection and version. Reuse existing workflows for values, files and AI approval.
 
+## Workspace portability and app identity — 10 October 2026
+
+- Provide a favicon and PWA install manifest/icons that work at both hosting bases.
+- Export/import the workspace with all user settings/preferences and saved projects. Allow the user to select the preference groups, projects, versions and individual source files in either direction; originals are optional ZIP content.
+- Provide project-level export/import through the same flow, including asset checkboxes. Preserve existing projects by importing new copies and keep credentials/AI consent outside portable backups.
+
 ## Delivery and validation
 
 - Pull and rebase onto current `main`, including the OpenRouter integration, before completing the workspace.

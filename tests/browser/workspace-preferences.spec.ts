@@ -17,7 +17,7 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await expect(menu).toBeVisible();
     await expect(settings).toHaveAttribute('aria-expanded', 'true');
-    await expect(menu.getByRole('menuitem')).toHaveCount(6);
+    await expect(menu.getByRole('menuitem')).toHaveCount(7);
     await expect(
       page.getByRole('menuitem', {
         name: 'Download project backup',
@@ -51,6 +51,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page.keyboard.press('ArrowLeft');
     await expect(projectMenu).not.toBeVisible();
     await expect(project).toBeFocused();
+    await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowRight');
     const view = page.getByRole('menu', { name: 'View', exact: true });

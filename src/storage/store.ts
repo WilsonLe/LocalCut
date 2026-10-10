@@ -59,7 +59,7 @@ interface SavedReceipt {
   contentVersion?: 2;
   receipt: EditReceipt;
 }
-function normalizeState(state: RecordState): RecordState {
+export function normalizeState(state: RecordState): RecordState {
   invariant(
     state.identityVersion === undefined || state.identityVersion === 1,
     'INVALID_DOCUMENT',
