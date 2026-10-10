@@ -18,7 +18,7 @@ async function styles(page: Page) {
   return page.evaluate(() => {
     const root = getComputedStyle(document.documentElement);
     const button = getComputedStyle(document.querySelector('button')!);
-    const heading = getComputedStyle(document.querySelector('h2')!);
+    const heading = getComputedStyle(document.querySelector('h1, h2')!);
     const preview = getComputedStyle(document.querySelector('.preview')!);
     return {
       primary: root.getPropertyValue('--primary'),

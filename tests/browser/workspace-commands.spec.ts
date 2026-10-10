@@ -215,9 +215,15 @@ for (const base of ['/', '/LocalCut/']) {
       page.getByRole('button', { name: 'Expand chat', exact: true }),
     ).toBeVisible();
     await run(page, 'Expand media');
+    await expect(
+      page.getByRole('dialog', { name: 'Media library', exact: true }),
+    ).toBeVisible();
     await page.reload();
     await expect(
-      page.getByRole('button', { name: 'Collapse media', exact: true }),
+      page.getByRole('dialog', { name: 'Media library', exact: true }),
+    ).toBeHidden();
+    await expect(
+      page.getByRole('button', { name: 'Expand media', exact: true }),
     ).toBeVisible();
   });
 }

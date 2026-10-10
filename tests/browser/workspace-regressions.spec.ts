@@ -237,6 +237,13 @@ test('long assistant replies scroll inside the conversation and keep the compose
     });
     expect(narrow.documentWidth).toBeLessThanOrEqual(narrow.width);
     expect(narrow.editingTop).toBeLessThan(narrow.conversationTop);
+    expect(narrow.logHeight).toBeGreaterThan(0);
+    expect(narrow.logScrollHeight).toBeGreaterThan(narrow.logHeight);
+    expect(narrow.logHeight).toBeLessThan(640);
+    await page
+      .getByRole('navigation', { name: 'Workspace sections' })
+      .getByRole('button', { name: 'Chat', exact: true })
+      .click();
     await page
       .getByLabel('Describe your edit', { exact: true })
       .scrollIntoViewIfNeeded();
@@ -244,12 +251,30 @@ test('long assistant replies scroll inside the conversation and keep the compose
       page.getByRole('button', { name: 'Send edit request', exact: true }),
     ).toBeInViewport();
   }
+  await page
+    .getByLabel('Describe your edit', { exact: true })
+    .fill('Keep this mobile draft');
+  await page.screenshot({
+    path: testInfo.outputPath('mobile-long-conversation.png'),
+  });
+  await page.setViewportSize({ width: 320, height: 420 });
+  await page.getByLabel('Describe your edit', { exact: true }).focus();
+  await page
+    .getByLabel('Describe your edit', { exact: true })
+    .scrollIntoViewIfNeeded();
+  await expect(
+    page.getByRole('button', { name: 'Send edit request', exact: true }),
+  ).toBeInViewport();
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page
     .getByRole('button', { name: 'Collapse chat', exact: true })
     .click();
   await expect(log).toBeHidden();
   await page.getByRole('button', { name: 'Expand chat', exact: true }).click();
+  await expect(
+    page.getByLabel('Describe your edit', { exact: true }),
+  ).toHaveValue('Keep this mobile draft');
   await expect
     .poll(() =>
       log.evaluate(
