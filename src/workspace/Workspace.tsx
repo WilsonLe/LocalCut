@@ -154,10 +154,16 @@ export function Workspace() {
       requestAnimationFrame(() => {
         if (trigger.isConnected && restoreMediaFocus.current) {
           restoreMediaFocus.current = false;
-          trigger.focus();
+          if (document.activeElement === document.body) trigger.focus();
         }
       });
     }
+    // React's ref cleanup runs before the focused fallback trigger is removed.
+    // Reuse the responsive-focus owner when the lazy tooltip replaces it.
+    return () => {
+      if (trigger && document.activeElement === trigger)
+        restoreMediaFocus.current = true;
+    };
   }, []);
   useLayoutEffect(() => {
     const query = window.matchMedia(narrowQuery);
@@ -1520,6 +1526,7 @@ export function Workspace() {
             projects={catalog.projects}
             currentProjectId={project?.id}
             busy={busy}
+            navigationBusy={operationBusy}
             refreshing={catalog.pending}
             loaded={catalog.loaded}
             failed={catalog.failed}

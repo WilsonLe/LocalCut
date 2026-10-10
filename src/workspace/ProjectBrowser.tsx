@@ -19,6 +19,7 @@ interface Props {
   projects: ProjectSummary[];
   currentProjectId?: string;
   busy: boolean;
+  navigationBusy: boolean;
   loaded: boolean;
   refreshing: boolean;
   failed: boolean;
@@ -33,6 +34,7 @@ export default function ProjectBrowser({
   projects,
   currentProjectId,
   busy,
+  navigationBusy,
   loaded,
   refreshing,
   failed,
@@ -64,7 +66,7 @@ export default function ProjectBrowser({
         <Button
           variant="ghost"
           className="project-browser-back"
-          disabled={busy}
+          disabled={navigationBusy}
           onClick={onBack}
         >
           <ArrowLeft /> Back to editor
@@ -125,7 +127,7 @@ export default function ProjectBrowser({
                     <Button
                       variant="ghost"
                       className="project-browser-row"
-                      disabled={busy}
+                      disabled={navigationBusy}
                       onClick={() => onOpen(project.id)}
                     >
                       <Film

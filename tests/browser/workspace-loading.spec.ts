@@ -174,3 +174,92 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
   });
 }
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`cached project navigation supersedes active project restoration ${base}`, async ({
+    page,
+  }) => {
+    await page.goto(base);
+    const ids = await page.evaluate(async (base) => {
+      const { createEditor } = await import(`${base}editor.js`);
+      const editor = await createEditor();
+      try {
+        return {
+          first: (await editor.projects.create('First cached film')).id,
+          second: (await editor.projects.create('Second cached film')).id,
+        };
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    await page
+      .getByRole('button', { name: 'Open project', exact: true })
+      .click();
+    const browser = page.getByRole('main', { name: 'Projects', exact: true });
+    await expect(
+      browser.getByRole('button', { name: /Second cached film/ }),
+    ).toBeEnabled();
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(`**${base}editor.js`, async (route) => {
+      await held;
+      await route.continue();
+    });
+    await page.goto(`${base}?restoring#/projects?project=${ids.first}`, {
+      waitUntil: 'domcontentloaded',
+    });
+    try {
+      await expect(
+        browser.getByRole('button', { name: /First cached film/ }),
+      ).toBeEnabled();
+      await expect(
+        browser.getByRole('button', { name: /Second cached film/ }),
+      ).toBeEnabled();
+      await browser.getByRole('button', { name: /Second cached film/ }).click();
+      await expect(page).toHaveURL(new RegExp(`/project/${ids.second}$`));
+      release();
+      await expect(
+        page.getByRole('button', { name: 'Open project', exact: true }),
+      ).toContainText('Second cached film');
+      await expect(
+        page.getByRole('status', { name: 'Opening project', exact: true }),
+      ).toHaveCount(0);
+    } finally {
+      release();
+    }
+  });
+
+  test(`media trigger retains keyboard focus when its tooltip loads ${base}`, async ({
+    page,
+  }) => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(/\/assets\/tooltip-[^/]+\.js$/, async (route) => {
+      await held;
+      await route.continue();
+    });
+    await page.goto(base, { waitUntil: 'domcontentloaded' });
+    const trigger = page.getByRole('button', {
+      name: 'Expand media',
+      exact: true,
+    });
+    try {
+      await expect(trigger).toBeVisible();
+      await trigger.focus();
+      await expect(trigger).toBeFocused();
+      release();
+      await expect(trigger).toHaveAttribute('data-base-ui-tooltip-trigger');
+      await expect(trigger).toBeFocused();
+      await page.keyboard.press('Enter');
+      await expect(
+        page.getByRole('button', { name: 'Collapse media', exact: true }),
+      ).toBeFocused();
+    } finally {
+      release();
+    }
+  });
+}
