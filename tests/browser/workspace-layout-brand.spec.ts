@@ -156,3 +156,51 @@ for (const base of ['/', '/LocalCut/']) {
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
   });
 }
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`AI settings queues a cold-load request while chat is collapsed ${base}`, async ({
+    page,
+  }) => {
+    let release!: () => void;
+    const barrier = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let held = false;
+    await page.addInitScript(() =>
+      localStorage.setItem(
+        'localcut.workspace-preferences.v1',
+        JSON.stringify({ version: 1, preferences: { chatCollapsed: true } }),
+      ),
+    );
+    await page.route('**/Conversation-*.js', async (route) => {
+      held = true;
+      await barrier;
+      await route.continue();
+    });
+    try {
+      await page.goto(base);
+      await expect.poll(() => held).toBe(true);
+      await openAISettings(page);
+      const dialog = page.getByRole('dialog', {
+        name: 'AI connection',
+        exact: true,
+      });
+      await expect(dialog).toHaveCount(0);
+      release();
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toHaveCount(1);
+      await page.keyboard.press('Escape');
+      await expect(
+        page.getByRole('button', { name: 'Workspace settings', exact: true }),
+      ).toBeFocused();
+      await expect(
+        page.getByRole('button', { name: 'Expand chat', exact: true }),
+      ).toBeVisible();
+      await openAISettings(page);
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toHaveCount(1);
+    } finally {
+      release();
+    }
+  });
+}

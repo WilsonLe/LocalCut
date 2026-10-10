@@ -248,6 +248,22 @@ export function Workspace() {
     [],
   );
   const conversationControls = useRef<ConversationControls>(null);
+  const pendingAISettings = useRef(false);
+  const registerConversationControls = useCallback(
+    (controls: ConversationControls | null) => {
+      conversationControls.current = controls;
+      if (controls && pendingAISettings.current) {
+        pendingAISettings.current = false;
+        controls.openSettings();
+      }
+    },
+    [],
+  );
+  const showAISettings = () => {
+    if (conversationControls.current)
+      conversationControls.current.openSettings();
+    else pendingAISettings.current = true;
+  };
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [operationBusy, setBusy] = useState(false);
@@ -1440,9 +1456,7 @@ export function Workspace() {
                 onAppearance={() => setAppearanceOpen(true)}
                 onShortcuts={() => setDialog('shortcuts')}
                 onCommands={showCommands}
-                onAISettings={() =>
-                  conversationControls.current?.openSettings()
-                }
+                onAISettings={showAISettings}
               />
             </Suspense>
           ) : (
@@ -1538,12 +1552,12 @@ export function Workspace() {
                 <aside
                   aria-label="Editing conversation"
                   data-collapsed={chatCollapsed}
-                  className="conversation-panel min-w-0 border-b bg-background lg:border-r lg:border-b-0"
+                  className="conversation-panel min-w-0 border-b bg-background lg:border-l lg:border-b-0"
                 />
               }
             >
               <Conversation
-                controlsRef={conversationControls}
+                controlsRef={registerConversationControls}
                 onIndexConnection={setIndexConnection}
                 editor={editor}
                 project={project}
