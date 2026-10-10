@@ -1,9 +1,16 @@
-import { availableParallelism, freemem, loadavg, totalmem } from 'node:os';
+import {
+  availableParallelism,
+  cpus as cpuInfo,
+  freemem,
+  loadavg,
+  totalmem,
+} from 'node:os';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 
 const GiB = 1024 ** 3;
+const slotBytes = 0.75 * GiB;
 const read = (path: string) => {
   try {
     return readFileSync(path, 'utf8').trim();
@@ -60,11 +67,28 @@ export function memoryLimit(value: string) {
   const bytes = Number(value);
   return bytes > 0 ? bytes : Infinity;
 }
-export function override(value: string | undefined, name: string, max: number) {
+export function override(
+  value: string | undefined,
+  name: string,
+  max = Number.MAX_SAFE_INTEGER,
+) {
   if (value === undefined) return undefined;
-  if (!/^[1-9]\d*$/.test(value) || Number(value) > max)
+  if (
+    !/^[1-9]\d*$/.test(value) ||
+    !Number.isSafeInteger(Number(value)) ||
+    Number(value) > max
+  )
     throw new Error(`${name} must be an integer from 1 to ${max}.`);
   return Number(value);
+}
+export function poolMaxCost(env: NodeJS.ProcessEnv = {}, browser = false) {
+  const name = browser ? 'LOCALCUT_BROWSER_WORKERS' : 'LOCALCUT_UNIT_WORKERS';
+  const workers = override(env[name], name);
+  // The scheduler's refreshed budget limits automatic pools at launch. A
+  // startup CPU count would prevent growth after quota or affinity recovery.
+  return workers === undefined
+    ? Number.MAX_SAFE_INTEGER
+    : Math.min(Number.MAX_SAFE_INTEGER, workers * (browser ? 2 : 1));
 }
 export interface Capacity {
   cpus: number;
@@ -75,7 +99,11 @@ export interface Capacity {
   memoryLimit?: number;
   memoryUsed?: number;
 }
-export function allocation(capacity: Capacity, env: NodeJS.ProcessEnv = {}) {
+export function allocation(
+  capacity: Capacity,
+  env: NodeJS.ProcessEnv = {},
+  reservedSlots = 0,
+) {
   const cpus = Math.max(
     1,
     Math.floor(Math.min(capacity.cpus, capacity.cpuLimit ?? Infinity)),
@@ -84,21 +112,37 @@ export function allocation(capacity: Capacity, env: NodeJS.ProcessEnv = {}) {
     capacity.freeBytes,
     (capacity.memoryLimit ?? capacity.totalBytes) - (capacity.memoryUsed ?? 0),
   );
-  // Leave room for the desktop/OS. Each slot reserves ~1 GiB; browser workers cost two slots.
-  const memorySlots = Math.max(1, Math.floor((memory - GiB) / GiB));
-  const idleCpus = Math.max(1, cpus - Math.ceil(capacity.load));
-  const automatic = Math.max(1, Math.min(8, idleCpus, memorySlots));
-  const requested = override(env.LOCALCUT_TEST_SLOTS, 'LOCALCUT_TEST_SLOTS', 8);
-  const slots = Math.min(requested ?? automatic, cpus, memorySlots);
+  // Profiled slots reserve 0.75 GiB; Chrome reserves two (1.5 GiB). Keep one GiB for the OS.
+  // Running tasks are already reflected in load/free RAM: add their reservation back once.
+  const memorySlots = Math.max(
+    1,
+    reservedSlots + Math.floor((memory - GiB) / slotBytes),
+  );
+  const idleCpus = Math.max(
+    1,
+    cpus - Math.ceil(Math.max(0, capacity.load - reservedSlots)),
+  );
+  // A child runner consumes a freshly measured scheduler grant. Do not subtract
+  // the parent's stale load a second time; CPU/quota/RAM limits still apply.
+  const granted = override(
+    env.LOCALCUT_TEST_GRANTED_SLOTS,
+    'LOCALCUT_TEST_GRANTED_SLOTS',
+  );
+  const automatic = Math.max(
+    1,
+    Math.min(granted ?? idleCpus, cpus, memorySlots),
+  );
+  const requested = override(env.LOCALCUT_TEST_SLOTS, 'LOCALCUT_TEST_SLOTS');
+  const slots = Math.min(requested ?? automatic, automatic);
   return {
     slots,
     unitWorkers: Math.min(
-      override(env.LOCALCUT_UNIT_WORKERS, 'LOCALCUT_UNIT_WORKERS', 8) ?? slots,
+      override(env.LOCALCUT_UNIT_WORKERS, 'LOCALCUT_UNIT_WORKERS') ?? slots,
       slots,
     ),
     browserWorkers: Math.min(
-      override(env.LOCALCUT_BROWSER_WORKERS, 'LOCALCUT_BROWSER_WORKERS', 4) ??
-        4,
+      override(env.LOCALCUT_BROWSER_WORKERS, 'LOCALCUT_BROWSER_WORKERS') ??
+        slots,
       Math.max(1, Math.floor(slots / 2)),
     ),
     cpus,
@@ -133,7 +177,45 @@ export function cgroupPaths(membership: string, controller: string) {
   }
   return [...paths];
 }
-export function resources(env: NodeJS.ProcessEnv = process.env) {
+export interface CpuSnapshot {
+  at: number;
+  total: number;
+  idle: number;
+}
+export function cpuLoad(
+  previous: CpuSnapshot,
+  current: CpuSnapshot,
+  cpus: number,
+) {
+  const total = current.total - previous.total;
+  return total > 0
+    ? cpus *
+        Math.max(0, Math.min(1, 1 - (current.idle - previous.idle) / total))
+    : undefined;
+}
+let previousCpu: CpuSnapshot | undefined;
+let measuredLoad: number | undefined;
+function currentLoad() {
+  const times = cpuInfo().map((cpu) => cpu.times);
+  const snapshot = {
+    at: performance.now(),
+    total: times.reduce(
+      (sum, time) => sum + Object.values(time).reduce((a, b) => a + b, 0),
+      0,
+    ),
+    idle: times.reduce((sum, time) => sum + time.idle, 0),
+  };
+  if (!previousCpu) previousCpu = snapshot;
+  else if (snapshot.at - previousCpu.at >= 100) {
+    measuredLoad = cpuLoad(previousCpu, snapshot, availableParallelism());
+    previousCpu = snapshot;
+  }
+  return measuredLoad ?? loadavg()[0] ?? 0;
+}
+export function resources(
+  env: NodeJS.ProcessEnv = process.env,
+  reservedSlots = 0,
+) {
   const membership = read('/proc/self/cgroup');
   const cpus = cgroupPaths(membership, 'cpu').flatMap((directory) => [
     quotaCpus(read(directory + '/cpu.max')),
@@ -158,9 +240,10 @@ export function resources(env: NodeJS.ProcessEnv = process.env) {
       cpus: availableParallelism(),
       freeBytes: Math.min(availableMemory(), ...memory),
       totalBytes: totalmem(),
-      load: loadavg()[0] ?? 0,
+      load: currentLoad(),
       cpuLimit: Math.min(...cpus),
     },
     env,
+    reservedSlots,
   );
 }

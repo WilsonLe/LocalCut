@@ -4,7 +4,7 @@
 - [playwright.config.ts](../../playwright.config.ts) uses installed stable Chrome. Preserve explicit root and `/LocalCut/` coverage when modifying shared entries or asset resolution.
 - Workspace iteration: `pnpm test:ui --grep '<title>'` verifies/reuses both builds. Engine iteration: build both targets, then `pnpm test:browser tests/browser/<name>.spec.ts`.
 - `pnpm test:browser tests/browser/<name>.spec.ts --list` checks selection without starting the browser. Do not mistake this for executed evidence.
-- Normal acceptance dynamically selects up to four workers from the shared CPU/memory budget; set `LOCALCUT_BROWSER_WORKERS=1` for serial diagnosis. Keep performance/transcription in the separate one-worker `acceptance` project.
+- Normal acceptance selects workers from the shared CPU/memory budget without a fixed machine-size ceiling; set `LOCALCUT_BROWSER_WORKERS=1` for serial diagnosis. Keep performance/transcription in the separate one-worker `acceptance` project.
 - Keep native encode/decode, actual persisted revisions, waveform/audio values, and cancellation cleanup assertions. Intercepted OpenRouter replies prove protocol behavior, not paid inference.
 - Exercise superseded requests and cross-tab conflicts with explicit synchronization; avoid assuming elapsed sleeps equal playback progress on a busy machine.
 - Preserve checksum-verified speech preparation and the fresh-worker replay with remote hosts blocked. Run `pnpm test:transcription` per [validation](../../docs/validation.md).

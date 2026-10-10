@@ -1,31 +1,35 @@
 import { runPnpm, ensureBuilds } from './build-state.mjs';
-import { resources } from './test-resources.ts';
+import { resources, poolMaxCost } from './test-resources.ts';
 import { schedule } from './test-scheduler.mjs';
 
-const budget = resources();
-console.log('LocalCut test resources:', JSON.stringify(budget));
-const unitWorkers = Math.max(1, Math.min(4, Math.floor(budget.slots / 2)));
-const env = {
-  ...process.env,
-  LOCALCUT_UNIT_WORKERS: String(Math.min(unitWorkers, budget.unitWorkers)),
-  LOCALCUT_BROWSER_WORKERS: String(budget.browserWorkers),
-};
+const initial = resources();
+console.log('LocalCut initial test resources:', JSON.stringify(initial));
+const env = process.env;
+const poolEnv = (cost, browser = false) => ({
+  ...env,
+  LOCALCUT_TEST_SLOTS: String(cost),
+  LOCALCUT_TEST_GRANTED_SLOTS: String(cost),
+  [browser ? 'LOCALCUT_BROWSER_WORKERS' : 'LOCALCUT_UNIT_WORKERS']: String(
+    browser ? Math.max(1, Math.floor(cost / 2)) : cost,
+  ),
+});
 const tasks = [
   { id: 'format', cost: 1, run: () => runPnpm(['format:check'], env) },
   { id: 'lint', cost: 1, run: () => runPnpm(['lint'], env) },
   { id: 'types', cost: 2, run: () => runPnpm(['typecheck'], env) },
   { id: 'tooling', cost: 1, run: () => runPnpm(['test:tooling'], env) },
   {
-    id: 'units',
-    after: ['format', 'lint', 'types', 'tooling'],
-    cost: unitWorkers,
-    run: () => runPnpm(['test'], env),
-  },
-  {
     id: 'builds',
     after: ['format', 'lint', 'types', 'tooling'],
     cost: 2,
     run: () => ensureBuilds(env),
+  },
+  {
+    id: 'units',
+    after: ['format', 'lint', 'types', 'tooling'],
+    cost: 1,
+    maxCost: poolMaxCost(env),
+    run: ({ cost }) => runPnpm(['test'], poolEnv(cost)),
   },
   {
     id: 'bundle',
@@ -35,9 +39,10 @@ const tasks = [
   },
   {
     id: 'chrome',
-    after: ['bundle'],
-    cost: budget.browserWorkers * 2,
-    run: () => runPnpm(['test:browser'], env),
+    after: ['bundle', 'units'],
+    cost: 2,
+    maxCost: poolMaxCost(env, true),
+    run: ({ cost }) => runPnpm(['test:browser'], poolEnv(cost, true)),
   },
 ];
-await schedule(tasks, budget.slots);
+await schedule(tasks, (used) => resources(env, used).slots);

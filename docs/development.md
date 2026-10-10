@@ -68,7 +68,20 @@ Run `pnpm check` locally before handing off code changes and after changes to sh
 
 Follow [validation](validation.md) for real transcription/cached replay and the five-minute export gate before implementation handoff, and whenever changes affect those capabilities. They are explicit `pnpm test:transcription` and `pnpm test:performance` commands, outside normal `check`. Real-provider testing is separately opt-in; read [AI privacy and live-test requirements](ai.md) before `pnpm test:ai:live`. Report missing capabilities or failed gates directly.
 
-A shared CPU/memory policy selects up to eight slots/unit workers and four Chrome workers at command startup. It accounts for CPU affinity, host load, available memory including reclaimable file cache, and cgroup quotas. Each Chrome worker reserves two slots. `LOCALCUT_TEST_SLOTS=1` serializes the entire check pipeline; `LOCALCUT_UNIT_WORKERS` (1–8) and `LOCALCUT_BROWSER_WORKERS` (1–4) narrow worker pools. Capacity caps still apply. Allocation and per-gate timings are printed. Native Safari runs separately with `pnpm test:safari` on macOS; follow [Safari prerequisites and scope](../tests/safari/AGENTS.md). Heavy transcription/performance and live-provider tests remain serial. Keep those resource measurements separate from other browser workloads.
+The shared CPU/memory policy scales normal unit and Chrome worker pools with available capacity, without fixed eight-slot/four-browser ceilings. It accounts for CPU affinity, available memory including reclaimable file cache, and cgroup quotas. Each slot reserves 0.75 GiB, each Chrome worker reserves two slots, and one GiB stays available for the OS. Overrides accept positive safe integers and only narrow live headroom: `LOCALCUT_TEST_SLOTS=1` serializes `check`; `LOCALCUT_UNIT_WORKERS=1` and `LOCALCUT_BROWSER_WORKERS=1` narrow those pools.
+
+`check` refreshes capacity at gate boundaries and every second while waiting. Recent CPU-time deltas replace the startup one-minute load estimate; running reservations are counted once. Elastic pools receive the slots available when they launch. Child runners receive the measured slot grant and still apply CPU/quota/RAM caps, avoiding a second subtraction of the parent’s historical load. Already-running pools drain normally under pressure, and worker counts stay fixed for that invocation. Units overlap the sequential builds; Chrome waits for units and bundle validation so a failed unit gate never starts browser acceptance. Direct Vitest/Chrome commands sample capacity at startup. Native Safari, transcription, performance and live-provider gates remain serial and separate so native measurements do not compete.
+
+Profile a complete gate or sweep worker settings sequentially:
+
+```sh
+pnpm test:profile check-auto check
+pnpm test:profile units-8 test --maxWorkers=8
+# Both production builds must already be current:
+pnpm test:profile chrome-7 test:browser --workers=7
+```
+
+The profiler writes timestamped logs and JSON to ignored `.artifacts/test-profiles/`, including wall time, sampled descendant CPU seconds, average CPU cores, peak summed RSS, host busy percentage, initial allocation, per-gate timings, browser scenario median/p95/slowest timings and exit status. It samples every 500 ms with macOS/Linux `ps`; very short-lived processes may be missed, summed RSS includes shared pages, and host busy includes unrelated apps. These are bounded diagnostics, not exact exclusive CPU or physical-memory measurements. It propagates failure status. CLI worker flags are raw runner overrides for controlled sweeps; use the `LOCALCUT_*` variables for capacity-capped routine runs. Keep sweeps sequential and distinguish cold builds from verified warm reuse. See [the recorded benchmark](validation.md#dynamic-test-resources--10-october-2026).
 
 ## Isolate runs and resume from evidence
 
