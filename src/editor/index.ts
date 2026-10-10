@@ -22,6 +22,8 @@ import { modelStatus } from '../services/transcription-status';
 import { createPreviewSession } from '../services/preview';
 import type { FrameResult, PreviewSession } from '../services/preview';
 export * from '../core/model';
+export { rampPreset, averageSpeed, sourceDurationUs } from '../core/speed';
+export type { SpeedPoint, SpeedRamp } from '../core/speed';
 export type {
   CommandBatch,
   EditOperation,

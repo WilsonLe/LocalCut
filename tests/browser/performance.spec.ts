@@ -48,6 +48,8 @@ const test = base.extend({
 });
 test.use({ trace: 'off' }); // The custom profile fixture retains failed traces.
 
+const speedRampWorkload = process.env.LOCALCUT_PERFORMANCE_SPEED_RAMP === '1';
+
 test('@performance warmup, two-minute and five-minute 1080p export', async ({
   page,
   context,
@@ -214,89 +216,114 @@ test('@performance warmup, two-minute and five-minute 1080p export', async ({
     };
     const sampler = sample(),
       started = Date.now();
-    const result = await page.evaluate(async (seconds) => {
-      const editor = window.editor,
-        p = await editor.projects.create('performance');
-      await editor.commands.apply({
-        projectId: p.id,
-        requestId: 'assembly',
-        expectedRevision: 0,
-        operations: [
-          { type: 'addTrack', track: { id: 'visual', kind: 'video' } },
-          { type: 'addTrack', track: { id: 'titles', kind: 'overlay' } },
-          ...Array.from({ length: seconds }, (_, i) => [
-            {
-              type: 'insertClip' as const,
-              trackId: 'visual',
-              clip: {
-                id: 'source-' + i,
-                kind: 'video' as const,
-                assetId: window.asset.id,
-                startUs: i * 1e6,
-                durationUs: 1e6,
-                sourceOutUs: 1e6,
-              },
-            },
-            {
-              type: 'insertClip' as const,
-              trackId: 'titles',
-              clip: {
-                id: 'label-' + i,
-                kind: 'text' as const,
-                startUs: i * 1e6,
-                durationUs: 1e6,
-                width: 600,
-                height: 100,
-                y: 100,
-                text: {
-                  text: 'LocalCut export validation',
-                  fontSize: 48,
-                  color: 'white',
-                  background: 'black',
+    const result = await page.evaluate(
+      async ({ seconds, speedRampWorkload }) => {
+        const editor = window.editor,
+          p = await editor.projects.create('performance');
+        await editor.commands.apply({
+          projectId: p.id,
+          requestId: 'assembly',
+          expectedRevision: 0,
+          operations: [
+            { type: 'addTrack', track: { id: 'visual', kind: 'video' } },
+            { type: 'addTrack', track: { id: 'titles', kind: 'overlay' } },
+            ...Array.from({ length: seconds }, (_, i) => [
+              {
+                type: 'insertClip' as const,
+                trackId: 'visual',
+                clip: {
+                  id: 'source-' + i,
+                  kind: 'video' as const,
+                  assetId: window.asset.id,
+                  startUs: i * 1e6,
+                  durationUs: 1e6,
+                  sourceOutUs: 1e6,
+                  ...(speedRampWorkload
+                    ? {
+                        pitchMode: 'preserve' as const,
+                        speedRamp: [
+                          {
+                            position: 0,
+                            speed: 0.5,
+                            interpolation: 'smooth' as const,
+                          },
+                          {
+                            position: 0.5,
+                            speed: 1.5,
+                            interpolation: 'smooth' as const,
+                          },
+                          {
+                            position: 1,
+                            speed: 0.5,
+                            interpolation: 'smooth' as const,
+                          },
+                        ],
+                      }
+                    : {}),
                 },
-                keyframes: {
-                  x: [
-                    { timeUs: 0, value: (i / seconds) * 1200 },
-                    { timeUs: 1e6, value: ((i + 1) / seconds) * 1200 },
-                  ],
+              },
+              {
+                type: 'insertClip' as const,
+                trackId: 'titles',
+                clip: {
+                  id: 'label-' + i,
+                  kind: 'text' as const,
+                  startUs: i * 1e6,
+                  durationUs: 1e6,
+                  width: 600,
+                  height: 100,
+                  y: 100,
+                  text: {
+                    text: 'LocalCut export validation',
+                    fontSize: 48,
+                    color: 'white',
+                    background: 'black',
+                  },
+                  keyframes: {
+                    x: [
+                      { timeUs: 0, value: (i / seconds) * 1200 },
+                      { timeUs: 1e6, value: ((i + 1) / seconds) * 1200 },
+                    ],
+                  },
                 },
               },
-            },
-          ]).flat(),
-        ],
-      });
-      const task = editor.exports.start(p.id, { format: 'mp4' });
-      await new Promise<void>((resolve) => {
-        const unsubscribe = task.subscribe((e) => {
-          if (e.stage === 'encode') {
-            unsubscribe();
-            resolve();
-          }
+            ]).flat(),
+          ],
         });
-      });
-      const seekStart = performance.now(),
-        frame = await editor.preview.frame(p.id, seconds * 500000, {
-          width: 480,
-          height: 270,
-        }).completion;
-      frame.image.close();
-      const seekMs = performance.now() - seekStart,
-        artifact = await task.completion;
-      const asset = await editor.assets.import(
-        new File([artifact.file], 'export.mp4', { type: 'video/mp4' }),
-      ).completion;
-      const bytes = artifact.file.size;
-      await artifact.dispose();
-      await editor.projects.delete(p.id);
-      return {
-        assetId: asset.id,
-        bytes,
-        durationUs: asset.durationUs,
-        videoCodec: asset.videoCodec,
-        audioCodec: asset.audioCodec,
-        seekMs,
-      };
-    }, duration);
+        const task = editor.exports.start(p.id, { format: 'mp4' });
+        await new Promise<void>((resolve) => {
+          const unsubscribe = task.subscribe((e) => {
+            if (e.stage === 'encode') {
+              unsubscribe();
+              resolve();
+            }
+          });
+        });
+        const seekStart = performance.now(),
+          frame = await editor.preview.frame(p.id, seconds * 500000, {
+            width: 480,
+            height: 270,
+          }).completion;
+        frame.image.close();
+        const seekMs = performance.now() - seekStart,
+          artifact = await task.completion;
+        const asset = await editor.assets.import(
+          new File([artifact.file], 'export.mp4', { type: 'video/mp4' }),
+        ).completion;
+        const bytes = artifact.file.size;
+        await artifact.dispose();
+        await editor.projects.delete(p.id);
+        return {
+          assetId: asset.id,
+          bytes,
+          durationUs: asset.durationUs,
+          videoCodec: asset.videoCodec,
+          audioCodec: asset.audioCodec,
+          seekMs,
+        };
+      },
+      { seconds: duration, speedRampWorkload },
+    );
     sampling = false;
     await sampler;
     indexAssetId = result.assetId;
@@ -342,6 +369,7 @@ test('@performance warmup, two-minute and five-minute 1080p export', async ({
     body: JSON.stringify(
       {
         workload: {
+          speedRampWorkload,
           width: 1920,
           height: 1080,
           frameRate: 30,

@@ -58,6 +58,8 @@ Version-one clips may now carry optional `groupId`; transitions may carry option
 
 An older application build with strict schemas rejects these fields in working documents and saved history/version snapshots. Export backups before downgrading. Use a fresh storage namespace and a compatible backup without group/template metadata if an older build is required; ungrouping or restoring only the working state can leave newer snapshots behind. Reverting app files alone is not a compatibility migration. Ordinary generated attribute keyframes remain compatible with the existing renderer.
 
+Speed ramps, pitch mode and nominal `speedRampSourceRange` split bounds are optional version-one clip fields. Split provenance survives history, backup, duplication and audio separation; its endpoints must round to the actual source range. Older documents with omitted pitch mode use change pitch and no ramp; parsing does not inject new fields; current history, immutable versions and workspace/project transfer retain authored settings through the shared project schema. No IndexedDB migration or receipt rewrite is needed. Older app builds reject projects/backups containing these fields, so rollback requires retaining this revision to read newer authored documents.
+
 ## Asset index sidecar
 
 Explicit indexing or index inspection opens `${namespace}-asset-index-v1` (IndexedDB version 1), with `runs` and `journal` stores, and `${namespace}/asset-index/` in OPFS. This leaves the existing editor database version, project schema, versions, receipts and JSON backup envelope unchanged. Index transfer is deferred.

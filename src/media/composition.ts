@@ -3,6 +3,8 @@ import type { Input, VideoSample } from 'mediabunny';
 import type { Clip, Project, Transcript } from '../core/model';
 import { EditorError, invariant } from '../core/errors';
 import { gainAt, mapSourceCue, sourceTimeUs, valueAt } from '../core/timing';
+import { sourcePositionUs, speedAt } from '../core/speed';
+import { PitchStretcher } from '../core/stretch';
 import { resampleAt } from '../core/resample';
 import { checkAbort } from '../services/jobs';
 import type { Progress } from '../services/jobs';
@@ -78,6 +80,7 @@ export class Renderer {
   private videoFrames = new Map<string, VideoFrameCursor>();
   private images = new Map<string, ImageBitmap>();
   private pcm = new Map<string, File>();
+  private stretchers = new Map<string, PitchStretcher>();
   private leases = new Map<string, () => void>();
   private transcripts = new Map<string, Transcript | undefined>();
   constructor(
@@ -421,6 +424,7 @@ export class Renderer {
         }
       }
 
+    const activeClips = new Set<string>();
     for (const track of this.project.tracks) {
       if (track.muted) continue;
       for (const clip of track.clips) {
@@ -444,29 +448,65 @@ export class Renderer {
               ((clip.startUs + clip.durationUs - startUs) * 48000) / 1e6,
             ),
           );
-        const sourceStart =
-            ((clip.sourceInUs +
-              (startUs + (first * 1e6) / 48000 - clip.startUs) * clip.speed) *
-              48000) /
-            1e6,
-          windowStart = Math.floor(sourceStart) - 32,
-          windowCount = Math.ceil((last - first) * clip.speed) + 66;
-        const channels = await pcmWindow(file, windowStart, windowCount);
-        for (let i = first; i < last; i++) {
-          const timeUs = ((startFrame + i) * 1e6) / 48000,
-            position =
-              ((clip.sourceInUs + (timeUs - clip.startUs) * clip.speed) *
-                48000) /
-                1e6 -
-              windowStart,
-            gain = gainAt(clip, timeUs);
-          for (let channel = 0; channel < 2; channel++)
-            mixed[channel]![i] =
-              mixed[channel]![i]! +
-              resampleAt(channels[channel]!, position, clip.speed) * gain;
+        activeClips.add(clip.id);
+        const localFrame = (frame: number) =>
+          frame - (clip.startUs * 48000) / 1e6;
+        const position = (frame: number) =>
+          (sourcePositionUs(clip, (frame * 1e6) / 48000) * 48000) / 1e6;
+        const read = async (start: number, length: number) => {
+          checkAbort(signal);
+          const channels = await pcmWindow(file, start, length);
+          const sourceIn = (clip.sourceInUs * 48000) / 1e6,
+            sourceOut = (clip.sourceOutUs! * 48000) / 1e6;
+          for (const channel of channels)
+            for (let i = 0; i < channel.length; i++)
+              if (start + i < sourceIn || start + i >= sourceOut)
+                channel[i] = 0;
+          return channels;
+        };
+        if (
+          clip.pitchMode === 'preserve' &&
+          (clip.speedRamp || clip.speed !== 1)
+        ) {
+          let stretcher = this.stretchers.get(clip.id);
+          if (!stretcher) {
+            stretcher = new PitchStretcher();
+            this.stretchers.set(clip.id, stretcher);
+          }
+          // Use absolute integer output indices, including sub-sample clip placements.
+          const origin = Math.ceil((clip.startUs * 48000) / 1e6);
+          const stretched = await stretcher.render(
+            startFrame + first - origin,
+            last - first,
+            (frame) => position(localFrame(origin + frame)),
+            read,
+          );
+          for (let i = first; i < last; i++) {
+            const gain = gainAt(clip, ((startFrame + i) * 1e6) / 48000);
+            for (let c = 0; c < 2; c++)
+              mixed[c]![i] = mixed[c]![i]! + stretched[c]![i - first]! * gain;
+          }
+        } else {
+          const windowStart =
+            Math.floor(position(localFrame(startFrame + first))) - 32;
+          const windowEnd =
+            Math.ceil(position(localFrame(startFrame + last))) + 34;
+          const channels = await read(windowStart, windowEnd - windowStart);
+          for (let i = first; i < last; i++) {
+            const timeUs = ((startFrame + i) * 1e6) / 48000,
+              source = position(localFrame(startFrame + i)) - windowStart,
+              gain = gainAt(clip, timeUs),
+              speed = speedAt(clip, timeUs - clip.startUs);
+            for (let channel = 0; channel < 2; channel++)
+              mixed[channel]![i] =
+                mixed[channel]![i]! +
+                resampleAt(channels[channel]!, source, speed) * gain;
+          }
         }
       }
     }
+    for (const id of this.stretchers.keys())
+      if (!activeClips.has(id)) this.stretchers.delete(id);
     for (const channel of mixed)
       for (let i = 0; i < channel.length; i++)
         channel[i] = Math.max(-1, Math.min(1, channel[i]!));
@@ -488,6 +528,7 @@ export class Renderer {
     this.layers.clear();
     this.sinks.clear();
     this.pcm.clear();
+    this.stretchers.clear();
     this.transcripts.clear();
     this.canvas.width = 1;
     this.canvas.height = 1;

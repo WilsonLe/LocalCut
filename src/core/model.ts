@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { averageSpeed, nominalSourceBounds } from './speed';
+import { speedRampSchema } from './speed-schema';
 import { EditorError, invariant } from './errors';
 import { transitionPairs, TRANSITION_TEMPLATES } from './timeline';
 const id = z.string().min(1).max(200);
@@ -65,6 +67,18 @@ const clipInputSchema = z
     sourceInUs: time.default(0),
     sourceOutUs: time.optional(),
     speed: finite.min(0.25).max(4).default(1),
+    pitchMode: z.enum(['change', 'preserve']).optional(),
+    speedRamp: speedRampSchema.optional(),
+    // Split provenance: nominal bounds before integer source-boundary rounding.
+    speedRampSourceRange: z
+      .object({
+        sourceInUs: time,
+        sourceOutUs: time.positive(),
+        from: finite.min(0).max(1),
+        to: finite.min(0).max(1),
+      })
+      .strict()
+      .optional(),
     x: finite.default(0),
     y: finite.default(0),
     width: finite.positive().default(1920),
@@ -335,12 +349,29 @@ export function validateProject(value: unknown): Project {
         );
         invariant(
           Math.abs(
-            (clip.sourceOutUs - clip.sourceInUs) / clip.speed - clip.durationUs,
+            nominalSourceBounds(clip).spanUs / averageSpeed(clip) -
+              clip.durationUs,
           ) <= 1,
           'INVALID_DOCUMENT',
           'Duration must match source range and speed',
         );
       }
+      if (clip.speedRampSourceRange)
+        invariant(
+          !!clip.speedRamp &&
+            clip.speedRampSourceRange.sourceOutUs >
+              clip.speedRampSourceRange.sourceInUs &&
+            clip.speedRampSourceRange.to > clip.speedRampSourceRange.from &&
+            Math.round(nominalSourceBounds(clip).inUs) === clip.sourceInUs &&
+            Math.round(nominalSourceBounds(clip).outUs) === clip.sourceOutUs,
+          'INVALID_DOCUMENT',
+          'Ramp split bounds must round to the source range',
+        );
+      invariant(
+        !clip.speedRamp || ['video', 'audio'].includes(clip.kind),
+        'INVALID_DOCUMENT',
+        'Speed ramps require timed media',
+      );
       if (clip.kind === 'text')
         invariant(clip.text, 'INVALID_DOCUMENT', 'Text style required');
       invariant(

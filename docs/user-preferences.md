@@ -92,6 +92,11 @@ This is the project record of the user's durable product and workflow choices. U
 - Audit common keyboard and mouse combinations across supported video-editing workflows. Ctrl/Command+wheel and trackpad pinch zoom the editing surface under the cursor with its content anchored there; timeline and preview views stay independent.
 - Use familiar selection, clipboard, navigation, trim, history and view shortcuts with discoverable help. Preserve text entry, native controls and modal/menu interaction, and route edits through the shared engine.
 
+## Speed editing — 10 October 2026
+
+- Provide speed adjustments with either preserved audio pitch or pitch changing with speed.
+- Provide customizable speed ramps that curve, rise/fall linearly, or step up/down. Allow direction changes and editable points.
+
 ## Delivery and validation
 
 - Pull and rebase onto current `main`, including the OpenRouter integration, before completing the workspace.

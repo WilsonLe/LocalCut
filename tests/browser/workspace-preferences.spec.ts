@@ -48,6 +48,9 @@ for (const base of ['/', '/LocalCut/']) {
         exact: true,
       }),
     ).toHaveCount(0);
+    await expect(
+      projectMenu.getByRole('menuitem', { name: 'New project', exact: true }),
+    ).toBeFocused();
     await page.keyboard.press('ArrowLeft');
     await expect(projectMenu).not.toBeVisible();
     await expect(project).toBeFocused();

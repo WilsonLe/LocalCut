@@ -1,3 +1,7 @@
+import { useState } from 'react';
+import { averageSpeed, sourceDurationUs } from '../core/speed';
+import type { SpeedRamp } from '../core/speed';
+import { SpeedRampEditor } from './SpeedRampEditor';
 import { Download, LoaderCircle } from 'lucide-react';
 import type {
   Asset,
@@ -117,7 +121,7 @@ export default function WorkspaceDialogs({
           if (!open && !busy) onDialogChange(null);
         }}
       >
-        <DialogContent>
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>Clip properties</DialogTitle>
             <DialogDescription>
@@ -312,6 +316,11 @@ function Properties({
   readOnly?: boolean;
   onSave: (operations: EditOperation[]) => void;
 }) {
+  const [ramp, setRamp] = useState<SpeedRamp | undefined>(clip.speedRamp);
+  const [pitchMode, setPitchMode] = useState<'change' | 'preserve'>(
+    clip.pitchMode ?? 'change',
+  );
+  const isTimedSource = clip.kind === 'video' || clip.kind === 'audio';
   return (
     <form
       onSubmit={(event) => {
@@ -319,22 +328,30 @@ function Properties({
         const form = new FormData(event.currentTarget);
         const startUs = Math.round(Number(form.get('start')) * 1e6),
           enteredDurationUs = Math.round(Number(form.get('duration')) * 1e6),
-          speed = Number(form.get('speed')),
+          speed = form.has('speed') ? Number(form.get('speed')) : clip.speed,
           gain = Number(form.get('gain'));
-        const isTimedSource = clip.kind === 'video' || clip.kind === 'audio';
         const durationChanged = enteredDurationUs !== clip.durationUs;
         const durationUs =
-          isTimedSource && !durationChanged && speed !== clip.speed
-            ? Math.round((clip.sourceOutUs! - clip.sourceInUs) / speed)
+          isTimedSource &&
+          !durationChanged &&
+          (speed !== clip.speed ||
+            JSON.stringify(ramp) !== JSON.stringify(clip.speedRamp))
+            ? sourceDurationUs(
+                { speed, speedRamp: ramp },
+                clip.sourceOutUs! - clip.sourceInUs,
+              )
             : enteredDurationUs;
         const patch: Extract<EditOperation, { type: 'updateClip' }>['patch'] = {
           startUs,
           durationUs,
           speed,
           gain,
+          ...(isTimedSource ? { pitchMode } : {}),
         };
         if (isTimedSource && durationChanged)
-          patch.sourceOutUs = clip.sourceInUs + Math.round(durationUs * speed);
+          patch.sourceOutUs =
+            clip.sourceInUs +
+            Math.round(durationUs * averageSpeed({ speed, speedRamp: ramp }));
         if (clip.text)
           patch.text = { ...clip.text, text: String(form.get('text') ?? '') };
         const operations: EditOperation[] = [];
@@ -346,63 +363,106 @@ function Properties({
           });
           delete patch.startUs;
         }
+        if (
+          isTimedSource &&
+          (speed !== clip.speed ||
+            JSON.stringify(ramp) !== JSON.stringify(clip.speedRamp))
+        )
+          operations.push(
+            ramp
+              ? {
+                  type: 'setSpeedRamp',
+                  clipId: clip.id,
+                  points: ramp,
+                  pitchMode,
+                }
+              : { type: 'setSpeed', clipId: clip.id, speed, pitchMode },
+          );
         onSave([...operations, { type: 'updateClip', clipId: clip.id, patch }]);
       }}
-      className="grid gap-4"
+      className="flex min-h-0 flex-col gap-4 overflow-hidden"
     >
-      <div className="grid grid-cols-2 gap-4">
-        {[
-          {
-            name: 'start',
-            label: 'Start (seconds)',
-            value: clip.startUs / 1e6,
-            min: 0,
-            max: undefined,
-          },
-          {
-            name: 'duration',
-            label: 'Duration (seconds)',
-            value: clip.durationUs / 1e6,
-            min: 0.000001,
-            max: undefined,
-          },
-          {
-            name: 'speed',
-            label: 'Speed',
-            value: clip.speed,
-            min: 0.25,
-            max: 4,
-          },
-          { name: 'gain', label: 'Gain', value: clip.gain, min: 0, max: 16 },
-        ].map((field) => (
-          <div className="grid gap-2" key={field.name}>
-            <Label htmlFor={`clip-${field.name}`}>{field.label}</Label>
-            <Input
-              id={`clip-${field.name}`}
-              name={field.name}
-              type="number"
-              required
-              min={field.min}
-              max={field.max}
-              step="any"
+      <div className="grid min-h-0 gap-4 overflow-y-auto px-1 -mx-1">
+        <div className="grid grid-cols-2 gap-4">
+          {[
+            {
+              name: 'start',
+              label: 'Start (seconds)',
+              value: clip.startUs / 1e6,
+              min: 0,
+              max: undefined,
+            },
+            {
+              name: 'duration',
+              label: 'Duration (seconds)',
+              value: clip.durationUs / 1e6,
+              min: 0.000001,
+              max: undefined,
+            },
+            {
+              name: 'speed',
+              label: 'Speed',
+              value: clip.speed,
+              min: 0.25,
+              max: 4,
+            },
+            { name: 'gain', label: 'Gain', value: clip.gain, min: 0, max: 16 },
+          ]
+            .filter((field) => field.name !== 'speed' || !ramp)
+            .map((field) => (
+              <div className="grid gap-2" key={field.name}>
+                <Label htmlFor={`clip-${field.name}`}>{field.label}</Label>
+                <Input
+                  id={`clip-${field.name}`}
+                  name={field.name}
+                  type="number"
+                  required
+                  min={field.min}
+                  max={field.max}
+                  step="any"
+                  readOnly={readOnly}
+                  defaultValue={field.value}
+                />
+              </div>
+            ))}
+        </div>
+        {isTimedSource && (
+          <>
+            <Label htmlFor="audio-pitch">Audio pitch</Label>
+            <SettingsSelect
+              id="audio-pitch"
+              selectedLabel={
+                pitchMode === 'preserve' ? 'Keep pitch' : 'Change pitch'
+              }
+              label="Audio pitch"
+              value={pitchMode}
+              disabled={readOnly}
+              onChange={(value) => setPitchMode(value as 'change' | 'preserve')}
+              options={[
+                { value: 'change', label: 'Change pitch' },
+                { value: 'preserve', label: 'Keep pitch' },
+              ]}
+            />
+            <SpeedRampEditor
+              points={ramp}
+              onChange={setRamp}
               readOnly={readOnly}
-              defaultValue={field.value}
+            />
+          </>
+        )}
+        {clip.text && (
+          <div className="grid gap-2">
+            <Label htmlFor="clip-text">Text</Label>
+            <Input
+              id="clip-text"
+              name="text"
+              readOnly={readOnly}
+              defaultValue={clip.text.text}
             />
           </div>
-        ))}
+        )}
       </div>
-      {clip.text && (
-        <div className="grid gap-2">
-          <Label htmlFor="clip-text">Text</Label>
-          <Input
-            id="clip-text"
-            name="text"
-            readOnly={readOnly}
-            defaultValue={clip.text.text}
-          />
-        </div>
-      )}
-      <DialogFooter>
+      <DialogFooter className="shrink-0">
         {!readOnly && (
           <Button type="submit" disabled={busy}>
             Apply properties

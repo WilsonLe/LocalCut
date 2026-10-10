@@ -1,5 +1,5 @@
 import type { Project } from '../core/model';
-import { frameTimeUs } from '../core/timing';
+import { frameTimeUs } from '../core/frame-time';
 
 export type EditorShortcut =
   | 'playPause'

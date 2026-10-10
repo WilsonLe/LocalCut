@@ -61,7 +61,7 @@ Legacy Download project backup / Import project backup controls retain the origi
 
 ## Editing and preview
 
-Select a timeline clip to open its properties, split at the playhead or delete it. Start and duration use seconds in the form and integer microseconds in the engine. Changing only speed preserves the existing source range and changes duration. Editing duration explicitly changes the source out-point; the engine rejects unavailable source time and invalid keyframe/caption/fade bounds. Undo and Redo use the canonical history and revision checks, including after reload.
+Select a timeline clip to open its properties, split at the playhead or delete it. Start and duration use seconds in the form and integer microseconds in the engine. Changing only speed preserves the existing source range and changes duration. Clip properties offers Change pitch/Keep pitch and a Speed profile selector. Choose a constant rate or up/down/up-then-down/down-then-up preset; edit point percentages and rates, add/remove interior points, and choose Curve, Linear or Staircase for each segment. Dedicated staircase presets start with eight editable plateaus and reach their last speed before the endpoint. The graph shows the current profile. Editing duration explicitly changes the source out-point; the engine rejects unavailable source time and invalid keyframe/caption/fade bounds. Undo and Redo use the canonical history and revision checks, including after reload.
 
 Manual changes retain the revision shown in the workspace. If another window commits first, LocalCut rejects the stale change and refreshes the form. Review the latest values before retrying; concurrent edits are not silently overwritten.
 

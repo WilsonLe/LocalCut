@@ -477,7 +477,14 @@ export function createAssistant(options: AssistantOptions) {
                   timeUnit: 'integer_microseconds',
                   intervals: 'half_open',
                   keyframes: 'clip_local_timeline',
-                  speed: { min: 0.25, max: 4, changesAudioPitch: true },
+                  speed: {
+                    min: 0.25,
+                    max: 4,
+                    pitchModes: ['change', 'preserve'],
+                    rampInterpolation: ['smooth', 'linear', 'hold'],
+                    rampPoints:
+                      'ordered positions 0 to 1 inclusive; setSpeedRamp derives duration and preserves source endpoints; setSpeed clears the ramp',
+                  },
                   effectOrder: [
                     'brightness',
                     'contrast',
