@@ -73,6 +73,11 @@ for (const base of ['/', '/LocalCut/']) {
           exact: true,
         });
         await expect(shortcuts).toBeVisible();
+        await shortcuts.evaluate((el) =>
+          Promise.all(
+            el.getAnimations().map((animation) => animation.finished),
+          ),
+        );
         const bounds = (await shortcuts.boundingBox())!;
         expect(bounds.y).toBeGreaterThanOrEqual(0);
         expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height);
@@ -105,6 +110,11 @@ for (const base of ['/', '/LocalCut/']) {
           exact: true,
         });
         await expect(dialog).toBeVisible();
+        await dialog.evaluate((el) =>
+          Promise.all(
+            el.getAnimations().map((animation) => animation.finished),
+          ),
+        );
         const height = (await dialog.boundingBox())!.height;
         await dialog
           .getByLabel('OpenRouter API key', { exact: true })
