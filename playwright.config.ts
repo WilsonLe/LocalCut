@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test';
-import { resources } from './scripts/test-resources.ts';
-const browserWorkers = resources().browserWorkers;
+import { resources, normalBrowserEnv } from './scripts/test-resources.ts';
+const browserWorkers = resources(normalBrowserEnv()).browserWorkers;
 export default defineConfig({
   testDir: 'tests/browser',
   timeout: 120000,

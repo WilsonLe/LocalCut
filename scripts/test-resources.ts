@@ -18,6 +18,14 @@ const read = (path: string) => {
     return '';
   }
 };
+// Normal acceptance favors reusing one browser. Explicit overrides still use
+// the shared live CPU/memory policy; heavyweight projects keep their own gate.
+export function normalBrowserEnv(env: NodeJS.ProcessEnv = process.env) {
+  return {
+    ...env,
+    LOCALCUT_BROWSER_WORKERS: env.LOCALCUT_BROWSER_WORKERS ?? '1',
+  };
+}
 export function availableBytes(
   platform: string,
   statistics: string,
