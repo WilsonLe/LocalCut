@@ -11,7 +11,6 @@ export default defineConfig({
     {
       name: 'chrome',
       testIgnore: ['**/transcription.spec.ts', '**/performance.spec.ts'],
-      workers: browserWorkers,
     },
     {
       name: 'acceptance',

@@ -29,28 +29,29 @@ Contributors and coding agents: start with [AGENTS.md](AGENTS.md) and the [devel
 
 Validation runs locally with `pnpm check` and the applicable real transcription/performance acceptance commands. Hosted CI is disabled. GitHub Pages builds and publishes automatically on every push to `main`; release packaging remains separate from local validation. Confirmed manual redeployment is also available. See [deployment and rollback](DEPLOY.md).
 
-| Command                   | Purpose                                                       |
-| ------------------------- | ------------------------------------------------------------- |
-| `pnpm dev`                | Local editor workspace at the root path                       |
-| `pnpm typecheck`          | Strict browser, worker, Node/test/config checks               |
-| `pnpm lint`               | ESLint and pure-core import boundaries                        |
-| `pnpm format:check`       | Prettier                                                      |
-| `pnpm test`               | Domain and service unit tests                                 |
-| `pnpm build`              | App + `editor.js` + `ai.js` + worker assets + declarations    |
-| `pnpm build:root`         | Equivalent build at `/` in `dist-root`                        |
-| `pnpm test:browser`       | Production integration in Google Chrome                       |
-| `pnpm test:safari`        | Native Safari storage and H.264/AAC regressions (macOS)       |
-| `pnpm test:tooling`       | Resource scheduling and verified-build cache regressions      |
-| `pnpm test:ui`            | Focused workspace tests; rebuild only stale production assets |
-| `pnpm test:transcription` | Real pinned Whisper preparation and cached replay             |
-| `pnpm test:performance`   | Warmup, two- and five-minute 1080p exports                    |
-| `pnpm test:ai:live`       | Opt-in real OpenRouter test; private key and model required   |
-| `pnpm check:bundle`       | Actual entry graph and static artifact budgets                |
-| `pnpm check`              | Normal formatting/lint/type/unit/build/bundle/browser gates   |
+| Command                               | Purpose                                                       |
+| ------------------------------------- | ------------------------------------------------------------- |
+| `pnpm dev`                            | Local editor workspace at the root path                       |
+| `pnpm typecheck`                      | Strict browser, worker, Node/test/config checks               |
+| `pnpm lint`                           | ESLint and pure-core import boundaries                        |
+| `pnpm format:check`                   | Prettier                                                      |
+| `pnpm test`                           | Domain and service unit tests                                 |
+| `pnpm build`                          | App + `editor.js` + `ai.js` + worker assets + declarations    |
+| `pnpm build:root`                     | Equivalent build at `/` in `dist-root`                        |
+| `pnpm test:browser`                   | Production integration in Google Chrome                       |
+| `pnpm test:safari`                    | Native Safari storage and H.264/AAC regressions (macOS)       |
+| `pnpm test:profile <label> <command>` | Wall time, descendant CPU/RSS and host utilization profile    |
+| `pnpm test:tooling`                   | Resource scheduling and verified-build cache regressions      |
+| `pnpm test:ui`                        | Focused workspace tests; rebuild only stale production assets |
+| `pnpm test:transcription`             | Real pinned Whisper preparation and cached replay             |
+| `pnpm test:performance`               | Warmup, two- and five-minute 1080p exports                    |
+| `pnpm test:ai:live`                   | Opt-in real OpenRouter test; private key and model required   |
+| `pnpm check:bundle`                   | Actual entry graph and static artifact budgets                |
+| `pnpm check`                          | Normal formatting/lint/type/unit/build/bundle/browser gates   |
 
-Browser commands require both production builds first, except `test:ui` and `test:safari`, which verify or build them automatically. The harness server is test-only and never enters `dist`. Unit and normal Chrome concurrency adapt to CPU availability, current load, available memory (including reclaimable OS cache), and cgroup limits. `LOCALCUT_TEST_SLOTS=1` makes the check pipeline serial; `LOCALCUT_UNIT_WORKERS=1` or `LOCALCUT_BROWSER_WORKERS=1` narrows a worker pool. Overrides are bounded to 8 slots/unit workers and 4 Chrome workers and capped by capacity. Transcription, performance, and live-provider tests remain serial, explicit additional gates; none is included in ordinary `check`.
+Browser commands require both production builds first, except `test:ui` and `test:safari`, which verify or build them automatically. The harness server is test-only and never enters `dist`. Unit and normal Chrome concurrency adapt to CPU availability, current load, available memory (including reclaimable OS cache), and cgroup limits. `LOCALCUT_TEST_SLOTS=1` makes the check pipeline serial; `LOCALCUT_UNIT_WORKERS=1` or `LOCALCUT_BROWSER_WORKERS=1` narrows a worker pool. Overrides accept positive safe integers and only narrow available capacity; there are no fixed machine-size ceilings. Normal Chrome reserves two CPU slots and about 1.5 GiB per worker. Transcription, performance, and live-provider tests remain serial, explicit additional gates; none is included in ordinary `check`.
 
-For UI iteration, run `pnpm test:ui`, or narrow it with `pnpm test:ui --grep 'speed rounding'`. It runs workspace tests at both static base paths. Content hashes verify build inputs and every output file before reuse; changed source, build configuration, dependencies, or missing/tampered output triggers a rebuild. Documentation and test-only edits do not. The stamps live in ignored `.cache/build-state/`, outside deployed assets. `pnpm check` uses the same verified-build reuse and retains all static, unit, artifact and Chrome gates. It overlaps independent checks within a shared resource budget, runs both builds in sequence, and starts browser consumers only after outputs pass the bundle gate.
+For UI iteration, run `pnpm test:ui`, or narrow it with `pnpm test:ui --grep 'speed rounding'`. It runs workspace tests at both static base paths. Content hashes verify build inputs and every output file before reuse; changed source, build configuration, dependencies, or missing/tampered output triggers a rebuild. Documentation and test-only edits do not. The stamps live in ignored `.cache/build-state/`, outside deployed assets. `pnpm check` uses the same verified-build reuse and retains all static, unit, artifact and Chrome gates. It refreshes its shared resource budget at gate boundaries and every second while waiting, overlaps independent checks, runs both builds in sequence, and starts browser consumers only after outputs pass the bundle gate.
 
 TypeScript 7.0.2 supplies `tsc` through the `@typescript/native` alias. The `typescript` alias supplies Microsoft's pinned v6 compatibility API for typescript-eslint; it does not replace the production compiler. Dependencies and the lockfile are exact.
 

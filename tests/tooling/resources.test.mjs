@@ -4,6 +4,7 @@ import {
   cgroupPaths,
   availableBytes,
   allocation,
+  cpuLoad,
   quotaCpus,
   memoryLimit,
 } from '../../scripts/test-resources.ts';
@@ -11,7 +12,7 @@ import { schedule } from '../../scripts/test-scheduler.mjs';
 const GiB = 1024 ** 3;
 const host = { cpus: 16, freeBytes: 20 * GiB, totalBytes: 32 * GiB, load: 0 };
 test('limits workers by idle CPU, free memory, affinity and cgroup quotas', () => {
-  assert.equal(allocation(host).slots, 8);
+  assert.equal(allocation(host).slots, 16);
   assert.equal(allocation({ ...host, cpus: 2 }).browserWorkers, 1);
   assert.equal(allocation({ ...host, load: 14 }).slots, 2);
   assert.equal(allocation({ ...host, freeBytes: 3 * GiB }).slots, 2);
@@ -39,9 +40,9 @@ test('explicit bounds remain capped by capacity and invalid values fail early', 
   );
   for (const [key, value] of [
     ['LOCALCUT_TEST_SLOTS', '0'],
-    ['LOCALCUT_TEST_SLOTS', '9'],
+    ['LOCALCUT_TEST_SLOTS', '9007199254740992'],
     ['LOCALCUT_UNIT_WORKERS', '1.5'],
-    ['LOCALCUT_BROWSER_WORKERS', '5'],
+    ['LOCALCUT_BROWSER_WORKERS', '-1'],
     ['LOCALCUT_BROWSER_WORKERS', ''],
   ]) {
     assert.throws(
@@ -154,4 +155,131 @@ test('nested cgroups probe the process group and every enforcing ancestor', () =
       '/sys/fs/cgroup/cpu,cpuacct/job',
     ),
   );
+});
+
+test('large hosts scale past old ceilings, narrowing overrides never exceed live headroom', () => {
+  const large = {
+    ...host,
+    cpus: 64,
+    freeBytes: 80 * GiB,
+    totalBytes: 128 * GiB,
+  };
+  assert.equal(allocation(large).slots, 64);
+  assert.equal(allocation(large).browserWorkers, 32);
+  assert.equal(
+    allocation(large, { LOCALCUT_UNIT_WORKERS: '40' }).unitWorkers,
+    40,
+  );
+  assert.equal(
+    allocation({ ...large, load: 60 }, { LOCALCUT_TEST_SLOTS: '64' }).slots,
+    4,
+  );
+  assert.equal(
+    allocation(host, { LOCALCUT_TEST_SLOTS: '1' }).browserWorkers,
+    1,
+  );
+});
+
+test('running reservations are accounted once while external pressure narrows new launches', () => {
+  assert.equal(
+    allocation({ ...host, load: 8, freeBytes: 12 * GiB }, {}, 8).slots,
+    16,
+  );
+  assert.equal(
+    allocation({ ...host, load: 15, freeBytes: 2 * GiB }, {}, 4).slots,
+    5,
+  );
+});
+
+test('scheduler refreshes capacity while tasks run and grows an elastic pool after recovery', async () => {
+  let slots = 1;
+  const events = [];
+  let release;
+  const barrier = new Promise((resolve) => {
+    release = resolve;
+  });
+  const run = schedule(
+    [
+      {
+        id: 'peer',
+        cost: 1,
+        run: async () => {
+          events.push('peer');
+          await barrier;
+        },
+      },
+      {
+        id: 'pool',
+        cost: 1,
+        maxCost: 8,
+        run: ({ cost }) => {
+          events.push(cost);
+          release();
+        },
+      },
+    ],
+    () => slots,
+    { pollMs: 5 },
+  );
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  assert.deepEqual(events, ['peer']);
+  slots = 8;
+  await run;
+  assert.deepEqual(events, ['peer', 7]);
+});
+
+test('shrinking budgets drain running tasks before admitting another pool', async () => {
+  let slots = 4;
+  const events = [];
+  let release;
+  const barrier = new Promise((resolve) => {
+    release = resolve;
+  });
+  setTimeout(() => release(), 20);
+  await schedule(
+    [
+      {
+        id: 'first',
+        cost: 4,
+        run: async () => {
+          slots = 1;
+          await barrier;
+          events.push('first');
+        },
+      },
+      {
+        id: 'next',
+        cost: 2,
+        maxCost: 8,
+        run: ({ cost }) => {
+          events.push(cost);
+        },
+      },
+    ],
+    () => slots,
+    { pollMs: 5 },
+  ).then(() => assert.deepEqual(events, ['first', 1]));
+  // Release via a timer so the scheduler also observes pressure while the first task runs.
+});
+
+test('recent CPU deltas reflect pressure recovery without waiting for one-minute load averages', () => {
+  const previous = { at: 0, total: 1000, idle: 500 };
+  assert.equal(cpuLoad(previous, { at: 1000, total: 2000, idle: 1000 }, 18), 9);
+  assert.equal(cpuLoad(previous, { at: 1000, total: 2000, idle: 1500 }, 18), 0);
+  assert.equal(cpuLoad(previous, previous, 18), undefined);
+});
+
+test('nested runner grants avoid subtracting parent load twice but retain RAM/quota and narrowing bounds', () => {
+  const env = { LOCALCUT_TEST_GRANTED_SLOTS: '10', LOCALCUT_TEST_SLOTS: '10' };
+  assert.equal(allocation({ ...host, load: 14 }, env).unitWorkers, 10);
+  assert.equal(
+    allocation({ ...host, load: 14, freeBytes: 3 * GiB }, env).slots,
+    2,
+  );
+  assert.equal(allocation({ ...host, load: 14, cpuLimit: 4 }, env).slots, 4);
+  assert.equal(
+    allocation(host, { ...env, LOCALCUT_UNIT_WORKERS: '1' }).unitWorkers,
+    1,
+  );
+  assert.throws(() => allocation(host, { LOCALCUT_TEST_GRANTED_SLOTS: '0' }));
 });

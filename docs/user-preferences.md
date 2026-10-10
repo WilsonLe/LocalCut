@@ -106,6 +106,7 @@ This is the project record of the user's durable product and workflow choices. U
 ## Delivery and validation
 
 - Pull and rebase onto current `main`, including the OpenRouter integration, before completing the workspace.
+- Benchmark and profile test scheduling when optimizing it. Scale normal test concurrency dynamically with the machine’s available CPU and memory; use measured throughput and preserve resource isolation.
 - Optimize tests for fast feedback. Prefer targeted tests while iterating and bounded parallelism where isolation allows it; retain required full acceptance before delivery. Do not trade away real Chrome, codec, transcription, privacy or export evidence for speed.
 - Add native Safari regression coverage alongside the Chrome acceptance target. Minimize duplicate builds/checks and unnecessary sequential waits; determine safe resource allocation dynamically from the machine and isolate shared outputs and heavyweight measurements.
 - Keep agent instructions and developer documentation useful and current. Make one development cycle fast with clear module ownership, focused checks, verified build reuse, failure recovery, and one automatic review-and-address cycle; avoid redundant full checks or repeated reviews when the relevant inputs have not changed.
