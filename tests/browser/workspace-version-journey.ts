@@ -1,9 +1,8 @@
-import { expect, test } from '@playwright/test';
-for (const base of ['/', '/LocalCut/']) {
-  test(`project version browsing recreates the read-only editor at ${base}`, async ({
-    page,
-  }) => {
-    await page.goto(base);
+import { expect, test, type Page } from '@playwright/test';
+
+export async function versionJourney(page: Page, base: string) {
+  await test.step(`project version browsing recreates the read-only editor at ${base}`, async () => {
+    // Continue in the already-open app.
     await page
       .getByRole('button', { name: 'Workspace settings', exact: true })
       .click();

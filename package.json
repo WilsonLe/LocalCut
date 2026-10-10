@@ -17,7 +17,7 @@
     "build": "node scripts/build.mjs",
     "build:root": "node scripts/build.mjs --root",
     "preview": "vite preview --port 4178 --strictPort",
-    "test:browser": "playwright test --project=chrome",
+    "test:browser": "node scripts/test-browser.mjs",
     "test:ui": "node scripts/test-ui.mjs",
     "test:transcription": "playwright test --project=acceptance --grep @transcription",
     "test:performance": "playwright test --project=acceptance --grep @performance",

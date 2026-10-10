@@ -321,6 +321,11 @@ test('rate-limit errors remain visible and retry requires a fresh send', async (
   await expect(
     page.getByRole('button', { name: 'Apply proposal', exact: true }),
   ).toHaveCount(0);
+  await page
+    .getByRole('listitem')
+    .filter({ hasText: 'OpenRouter rate limit reached.' })
+    .getByRole('button', { name: 'Close toast', exact: true })
+    .click();
   await send(page, 'Retry the overlay track request.');
   await expect(
     page.getByRole('button', { name: 'Apply proposal', exact: true }),

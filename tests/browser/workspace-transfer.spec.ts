@@ -292,7 +292,7 @@ for (const base of ['/', '/LocalCut/']) {
   });
   test(`workspace transfer settings-only import stays inert and project export is scoped ${base}`, async ({
     page,
-  }) => {
+  }, testInfo) => {
     await page.goto(base);
     await page.evaluate(() => {
       localStorage.setItem('unrelated', 'keep');
@@ -318,7 +318,9 @@ for (const base of ['/', '/LocalCut/']) {
     const downloadEvent = page.waitForEvent('download');
     await dialog.getByRole('button', { name: 'Download backup' }).click();
     const download = await downloadEvent;
-    const bytes = await readFile((await download.path())!);
+    const downloadPath = testInfo.outputPath('workspace.json');
+    await download.saveAs(downloadPath);
+    const bytes = await readFile(downloadPath);
     const backup = JSON.parse(bytes.toString());
     expect(backup.settings.workspace.chatWidth).toBe(320);
     expect(backup.projects).toEqual([]);
@@ -421,7 +423,9 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Download backup' })
       .click();
     const projectDownload = await projectDownloadEvent;
-    const projectBytes = await readFile((await projectDownload.path())!);
+    const projectDownloadPath = testInfo.outputPath('project.json');
+    await projectDownload.saveAs(projectDownloadPath);
+    const projectBytes = await readFile(projectDownloadPath);
     const single = JSON.parse(projectBytes.toString());
     expect(projectBytes.toString()).not.toContain(
       'synthetic-backup-exclusion-key',

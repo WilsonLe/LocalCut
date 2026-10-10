@@ -1,4 +1,5 @@
 import { openAISettings } from './workspace-settings-helper';
+import { versionJourney } from './workspace-version-journey';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -80,188 +81,216 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeFocused();
   });
 
-  test(`project navigation searches, switches and preserves editing ${base}`, async ({
-    page,
-    context,
-  }, testInfo) => {
-    await page.goto(base);
-    await page
-      .getByRole('button', { name: 'Open project', exact: true })
-      .click();
-    const browser = page.getByRole('main', { name: 'Projects', exact: true });
-    await expect(
-      browser.getByRole('heading', { name: 'Projects', exact: true }),
-    ).toBeFocused();
-    await expect(
-      browser.getByText('No saved projects yet', { exact: true }),
-    ).toBeVisible();
-    await create(page, 'Zebra film');
-    await context.route('https://openrouter.ai/api/v1/models', (route) =>
-      route.fulfill({
-        headers: { 'access-control-allow-origin': '*' },
-        json: {
-          data: [
-            {
-              id: 'test/navigation',
-              name: 'Navigation model',
-              context_length: 32000,
-              supported_parameters: ['tools', 'tool_choice'],
+  test(
+    '@journey ' +
+      [
+        `project navigation searches, switches and preserves editing ${base}`,
+        `project version browsing recreates the read-only editor at ${base}`,
+      ].join(' | '),
+    async ({ page, context }, testInfo) => {
+      await test.step(`project navigation searches, switches and preserves editing ${base}`, async () => {
+        await page.goto(base);
+        await page
+          .getByRole('button', { name: 'Open project', exact: true })
+          .click();
+        const browser = page.getByRole('main', {
+          name: 'Projects',
+          exact: true,
+        });
+        await expect(
+          browser.getByRole('heading', { name: 'Projects', exact: true }),
+        ).toBeFocused();
+        await expect(
+          browser.getByText('No saved projects yet', { exact: true }),
+        ).toBeVisible();
+        await create(page, 'Zebra film');
+        await context.route('https://openrouter.ai/api/v1/models', (route) =>
+          route.fulfill({
+            headers: { 'access-control-allow-origin': '*' },
+            json: {
+              data: [
+                {
+                  id: 'test/navigation',
+                  name: 'Navigation model',
+                  context_length: 32000,
+                  supported_parameters: ['tools', 'tool_choice'],
+                },
+              ],
             },
-          ],
-        },
-      }),
-    );
-    await openAISettings(page);
-    const connection = page.getByRole('dialog', {
-      name: 'AI connection',
-      exact: true,
-    });
-    await connection
-      .getByLabel('OpenRouter API key')
-      .fill('synthetic-navigation-key');
-    await connection.getByRole('button', { name: 'Use API key' }).click();
-    await connection
-      .getByRole('combobox', { name: 'AI model', exact: true })
-      .click();
-    await page
-      .getByRole('option', {
-        name: 'Navigation model · test/navigation',
-        exact: true,
-      })
-      .click();
-    await connection.getByRole('button', { name: 'Done', exact: true }).click();
-    await page.getByLabel('Describe your edit').fill('Preserve this draft');
-    await page.getByRole('button', { name: 'Commands', exact: true }).click();
-    const palette = page.getByRole('dialog', { name: 'Commands', exact: true });
-    await palette.getByRole('combobox').fill('Add text');
-    await palette.getByRole('option', { name: /Add text/ }).click();
-    await page
-      .getByRole('button', { name: 'Insert Plain text', exact: true })
-      .click();
-    await expect(
-      page.getByRole('dialog', { name: 'Clip properties', exact: true }),
-    ).toBeVisible();
-    await page.getByRole('button', { name: 'Close', exact: true }).click();
-    const selected = await page
-      .locator('.timeline-clip[aria-pressed="true"]')
-      .count();
-    expect(selected).toBe(1);
-    await page
-      .getByRole('button', { name: 'Play preview', exact: true })
-      .click();
-    await expect
-      .poll(async () =>
-        Number(
-          await page
-            .getByRole('slider', { name: 'Playhead position' })
-            .inputValue(),
-        ),
-      )
-      .toBeGreaterThan(0);
-    await page
-      .getByRole('button', { name: 'LocalCut home', exact: true })
-      .click();
-    await expect(browser).toBeVisible();
-    await expect(
-      page.getByRole('main', { name: 'Video editor' }),
-    ).not.toBeVisible();
-    await expect(
-      browser.getByRole('button', { name: /Zebra film/ }),
-    ).toContainText('1 clip');
-    await expect(
-      browser.getByRole('button', { name: /Zebra film/ }),
-    ).toContainText('Current');
-    await browser
-      .getByRole('button', { name: 'Back to editor', exact: true })
-      .click();
-    await expect(
-      page.getByRole('main', { name: 'Video editor' }),
-    ).toBeFocused();
-    await expect(
-      page.getByRole('button', { name: 'Play preview', exact: true }),
-    ).toBeVisible();
-    const playhead = page.getByRole('slider', { name: 'Playhead position' });
-    const stopped = await playhead.inputValue();
-    await page.waitForTimeout(150);
-    expect(await playhead.inputValue()).toBe(stopped);
-    await expect(page.getByLabel('Describe your edit')).toHaveValue(
-      'Preserve this draft',
-    );
-    expect(
-      await page.locator('.timeline-clip[aria-pressed="true"]').count(),
-    ).toBe(selected);
-    await playhead.focus();
-    await page.keyboard.press('End');
-    const scrubbed = await playhead.inputValue();
-    expect(Number(scrubbed)).toBeGreaterThan(Number(stopped));
-    await page
-      .getByRole('button', { name: 'Open project', exact: true })
-      .click();
-    await browser.getByRole('button', { name: /Zebra film/ }).click();
-    await expect(playhead).toHaveValue(scrubbed);
-    await expect(page.getByLabel('Describe your edit')).toHaveValue(
-      'Preserve this draft',
-    );
-    expect(
-      await page.locator('.timeline-clip[aria-pressed="true"]').count(),
-    ).toBe(selected);
-    await page.keyboard.press('ControlOrMeta+o');
-    await create(page, 'Alpha film');
-    await page.keyboard.press('ControlOrMeta+o');
-    const rows = browser
-      .getByRole('list', { name: 'Saved projects' })
-      .getByRole('button');
-    await expect(rows).toHaveCount(2);
-    await expect(rows.first()).toContainText('Alpha film');
-    const search = browser.getByRole('textbox', { name: 'Search projects' });
-    await search.fill('  ZEBRA  ');
-    await expect(rows).toHaveCount(1);
-    await expect(rows.first()).toContainText('Zebra film');
-    await search.fill('No such project');
-    await expect(
-      browser.getByText('No matching projects', { exact: true }),
-    ).toBeVisible();
-    await browser
-      .getByRole('button', { name: 'Clear search', exact: true })
-      .click();
-    await expect(search).toHaveValue('');
-    await page.screenshot({
-      path: testInfo.outputPath('projects-desktop.png'),
-      animations: 'disabled',
-    });
-    await page.setViewportSize({ width: 320, height: 800 });
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth,
-      ),
-    ).toBe(true);
-    await expect(
-      browser.getByRole('button', { name: 'New project', exact: true }),
-    ).toBeVisible();
-    await page.screenshot({
-      path: testInfo.outputPath('projects-narrow.png'),
-      fullPage: true,
-      animations: 'disabled',
-    });
-    await browser.getByRole('button', { name: /Zebra film/ }).click();
-    await expect(
-      page.getByRole('button', { name: 'Open project', exact: true }),
-    ).toContainText('Zebra film');
-    await expect(
-      page.getByRole('button', { name: 'Your story starts here', exact: true }),
-    ).toBeVisible();
-    await page.reload();
-    await page
-      .getByRole('button', { name: 'Open project', exact: true })
-      .click();
-    await expect(
-      browser.getByRole('button', { name: /Zebra film/ }),
-    ).toContainText('1 clip');
-    await browser.getByRole('button', { name: /Zebra film/ }).click();
-    await expect(
-      page.getByRole('button', { name: 'Your story starts here', exact: true }),
-    ).toBeVisible();
-  });
+          }),
+        );
+        await openAISettings(page);
+        const connection = page.getByRole('dialog', {
+          name: 'AI connection',
+          exact: true,
+        });
+        await connection
+          .getByLabel('OpenRouter API key')
+          .fill('synthetic-navigation-key');
+        await connection.getByRole('button', { name: 'Use API key' }).click();
+        await connection
+          .getByRole('combobox', { name: 'AI model', exact: true })
+          .click();
+        await page
+          .getByRole('option', {
+            name: 'Navigation model · test/navigation',
+            exact: true,
+          })
+          .click();
+        await connection
+          .getByRole('button', { name: 'Done', exact: true })
+          .click();
+        await page.getByLabel('Describe your edit').fill('Preserve this draft');
+        await page
+          .getByRole('button', { name: 'Commands', exact: true })
+          .click();
+        const palette = page.getByRole('dialog', {
+          name: 'Commands',
+          exact: true,
+        });
+        await palette.getByRole('combobox').fill('Add text');
+        await palette.getByRole('option', { name: /Add text/ }).click();
+        await page
+          .getByRole('button', { name: 'Insert Plain text', exact: true })
+          .click();
+        await expect(
+          page.getByRole('dialog', { name: 'Clip properties', exact: true }),
+        ).toBeVisible();
+        await page.getByRole('button', { name: 'Close', exact: true }).click();
+        const selected = await page
+          .locator('.timeline-clip[aria-pressed="true"]')
+          .count();
+        expect(selected).toBe(1);
+        await page
+          .getByRole('button', { name: 'Play preview', exact: true })
+          .click();
+        await expect
+          .poll(async () =>
+            Number(
+              await page
+                .getByRole('slider', { name: 'Playhead position' })
+                .inputValue(),
+            ),
+          )
+          .toBeGreaterThan(0);
+        await page
+          .getByRole('button', { name: 'LocalCut home', exact: true })
+          .click();
+        await expect(browser).toBeVisible();
+        await expect(
+          page.getByRole('main', { name: 'Video editor' }),
+        ).not.toBeVisible();
+        await expect(
+          browser.getByRole('button', { name: /Zebra film/ }),
+        ).toContainText('1 clip');
+        await expect(
+          browser.getByRole('button', { name: /Zebra film/ }),
+        ).toContainText('Current');
+        await browser
+          .getByRole('button', { name: 'Back to editor', exact: true })
+          .click();
+        await expect(
+          page.getByRole('main', { name: 'Video editor' }),
+        ).toBeFocused();
+        await expect(
+          page.getByRole('button', { name: 'Play preview', exact: true }),
+        ).toBeVisible();
+        const playhead = page.getByRole('slider', {
+          name: 'Playhead position',
+        });
+        const stopped = await playhead.inputValue();
+        await page.waitForTimeout(150);
+        expect(await playhead.inputValue()).toBe(stopped);
+        await expect(page.getByLabel('Describe your edit')).toHaveValue(
+          'Preserve this draft',
+        );
+        expect(
+          await page.locator('.timeline-clip[aria-pressed="true"]').count(),
+        ).toBe(selected);
+        await playhead.focus();
+        await page.keyboard.press('End');
+        const scrubbed = await playhead.inputValue();
+        expect(Number(scrubbed)).toBeGreaterThan(Number(stopped));
+        await page
+          .getByRole('button', { name: 'Open project', exact: true })
+          .click();
+        await browser.getByRole('button', { name: /Zebra film/ }).click();
+        await expect(playhead).toHaveValue(scrubbed);
+        await expect(page.getByLabel('Describe your edit')).toHaveValue(
+          'Preserve this draft',
+        );
+        expect(
+          await page.locator('.timeline-clip[aria-pressed="true"]').count(),
+        ).toBe(selected);
+        await page.keyboard.press('ControlOrMeta+o');
+        await create(page, 'Alpha film');
+        await page.keyboard.press('ControlOrMeta+o');
+        const rows = browser
+          .getByRole('list', { name: 'Saved projects' })
+          .getByRole('button');
+        await expect(rows).toHaveCount(2);
+        await expect(rows.first()).toContainText('Alpha film');
+        const search = browser.getByRole('textbox', {
+          name: 'Search projects',
+        });
+        await search.fill('  ZEBRA  ');
+        await expect(rows).toHaveCount(1);
+        await expect(rows.first()).toContainText('Zebra film');
+        await search.fill('No such project');
+        await expect(
+          browser.getByText('No matching projects', { exact: true }),
+        ).toBeVisible();
+        await browser
+          .getByRole('button', { name: 'Clear search', exact: true })
+          .click();
+        await expect(search).toHaveValue('');
+        await page.screenshot({
+          path: testInfo.outputPath('projects-desktop.png'),
+          animations: 'disabled',
+        });
+        await page.setViewportSize({ width: 320, height: 800 });
+        expect(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth,
+          ),
+        ).toBe(true);
+        await expect(
+          browser.getByRole('button', { name: 'New project', exact: true }),
+        ).toBeVisible();
+        await page.screenshot({
+          path: testInfo.outputPath('projects-narrow.png'),
+          fullPage: true,
+          animations: 'disabled',
+        });
+        await browser.getByRole('button', { name: /Zebra film/ }).click();
+        await expect(
+          page.getByRole('button', { name: 'Open project', exact: true }),
+        ).toContainText('Zebra film');
+        await expect(
+          page.getByRole('button', {
+            name: 'Your story starts here',
+            exact: true,
+          }),
+        ).toBeVisible();
+        await page.reload();
+        await page
+          .getByRole('button', { name: 'Open project', exact: true })
+          .click();
+        await expect(
+          browser.getByRole('button', { name: /Zebra film/ }),
+        ).toContainText('1 clip');
+        await browser.getByRole('button', { name: /Zebra film/ }).click();
+        await expect(
+          page.getByRole('button', {
+            name: 'Your story starts here',
+            exact: true,
+          }),
+        ).toBeVisible();
+      });
+      await page.setViewportSize({ width: 1280, height: 720 });
+      await versionJourney(page, base);
+    },
+  );
 
   test(`project navigation retries storage failures and refreshes external changes ${base}`, async ({
     page,

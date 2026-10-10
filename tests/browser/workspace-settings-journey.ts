@@ -1,10 +1,8 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-for (const base of ['/', '/LocalCut/']) {
-  test(`workspace settings progressively disclose groups and support keyboard navigation ${base}`, async ({
-    page,
-  }) => {
-    await page.goto(base);
+export async function settingsJourney(page: Page, base: string) {
+  await test.step(`workspace settings progressively disclose groups and support keyboard navigation ${base}`, async () => {
+    // Continue in the already-open app.
     const settings = page.getByRole('button', {
       name: 'Workspace settings',
       exact: true,

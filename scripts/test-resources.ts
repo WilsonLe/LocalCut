@@ -18,6 +18,16 @@ const read = (path: string) => {
     return '';
   }
 };
+// Parallel normal-test workers use isolated contexts in one shared browser.
+// Native acceptance keeps the larger per-browser reservation and serial gate.
+export function normalBrowserEnv(env: NodeJS.ProcessEnv = process.env) {
+  return {
+    ...env,
+    LOCALCUT_BROWSER_MODE: 'shared',
+  };
+}
+export const browserWorkerCost = (env: NodeJS.ProcessEnv = process.env) =>
+  env.LOCALCUT_BROWSER_MODE === 'shared' ? 1 : 2;
 export function availableBytes(
   platform: string,
   statistics: string,
@@ -88,7 +98,10 @@ export function poolMaxCost(env: NodeJS.ProcessEnv = {}, browser = false) {
   // startup CPU count would prevent growth after quota or affinity recovery.
   return workers === undefined
     ? Number.MAX_SAFE_INTEGER
-    : Math.min(Number.MAX_SAFE_INTEGER, workers * (browser ? 2 : 1));
+    : Math.min(
+        Number.MAX_SAFE_INTEGER,
+        workers * (browser ? browserWorkerCost(env) : 1),
+      );
 }
 export interface Capacity {
   cpus: number;
@@ -112,7 +125,8 @@ export function allocation(
     capacity.freeBytes,
     (capacity.memoryLimit ?? capacity.totalBytes) - (capacity.memoryUsed ?? 0),
   );
-  // Profiled slots reserve 0.75 GiB; Chrome reserves two (1.5 GiB). Keep one GiB for the OS.
+  // Slots reserve 0.75 GiB. Shared-browser workers reserve one; separately
+  // launched browsers reserve two. Keep one GiB for the OS and browser parent.
   // Running tasks are already reflected in load/free RAM: add their reservation back once.
   const memorySlots = Math.max(
     1,
@@ -143,7 +157,7 @@ export function allocation(
     browserWorkers: Math.min(
       override(env.LOCALCUT_BROWSER_WORKERS, 'LOCALCUT_BROWSER_WORKERS') ??
         slots,
-      Math.max(1, Math.floor(slots / 2)),
+      Math.max(1, Math.floor(slots / browserWorkerCost(env))),
     ),
     cpus,
     freeGiB: Math.round((memory / GiB) * 10) / 10,

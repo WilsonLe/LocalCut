@@ -1,16 +1,24 @@
 import { runPnpm, ensureBuilds } from './build-state.mjs';
-import { resources, poolMaxCost } from './test-resources.ts';
+import {
+  resources,
+  poolMaxCost,
+  normalBrowserEnv,
+  browserWorkerCost,
+} from './test-resources.ts';
 import { schedule } from './test-scheduler.mjs';
 
 const initial = resources();
 console.log('LocalCut initial test resources:', JSON.stringify(initial));
 const env = process.env;
+const chromeEnv = normalBrowserEnv(env);
 const poolEnv = (cost, browser = false) => ({
   ...env,
   LOCALCUT_TEST_SLOTS: String(cost),
   LOCALCUT_TEST_GRANTED_SLOTS: String(cost),
   [browser ? 'LOCALCUT_BROWSER_WORKERS' : 'LOCALCUT_UNIT_WORKERS']: String(
-    browser ? Math.max(1, Math.floor(cost / 2)) : cost,
+    browser
+      ? Math.max(1, Math.floor(cost / browserWorkerCost(chromeEnv)))
+      : cost,
   ),
 });
 const tasks = [
@@ -40,8 +48,8 @@ const tasks = [
   {
     id: 'chrome',
     after: ['bundle', 'units'],
-    cost: 2,
-    maxCost: poolMaxCost(env, true),
+    cost: browserWorkerCost(chromeEnv),
+    maxCost: poolMaxCost(chromeEnv, true),
     run: ({ cost }) => runPnpm(['test:browser'], poolEnv(cost, true)),
   },
 ];
