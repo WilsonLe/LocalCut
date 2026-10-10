@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Files,
   Settings2,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
@@ -86,7 +87,7 @@ import type { TextStyleInput } from '../core/text-library';
 import type { DialogName, Progress } from './WorkspaceDialogs';
 const MediaLibrary = lazy(() => import('./MediaLibrary'));
 const MobileNavigation = lazy(() => import('./MobileNavigation'));
-const MobileMediaDialog = lazy(() => import('./MobileMediaDialog'));
+const MobileMediaSheet = lazy(() => import('./MobileMediaSheet'));
 const WorkspaceDialogs = lazy(() => import('./WorkspaceDialogs'));
 const Preview = lazy(() =>
   import('./Preview').then(({ Preview }) => ({ default: Preview })),
@@ -1306,19 +1307,29 @@ export function Workspace() {
           mediaHasFocus.current = false;
       }}
     >
-      <Tooltip content={drawer ? 'Collapse media' : 'Open media'}>
+      <Tooltip
+        content={
+          drawer ? (narrow ? 'Close media' : 'Collapse media') : 'Open media'
+        }
+      >
         <Button
           className="media-toggle"
           id={narrow ? undefined : 'desktop-media-trigger'}
           ref={narrow ? undefined : mediaTriggerRef}
           variant="ghost"
           size="icon-sm"
-          aria-label={drawer ? 'Collapse media' : 'Expand media'}
+          aria-label={
+            drawer
+              ? narrow
+                ? 'Close media'
+                : 'Collapse media'
+              : 'Expand media'
+          }
           aria-expanded={drawer}
           aria-controls="workspace-media-content"
           onClick={toggleMedia}
         >
-          {drawer ? <PanelLeftClose /> : <Files />}
+          {drawer ? narrow ? <X /> : <PanelLeftClose /> : <Files />}
         </Button>
       </Tooltip>
       <div
@@ -1719,12 +1730,12 @@ export function Workspace() {
         </Suspense>
         {narrow && (
           <Suspense fallback={null}>
-            <MobileMediaDialog
+            <MobileMediaSheet
               open={drawer}
               onClose={() => setMobileMediaOpen(false)}
             >
               {mediaPanel}
-            </MobileMediaDialog>
+            </MobileMediaSheet>
           </Suspense>
         )}
 

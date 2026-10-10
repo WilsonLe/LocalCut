@@ -153,7 +153,7 @@ for (const base of ['/', '/LocalCut/']) {
       await page.getByRole('button', { name: 'Index', exact: true }).click();
       await expect.poll(() => requested).toBe(true);
       await page
-        .getByRole('button', { name: 'Collapse media', exact: true })
+        .getByRole('button', { name: 'Close media', exact: true })
         .click();
       await expect(
         page.getByRole('dialog', { name: 'Media library', exact: true }),

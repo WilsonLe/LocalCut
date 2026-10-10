@@ -105,6 +105,10 @@ This is the project record of the user's durable product and workflow choices. U
 - Provide speed adjustments with either preserved audio pitch or pitch changing with speed.
 - Provide customizable speed ramps that curve, rise/fall linearly, or step up/down. Allow direction changes and editable points.
 
+## Mobile media — 11 October 2026
+
+- Open the mobile Media tab as a full-screen page or sheet, with a clear close control, rather than a small floating dialog.
+
 ## Delivery and validation
 
 - Pull and rebase onto current `main`, including the OpenRouter integration, before completing the workspace.

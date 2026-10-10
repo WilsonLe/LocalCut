@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '../components/ui/dialog';
 
-export default function MobileMediaDialog({
+export default function MobileMediaSheet({
   children,
   open,
   onClose,
@@ -18,7 +18,7 @@ export default function MobileMediaDialog({
       }}
     >
       <DialogContent
-        className="mobile-media-dialog translate-y-0"
+        className="mobile-media-sheet"
         showCloseButton={false}
         keepMounted
         inert={!open}
