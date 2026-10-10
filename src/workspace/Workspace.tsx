@@ -813,6 +813,17 @@ export function Workspace() {
   const addText = () => {
     if (project && !browsed) setDialog('text');
   };
+  const addTrack = (kind: 'video' | 'audio') => {
+    if (!project || busy || browsing.current) return;
+    void action(async () => {
+      await apply([
+        { type: 'addTrack', track: { id: crypto.randomUUID(), kind } },
+      ]);
+      toast.success(
+        kind === 'video' ? 'Video track added' : 'Audio track added',
+      );
+    });
+  };
   const insertText = (style: TextStyleInput) => {
     if (!project || browsed) return;
     void action(async () => {
@@ -1703,6 +1714,7 @@ export function Workspace() {
                     onDelete={deleteClip}
                     onProperties={() => setDialog('properties')}
                     onText={addText}
+                    onAddTrack={addTrack}
                   />
                 </Suspense>
               </EditorPanels>

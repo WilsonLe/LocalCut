@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { Menu } from '@base-ui/react/menu';
 import { interfaceScale } from './appearance';
 import { useViewport } from './useViewport';
 import {
   Captions,
+  ChevronDown,
+  Plus,
   ListChecks,
   Group,
   Ungroup,
@@ -49,6 +52,7 @@ interface Props {
   onDelete: () => void;
   onProperties: () => void;
   onText: () => void;
+  onAddTrack: (kind: 'video' | 'audio') => void;
 }
 export function Timeline(props: Props) {
   const { project, assets, selected, timeUs } = props;
@@ -65,11 +69,12 @@ export function Timeline(props: Props) {
     return () => touchControls.removeEventListener('change', update);
   }, []);
   const total = projectDuration(project);
+  const hasTracks = !!project?.tracks.length;
   const {
     ref: viewport,
     view,
     width,
-  } = useViewport('timeline', `${project?.id}:${props.versionId}`, total > 0);
+  } = useViewport('timeline', `${project?.id}:${props.versionId}`, hasTracks);
   const scrubbing = useRef<number | null>(null);
   const scrub = (clientX: number) => {
     const element = viewport.current;
@@ -90,6 +95,42 @@ export function Timeline(props: Props) {
     <section className="timeline" aria-label="Video timeline">
       <div className="timeline-toolbar">
         <div className="flex items-center gap-1">
+          {!!project && !busy && (
+            <Menu.Root modal={false}>
+              <Menu.Trigger render={<Button variant="ghost" size="sm" />}>
+                <Plus aria-hidden="true" /> Add track
+                <ChevronDown aria-hidden="true" />
+              </Menu.Trigger>
+              <Menu.Portal>
+                <Menu.Positioner
+                  align="start"
+                  sideOffset={8}
+                  collisionPadding={8}
+                  className="z-50 outline-none"
+                >
+                  <Menu.Popup
+                    aria-label="Add track"
+                    className="max-h-(--available-height) w-44 max-w-[calc(var(--app-viewport-width)-1rem)] overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none"
+                  >
+                    {(['video', 'audio'] as const).map((kind) => (
+                      <Menu.Item
+                        key={kind}
+                        className="flex min-h-9 cursor-default items-center gap-2 rounded-md px-3 py-2 text-sm outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+                        onClick={() => props.onAddTrack(kind)}
+                      >
+                        {kind === 'video' ? (
+                          <Film aria-hidden="true" />
+                        ) : (
+                          <Music2 aria-hidden="true" />
+                        )}
+                        {kind === 'video' ? 'Video track' : 'Audio track'}
+                      </Menu.Item>
+                    ))}
+                  </Menu.Popup>
+                </Menu.Positioner>
+              </Menu.Portal>
+            </Menu.Root>
+          )}
           {!!project && !busy && (
             <Button
               variant="ghost"
@@ -263,7 +304,7 @@ export function Timeline(props: Props) {
           />
         </div>
       )}
-      {total > 0 ? (
+      {hasTracks ? (
         <>
           <div
             ref={viewport}
@@ -417,25 +458,29 @@ export function Timeline(props: Props) {
                     </div>
                   </div>
                 ))}
-                <div
-                  className="timeline-playhead"
-                  style={{
-                    left: `calc(76px + (100% - 76px) * ${Math.min(1, timeUs / total)})`,
-                  }}
-                />
+                {!!total && (
+                  <div
+                    className="timeline-playhead"
+                    style={{
+                      left: `calc(76px + (100% - 76px) * ${Math.min(1, timeUs / total)})`,
+                    }}
+                  />
+                )}
               </div>
             </div>
           </div>
-          <input
-            className="timeline-scrubber"
-            aria-label="Playhead position"
-            type="range"
-            min={0}
-            max={Math.max(0, total - 1)}
-            step={1}
-            value={Math.min(timeUs, total - 1)}
-            onChange={(event) => props.onTime(Number(event.target.value))}
-          />
+          {!!total && (
+            <input
+              className="timeline-scrubber"
+              aria-label="Playhead position"
+              type="range"
+              min={0}
+              max={Math.max(0, total - 1)}
+              step={1}
+              value={Math.min(timeUs, total - 1)}
+              onChange={(event) => props.onTime(Number(event.target.value))}
+            />
+          )}
         </>
       ) : (
         <div className="empty-timeline">
