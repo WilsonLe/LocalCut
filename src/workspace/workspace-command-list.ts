@@ -1,3 +1,4 @@
+import type { EditorShortcut } from './shortcuts';
 import type {
   Asset,
   Project,
@@ -190,7 +191,7 @@ export function workspaceCommands([
   closeAppearance: CommandContext['closeAppearance'],
   openSettings: CommandContext['openSettings'],
   assistantCommands: CommandContext['assistantCommands'],
-]): WorkspaceCommand[] {
+], shortcutActions: Partial<Record<EditorShortcut, () => void>> = {}): WorkspaceCommand[] {
   const commands: WorkspaceCommand[] = [];
   const command = (
     id: string,
@@ -363,6 +364,36 @@ export function workspaceCommands([
     () => setTransition(),
   );
   command('text', 'Add text', 'Editing', editable, addText, 'T');
+    for (const [id, label, shortcut] of [
+      ['save', 'Save project version', 'Mod+S'],
+      ['copy', 'Copy selected clips', 'Mod+C'],
+      ['cut', 'Cut selected clips', 'Mod+X'],
+      ['paste', 'Paste clips at playhead', 'Mod+V'],
+      ['selectAll', 'Select all clips', 'Mod+A'],
+      ['clearSelection', 'Clear clip selection', 'Escape'],
+      ['nudgeLeft', 'Nudge selection left one frame', 'Alt+←'],
+      ['nudgeRight', 'Nudge selection right one frame', 'Alt+→'],
+      ['nudgeTenLeft', 'Nudge selection left ten frames', 'Alt+Shift+←'],
+      ['nudgeTenRight', 'Nudge selection right ten frames', 'Alt+Shift+→'],
+      ['trimStart', 'Trim start to playhead', 'Q'],
+      ['trimEnd', 'Trim end to playhead', 'W'],
+      ['rippleDelete', 'Ripple delete selection', 'Shift+Delete'],
+      ['previousCut', 'Previous edit boundary', '↑'],
+      ['nextCut', 'Next edit boundary', '↓'],
+      ['zoomIn', 'Zoom timeline in', '+'],
+      ['zoomOut', 'Zoom timeline out', '−'],
+      ['zoomFit', 'Fit timeline', '\\'],
+    ] as const) {
+      const run = shortcutActions[id];
+      command(
+        id,
+        label,
+        id.startsWith('zoom') ? 'View' : 'Editing',
+        !busy && !!run,
+        run ?? (() => {}),
+        shortcut,
+      );
+    }
   command(
     'properties',
     'Clip properties',

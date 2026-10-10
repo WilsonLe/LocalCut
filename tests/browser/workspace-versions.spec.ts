@@ -48,6 +48,15 @@ for (const base of ['/', '/LocalCut/']) {
       'Delete',
       'ControlOrMeta+z',
       'ControlOrMeta+Shift+z',
+      'ControlOrMeta+s',
+      'ControlOrMeta+x',
+      'ControlOrMeta+v',
+      'ControlOrMeta+b',
+      'ControlOrMeta+d',
+      'Alt+ArrowRight',
+      'Shift+Delete',
+      'q',
+      'w',
     ])
       await page.keyboard.press(key);
     await timeline

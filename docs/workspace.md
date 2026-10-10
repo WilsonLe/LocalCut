@@ -71,7 +71,36 @@ Preview uses the same engine compositor as export. Playback creates its audio co
 
 ## Keyboard editing
 
-Focus the preview or timeline to use single-key shortcuts. `Space` plays/pauses, arrows step one frame, Shift+arrows step ten frames, and Home/End seek to the first/last frame. `S` splits, `D` duplicates, Delete/Backspace removes the selected clip, and `T` adds text. `N` opens a new project; `C` and `M` toggle chat and media. `?` opens the complete shortcut reference, also available under Workspace settings → Keyboard shortcuts.
+Focus the preview or timeline to use single-key shortcuts. `Space` toggles playback; `K` pauses and `L` plays forward. Left/right arrows step one frame, Shift+left/right step ten frames, up/down visit previous/next edit boundaries, and Home/End seek to the first/last frame.
+
+| Action                                          | Shortcut or gesture                                           |
+| ----------------------------------------------- | ------------------------------------------------------------- |
+| Save a project version                          | Mod+S                                                         |
+| Split at playhead                               | S or Mod+B                                                    |
+| Duplicate selection                             | D or Mod+D                                                    |
+| Select all / clear selection                    | Mod+A / Escape                                                |
+| Copy / cut / paste clips at playhead            | Mod+C / Mod+X / Mod+V                                         |
+| Add/remove selection, including group members   | Shift/Mod+click                                               |
+| Group / ungroup                                 | Mod+G / Mod+Shift+G                                           |
+| Nudge selection one / ten frames                | Alt+left/right / Alt+Shift+left/right                         |
+| Trim start / end to playhead                    | Q / W                                                         |
+| Delete / safe ripple delete                     | Delete or Backspace / Shift+Delete                            |
+| Properties                                      | Enter on selected clip or double-click clip                   |
+| Add text                                        | T                                                             |
+| Zoom pointed timeline or preview                | Ctrl/Command+wheel or trackpad pinch                          |
+| Zoom focused view / fit                         | + or = / − / 0 or backslash                                   |
+| Pan                                             | Middle-button drag; Shift+wheel scrolls timeline horizontally |
+| Seek / scrub                                    | Click an empty lane or click/drag the ruler                   |
+| Fit preview                                     | Double-click preview                                          |
+| New project / toggle chat / toggle media / help | N / C / M / ?                                                 |
+
+Zoom and pan are transient views, independent between timeline and preview; they never change project geometry or exports. Keyboard zoom targets the focused view, falling back to the timeline when the editing area has focus. Timeline zoom ranges from fit to 32×; preview from fit to 8×. Normal wheel/trackpad scrolling remains native; editing gestures leave browser zoom outside those surfaces intact. `?` and Workspace settings → Keyboard shortcuts list the complete map. These mappings follow common [desktop editing conventions](https://helpx.adobe.com/sg/premiere/desktop/get-started/keyboard-shortcuts/default-keyboard-shortcuts.html), adapted to the supported LocalCut commands.
+
+The local clipboard holds a frozen clip selection only within the current session and project, including group membership, keyframes, captions and transitions between copied clips. Paste makes new identities, keeps relative track/time placement and uses current originals; it does not access the system clipboard. Cut changes the clipboard only after its removal succeeds. Source files and text-field copy/paste retain their existing workflows.
+
+Nudging preserves group offsets and clamps the earliest member at zero. Q/W shorten one ungrouped clip with the engine's split semantics, preserving animation, fades and source bounds; select a point inside the clip. Ripple delete closes the selected time interval on every track only when no retained clip intersects it and no retained group straddles it. Unsafe ripple/trim commands are unavailable. Engine validation still rejects invalid transitions or timing atomically. Normal Delete leaves the gap. All edits are undoable and preserve revision conflict handling. Holding an editing key does not repeat mutations; frame navigation and zoom may repeat.
+
+The pass covers existing LocalCut workflows. Source-monitor insert/overwrite, markers, dedicated slip/slide/roll tools and reverse/rate shuttle have no supported workflow/API and receive no misleading bindings. Historical versions allow selection, navigation, properties and view gestures; mutation and clipboard shortcuts remain unavailable.
 
 Mod+K opens Commands from outside text fields and dialogs. The header search icon and Workspace settings → Commands also open it. Search project, media, editing, clip selection, playback, version, export, view, appearance and chat operations; use arrows and Enter to run an available action. File, property, export and AI configuration commands open their existing workflows. AI proposals still require explicit approval. Unavailable actions are omitted, including mutations and export in a historical version. Escape dismisses the palette and returns focus to its header control.
 

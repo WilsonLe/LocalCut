@@ -247,7 +247,7 @@ export default function WorkspaceDialogs({
           if (!open) onDialogChange(null);
         }}
       >
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Keyboard shortcuts</DialogTitle>
             <DialogDescription>

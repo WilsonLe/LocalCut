@@ -24,6 +24,7 @@ export function useEditorShortcuts({
         dialogOpen: !!document.querySelector(
           '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]',
         ),
+        timelineClip: !!target?.closest('.timeline-clip'),
         activationControl: !!target?.closest(
           'button, a[href], summary, [role="button"]',
         ),
