@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Locator } from '@playwright/test';
 
 async function toggleAnimation(trigger: Locator) {
-  return trigger.evaluate(async (element) => {
+  const result = await trigger.evaluate(async (element) => {
     const id = element.getAttribute('aria-controls');
     (element as HTMLButtonElement).click();
     await new Promise(requestAnimationFrame);
@@ -13,14 +13,29 @@ async function toggleAnimation(trigger: Locator) {
     const animation = panel
       .getAnimations()
       .find((animation) => animation.playState === 'running');
-    if (!animation) return { animated: false, between: false };
+    const state = {
+      panelId: panel.id,
+      expanded: element.getAttribute('aria-expanded') === 'true',
+    };
+    if (!animation) return { ...state, animated: false, between: false };
     const duration = Number(animation.effect!.getComputedTiming().duration);
     animation.currentTime = duration / 2;
     const height = panel.getBoundingClientRect().height;
     const between = height > 0 && height < panel.scrollHeight;
     animation.finish();
-    return { animated: duration > 0, between };
+    return { ...state, animated: duration > 0, between };
   });
+  // Finishing the sampled CSS animation still leaves Base UI's completion
+  // callback pending. Wait for its committed panel state before sending keys.
+  await expect
+    .poll(() =>
+      trigger.evaluate((_, id) => {
+        const panel = document.getElementById(id);
+        return !panel || panel.hidden;
+      }, result.panelId),
+    )
+    .toBe(!result.expanded);
+  return { animated: result.animated, between: result.between };
 }
 
 for (const base of ['/', '/LocalCut/']) {
