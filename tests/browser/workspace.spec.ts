@@ -790,3 +790,113 @@ for (const base of ['/', '/LocalCut/']) {
     });
   });
 }
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`custom speed ramps and pitch controls persist ${base}`, async ({
+    page,
+  }, testInfo) => {
+    await page.goto(base);
+    const name = 'Custom ramp ' + base;
+    await createProject(page, name);
+    await page
+      .getByLabel('Import media', { exact: true })
+      .setInputFiles(toneWav(4 * 48000));
+    const track = page.getByRole('button', { name: 'tone.wav', exact: true });
+    const properties = async () => {
+      await track.click();
+      await page
+        .getByRole('button', { name: 'Clip properties', exact: true })
+        .click();
+    };
+    const select = async (label: string, option: string) => {
+      await page.getByRole('combobox', { name: label, exact: true }).click();
+      await page.getByRole('option', { name: option, exact: true }).click();
+    };
+    await properties();
+    await select('Audio pitch', 'Keep pitch');
+    for (const preset of [
+      'Staircase up',
+      'Staircase down',
+      'Staircase up then down',
+      'Staircase down then up',
+    ]) {
+      await select('Speed profile', preset);
+      await expect(
+        page.getByLabel('Point 9 speed', { exact: true }),
+      ).toBeVisible();
+    }
+    await select('Speed profile', 'Up then down');
+    await page.getByLabel('Point 2 speed', { exact: true }).fill('3');
+    await select('Segment 1', 'Staircase');
+    await select('Segment 2', 'Linear');
+    await page
+      .getByRole('button', { name: 'Add ramp point', exact: true })
+      .click();
+    await page.getByLabel('Point 2 (%)', { exact: true }).fill('20');
+    await page.getByLabel('Point 2 speed', { exact: true }).fill('1');
+    await page.screenshot({
+      path: testInfo.outputPath('speed-ramp-desktop.png'),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: testInfo.outputPath('speed-ramp-narrow.png'),
+    });
+    const dialog = page.getByRole('dialog', {
+      name: 'Clip properties',
+      exact: true,
+    });
+    expect(
+      await dialog.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    ).toBe(true);
+    await page
+      .getByRole('button', { name: 'Apply properties', exact: true })
+      .click();
+    await expect(dialog).not.toBeVisible();
+    const saved = (await snapshot(page, base, name)).tracks.flatMap(
+      (t) => t.clips,
+    )[0]!;
+    expect(saved.pitchMode).toBe('preserve');
+    expect(
+      saved.speedRamp?.map((p) => [p.position, p.speed, p.interpolation]),
+    ).toEqual([
+      [0, 0.5, 'hold'],
+      [0.2, 1, 'hold'],
+      [0.5, 3, 'linear'],
+      [1, 0.5, 'smooth'],
+    ]);
+    expect(saved.sourceOutUs).toBe(4000000);
+    await page
+      .getByRole('button', { name: 'Collapse media', exact: true })
+      .click();
+    await properties();
+    await page.getByLabel('Gain', { exact: true }).fill('0.4');
+    await page
+      .getByRole('button', { name: 'Apply properties', exact: true })
+      .click();
+    await expect(dialog).not.toBeVisible();
+    const gained = (await snapshot(page, base, name)).tracks.flatMap(
+      (t) => t.clips,
+    )[0]!;
+    expect(gained.speedRamp).toEqual(saved.speedRamp);
+    expect(gained.durationUs).toBe(saved.durationUs);
+    await properties();
+    await select('Speed profile', 'Constant');
+    await page.getByLabel('Speed', { exact: true }).fill('2');
+    await page
+      .getByRole('button', { name: 'Apply properties', exact: true })
+      .click();
+    await expect(dialog).not.toBeVisible();
+    const constant = (await snapshot(page, base, name)).tracks.flatMap(
+      (t) => t.clips,
+    )[0]!;
+    expect(constant).toMatchObject({
+      speed: 2,
+      pitchMode: 'preserve',
+      durationUs: 2000000,
+      gain: 0.4,
+    });
+    expect(constant.speedRamp).toBeUndefined();
+  });
+}

@@ -5,7 +5,7 @@ A local video editor that builds to static files. The conversation-led workspace
 ## Editing
 
 1. Create a project or open a project saved in this browser. Import video, audio or images; files are added to the matching timeline track in selection order.
-2. Select clips to adjust timing, speed, gain or text. Scrub or play the preview. Use Undo and Redo to reverse committed edits.
+2. Select clips to adjust timing, speed, audio pitch, gain or text. Use Clip properties to build curved, linear or staircase speed ramps with editable points. Scrub or play the preview. Use Undo and Redo to reverse committed edits.
 3. Optionally connect OpenRouter, choose a model, and describe an edit. Review the proposed operations, then Apply or Discard. Prompts and permitted metadata go to OpenRouter; original media stays local. Separate indexing permission allows generated stills, audio excerpts and video excerpts with sound to be sent by an explicit Index action. Sharing names, on-screen text and transcripts is off by default.
 4. Use Text to speech from chat or Commands to generate multilingual narration with a chosen voice, preview it, adjust speed/total length and add it to the audio timeline through the same OpenRouter connection.
 5. Export MP4 or WebM after browser capability checks, then Save video. Use Settings → Project → Export project for a backup with optional originals. Settings → Workspace → Export workspace lets you select settings, projects, versions and original assets. Preview and select backup contents before importing.

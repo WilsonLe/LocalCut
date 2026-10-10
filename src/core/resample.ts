@@ -5,9 +5,11 @@ export function resampleAt(
   speed: number,
 ): number {
   if (speed === 1 && Number.isInteger(position)) return data[position] ?? 0;
-  const cutoff = Math.min(1, 1 / speed),
+  // Bound coefficient generation for continuously changing ramp speeds.
+  const tableSpeed = Math.max(1, Math.ceil(speed * 16) / 16);
+  const cutoff = 1 / tableSpeed,
     phase = Math.floor((position - Math.floor(position)) * 1024);
-  let table = tables.get(speed);
+  let table = tables.get(tableSpeed);
   if (!table) {
     table = Array.from({ length: 1024 }, (_, p) => {
       const weights = new Float32Array(64);
@@ -25,7 +27,7 @@ export function resampleAt(
       return weights;
     });
     if (tables.size >= 16) tables.delete(tables.keys().next().value!);
-    tables.set(speed, table);
+    tables.set(tableSpeed, table);
   }
   let value = 0;
   const center = Math.floor(position);

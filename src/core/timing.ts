@@ -1,9 +1,10 @@
+import { sourcePositionUs, localTimeForSource } from './speed';
 import type { Clip, Keyframe, Parameter, Project, Cue } from './model';
 export function frameTimeUs(index: number, rate: Project['frameRate']): number {
   return Math.round((index * 1_000_000 * rate.den) / rate.num);
 }
 export function sourceTimeUs(clip: Clip, timeUs: number): number {
-  return clip.sourceInUs + Math.round((timeUs - clip.startUs) * clip.speed);
+  return Math.round(sourcePositionUs(clip, timeUs - clip.startUs));
 }
 export function evaluateKeys(
   keys: Keyframe[],
@@ -54,7 +55,7 @@ export function mapSourceCue(cue: Cue, clip: Clip): Cue | undefined {
   if (a >= b) return undefined;
   return {
     ...cue,
-    timeUs: clip.startUs + Math.round((a - clip.sourceInUs) / clip.speed),
-    endUs: clip.startUs + Math.round((b - clip.sourceInUs) / clip.speed),
+    timeUs: clip.startUs + Math.round(localTimeForSource(clip, a)),
+    endUs: clip.startUs + Math.round(localTimeForSource(clip, b)),
   };
 }

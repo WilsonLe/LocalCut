@@ -16,7 +16,9 @@ import type {
   Parameter,
 } from './model';
 import { invariant, EditorError } from './errors';
-import { evaluateKeys } from './timing';
+import { evaluateKeys, sourceTimeUs } from './timing';
+import { sourceDurationUs, sliceRamp } from './speed';
+import { speedRampSchema } from './speed-schema';
 import { TRANSITION_TEMPLATES } from './timeline';
 import type { TransitionTemplate } from './timeline';
 import { transitionTemplateOperations } from './transition-templates';
@@ -46,7 +48,18 @@ export type EditOperation =
       trackId: string;
       startUs: number;
     }
-  | { type: 'setSpeed'; clipId: string; speed: number }
+  | {
+      type: 'setSpeed';
+      clipId: string;
+      speed: number;
+      pitchMode?: 'change' | 'preserve';
+    }
+  | {
+      type: 'setSpeedRamp';
+      clipId: string;
+      points: z.input<typeof speedRampSchema> | null;
+      pitchMode?: 'change' | 'preserve';
+    }
   | { type: 'ripple'; trackId: string; fromUs: number; deltaUs: number }
   | {
       type: 'applyTransitionTemplate';
@@ -157,6 +170,15 @@ const operationSchema = z.discriminatedUnion('type', [
       type: z.literal('setSpeed'),
       clipId: z.string(),
       speed: z.number().min(0.25).max(4),
+      pitchMode: z.enum(['change', 'preserve']).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('setSpeedRamp'),
+      clipId: z.string(),
+      points: speedRampSchema.nullable(),
+      pitchMode: z.enum(['change', 'preserve']).optional(),
     })
     .strict(),
   z
@@ -282,6 +304,40 @@ function splitKeys(
   }
   return [left, right];
 }
+function retimeClip(clip: Clip, duration: number) {
+  const ratio = duration / clip.durationUs;
+  for (const [name, keys] of Object.entries(clip.keyframes)) {
+    const scaled = keys.map((key) => ({
+      ...key,
+      timeUs: Math.min(duration, Math.round(key.timeUs * ratio)),
+    }));
+    clip.keyframes[name as Parameter] = scaled.filter(
+      (key, i) => key.timeUs !== scaled[i + 1]?.timeUs,
+    );
+  }
+  clip.cues = clip.cues
+    .map((cue) => ({
+      ...cue,
+      timeUs: Math.round(cue.timeUs * ratio),
+      endUs: Math.min(duration, Math.round(cue.endUs * ratio)),
+    }))
+    .filter((cue) => cue.endUs > cue.timeUs);
+  clip.fadeInUs = Math.round(clip.fadeInUs * ratio);
+  clip.fadeOutUs = Math.round(clip.fadeOutUs * ratio);
+  if (clip.fadeEnvelope) {
+    const offsetUs = Math.round(clip.fadeEnvelope.offsetUs * ratio);
+    clip.fadeEnvelope = {
+      offsetUs,
+      durationUs: Math.max(
+        offsetUs + duration,
+        Math.round(clip.fadeEnvelope.durationUs * ratio),
+      ),
+    };
+  }
+  const envelopeDuration = clip.fadeEnvelope?.durationUs ?? duration;
+  clip.fadeOutUs = Math.min(clip.fadeOutUs, envelopeDuration - clip.fadeInUs);
+  clip.durationUs = duration;
+}
 export function applyOperations(
   original: Project,
   operations: EditOperation[],
@@ -372,7 +428,7 @@ export function applyOperations(
         const { c } = locate(op.clipId);
         c.sourceInUs = op.sourceInUs;
         c.sourceOutUs = op.sourceOutUs;
-        c.durationUs = Math.round((op.sourceOutUs - op.sourceInUs) / c.speed);
+        c.durationUs = sourceDurationUs(c, op.sourceOutUs - op.sourceInUs);
         break;
       }
       case 'splitClip': {
@@ -394,9 +450,14 @@ export function applyOperations(
         const [leftKeys, rightKeys] = splitKeys(c, offset, right.id);
         c.keyframes = leftKeys;
         right.keyframes = rightKeys;
+        const source = sourceTimeUs(c, op.atUs);
+        if (c.speedRamp) {
+          const split = offset / c.durationUs;
+          right.speedRamp = sliceRamp(c.speedRamp, split, 1);
+          c.speedRamp = sliceRamp(c.speedRamp, 0, split);
+        }
         c.durationUs = offset;
         if (c.kind === 'video' || c.kind === 'audio') {
-          const source = c.sourceInUs + Math.round(offset * c.speed);
           right.sourceInUs = source;
           c.sourceOutUs = source;
         }
@@ -445,8 +506,26 @@ export function applyOperations(
           'INVALID_COMMAND',
           'Speed requires timed media',
         );
+        const hadRamp = !!c.speedRamp;
         c.speed = op.speed;
-        c.durationUs = Math.round((c.sourceOutUs! - c.sourceInUs) / op.speed);
+        delete c.speedRamp;
+        if (op.pitchMode) c.pitchMode = op.pitchMode;
+        const duration = Math.round((c.sourceOutUs! - c.sourceInUs) / op.speed);
+        if (hadRamp) retimeClip(c, duration);
+        else c.durationUs = duration;
+        break;
+      }
+      case 'setSpeedRamp': {
+        const { c } = locate(op.clipId);
+        invariant(
+          c.kind === 'audio' || c.kind === 'video',
+          'INVALID_COMMAND',
+          'Speed requires timed media',
+        );
+        if (op.points) c.speedRamp = speedRampSchema.parse(op.points);
+        else delete c.speedRamp;
+        if (op.pitchMode) c.pitchMode = op.pitchMode;
+        retimeClip(c, sourceDurationUs(c, c.sourceOutUs! - c.sourceInUs));
         break;
       }
       case 'ripple': {
@@ -485,6 +564,8 @@ export function applyOperations(
           sourceInUs: c.sourceInUs,
           sourceOutUs: c.sourceOutUs,
           speed: c.speed,
+          speedRamp: c.speedRamp,
+          pitchMode: c.pitchMode,
           gain: c.gain,
           muted: c.muted || t.muted,
           fadeInUs: c.fadeInUs,

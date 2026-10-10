@@ -1274,6 +1274,15 @@ describe('headless assistant boundaries', () => {
       },
       { type: 'trimClip', clipId: 'video', sourceInUs: 0, sourceOutUs: 3e6 },
       { type: 'splitClip', clipId: 'video', atUs: 1e6, rightClipId: 'right' },
+      {
+        type: 'setSpeedRamp',
+        clipId: 'right',
+        points: [
+          { position: 0, speed: 1, interpolation: 'smooth' },
+          { position: 1, speed: 3, interpolation: 'smooth' },
+        ],
+        pitchMode: 'preserve',
+      },
       { type: 'setSpeed', clipId: 'right', speed: 2 },
       {
         type: 'duplicateClip',

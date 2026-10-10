@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { averageSpeed } from './speed';
+import { speedRampSchema } from './speed-schema';
 import { EditorError, invariant } from './errors';
 import { transitionPairs, TRANSITION_TEMPLATES } from './timeline';
 const id = z.string().min(1).max(200);
@@ -65,6 +67,8 @@ const clipInputSchema = z
     sourceInUs: time.default(0),
     sourceOutUs: time.optional(),
     speed: finite.min(0.25).max(4).default(1),
+    pitchMode: z.enum(['change', 'preserve']).optional(),
+    speedRamp: speedRampSchema.optional(),
     x: finite.default(0),
     y: finite.default(0),
     width: finite.positive().default(1920),
@@ -335,12 +339,18 @@ export function validateProject(value: unknown): Project {
         );
         invariant(
           Math.abs(
-            (clip.sourceOutUs - clip.sourceInUs) / clip.speed - clip.durationUs,
-          ) <= 1,
+            (clip.sourceOutUs - clip.sourceInUs) / averageSpeed(clip) -
+              clip.durationUs,
+          ) <= (clip.speedRamp ? 2 : 1),
           'INVALID_DOCUMENT',
           'Duration must match source range and speed',
         );
       }
+      invariant(
+        !clip.speedRamp || ['video', 'audio'].includes(clip.kind),
+        'INVALID_DOCUMENT',
+        'Speed ramps require timed media',
+      );
       if (clip.kind === 'text')
         invariant(clip.text, 'INVALID_DOCUMENT', 'Text style required');
       invariant(
