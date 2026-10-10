@@ -208,3 +208,125 @@ describe('ChatGPT OAuth', () => {
     expect(s.persistent.getItem(CHATGPT_CREDENTIAL_KEY)).toBeNull();
   });
 });
+
+describe('durable ChatGPT session authority', () => {
+  it('rejects replacement credentials before a storage event and cancels late catalog publication', async () => {
+    const s = await setup();
+    await s.auth.complete(s.callback.href);
+    let release!: (r: Response) => void;
+    const fetch = vi.fn<typeof globalThis.fetch>(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const client = createChatGPT({
+      fetch,
+      credentialStorage: s.persistent,
+      oauthStorage: memory(),
+      now: () => 1000000,
+    });
+    client.restore();
+    const pending = client.listModels();
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    const replacement = {
+      ...JSON.parse(s.persistent.getItem(CHATGPT_CREDENTIAL_KEY)!),
+      sessionId: 'new-session',
+      accessToken: 'replacement-token',
+    };
+    s.persistent.setItem(CHATGPT_CREDENTIAL_KEY, JSON.stringify(replacement));
+    release(
+      Response.json({
+        models: [{ slug: 'model', display_name: 'Model', visibility: 'list' }],
+      }),
+    );
+    await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(client.status().connected).toBe(false);
+    client.dispose();
+    const old = new ChatGPTAuthorization(
+      s.request,
+      () => s.persistent,
+      memory,
+      () => 1000000,
+    );
+    old.restore();
+    s.persistent.setItem(
+      CHATGPT_CREDENTIAL_KEY,
+      JSON.stringify({ ...replacement, sessionId: 'third-session' }),
+    );
+    await expect(
+      old.accessToken(new AbortController().signal),
+    ).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(old.connected()).toBe(false);
+  });
+  it('rejects a delayed earlier sign-in after another tab commits credentials', async () => {
+    const s = await setup();
+    const secondTemporary = memory();
+    const second = new ChatGPTAuthorization(
+      s.request,
+      () => s.persistent,
+      () => secondTemporary,
+      () => 1000000,
+    );
+    const start = await second.begin();
+    const params = new URL(start.authorizationUrl).searchParams;
+    const callback = new URL(CHATGPT_CALLBACK);
+    callback.searchParams.set('code', 'second-code');
+    callback.searchParams.set('state', params.get('state')!);
+    callback.searchParams.set('client_id', 'oaiapp_test');
+    const original = s.request.getMockImplementation()!;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    s.request.mockImplementation(async (url, init) => {
+      if (
+        url.endsWith('/token') &&
+        new URLSearchParams(String(init?.body)).get('code') === 'one-use-code'
+      )
+        await gate;
+      return original(url, init);
+    });
+    const first = s.auth.complete(s.callback.href);
+    s.nonce(params.get('nonce')!);
+    await second.complete(callback.href);
+    const winner = s.persistent.getItem(CHATGPT_CREDENTIAL_KEY);
+    s.nonce(s.params.get('nonce')!);
+    release();
+    await expect(first).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(s.persistent.getItem(CHATGPT_CREDENTIAL_KEY)).toBe(winner);
+  });
+  it('external disconnect invalidates an in-flight fresh exchange and same-session rotation stays usable', async () => {
+    const s = await setup();
+    const original = s.request.getMockImplementation()!;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    s.request.mockImplementation(async (url, init) => {
+      if (url.endsWith('/token')) await gate;
+      return original(url, init);
+    });
+    const pending = s.auth.complete(s.callback.href);
+    const other = new ChatGPTAuthorization(
+      s.request,
+      () => s.persistent,
+      memory,
+      () => 1000000,
+    );
+    other.invalidate(true);
+    release();
+    await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(s.persistent.getItem(CHATGPT_CREDENTIAL_KEY)).toBeNull();
+    const ready = await setup();
+    await ready.auth.complete(ready.callback.href);
+    const saved = JSON.parse(ready.persistent.getItem(CHATGPT_CREDENTIAL_KEY)!);
+    ready.persistent.setItem(
+      CHATGPT_CREDENTIAL_KEY,
+      JSON.stringify({ ...saved, accessToken: 'rotated-within-session' }),
+    );
+    expect(await ready.auth.accessToken(new AbortController().signal)).toBe(
+      'rotated-within-session',
+    );
+  });
+});

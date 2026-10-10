@@ -457,3 +457,102 @@ describe('ordered transcription routes', () => {
     a.dispose();
   });
 });
+
+describe('catalog ownership through fallback', () => {
+  it('discovers a connected backup and binds selected models and voices to its own requests', async () => {
+    const backup = createOpenAICompatible({
+      baseUrl: 'https://backup.example.test/v1',
+      model: 'backup',
+      speechModel: 'tts',
+      voices: ['voice'],
+    });
+    backup.setKey('synthetic');
+    const stream = vi.fn<OpenRouter['stream']>(async function* () {
+      yield complete;
+    });
+    backup.stream = stream;
+    backup.synthesizeSpeech = vi.fn(async () => ({
+      samples: new Float32Array(1),
+      sampleRate: 24000 as const,
+    }));
+    const router = createServiceRouter(
+      [{ id: 'backup', name: 'Backup', client: backup }],
+      {
+        llm: [
+          { providerId: 'missing', model: 'primary' },
+          { providerId: 'backup', model: 'backup' },
+        ],
+        tts: [
+          { providerId: 'missing', model: 'primary-tts', voice: 'primary' },
+          { providerId: 'backup', model: 'tts', voice: 'voice' },
+        ],
+        stt: [],
+      },
+    );
+    expect((await router.listModels())[0]!.id).toBe('backup');
+    expect((await router.listSpeechModels())[0]!.id).toBe('tts');
+    expect(router.selectedProvider('llm')).toBe('backup');
+    expect(router.selectedProvider('tts')).toBe('backup');
+    await collect(router.stream({ ...chat, model: 'backup' }, signal()));
+    expect(stream.mock.calls[0]![0].model).toBe('backup');
+    await router.synthesizeSpeech(
+      { model: 'tts', voice: 'voice', script: 'Hello', languages: ['English'] },
+      signal(),
+    );
+    expect(backup.synthesizeSpeech).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'tts', voice: 'voice' }),
+      expect.any(AbortSignal),
+    );
+    router.dispose();
+    backup.dispose();
+  });
+  it('recovers once from a primary catalog outage and keeps indexing on its original primary', async () => {
+    const first = client(async function* () {
+      yield complete;
+    });
+    first.listModels = vi.fn(async () => {
+      throw new AiError('PROVIDER_UNAVAILABLE', 'outage');
+    });
+    first.label = vi.fn(async () => {
+      throw new AiError('PROVIDER_UNAVAILABLE', 'outage');
+    });
+    const backup = createOpenAICompatible({
+      baseUrl: 'https://backup.example.test/v1',
+      model: 'backup',
+    });
+    backup.setKey('synthetic');
+    const router = createServiceRouter(
+      [
+        { id: 'a', name: 'A', client: first },
+        { id: 'b', name: 'B', client: backup },
+      ],
+      {
+        llm: [
+          { providerId: 'a', model: 'primary' },
+          { providerId: 'b', model: 'backup' },
+        ],
+        tts: [],
+        stt: [],
+      },
+    );
+    expect((await router.listModels())[0]!.id).toBe('backup');
+    expect(first.listModels).toHaveBeenCalledTimes(1);
+    expect(router.selectedProvider('llm')).toBe('b');
+    await expect(
+      router.label(
+        {
+          model: 'primary',
+          prompt: 'Label',
+          media: [],
+          consent: true,
+          maxOutputTokens: 100,
+        },
+        signal(),
+      ),
+    ).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
+    expect(first.label).toHaveBeenCalledTimes(1);
+    router.dispose();
+    first.dispose();
+    backup.dispose();
+  });
+});

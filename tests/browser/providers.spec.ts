@@ -83,6 +83,200 @@ for (const base of ['/', '/LocalCut/']) {
       }),
     ).toHaveValue('');
   });
+  for (const outage of [false, true]) {
+    test(`backup catalog enables chat and speech after reload with ${outage ? 'primary outage' : 'disconnected primary'} ${base}`, async ({
+      page,
+      context,
+    }) => {
+      let chatRequests = 0,
+        speechRequests = 0;
+      await context.route('https://openrouter.ai/api/v1/models*', (route) =>
+        route.fulfill({ status: 503, headers: cors, body: 'unavailable' }),
+      );
+      await context.route(
+        'https://backup.example.test/v1/chat/completions',
+        (route) => {
+          chatRequests++;
+          expect(route.request().postDataJSON().model).toBe('backup');
+          return route.fulfill({
+            headers: { ...cors, 'content-type': 'text/event-stream' },
+            body: 'data: {"choices":[{"index":0,"delta":{"content":"backup success"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+          });
+        },
+      );
+      await context.route(
+        'https://backup.example.test/v1/audio/speech',
+        (route) => {
+          speechRequests++;
+          expect(route.request().postDataJSON()).toMatchObject({
+            model: 'tts',
+            voice: 'voice',
+            input: 'Hello backup',
+          });
+          const pcm = Buffer.alloc(24000 * 2);
+          for (let i = 0; i < 24000; i++)
+            pcm.writeInt16LE(
+              Math.round(Math.sin((i * 2 * Math.PI * 220) / 24000) * 10000),
+              i * 2,
+            );
+          return route.fulfill({
+            headers: { ...cors, 'content-type': 'audio/pcm' },
+            body: pcm,
+          });
+        },
+      );
+      await page.goto(base);
+      await page.evaluate(() =>
+        localStorage.setItem(
+          'localcut.workspace-preferences.v1',
+          JSON.stringify({
+            version: 1,
+            preferences: {
+              aiProviders: JSON.stringify({
+                profiles: [
+                  { id: 'openrouter', name: 'OpenRouter', kind: 'openrouter' },
+                  {
+                    id: 'backup',
+                    name: 'Backup',
+                    kind: 'compatible',
+                    baseUrl: 'https://backup.example.test/v1',
+                    model: 'backup',
+                    speechModel: 'tts',
+                    voices: ['voice'],
+                  },
+                ],
+                routes: {
+                  llm: [
+                    { providerId: 'openrouter', model: 'primary' },
+                    { providerId: 'backup', model: 'backup' },
+                  ],
+                  tts: [
+                    {
+                      providerId: 'openrouter',
+                      model: 'google/gemini-3.8-flash-tts',
+                      voice: 'Kore',
+                    },
+                    { providerId: 'backup', model: 'tts', voice: 'voice' },
+                  ],
+                  stt: [{ providerId: 'local', model: 'whisper' }],
+                },
+              }),
+            },
+          }),
+        ),
+      );
+      await page.reload();
+      await page
+        .getByRole('button', { name: 'Connect AI', exact: true })
+        .click();
+      const dialog = page.getByRole('dialog', {
+        name: 'AI connection',
+        exact: true,
+      });
+      if (outage) {
+        await dialog
+          .getByLabel('OpenRouter API key', { exact: true })
+          .fill('synthetic');
+        await dialog
+          .getByRole('button', { name: 'Use API key', exact: true })
+          .click();
+        await expect(dialog.getByRole('alert')).toContainText('unavailable');
+      }
+      await dialog.getByText('Providers & services', { exact: true }).click();
+      await dialog
+        .getByRole('button', { name: 'Connect', exact: true })
+        .click();
+      await dialog
+        .getByLabel('API key (optional for local servers)', { exact: true })
+        .fill('synthetic');
+      await dialog
+        .getByRole('button', { name: 'Connect endpoint', exact: true })
+        .click();
+      await expect(
+        dialog.getByRole('combobox', { name: 'AI model', exact: true }),
+      ).toBeVisible();
+      await dialog
+        .getByRole('combobox', { name: 'AI model', exact: true })
+        .click();
+      await page
+        .getByRole('option', { name: 'backup · backup', exact: true })
+        .click();
+      await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+      await page
+        .getByRole('button', { name: 'Workspace settings', exact: true })
+        .click();
+      await page
+        .getByRole('menuitem', { name: 'Project', exact: true })
+        .click();
+      await page
+        .getByRole('menuitem', { name: 'New project', exact: true })
+        .click();
+      await page
+        .getByLabel('Project name', { exact: true })
+        .fill('Backup project');
+      await page
+        .getByRole('button', { name: 'Create project', exact: true })
+        .click();
+      await expect(
+        page.getByRole('button', { name: 'Add text', exact: true }),
+      ).toBeEnabled();
+      await page
+        .getByLabel('Describe your edit', { exact: true })
+        .fill('Hello');
+      await page
+        .getByRole('button', { name: 'Send edit request', exact: true })
+        .click();
+      await expect(
+        page.getByText('backup success', { exact: true }),
+      ).toBeVisible();
+      await page
+        .getByRole('button', { name: 'Text to speech', exact: true })
+        .click();
+      const speech = page.getByRole('dialog', {
+        name: 'Text to speech',
+        exact: true,
+      });
+      await expect(
+        speech.getByText('Loading speech models…'),
+      ).not.toBeVisible();
+      await speech
+        .getByRole('combobox', { name: 'Speech model', exact: true })
+        .click();
+      await page.getByRole('option', { name: 'tts', exact: true }).click();
+      await speech
+        .getByRole('combobox', { name: 'Speech voice', exact: true })
+        .click();
+      await page.getByRole('option', { name: 'voice', exact: true }).click();
+      await speech.getByLabel('Script', { exact: true }).fill('Hello backup');
+      await speech
+        .getByRole('button', { name: 'Generate speech', exact: true })
+        .click();
+      await expect(
+        speech.getByLabel('Generated speech preview', { exact: true }),
+      ).toBeVisible();
+      expect([chatRequests, speechRequests]).toEqual([1, 1]);
+      const routes = await page.evaluate(
+        () =>
+          JSON.parse(
+            JSON.parse(
+              localStorage.getItem('localcut.workspace-preferences.v1')!,
+            ).preferences.aiProviders,
+          ).routes,
+      );
+      expect(routes.llm).toEqual([
+        { providerId: 'openrouter', model: 'primary' },
+        { providerId: 'backup', model: 'backup' },
+      ]);
+      expect(routes.tts).toEqual([
+        {
+          providerId: 'openrouter',
+          model: 'google/gemini-3.8-flash-tts',
+          voice: 'Kore',
+        },
+        { providerId: 'backup', model: 'tts', voice: 'voice' },
+      ]);
+    });
+  }
   test(`production service router fails over once and does not replay partial output ${base}`, async ({
     page,
     context,

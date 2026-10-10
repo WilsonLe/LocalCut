@@ -44,7 +44,7 @@ import {
 
 type AiModule = typeof import('../ai');
 export interface Connection {
-  provider: OpenRouter;
+  provider: ReturnType<AiModule['createServiceRouter']>;
   api: AiModule;
   id: number;
   transcription?: {
@@ -210,8 +210,9 @@ export function Conversation(props: ConversationProps) {
           .sort((a, b) => a.name.localeCompare(b.name));
         setModels(available);
         const preferred =
-          configuration.current.routes.llm[0]?.model ||
-          getWorkspacePreferences().preferences.aiModel;
+          configuration.current.routes.llm.find(
+            (r) => r.providerId === provider.selectedProvider('llm'),
+          )?.model || getWorkspacePreferences().preferences.aiModel;
         setModel(
           available.some((item) => item.id === preferred) ? preferred : '',
         );
@@ -570,7 +571,8 @@ export function Conversation(props: ConversationProps) {
       connection &&
         selectedModel &&
         indexingAllowed &&
-        providerConfiguration.routes.llm[0]?.providerId === 'openrouter'
+        providerConfiguration.routes.llm[0]?.providerId === 'openrouter' &&
+        connection.provider.selectedProvider('llm') === 'openrouter'
         ? {
             ...connection,
             model,
@@ -703,7 +705,10 @@ export function Conversation(props: ConversationProps) {
             modelName={selectedModel?.name}
             providerName={
               providerConfiguration.profiles.find(
-                (p) => p.id === providerConfiguration.routes.llm[0]?.providerId,
+                (p) =>
+                  p.id ===
+                  (connection?.provider.selectedProvider('llm') ??
+                    providerConfiguration.routes.llm[0]?.providerId),
               )?.name
             }
             configure={() => setSettingsOpen(true)}
@@ -872,7 +877,10 @@ export function Conversation(props: ConversationProps) {
             connection={connectedProviders.includes('openrouter')}
             providerName={
               providerConfiguration.profiles.find(
-                (p) => p.id === providerConfiguration.routes.llm[0]?.providerId,
+                (p) =>
+                  p.id ===
+                  (connection?.provider.selectedProvider('llm') ??
+                    providerConfiguration.routes.llm[0]?.providerId),
               )?.name
             }
             providerConfiguration={providerConfiguration}
@@ -891,7 +899,11 @@ export function Conversation(props: ConversationProps) {
             setModel={(model) => {
               setModel(model);
               const next = structuredClone(configuration.current);
-              if (next.routes.llm[0]) next.routes.llm[0].model = model;
+              const route = next.routes.llm.find(
+                (r) =>
+                  r.providerId === connection?.provider.selectedProvider('llm'),
+              );
+              if (route) route.model = model;
               configuration.current = next;
               setProviderConfiguration(next);
               saveWorkspacePreferences({
@@ -912,12 +924,27 @@ export function Conversation(props: ConversationProps) {
           <SpeechDialog
             key={`${connection.id}:${props.project!.id}`}
             connection={connection}
-            preferredModel={providerConfiguration.routes.tts[0]?.model}
-            preferredVoice={providerConfiguration.routes.tts[0]?.voice}
+            preferredModel={
+              providerConfiguration.routes.tts.find(
+                (r) =>
+                  r.providerId === connection.provider.selectedProvider('tts'),
+              )?.model
+            }
+            preferredVoice={
+              providerConfiguration.routes.tts.find(
+                (r) =>
+                  r.providerId === connection.provider.selectedProvider('tts'),
+              )?.voice
+            }
             onSelection={(model, voice) => {
               const next = structuredClone(configuration.current);
-              if (!next.routes.tts[0]) return;
-              next.routes.tts[0] = { ...next.routes.tts[0], model, voice };
+              const route = next.routes.tts.find(
+                (r) =>
+                  r.providerId === connection.provider.selectedProvider('tts'),
+              );
+              if (!route) return;
+              route.model = model;
+              route.voice = voice;
               configuration.current = next;
               setProviderConfiguration(next);
               saveWorkspacePreferences({ aiProviders: JSON.stringify(next) });

@@ -1,4 +1,8 @@
-import { CHATGPT_CREDENTIAL_KEY, ChatGPTAuthorization } from './chatgpt-auth';
+import {
+  CHATGPT_AUTHORITY_KEY,
+  CHATGPT_CREDENTIAL_KEY,
+  ChatGPTAuthorization,
+} from './chatgpt-auth';
 import { AiError, aiInvariant, httpError } from './errors';
 import { readJson } from './protocol';
 import { parseResponses, responsesBody } from './responses';
@@ -25,10 +29,11 @@ export function createChatGPT(options: ChatGPTOptions = {}): ChatGPTClient {
     'INVALID_REQUEST',
     'Invalid AI timeout.',
   );
-  function operation(signal?: AbortSignal) {
+  function operation(signal?: AbortSignal, bindIdentity = true) {
     aiInvariant(!disposed, 'DISPOSED', 'ChatGPT provider is disposed.');
     const controller = new AbortController();
     const epoch = generation;
+    const sessionId = bindIdentity ? auth.sessionId() : null;
     let timedOut = false;
     const abort = () => controller.abort();
     signal?.addEventListener('abort', abort, { once: true });
@@ -39,6 +44,18 @@ export function createChatGPT(options: ChatGPTOptions = {}): ChatGPTClient {
     }, timeout);
     active.add(controller);
     const check = () => {
+      if (bindIdentity) {
+        try {
+          if (auth.synchronize() || auth.sessionId() !== sessionId) {
+            generation++;
+            for (const c of active) c.abort();
+          }
+        } catch {
+          auth.invalidate(false);
+          generation++;
+          for (const c of active) c.abort();
+        }
+      }
       if (timedOut) throw new AiError('TIMEOUT', 'ChatGPT request timed out.');
       if (disposed || epoch !== generation || controller.signal.aborted)
         throw new AiError('CANCELLED', 'ChatGPT request cancelled.');
@@ -104,7 +121,12 @@ export function createChatGPT(options: ChatGPTOptions = {}): ChatGPTClient {
   );
   let listening = false;
   const storageChanged = (event: StorageEvent) => {
-    if (event.key !== CHATGPT_CREDENTIAL_KEY && event.key !== null) return;
+    if (
+      event.key !== CHATGPT_CREDENTIAL_KEY &&
+      event.key !== CHATGPT_AUTHORITY_KEY &&
+      event.key !== null
+    )
+      return;
     try {
       if (event.storageArea !== globalThis.localStorage || !auth.synchronize())
         return;
@@ -127,8 +149,9 @@ export function createChatGPT(options: ChatGPTOptions = {}): ChatGPTClient {
   async function run<T>(
     signal: AbortSignal | undefined,
     fn: (signal: AbortSignal) => Promise<T>,
+    bindIdentity = true,
   ): Promise<T> {
-    const op = operation(signal);
+    const op = operation(signal, bindIdentity);
     try {
       op.check();
       const result = await fn(op.signal);
@@ -156,6 +179,8 @@ export function createChatGPT(options: ChatGPTOptions = {}): ChatGPTClient {
     status: () => ({ connected: !disposed && auth.connected() }),
     restore() {
       aiInvariant(!disposed, 'DISPOSED', 'ChatGPT provider is disposed.');
+      generation++;
+      for (const c of active) c.abort();
       const result = auth.restore();
       listen();
       return result;
@@ -173,17 +198,23 @@ export function createChatGPT(options: ChatGPTOptions = {}): ChatGPTClient {
     },
     beginAuthorization: () => {
       listen();
-      return run(undefined, () => auth.begin());
+      generation++;
+      for (const c of active) c.abort();
+      return run(undefined, () => auth.begin(), false);
     },
     completeAuthorization: (options, signal) =>
-      run(signal, async (s) => {
-        listen();
-        await auth.complete(options.callbackUrl, s);
-        return {
-          connected: true,
-          sanitizedCallbackUrl: 'http://127.0.0.1:1455/auth/callback',
-        };
-      }),
+      run(
+        signal,
+        async (s) => {
+          listen();
+          await auth.complete(options.callbackUrl, s);
+          return {
+            connected: true,
+            sanitizedCallbackUrl: 'http://127.0.0.1:1455/auth/callback',
+          };
+        },
+        false,
+      ),
     listSpeechModels: unsupported,
     synthesizeSpeech: unsupported,
     label: unsupported,

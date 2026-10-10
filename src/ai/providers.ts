@@ -6,6 +6,8 @@ import type {
   CompatibleEndpoint,
   OpenRouter,
   OpenRouterOptions,
+  OpenRouterModel,
+  SpeechModel,
   ProviderEvent,
 } from './types';
 
@@ -76,6 +78,7 @@ export function createServiceRouter(
 ): OpenRouter & {
   transcribe: TranscriptionExecutor;
   transcriptionDisclosure: string;
+  selectedProvider(service: 'llm' | 'tts'): string | undefined;
 } {
   for (const service of ['llm', 'tts', 'stt'] as const)
     aiInvariant(
@@ -97,6 +100,7 @@ export function createServiceRouter(
   const transcriptionDisclosure = recipients.length
     ? `Approving may send the selected source audio to these STT providers in order: ${recipients.join(' → ')}. Provider charges may apply. Transcript text stays local unless separately shared.`
     : 'Transcription runs locally with Whisper. Source audio stays in this browser.';
+  const catalogOwner: Partial<Record<'llm' | 'tts', string>> = {};
   let disposed = false;
   const active = new Set<AbortController>();
   function primary(service: 'llm' | 'tts') {
@@ -139,12 +143,53 @@ export function createServiceRouter(
       op.finish();
     }
   }
+  async function discover(
+    service: 'llm',
+    signal: AbortSignal,
+  ): Promise<OpenRouterModel[]>;
+  async function discover(
+    service: 'tts',
+    signal: AbortSignal,
+  ): Promise<SpeechModel[]>;
+  async function discover(service: 'llm' | 'tts', signal: AbortSignal) {
+    let failure: unknown = new AiError(
+      'AUTH_REQUIRED',
+      `Connect a configured ${service.toUpperCase()} provider.`,
+    );
+    for (const route of selected[service]) {
+      if (signal.aborted)
+        throw new AiError('CANCELLED', 'Catalog request cancelled.');
+      const client = clients.get(route.providerId);
+      if (!client?.status().connected) continue;
+      try {
+        const catalog =
+          service === 'llm'
+            ? await client.listModels(signal)
+            : await client.listSpeechModels(signal);
+        if (signal.aborted)
+          throw new AiError('CANCELLED', 'Catalog request cancelled.');
+        aiInvariant(
+          catalog.length,
+          'MODEL_UNSUPPORTED',
+          'No supported models are configured for this service.',
+        );
+        catalogOwner[service] = route.providerId;
+        return catalog;
+      } catch (error) {
+        if (!retry(error, signal)) throw error;
+        failure = error;
+      }
+    }
+    throw failure;
+  }
   function stop() {
     disposed = true;
     for (const controller of active) controller.abort();
   }
   return {
     transcriptionDisclosure,
+    selectedProvider: (service) =>
+      catalogOwner[service] ?? selected[service][0]?.providerId,
     transcribe: (audio, context, local, signal) =>
       run(signal, async (s) => {
         let failure: unknown = new AiError(
@@ -219,9 +264,8 @@ export function createServiceRouter(
     beginAuthorization: (options) => primary('llm').beginAuthorization(options),
     completeAuthorization: (options, signal) =>
       primary('llm').completeAuthorization(options, signal),
-    listModels: (signal) => run(signal, (s) => primary('llm').listModels(s)),
-    listSpeechModels: (signal) =>
-      run(signal, (s) => primary('tts').listSpeechModels(s)),
+    listModels: (signal) => run(signal, (s) => discover('llm', s)),
+    listSpeechModels: (signal) => run(signal, (s) => discover('tts', s)),
     // Indexing has separate evidence consent and intentionally never fails over.
     label: (request, signal) =>
       run(signal, (s) => primary('llm').label(request, s)),
@@ -233,7 +277,7 @@ export function createServiceRouter(
         'Configure an LLM route.',
       );
       try {
-        for (const [index, route] of selected.llm.entries()) {
+        for (const route of selected.llm) {
           if (op.signal.aborted)
             throw new AiError('CANCELLED', 'AI request cancelled.');
           const client = clients.get(route.providerId);
@@ -245,7 +289,11 @@ export function createServiceRouter(
             continue;
           }
           try {
-            const model = index === 0 ? request.model : route.model;
+            const ownsSelection =
+              route.providerId ===
+              (catalogOwner.llm ?? selected.llm[0]?.providerId);
+            const model = ownsSelection ? request.model : route.model;
+            if (!ownsSelection && !model) continue;
             aiInvariant(
               model,
               'MODEL_REQUIRED',
@@ -291,7 +339,7 @@ export function createServiceRouter(
         'Configure a TTS route.',
       );
       try {
-        for (const [index, route] of selected.tts.entries()) {
+        for (const route of selected.tts) {
           if (op.signal.aborted)
             throw new AiError('CANCELLED', 'Speech request cancelled.');
           const client = clients.get(route.providerId);
@@ -303,13 +351,17 @@ export function createServiceRouter(
             continue;
           }
           try {
+            const ownsSelection =
+              route.providerId ===
+              (catalogOwner.tts ?? selected.tts[0]?.providerId);
+            if (!ownsSelection && (!route.model || !route.voice)) continue;
             aiInvariant(
-              index === 0 || (route.model && route.voice),
+              ownsSelection || (route.model && route.voice),
               'MODEL_REQUIRED',
               'Choose a model and voice for each speech fallback.',
             );
             const result = await client.synthesizeSpeech(
-              index === 0
+              ownsSelection
                 ? request
                 : { ...request, model: route.model, voice: route.voice! },
               op.signal,

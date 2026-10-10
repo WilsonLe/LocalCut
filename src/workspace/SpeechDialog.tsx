@@ -263,8 +263,8 @@ export default function SpeechDialog({
         <DialogHeader>
           <DialogTitle>Text to speech</DialogTitle>
           <DialogDescription>
-            Generate sends this script and delivery choices to OpenRouter using
-            your connected account.
+            Generate sends this script and delivery choices through your
+            configured speech provider route.
           </DialogDescription>
         </DialogHeader>
         <fieldset disabled={!!busy} className="min-w-0 space-y-5">

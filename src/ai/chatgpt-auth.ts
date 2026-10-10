@@ -5,6 +5,7 @@ import type { AuthorizationStorage } from './types';
 export const CHATGPT_CREDENTIAL_KEY = 'localcut.chatgpt-credentials.v1';
 const PENDING = 'localcut.chatgpt-pkce.v1';
 const HOST = 'localcut.chatgpt-host.v1';
+export const CHATGPT_AUTHORITY_KEY = 'localcut.chatgpt-authority.v1';
 const ISSUER = 'https://auth.openai.com';
 const TOKEN = `${ISSUER}/api/accounts/oauth/token`;
 export const CHATGPT_CALLBACK = 'http://127.0.0.1:1455/auth/callback';
@@ -15,6 +16,8 @@ interface Pending {
   created: number;
   clientId: string;
   subject?: string;
+  authority: string | null;
+  credentialSession: string | null;
 }
 interface Credential {
   version: 1;
@@ -80,6 +83,8 @@ function storedCredential(storage: AuthorizationStorage): Credential | null {
 export class ChatGPTAuthorization {
   private credential: Credential | null = null;
   private generation = 0;
+  private pendingAuthority:
+    Pick<Pending, 'authority' | 'credentialSession'> | undefined;
   constructor(
     private readonly request: (
       url: string,
@@ -93,19 +98,48 @@ export class ChatGPTAuthorization {
   connected() {
     return this.credential !== null;
   }
+  sessionId() {
+    return this.credential?.sessionId ?? null;
+  }
+  private authority() {
+    return (
+      this.persistent().getItem(CHATGPT_AUTHORITY_KEY) ??
+      storedCredential(this.persistent())?.sessionId ??
+      null
+    );
+  }
+  private matchesPending(p: Pick<Pending, 'authority' | 'credentialSession'>) {
+    return (
+      this.authority() === p.authority &&
+      (storedCredential(this.persistent())?.sessionId ?? null) ===
+        p.credentialSession
+    );
+  }
   restore() {
+    this.invalidate(false);
     this.credential = storedCredential(this.persistent());
     return this.connected();
   }
   invalidate(remove: boolean) {
     this.generation++;
     this.credential = null;
+    this.pendingAuthority = undefined;
     try {
       this.temporary().removeItem(PENDING);
     } catch {
       /* No pending browser flow during inert disposal. */
     }
-    if (remove) this.persistent().removeItem(CHATGPT_CREDENTIAL_KEY);
+    if (remove) {
+      try {
+        this.persistent().setItem(CHATGPT_AUTHORITY_KEY, crypto.randomUUID());
+        this.persistent().removeItem(CHATGPT_CREDENTIAL_KEY);
+      } catch {
+        throw new AiError(
+          'AUTH_STORAGE',
+          'ChatGPT credentials could not be removed. Allow local browser storage and disconnect again.',
+        );
+      }
+    }
   }
   async begin() {
     const epoch = ++this.generation;
@@ -121,6 +155,8 @@ export class ChatGPTAuthorization {
       state: random(),
       nonce: random(),
       created: this.now(),
+      authority: this.authority(),
+      credentialSession: old?.sessionId ?? null,
       clientId: old?.clientId ?? 'dynamic_agent_client',
       ...(old ? { subject: old.subject } : {}),
     };
@@ -135,6 +171,7 @@ export class ChatGPTAuthorization {
     if (epoch !== this.generation)
       throw new AiError('CANCELLED', 'Sign-in cancelled.');
     this.temporary().setItem(PENDING, JSON.stringify(pending));
+    this.pendingAuthority = pending;
     const url = new URL(`${ISSUER}/api/accounts/authorize`);
     for (const [key, value] of Object.entries({
       client_id: pending.clientId,
@@ -166,7 +203,14 @@ export class ChatGPTAuthorization {
         !['state', 'nonce', 'verifier', 'clientId'].every(
           (k) => typeof pending[k as keyof Pending] === 'string',
         ) ||
-        !Number.isSafeInteger(pending.created)
+        !Number.isSafeInteger(pending.created) ||
+        !(
+          pending.authority === null || typeof pending.authority === 'string'
+        ) ||
+        !(
+          pending.credentialSession === null ||
+          typeof pending.credentialSession === 'string'
+        )
       )
         throw invalid();
       if (callbackUrl.length > 8192) throw invalid();
@@ -200,6 +244,9 @@ export class ChatGPTAuthorization {
         !/^[\x21-\x7e]{1,2048}$/.test(code)
       )
         throw invalid();
+      this.pendingAuthority = pending;
+      if (!this.matchesPending(pending))
+        throw new AiError('CANCELLED', 'ChatGPT sign-in was superseded.');
       const result = await this.exchange(
         {
           grant_type: 'authorization_code',
@@ -221,7 +268,34 @@ export class ChatGPTAuthorization {
         throw invalid();
       if (signal?.aborted || epoch !== this.generation)
         throw new AiError('CANCELLED', 'Sign-in cancelled.');
-      this.save(credential);
+      const commit = async () => {
+        if (
+          signal?.aborted ||
+          epoch !== this.generation ||
+          !this.matchesPending(pending)
+        )
+          throw new AiError('CANCELLED', 'ChatGPT sign-in was superseded.');
+        try {
+          this.persistent().setItem(
+            CHATGPT_AUTHORITY_KEY,
+            credential.sessionId,
+          );
+        } catch {
+          throw new AiError(
+            'AUTH_STORAGE',
+            'ChatGPT credentials could not be saved. Allow local browser storage and reconnect.',
+          );
+        }
+        this.save(credential);
+        this.pendingAuthority = undefined;
+      };
+      if (typeof navigator !== 'undefined' && navigator.locks)
+        await navigator.locks.request(
+          'localcut-chatgpt-credentials-v1',
+          { ...(signal ? { signal } : {}) },
+          commit,
+        );
+      else await commit();
     } catch (error) {
       if (error instanceof AiError) throw error;
       throw invalid();
@@ -363,6 +437,10 @@ export class ChatGPTAuthorization {
     this.credential = value;
   }
   synchronize(): boolean {
+    if (this.pendingAuthority && !this.matchesPending(this.pendingAuthority)) {
+      this.invalidate(false);
+      return true;
+    }
     if (!this.credential) return false;
     const saved = storedCredential(this.persistent());
     if (!saved || saved.sessionId !== this.credential.sessionId) {
@@ -376,9 +454,16 @@ export class ChatGPTAuthorization {
     const epoch = this.generation;
     const run = async () => {
       const saved = storedCredential(this.persistent());
+      if (!this.credential)
+        throw new AiError('AUTH_REQUIRED', 'Reconnect ChatGPT.');
+      if (!saved || saved.sessionId !== this.credential.sessionId) {
+        this.invalidate(false);
+        throw new AiError(
+          'CANCELLED',
+          'ChatGPT connection was replaced or disconnected.',
+        );
+      }
       if (
-        !saved ||
-        !this.credential ||
         saved.clientId !== this.credential.clientId ||
         saved.subject !== this.credential.subject
       )
@@ -417,7 +502,7 @@ export class ChatGPTAuthorization {
     // Serialize rotating refresh tokens across tabs of this origin.
     if (typeof navigator !== 'undefined' && navigator.locks)
       return navigator.locks.request(
-        'localcut-chatgpt-refresh-v1',
+        'localcut-chatgpt-credentials-v1',
         { signal },
         run,
       );
