@@ -457,7 +457,7 @@ for (const base of ['/', '/LocalCut/']) {
         // The preceding import revealed desktop media for this session.
         // Close it before exercising the original deliberate open preference.
         await page
-          .getByRole('button', { name: 'Close media', exact: true })
+          .getByRole('button', { name: 'Collapse media', exact: true })
           .click();
         await page
           .getByRole('button', { name: 'Expand media', exact: true })
@@ -485,7 +485,7 @@ for (const base of ['/', '/LocalCut/']) {
         ).toBe(before);
         await page.setViewportSize({ width: 1440, height: 900 });
         await expect(
-          page.getByRole('button', { name: 'Close media', exact: true }),
+          page.getByRole('button', { name: 'Collapse media', exact: true }),
         ).toBeVisible();
         await expect(
           page.getByRole('separator', { name: 'Resize workspace chat' }),
