@@ -52,6 +52,18 @@ import type {
   WorkspaceSelection,
   WorkspaceSettings,
 } from '../storage/workspace-transfer';
+/** Per-job, consumer-owned route. Called only by an explicit transcription action. */
+export type TranscriptionExecutor = (
+  audio: Float32Array,
+  context: {
+    assetId: string;
+    startUs: number;
+    endUs: number;
+    language?: string;
+  },
+  local: () => Promise<Transcript>,
+  signal: AbortSignal,
+) => Promise<Transcript>;
 export interface EditorOptions {
   namespace?: string;
 }
@@ -667,9 +679,15 @@ export async function createEditor(options: EditorOptions = {}) {
       },
       transcribe(
         assetId: string,
-        options: { language?: string; startUs?: number; endUs?: number } = {},
+        options: {
+          language?: string;
+          startUs?: number;
+          endUs?: number;
+          provider?: TranscriptionExecutor;
+        } = {},
       ) {
         active();
+        options = { ...options };
         return jobs.start(
           async (signal, progress, id) => {
             const asset = await store.getAsset(assetId);
@@ -689,11 +707,12 @@ export async function createEditor(options: EditorOptions = {}) {
               'INVALID_COMMAND',
               'Invalid transcription range',
             );
-            invariant(
-              (await modelStatus(namespace)).ready,
-              'MODEL_REQUIRED',
-              'Prepare transcription before inference',
-            );
+            if (!options.provider)
+              invariant(
+                (await modelStatus(namespace)).ready,
+                'MODEL_REQUIRED',
+                'Prepare transcription before inference',
+              );
             const audio = await background.run<Float32Array>(
               'speechAudio',
               {
@@ -706,28 +725,52 @@ export async function createEditor(options: EditorOptions = {}) {
               signal,
               progress,
             );
-            const task = speechRun<Transcript>('transcribe', {
-              audio,
-              assetId,
-              language: options.language,
-              startUs,
-              endUs,
-            });
-            const abort = () => task.cancel();
-            signal.addEventListener('abort', abort, { once: true });
-            const unsubscribe = task.subscribe((e) =>
-              progress({ stage: e.stage, progress: e.progress }),
+            const local = async () => {
+              invariant(
+                (await modelStatus(namespace)).ready,
+                'MODEL_REQUIRED',
+                'Prepare transcription before inference',
+              );
+              const task = speechRun<Transcript>('transcribe', {
+                audio,
+                assetId,
+                language: options.language,
+                startUs,
+                endUs,
+              });
+              const abort = () => task.cancel();
+              signal.addEventListener('abort', abort, { once: true });
+              const unsubscribe = task.subscribe((e) =>
+                progress({ stage: e.stage, progress: e.progress }),
+              );
+              try {
+                checkAbort(signal);
+                return await task.completion;
+              } finally {
+                unsubscribe();
+                signal.removeEventListener('abort', abort);
+              }
+            };
+            checkAbort(signal);
+            const transcript = options.provider
+              ? await options.provider(
+                  audio,
+                  { assetId, startUs, endUs, language: options.language },
+                  local,
+                  signal,
+                )
+              : await local();
+            checkAbort(signal);
+            invariant(
+              transcript.assetId === assetId &&
+                transcript.cues.every(
+                  (cue) => cue.timeUs >= startUs && cue.endUs <= endUs,
+                ),
+              'INVALID_DOCUMENT',
+              'Transcription provider returned cues outside the requested source range',
             );
-            try {
-              checkAbort(signal);
-              const transcript = await task.completion;
-              checkAbort(signal);
-              await store.saveTranscript(transcript, signal);
-              return transcript;
-            } finally {
-              unsubscribe();
-              signal.removeEventListener('abort', abort);
-            }
+            await store.saveTranscript(transcript, signal);
+            return transcript;
           },
           { acceptCommittedResult: true },
         );

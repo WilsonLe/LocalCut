@@ -1,3 +1,5 @@
+import type { TranscriptionExecutor } from '../editor';
+import { sourceCues } from '../services/transcript-cues';
 import { AiError, aiInvariant } from './errors';
 import { createOpenRouter } from './openrouter';
 import type {
@@ -29,7 +31,11 @@ export function createOpenAICompatible(
   endpoint: CompatibleEndpoint,
   options: Omit<OpenRouterOptions, 'compatible'> = {},
 ): OpenRouter {
-  for (const model of [endpoint.model, endpoint.speechModel])
+  for (const model of [
+    endpoint.model,
+    endpoint.speechModel,
+    endpoint.transcriptionModel,
+  ])
     aiInvariant(
       model === undefined ||
         /^~?[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/.test(model),
@@ -67,7 +73,10 @@ function retry(error: unknown, signal: AbortSignal): boolean {
 export function createServiceRouter(
   connections: readonly ProviderConnection[],
   routes: ServiceRoutes,
-): OpenRouter {
+): OpenRouter & {
+  transcribe: TranscriptionExecutor;
+  transcriptionDisclosure: string;
+} {
   for (const service of ['llm', 'tts', 'stt'] as const)
     aiInvariant(
       Array.isArray(routes[service]) &&
@@ -79,6 +88,15 @@ export function createServiceRouter(
     );
   const selected = structuredClone(routes);
   const clients = new Map(connections.map((p) => [p.id, p.client]));
+  const recipients = selected.stt
+    .filter((r) => r.providerId !== 'local')
+    .map(
+      (r) =>
+        connections.find((p) => p.id === r.providerId)?.name ?? r.providerId,
+    );
+  const transcriptionDisclosure = recipients.length
+    ? `Approving may send the selected source audio to these STT providers in order: ${recipients.join(' → ')}. Provider charges may apply. Transcript text stays local unless separately shared.`
+    : 'Transcription runs locally with Whisper. Source audio stays in this browser.';
   let disposed = false;
   const active = new Set<AbortController>();
   function primary(service: 'llm' | 'tts') {
@@ -126,6 +144,66 @@ export function createServiceRouter(
     for (const controller of active) controller.abort();
   }
   return {
+    transcriptionDisclosure,
+    transcribe: (audio, context, local, signal) =>
+      run(signal, async (s) => {
+        let failure: unknown = new AiError(
+          'MODEL_REQUIRED',
+          'Configure an STT route.',
+        );
+        for (const route of selected.stt) {
+          if (s.aborted)
+            throw new AiError('CANCELLED', 'Transcription cancelled.');
+          try {
+            if (route.providerId === 'local') {
+              try {
+                return await local();
+              } catch (error) {
+                // Missing local weights never download automatically; an approved remote fallback may proceed.
+                if (
+                  !s.aborted &&
+                  (error as { code?: string })?.code === 'MODEL_REQUIRED'
+                ) {
+                  failure = error;
+                  continue;
+                }
+                throw error;
+              }
+            }
+            const client = clients.get(route.providerId);
+            if (!client?.status().connected) {
+              failure = new AiError(
+                'AUTH_REQUIRED',
+                'A configured STT provider is disconnected.',
+              );
+              continue;
+            }
+            aiInvariant(
+              client.transcribeSpeech,
+              'MODEL_UNSUPPORTED',
+              'Provider does not support STT.',
+            );
+            const segments = await client.transcribeSpeech(
+              { model: route.model, audio, language: context.language },
+              s,
+            );
+            if (s.aborted)
+              throw new AiError('CANCELLED', 'Transcription cancelled.');
+            return {
+              id: crypto.randomUUID(),
+              assetId: context.assetId,
+              model: route.model,
+              revision: `provider:${route.providerId}`,
+              ...(context.language ? { language: context.language } : {}),
+              cues: sourceCues(segments, context.startUs, context.endUs),
+            };
+          } catch (error) {
+            if (!retry(error, s)) throw error;
+            failure = error;
+          }
+        }
+        throw failure;
+      }),
     status: () => ({
       connected:
         !disposed && [...clients.values()].some((p) => p.status().connected),

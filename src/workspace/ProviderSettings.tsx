@@ -29,6 +29,7 @@ export function ProviderSettings(props: ProviderSettingsProps) {
   const [baseUrl, setBaseUrl] = useState('');
   const [model, setModel] = useState('');
   const [speechModel, setSpeechModel] = useState('');
+  const [transcriptionModel, setTranscriptionModel] = useState('');
   const [voices, setVoices] = useState('');
   const [key, setKey] = useState('');
   const [callback, setCallback] = useState('');
@@ -79,6 +80,7 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                         setBaseUrl(p.baseUrl ?? '');
                         setModel(p.model ?? '');
                         setSpeechModel(p.speechModel ?? '');
+                        setTranscriptionModel(p.transcriptionModel ?? '');
                         setVoices(p.voices?.join(', ') ?? '');
                         setKey('');
                         setEditing(p.id);
@@ -112,6 +114,7 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                 setBaseUrl('');
                 setModel('');
                 setSpeechModel('');
+                setTranscriptionModel('');
                 setVoices('');
                 setShowForm(!showForm);
               }}
@@ -151,6 +154,9 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                       name: name.trim(),
                       baseUrl: baseUrl.trim(),
                       ...(model.trim() ? { model: model.trim() } : {}),
+                      ...(transcriptionModel.trim()
+                        ? { transcriptionModel: transcriptionModel.trim() }
+                        : {}),
                       ...(speechModel.trim()
                         ? {
                             speechModel: speechModel.trim(),
@@ -239,13 +245,35 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                       </p>
                     </div>
                   </details>
+                  <details>
+                    <summary className="cursor-pointer text-sm">
+                      Speech to text
+                    </summary>
+                    <div className="mt-3 space-y-2">
+                      <Label htmlFor="provider-transcription-model">
+                        Transcription model
+                      </Label>
+                      <Input
+                        id="provider-transcription-model"
+                        value={transcriptionModel}
+                        onChange={(e) => setTranscriptionModel(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Requires verbose JSON segment timestamps (for example
+                        whisper-1). Selected source audio is sent only after
+                        transcription approval.
+                      </p>
+                    </div>
+                  </details>
                   <Button
                     type="submit"
                     disabled={
                       props.connecting ||
                       !name.trim() ||
                       !baseUrl.trim() ||
-                      (!model.trim() && !(speechModel.trim() && voices.trim()))
+                      (!model.trim() &&
+                        !transcriptionModel.trim() &&
+                        !(speechModel.trim() && voices.trim()))
                     }
                   >
                     Connect endpoint
@@ -338,24 +366,31 @@ export function ProviderSettings(props: ProviderSettingsProps) {
               )}
             </div>
           )}
-          {(['llm', 'tts'] as const).map((service) => (
+          {(['llm', 'tts', 'stt'] as const).map((service) => (
             <details key={service} className="rounded-lg border p-3">
               <summary className="cursor-pointer text-sm font-medium">
-                {service === 'llm' ? 'LLM · Chat' : 'TTS · Speech'}
+                {service === 'llm'
+                  ? 'LLM · Chat'
+                  : service === 'tts'
+                    ? 'TTS · Speech'
+                    : 'STT · Transcription'}
               </summary>
               <p className="mt-1 text-xs text-muted-foreground">
                 {config.routes[service]
-                  .map(
-                    (r) =>
-                      config.profiles.find((p) => p.id === r.providerId)?.name,
+                  .map((r) =>
+                    r.providerId === 'local'
+                      ? 'Local Whisper'
+                      : config.profiles.find((p) => p.id === r.providerId)
+                          ?.name,
                   )
                   .join(' → ') || 'Disabled'}
               </p>
               <fieldset className="mt-3 space-y-2" disabled={props.connecting}>
                 {config.routes[service].map((route, index) => {
-                  const profile = config.profiles.find(
-                    (p) => p.id === route.providerId,
-                  )!;
+                  const profile =
+                    route.providerId === 'local'
+                      ? { id: 'local', name: 'Local Whisper' }
+                      : config.profiles.find((p) => p.id === route.providerId)!;
                   return (
                     <div
                       key={`${route.providerId}:${route.model}:${route.voice}`}
@@ -421,6 +456,7 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                         </Button>
                       </div>
                       <Input
+                        disabled={route.providerId === 'local'}
                         aria-label={`${profile.name} ${service} route model`}
                         placeholder={
                           index === 0
@@ -453,6 +489,26 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                   );
                 })}
                 <div className="flex flex-wrap gap-1">
+                  {service === 'stt' &&
+                    !config.routes.stt.some(
+                      (r) => r.providerId === 'local',
+                    ) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          patch((next) => {
+                            next.routes.stt.push({
+                              providerId: 'local',
+                              model: 'whisper',
+                            });
+                          })
+                        }
+                      >
+                        <Plus />
+                        Local Whisper
+                      </Button>
+                    )}
                   {config.profiles
                     .filter(
                       (p) =>
@@ -461,7 +517,9 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                         ) &&
                         (service === 'llm'
                           ? p.kind !== 'compatible' || !!p.model
-                          : p.kind === 'openrouter' || !!p.speechModel),
+                          : service === 'tts'
+                            ? p.kind === 'openrouter' || !!p.speechModel
+                            : !!p.transcriptionModel),
                     )
                     .map((p) => (
                       <Button
@@ -476,7 +534,9 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                               model:
                                 service === 'llm'
                                   ? (p.model ?? '')
-                                  : (p.speechModel ?? ''),
+                                  : service === 'tts'
+                                    ? (p.speechModel ?? '')
+                                    : (p.transcriptionModel ?? ''),
                               ...(service === 'tts' && p.voices?.[0]
                                 ? { voice: p.voices[0] }
                                 : {}),
@@ -492,10 +552,6 @@ export function ProviderSettings(props: ProviderSettingsProps) {
               </fieldset>
             </details>
           ))}
-          <div className="rounded-lg border p-3">
-            <p className="text-sm font-medium">STT · Transcription</p>
-            <p className="mt-1 text-sm">1. Local Whisper</p>
-          </div>
           <p className="text-xs text-muted-foreground">
             Fallback shares this request with each listed provider in order and
             may incur charges. Chat stops switching after output begins.

@@ -47,6 +47,10 @@ export interface Connection {
   provider: OpenRouter;
   api: AiModule;
   id: number;
+  transcription?: {
+    execute: import('../editor').TranscriptionExecutor;
+    disclosure: string;
+  };
 }
 export interface ConversationControls {
   commands: () => WorkspaceCommand[];
@@ -186,7 +190,15 @@ export function Conversation(props: ConversationProps) {
         configuration.current.routes,
       );
       providerRef.current = provider;
-      setConnection({ provider, api, id: token });
+      setConnection({
+        provider,
+        api,
+        id: token,
+        transcription: {
+          execute: provider.transcribe,
+          disclosure: provider.transcriptionDisclosure,
+        },
+      });
       setModels([]);
       setModel('');
       setSettingsOpen(true);
@@ -212,10 +224,10 @@ export function Conversation(props: ConversationProps) {
     if (
       safe.profiles.map((p) => p.id).join(',') !==
         next.profiles.map((p) => p.id).join(',') ||
-      ['llm', 'tts'].some(
+      ['llm', 'tts', 'stt'].some(
         (service) =>
-          JSON.stringify(safe.routes[service as 'llm' | 'tts']) !==
-          JSON.stringify(next.routes[service as 'llm' | 'tts']),
+          JSON.stringify(safe.routes[service as 'llm' | 'tts' | 'stt']) !==
+          JSON.stringify(next.routes[service as 'llm' | 'tts' | 'stt']),
       )
     ) {
       report(new Error('Choose valid provider model and voice IDs.'));
@@ -295,6 +307,7 @@ export function Conversation(props: ConversationProps) {
           baseUrl: profile.baseUrl!,
           model: profile.model,
           speechModel: profile.speechModel,
+          transcriptionModel: profile.transcriptionModel,
           voices: profile.voices,
         });
         client.setKey(credential);
@@ -334,6 +347,14 @@ export function Conversation(props: ConversationProps) {
           providerId: profile.id,
           model: profile.speechModel,
           voice: profile.voices?.[0],
+        });
+      if (
+        profile.transcriptionModel &&
+        !next.routes.stt.some((r) => r.providerId === profile.id)
+      )
+        next.routes.stt.push({
+          providerId: profile.id,
+          model: profile.transcriptionModel,
         });
       // Promote a new provider only over the untouched disconnected default. Preserve deliberate ordering.
       for (const service of ['llm', 'tts'] as const) {
@@ -401,6 +422,7 @@ export function Conversation(props: ConversationProps) {
       next.profiles = next.profiles.filter((p) => p.id !== id);
     next.routes.llm = next.routes.llm.filter((r) => r.providerId !== id);
     next.routes.tts = next.routes.tts.filter((r) => r.providerId !== id);
+    next.routes.stt = next.routes.stt.filter((r) => r.providerId !== id);
     updateConfiguration(next);
     setConnectedProviders(
       [...providers.current.values()]

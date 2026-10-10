@@ -6,6 +6,7 @@ export interface ProviderProfile {
   baseUrl?: string;
   model?: string;
   speechModel?: string;
+  transcriptionModel?: string;
   voices?: string[];
 }
 export interface ProviderConfiguration {
@@ -50,7 +51,8 @@ export function parseProviderConfiguration(raw: string): ProviderConfiguration {
         p.name.length > 80 ||
         !['openrouter', 'compatible', 'chatgpt'].includes(p.kind) ||
         (p.kind === 'openrouter' && p.id !== 'openrouter') ||
-        (p.kind !== 'openrouter' && p.id === 'openrouter')
+        (p.kind !== 'openrouter' && p.id === 'openrouter') ||
+        p.id === 'local'
       )
         return defaultProviderConfiguration();
       const profile: ProviderProfile = { id: p.id, name: p.name, kind: p.kind };
@@ -80,6 +82,11 @@ export function parseProviderConfiguration(raw: string): ProviderConfiguration {
             return defaultProviderConfiguration();
           profile.speechModel = p.speechModel;
         }
+        if (p.transcriptionModel !== undefined) {
+          if (!modelId(p.transcriptionModel) || !p.transcriptionModel)
+            return defaultProviderConfiguration();
+          profile.transcriptionModel = p.transcriptionModel;
+        }
         if (p.voices !== undefined) {
           if (
             !Array.isArray(p.voices) ||
@@ -103,15 +110,24 @@ export function parseProviderConfiguration(raw: string): ProviderConfiguration {
     const routes: ServiceRoutes = {
       llm: [],
       tts: [],
-      stt: [{ providerId: 'local', model: 'whisper' }],
+      stt: [],
     };
-    for (const service of ['llm', 'tts'] as const) {
+    for (const service of ['llm', 'tts', 'stt'] as const) {
       if (
         !Array.isArray(value.routes[service]) ||
         value.routes[service].length > 20
       )
         return defaultProviderConfiguration();
       for (const r of value.routes[service]) {
+        if (service === 'stt' && r?.providerId === 'local') {
+          if (
+            r.model !== 'whisper' ||
+            routes.stt.some((x) => x.providerId === 'local')
+          )
+            return defaultProviderConfiguration();
+          routes.stt.push({ providerId: 'local', model: 'whisper' });
+          continue;
+        }
         const p = profiles.find((p) => p.id === r?.providerId);
         if (
           !p ||
@@ -120,7 +136,9 @@ export function parseProviderConfiguration(raw: string): ProviderConfiguration {
           (service === 'tts' &&
             (p.kind === 'chatgpt' ||
               (p.kind === 'compatible' && !p.speechModel))) ||
-          (service === 'llm' && p.kind === 'compatible' && !p.model)
+          (service === 'llm' && p.kind === 'compatible' && !p.model) ||
+          (service === 'stt' &&
+            (p.kind !== 'compatible' || !p.transcriptionModel || !r.model))
         )
           return defaultProviderConfiguration();
         const route = {

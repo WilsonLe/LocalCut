@@ -1,3 +1,4 @@
+import { transcriptionBody, transcriptionSegments } from './transcription';
 import { AuthorizationFlow } from './auth.ts';
 import { speechModelsFrom, speechBody, readSpeechAudio } from './speech';
 import { AiError, aiInvariant, httpError } from './errors.ts';
@@ -326,6 +327,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
           | '/models'
           | '/models?output_modalities=speech'
           | '/audio/speech'
+          | '/audio/transcriptions'
           | '/chat/completions',
         init: RequestInit,
       ): Promise<Response> {
@@ -510,6 +512,43 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         const audio = await readSpeechAudio(response, op.signal);
         op.check();
         return audio;
+      } catch (error) {
+        return op.error(error);
+      } finally {
+        op.finish();
+      }
+    },
+    async transcribeSpeech(request, signal) {
+      assertActive();
+      aiInvariant(
+        compatible?.transcriptionModel,
+        'MODEL_UNSUPPORTED',
+        'This connection does not support STT.',
+      );
+      aiInvariant(
+        key !== undefined,
+        'AUTH_REQUIRED',
+        'Connect the transcription provider.',
+      );
+      aiInvariant(
+        request.model === compatible.transcriptionModel,
+        'MODEL_UNSUPPORTED',
+        'Use the configured timestamp-capable transcription model.',
+      );
+      const body = transcriptionBody(request);
+      const op = operation(signal);
+      try {
+        const response = await op.fetch('/audio/transcriptions', {
+          method: 'POST',
+          headers: key ? { Authorization: `Bearer ${key}` } : {},
+          body,
+        });
+        const segments = transcriptionSegments(
+          await readJson(response, op.signal),
+          request.audio.length / 16000,
+        );
+        op.check();
+        return segments;
       } catch (error) {
         return op.error(error);
       } finally {

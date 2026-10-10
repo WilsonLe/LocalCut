@@ -96,6 +96,11 @@ export interface OpenRouterClient {
     request: SpeechRequest,
     signal: AbortSignal,
   ): Promise<SpeechAudio>;
+  /** Optional timestamp-capable OpenAI-compatible STT, explicitly configured. */
+  transcribeSpeech?(
+    request: { model: string; audio: Float32Array; language?: string },
+    signal: AbortSignal,
+  ): Promise<{ text: string; timestamp: [number, number] }[]>;
   stream(
     request: ChatRequest,
     signal: AbortSignal,
@@ -142,6 +147,7 @@ export interface CompatibleEndpoint {
   /** Explicit user declaration: this chat model supports function tools. */
   model?: string;
   speechModel?: string;
+  transcriptionModel?: string;
   voices?: string[];
 }
 export interface OpenRouterOptions {

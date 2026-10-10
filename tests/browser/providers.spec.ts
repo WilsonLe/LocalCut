@@ -29,6 +29,10 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByLabel('LLM model (must support tools)', { exact: true })
       .fill('test-model');
+    await dialog.getByText('Speech to text', { exact: true }).click();
+    await dialog
+      .getByLabel('Transcription model', { exact: true })
+      .fill('whisper-1');
     await dialog
       .getByRole('button', { name: 'Connect endpoint', exact: true })
       .click();
@@ -44,6 +48,11 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(dialog).toContainText('Local server → OpenRouter');
     await expect(dialog).toContainText('STT · Transcription');
     await expect(dialog).toContainText('Local Whisper');
+    await dialog.getByText('STT · Transcription', { exact: true }).click();
+    await dialog
+      .getByRole('button', { name: 'Move Local server up in stt', exact: true })
+      .click();
+    await expect(dialog).toContainText('Local server → Local Whisper');
     await page.screenshot({
       path: testInfo.outputPath('provider-services.png'),
     });
@@ -60,6 +69,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
     await dialog.getByText('Providers & services', { exact: true }).click();
     await expect(dialog).toContainText('Local server → OpenRouter');
+    await expect(dialog).toContainText('Local server → Local Whisper');
     await expect(
       dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toHaveCount(0);
@@ -347,5 +357,159 @@ for (const base of ['/', '/LocalCut/']) {
         localStorage.getItem('localcut.chatgpt-credentials.v1'),
       ),
     ).toBeNull();
+  });
+}
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`native audio extraction routes STT and persists exact source cues ${base}`, async ({
+    page,
+    context,
+  }) => {
+    const requests: string[] = [];
+    await context.route(
+      'https://stt-first.example.test/v1/audio/transcriptions',
+      (route) => {
+        requests.push('first');
+        return route.fulfill({
+          status: 503,
+          headers: cors,
+          body: 'private failure body',
+        });
+      },
+    );
+    await context.route(
+      'https://stt-backup.example.test/v1/audio/transcriptions',
+      (route) => {
+        requests.push('backup');
+        const body = route.request().postDataBuffer()!;
+        expect(body.toString()).toContain('verbose_json');
+        expect(body.toString()).toContain('audio.wav');
+        expect(body.toString()).toContain('whisper-1');
+        expect(body.byteLength).toBeGreaterThan(21000);
+        return route.fulfill({
+          headers: { ...cors, 'content-type': 'application/json' },
+          body: JSON.stringify({
+            segments: [
+              { text: 'Hello', start: 0, end: 0.2 },
+              { text: 'world', start: 0.25, end: 0.65 },
+            ],
+          }),
+        });
+      },
+    );
+    await page.goto(base);
+    const result = await page.evaluate(async (path) => {
+      const api = (await import(
+        path + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const ai = (await import(
+        path + 'ai.js'
+      )) as typeof import('../../src/ai');
+      const namespace = 'test-' + crypto.randomUUID();
+      let editor = await api.createEditor({ namespace });
+      const data = new ArrayBuffer(44 + 96000),
+        view = new DataView(data);
+      const ascii = (offset: number, s: string) => {
+        for (let i = 0; i < s.length; i++)
+          view.setUint8(offset + i, s.charCodeAt(i));
+      };
+      ascii(0, 'RIFF');
+      view.setUint32(4, data.byteLength - 8, true);
+      ascii(8, 'WAVE');
+      ascii(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, 48000, true);
+      view.setUint32(28, 96000, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      ascii(36, 'data');
+      view.setUint32(40, 96000, true);
+      for (let i = 0; i < 48000; i++)
+        view.setInt16(
+          44 + i * 2,
+          Math.sin((i * 2 * Math.PI * 440) / 48000) * 16000,
+          true,
+        );
+      const asset = await editor.assets.import(
+        new File([data], 'source.wav', { type: 'audio/wav' }),
+      ).completion;
+      const first = ai.createOpenAICompatible({
+        baseUrl: 'https://stt-first.example.test/v1',
+        transcriptionModel: 'whisper-1',
+      });
+      const backup = ai.createOpenAICompatible({
+        baseUrl: 'https://stt-backup.example.test/v1',
+        transcriptionModel: 'whisper-1',
+      });
+      first.setKey('synthetic');
+      backup.setKey('synthetic');
+      const router = ai.createServiceRouter(
+        [
+          { id: 'first', name: 'First STT', client: first },
+          { id: 'backup', name: 'Backup STT', client: backup },
+        ],
+        {
+          llm: [],
+          tts: [],
+          stt: [
+            { providerId: 'first', model: 'whisper-1' },
+            { providerId: 'backup', model: 'whisper-1' },
+          ],
+        },
+      );
+      try {
+        const transcript = await editor.transcription.transcribe(asset.id, {
+          startUs: 120003,
+          endUs: 800007,
+          language: 'en',
+          provider: router.transcribe,
+        }).completion;
+        await editor.dispose();
+        editor = await api.createEditor({ namespace });
+        const saved = await editor.transcription.transcript(transcript.id);
+        if (!saved) throw new Error('Transcript did not survive reload.');
+        const rejected = await editor.transcription
+          .transcribe(asset.id, {
+            startUs: 120003,
+            endUs: 800007,
+            provider: async () => ({
+              ...saved,
+              id: crypto.randomUUID(),
+              assetId: 'foreign',
+            }),
+          })
+          .completion.then(
+            () => '',
+            (e: { code: string }) => e.code,
+          );
+        return {
+          cues: saved.cues.map(({ timeUs, endUs, text }) => ({
+            timeUs,
+            endUs,
+            text,
+          })),
+          model: saved.model,
+          revision: saved.revision,
+          rejected,
+        };
+      } finally {
+        router.dispose();
+        first.dispose();
+        backup.dispose();
+        await editor.dispose();
+      }
+    }, base);
+    expect(requests).toEqual(['first', 'backup']);
+    expect(result).toEqual({
+      cues: [
+        { timeUs: 120003, endUs: 320003, text: 'Hello' },
+        { timeUs: 370003, endUs: 770003, text: 'world' },
+      ],
+      model: 'whisper-1',
+      revision: 'provider:backup',
+      rejected: 'INVALID_DOCUMENT',
+    });
   });
 }

@@ -1852,6 +1852,68 @@ describe('headless assistant boundaries', () => {
     await a.dispose();
     await jobs.dispose();
   });
+  it('freezes the trusted STT disclosure and executes the captured route only on approval', async () => {
+    const f = fixture(),
+      jobs = new Jobs();
+    f.editor.assets.inspect = vi.fn(async () =>
+      assetSchema.parse({
+        id: 'asset',
+        name: 'source',
+        kind: 'video',
+        size: 10,
+        type: 'video/mp4',
+        durationUs: 4e6,
+        width: 1920,
+        height: 1080,
+        rotation: 0,
+        status: 'ready',
+        audioCodec: 'aac',
+      }),
+    );
+    f.editor.transcription.transcribe = vi.fn(() =>
+      jobs.start(async () => ({
+        id: 't',
+        assetId: 'asset',
+        model: 'remote',
+        revision: 'r',
+        cues: [],
+      })),
+    );
+    const execute = vi.fn();
+    const route = {
+      execute,
+      disclosure: 'Selected audio may be sent to STT A and STT B.',
+    };
+    const p = provider([
+      [
+        final('', [
+          call('propose_action', {
+            summary: 'Local only (untrusted summary)',
+            action: { type: 'transcribe', assetId: 'asset' },
+          }),
+        ]),
+      ],
+      [final()],
+    ]);
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      transcription: route,
+    });
+    route.disclosure = 'changed';
+    route.execute = vi.fn();
+    const id = (await a.run('Transcribe').completion).proposalIds[0]!;
+    expect(a.getProposal(id).dataSharing).toContain('STT A and STT B');
+    expect(f.editor.transcription.transcribe).not.toHaveBeenCalled();
+    await a.approveProposal(id);
+    expect(f.editor.transcription.transcribe).toHaveBeenCalledWith('asset', {
+      provider: execute,
+    });
+    await a.dispose();
+    await jobs.dispose();
+  });
   it('allows explicitly shared generated transcripts to drive source-linked captions', async () => {
     const f = fixture(),
       jobs = new Jobs();
