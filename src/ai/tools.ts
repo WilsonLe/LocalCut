@@ -7,6 +7,8 @@ import { EditorError } from '../core/errors';
 import { AiError, aiInvariant } from './errors';
 import type { ToolDefinition } from './types';
 import type { AssistantCapabilities } from './actions';
+import { availableSkills } from './skills';
+import type { SkillId } from './skills';
 
 const emptySchema = z.object({}).strict();
 const assetSchema = z.object({ assetId: z.string().min(1).max(200) }).strict();
@@ -50,6 +52,11 @@ const actionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('prepare_transcription') }).strict(),
 ]);
 const schemas = {
+  load_skill: z
+    .object({
+      skillId: z.enum(['editing', 'export', 'transcription', 'history']),
+    })
+    .strict(),
   inspect_project: emptySchema,
   inspect_asset: assetSchema,
   inspect_timeline: z.object({ timeUs: time }).strict(),
@@ -75,9 +82,12 @@ export const supportedEditOperations =
 
 export function toolDefinitions(
   includeTranscripts: boolean,
-  capabilities?: AssistantCapabilities,
+  capabilities: AssistantCapabilities,
+  loadedSkills: ReadonlySet<SkillId> = new Set(),
 ): ToolDefinition[] {
   const descriptions: Record<ToolName, string> = {
+    load_skill:
+      'Load guidance and tools for one relevant request domain. Tools become available in the next round. Load additional skills only as needed; this never grants approval or sharing consent.',
     inspect_project:
       'Read the selected project snapshot. Times are integer microseconds and ranges are half-open. Names and text may be withheld.',
     inspect_asset:
@@ -85,7 +95,7 @@ export function toolDefinitions(
     inspect_timeline:
       'Evaluate active clips at a timeline time: exact frame time, source positions, animated transforms, effects, audio gain, captions and transition weights. Structural metadata only; never renders or uploads a frame.',
     inspect_capabilities:
-      'Read supported editing operations, timing rules, available local services, explicit approval requirements and user-owned file actions.',
+      'Read supported editing operations, timing rules, edit approval requirements and user-owned file actions.',
     inspect_transcription:
       'Check whether local transcription assets are cached. Does not download or initialize a model.',
     inspect_proposals:
@@ -99,26 +109,89 @@ export function toolDefinitions(
     propose_edits:
       'Propose an atomic edit batch for explicit user review. Does not apply edits. Covers every supported EditOperation, including transforms, effects, keyframes, text, captions and audio settings via updateClip. Use available asset IDs only. The host binds revision and request ID. Use unique IDs for new entities.',
     propose_action:
-      'Propose Undo, Redo, local video export, local transcription, or explicit transcription model preparation. No service runs until the user approves the card. Export produces a local artifact for a separate Save action; preparation downloads model assets only after approval. No media is uploaded.',
+      'Propose a supported local action for explicit user approval. No service runs automatically and no media is uploaded.',
   };
+  const permittedActions = allowedActions(capabilities, loadedSkills);
   return (Object.keys(schemas) as ToolName[])
     .filter((name) => {
-      if (name === 'read_transcript') return includeTranscripts;
-      if (name === 'check_export') return !!capabilities?.export;
-      if (name === 'inspect_transcription')
-        return !!capabilities?.transcriptionStatus;
-      if (name === 'propose_action')
-        return capabilities && Object.values(capabilities).some(Boolean);
-      return true;
+      switch (name) {
+        case 'load_skill':
+        case 'inspect_project':
+        case 'inspect_proposals':
+          return true;
+        case 'inspect_asset':
+          return (
+            loadedSkills.has('editing') || loadedSkills.has('transcription')
+          );
+        case 'inspect_timeline':
+        case 'inspect_capabilities':
+        case 'validate_edits':
+        case 'propose_edits':
+          return loadedSkills.has('editing');
+        case 'read_transcript':
+          return loadedSkills.has('transcription') && includeTranscripts;
+        case 'check_export':
+          return loadedSkills.has('export') && capabilities.export;
+        case 'inspect_transcription':
+          return (
+            loadedSkills.has('transcription') &&
+            capabilities.transcriptionStatus
+          );
+        case 'propose_action':
+          return permittedActions.size > 0;
+      }
     })
-    .map((name) => ({
-      type: 'function',
-      function: {
-        name,
-        description: descriptions[name],
-        parameters: z.toJSONSchema(schemas[name], { io: 'input' }),
-      },
-    }));
+    .map((name) => {
+      const parameters = z.toJSONSchema(schemas[name], { io: 'input' });
+      if (name === 'load_skill') {
+        parameters.properties!.skillId = {
+          type: 'string',
+          enum: availableSkills(capabilities, includeTranscripts).map(
+            (skill) => skill.id,
+          ),
+        };
+      }
+      if (name === 'propose_action') {
+        const variants = actionSchema.options.filter((variant) =>
+          permittedActions.has(variant.shape.type.value),
+        );
+        // Each variant comes from the canonical action schema, narrowed to current authority.
+        parameters.properties!.action = {
+          anyOf: variants.map((variant) =>
+            z.toJSONSchema(variant, { io: 'input' }),
+          ),
+        };
+      }
+      return {
+        type: 'function' as const,
+        function: {
+          name,
+          description:
+            name === 'propose_action'
+              ? `Propose one available action: ${[...permittedActions].join(', ')}. Nothing runs until explicit user approval. Source media stays local; Save is a separate user action.`
+              : descriptions[name],
+          parameters,
+        },
+      };
+    });
+}
+
+export function allowedActions(
+  capabilities: AssistantCapabilities,
+  loadedSkills: ReadonlySet<SkillId>,
+) {
+  const allowed = new Set<z.infer<typeof actionSchema>['type']>();
+  if (loadedSkills.has('history')) {
+    if (capabilities.undo) allowed.add('undo');
+    if (capabilities.redo) allowed.add('redo');
+  }
+  if (loadedSkills.has('export') && capabilities.export) allowed.add('export');
+  if (loadedSkills.has('transcription')) {
+    if (capabilities.transcription) allowed.add('transcribe');
+    if (capabilities.transcriptionPreparation)
+      allowed.add('prepare_transcription');
+  }
+  return allowed;
 }
 
 export function parseTool(

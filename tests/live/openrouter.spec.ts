@@ -47,7 +47,7 @@ test('real OpenRouter tool proposal, local apply and undo', async ({
         if (!supported)
           throw new Error('Selected model does not advertise tools.');
         const response = await assistant.run(
-          'Call propose_edits to add exactly one empty overlay track with id live-title. Do not add any other object.',
+          'Load the editing skill, then call propose_edits to add exactly one empty overlay track with id live-title. Do not add any other object.',
         ).completion;
         const proposal = assistant.getProposal(response.proposalIds[0]!);
         if (

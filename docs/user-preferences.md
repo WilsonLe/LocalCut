@@ -96,3 +96,7 @@ This is the project record of the user's durable product and workflow choices. U
 - Nest `AGENTS.md` files at directory and subdirectory ownership boundaries so instructions stay scoped to the code being changed. Keep the root brief and shared rules in parent guides; do not duplicate a full global guide in each module.
 - Disable remote CI and run quality checks, browser acceptance, transcription and performance checks locally. Deploy GitHub Pages automatically on every push to `main`; do not re-enable hosted validation workflows.
 - Keep these preferences recorded here and preserve merge approval. Automatic Pages deployment on `main` pushes is authorized by the user's 10 October 2026 request; manual redeployments retain their confirmation control.
+
+## Assistant skills — 10 October 2026
+
+- Start AI turns with a small tool surface. Instruct the agent to select skills by request domain and load guidance/tools incrementally as the workflow needs them. Do not expose every tool or service action up front. Preserve explicit user approval, context-sharing consent and supported-service checks when skills are loaded.

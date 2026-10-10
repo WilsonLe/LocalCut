@@ -432,9 +432,25 @@ for (const base of ['/', '/LocalCut/']) {
           return;
         }
         const body = route.request().postDataJSON() as Record<string, unknown>;
+        const tools = body.tools as { function: { name: string } }[];
+        if (!tools.some((tool) => tool.function.name === 'propose_edits')) {
+          await route.fulfill({
+            headers: cors,
+            contentType: 'text/event-stream',
+            body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'load-editing', type: 'function', function: { name: 'load_skill', arguments: '{"skillId":"editing"}' } }] }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`,
+          });
+          return;
+        }
         requests.push(body);
-        const messages = body.messages as { role: string }[];
-        const events = messages.some((message) => message.role === 'tool')
+        const messages = body.messages as {
+          role: string;
+          tool_calls?: { function: { name: string } }[];
+        }[];
+        const events = messages.some((message) =>
+          message.tool_calls?.some(
+            (tool) => tool.function.name === 'propose_edits',
+          ),
+        )
           ? [
               {
                 choices: [

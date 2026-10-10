@@ -104,9 +104,20 @@ async function send(page: Page, text: string) {
 }
 function proposalResponse(route: Route) {
   const body = route.request().postDataJSON() as {
-    messages: { role: string }[];
+    messages: { role: string; tool_calls?: { function: { name: string } }[] }[];
+    tools: { function: { name: string } }[];
   };
-  const completed = body.messages.some((message) => message.role === 'tool');
+  if (!body.tools.some((tool) => tool.function.name === 'propose_edits'))
+    return `data: ${JSON.stringify({ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'load-editing', type: 'function', function: { name: 'load_skill', arguments: '{"skillId":"editing"}' } }] }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`;
+  const completed = body.messages
+    .slice(body.messages.map((message) => message.role).lastIndexOf('user') + 1)
+    .some(
+      (message) =>
+        message.role === 'assistant' &&
+        message.tool_calls?.some(
+          (call) => call.function.name === 'propose_edits',
+        ),
+    );
   return `data: ${JSON.stringify({
     choices: [
       {
@@ -308,7 +319,7 @@ test('rate-limit errors remain visible and retry requires a fresh send', async (
   await expect(
     page.getByRole('button', { name: 'Apply proposal', exact: true }),
   ).toBeEnabled();
-  expect(requests).toBe(3);
+  expect(requests).toBe(4);
   expect((await snapshot(page, name)).revision).toBe(0);
 });
 

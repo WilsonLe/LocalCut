@@ -36,6 +36,21 @@ for (const base of ['/', '/LocalCut/']) {
           await route.fulfill({ headers: cors, body: '' });
           return;
         }
+        const requestTools = (
+          route.request().postDataJSON() as {
+            tools: { function: { name: string } }[];
+          }
+        ).tools;
+        if (
+          !requestTools.some((tool) => tool.function.name === 'propose_edits')
+        ) {
+          await route.fulfill({
+            headers: cors,
+            contentType: 'text/event-stream',
+            body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'load-editing', type: 'function', function: { name: 'load_skill', arguments: '{"skillId":"editing"}' } }] }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`,
+          });
+          return;
+        }
         rounds++;
         const tool = (
           index: number,
@@ -130,7 +145,7 @@ for (const base of ['/', '/LocalCut/']) {
       ),
     ).toBeVisible();
     await response
-      .getByRole('button', { name: '2 of 3 tools completed', exact: true })
+      .getByRole('button', { name: '3 of 4 tools completed', exact: true })
       .click();
     const inspections = response.locator('[data-tool-name="inspect_project"]');
     await expect(inspections).toHaveCount(2);
@@ -208,6 +223,21 @@ for (const base of ['/', '/LocalCut/']) {
       async (route) => {
         if (route.request().method() === 'OPTIONS') {
           await route.fulfill({ headers: cors, body: '' });
+          return;
+        }
+        const requestTools = (
+          route.request().postDataJSON() as {
+            tools: { function: { name: string } }[];
+          }
+        ).tools;
+        if (
+          !requestTools.some((tool) => tool.function.name === 'propose_edits')
+        ) {
+          await route.fulfill({
+            headers: cors,
+            contentType: 'text/event-stream',
+            body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'load-editing', type: 'function', function: { name: 'load_skill', arguments: '{"skillId":"editing"}' } }] }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`,
+          });
           return;
         }
         rounds++;

@@ -183,6 +183,21 @@ for (const base of ['/', '/LocalCut/']) {
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
         const body = route.request().postDataJSON() as Record<string, unknown>;
+        const requestTools = (
+          route.request().postDataJSON() as {
+            tools: { function: { name: string } }[];
+          }
+        ).tools;
+        if (
+          !requestTools.some((tool) => tool.function.name === 'propose_edits')
+        ) {
+          await route.fulfill({
+            headers: headers,
+            contentType: 'text/event-stream',
+            body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'load-editing', type: 'function', function: { name: 'load_skill', arguments: '{"skillId":"editing"}' } }] }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`,
+          });
+          return;
+        }
         requests.push(body);
         const first = requests.length % 2 === 1;
         const events = first
@@ -371,7 +386,9 @@ for (const base of ['/', '/LocalCut/']) {
     expect(requests).toHaveLength(2);
     const continuation = (
       requests[1]!.messages as Record<string, unknown>[]
-    ).find((message) => message.role === 'assistant');
+    ).find(
+      (message) => message.role === 'assistant' && message.reasoning_details,
+    );
     expect(continuation?.reasoning_details).toEqual([
       {
         type: 'reasoning.encrypted',
@@ -542,6 +559,21 @@ test('explicitly selected library media can be proposed; stale batches cannot co
   await context.route(
     'https://openrouter.ai/api/v1/chat/completions',
     async (route) => {
+      const requestTools = (
+        route.request().postDataJSON() as {
+          tools: { function: { name: string } }[];
+        }
+      ).tools;
+      if (
+        !requestTools.some((tool) => tool.function.name === 'propose_edits')
+      ) {
+        await route.fulfill({
+          headers: headers,
+          contentType: 'text/event-stream',
+          body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'load-editing', type: 'function', function: { name: 'load_skill', arguments: '{"skillId":"editing"}' } }] }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`,
+        });
+        return;
+      }
       outgoing.push(route.request().postData()!);
       round++;
       const message =
