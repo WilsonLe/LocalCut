@@ -59,11 +59,19 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByRole('button', { name: 'Collapse media' }),
     ).toBeVisible();
+    // ResizeObserver publishes after layout; read both bounds and the rendered
+    // panel atomically so different observer snapshots cannot be compared.
     await expect
-      .poll(
-        async () =>
-          Number(await resize.getAttribute('aria-valuenow')) <=
-          Number(await resize.getAttribute('aria-valuemax')),
+      .poll(() =>
+        resize.evaluate((node) => {
+          const current = Number(node.getAttribute('aria-valuenow'));
+          const maximum = Number(node.getAttribute('aria-valuemax'));
+          return (
+            current <= maximum &&
+            current ===
+              Math.round(node.parentElement!.getBoundingClientRect().width)
+          );
+        }),
       )
       .toBe(true);
     expect(

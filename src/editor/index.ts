@@ -25,6 +25,18 @@ export { EditorError } from '../core/errors';
 export type { Job, JobEvent, Progress } from '../services/jobs';
 export type { ExportOptions, ExportResult } from '../media/export';
 export type { PreviewSession, FrameResult } from '../services/preview';
+export { readWorkspaceArchive } from '../storage/workspace-transfer';
+export type {
+  WorkspaceArchive,
+  WorkspaceBackup,
+  WorkspaceSelection,
+  WorkspaceSettings,
+} from '../storage/workspace-transfer';
+import type {
+  WorkspaceArchive,
+  WorkspaceSelection,
+  WorkspaceSettings,
+} from '../storage/workspace-transfer';
 export interface EditorOptions {
   namespace?: string;
 }
@@ -162,6 +174,50 @@ export async function createEditor(options: EditorOptions = {}) {
     });
   };
   return {
+    workspace: {
+      async snapshot(
+        projectIds: string[],
+        includeVersions = true,
+        settings?: WorkspaceSettings,
+      ) {
+        active();
+        const { snapshotWorkspace } =
+          await import('../storage/workspace-transfer');
+        return snapshotWorkspace(store, projectIds, includeVersions, settings);
+      },
+      export(selection: WorkspaceSelection, settings?: WorkspaceSettings) {
+        active();
+        return jobs.start(async (signal, progress) => {
+          const { exportWorkspace } =
+            await import('../storage/workspace-transfer');
+          return exportWorkspace(store, selection, settings, signal, progress);
+        });
+      },
+      import(archive: WorkspaceArchive, selection: WorkspaceSelection) {
+        active();
+        return jobs.start(
+          async (signal, progress) => {
+            const { restoreWorkspace } =
+              await import('../storage/workspace-transfer');
+            const projects = await restoreWorkspace(
+              store,
+              archive,
+              selection,
+              signal,
+              progress,
+            );
+            for (const project of projects)
+              notify({
+                projectId: project.id,
+                revision: project.revision,
+                type: 'changed',
+              });
+            return projects;
+          },
+          { acceptCommittedResult: true },
+        );
+      },
+    },
     projects: {
       async create(
         name: string,
