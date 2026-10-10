@@ -134,6 +134,9 @@ for (const base of ['/', '/LocalCut/']) {
     const palette = page.getByRole('dialog', { name: 'Commands', exact: true });
     await palette.getByRole('combobox').fill('Add text');
     await palette.getByRole('option', { name: /Add text/ }).click();
+    await page
+      .getByRole('button', { name: 'Insert Plain text', exact: true })
+      .click();
     await expect(
       page.getByRole('dialog', { name: 'Clip properties', exact: true }),
     ).toBeVisible();
