@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { averageSpeed } from './speed';
+import { averageSpeed, nominalSourceBounds } from './speed';
 import { speedRampSchema } from './speed-schema';
 import { EditorError, invariant } from './errors';
 import { transitionPairs, TRANSITION_TEMPLATES } from './timeline';
@@ -69,6 +69,16 @@ const clipInputSchema = z
     speed: finite.min(0.25).max(4).default(1),
     pitchMode: z.enum(['change', 'preserve']).optional(),
     speedRamp: speedRampSchema.optional(),
+    // Split provenance: nominal bounds before integer source-boundary rounding.
+    speedRampSourceRange: z
+      .object({
+        sourceInUs: time,
+        sourceOutUs: time.positive(),
+        from: finite.min(0).max(1),
+        to: finite.min(0).max(1),
+      })
+      .strict()
+      .optional(),
     x: finite.default(0),
     y: finite.default(0),
     width: finite.positive().default(1920),
@@ -339,13 +349,24 @@ export function validateProject(value: unknown): Project {
         );
         invariant(
           Math.abs(
-            (clip.sourceOutUs - clip.sourceInUs) / averageSpeed(clip) -
+            nominalSourceBounds(clip).spanUs / averageSpeed(clip) -
               clip.durationUs,
-          ) <= (clip.speedRamp ? 2 : 1),
+          ) <= 1,
           'INVALID_DOCUMENT',
           'Duration must match source range and speed',
         );
       }
+      if (clip.speedRampSourceRange)
+        invariant(
+          !!clip.speedRamp &&
+            clip.speedRampSourceRange.sourceOutUs >
+              clip.speedRampSourceRange.sourceInUs &&
+            clip.speedRampSourceRange.to > clip.speedRampSourceRange.from &&
+            Math.round(nominalSourceBounds(clip).inUs) === clip.sourceInUs &&
+            Math.round(nominalSourceBounds(clip).outUs) === clip.sourceOutUs,
+          'INVALID_DOCUMENT',
+          'Ramp split bounds must round to the source range',
+        );
       invariant(
         !clip.speedRamp || ['video', 'audio'].includes(clip.kind),
         'INVALID_DOCUMENT',

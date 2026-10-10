@@ -17,7 +17,7 @@ import type {
 } from './model';
 import { invariant, EditorError } from './errors';
 import { evaluateKeys, sourceTimeUs } from './timing';
-import { sourceDurationUs, sliceRamp } from './speed';
+import { sourceDurationUs, splitRampSourceRange, sliceRamp } from './speed';
 import { speedRampSchema } from './speed-schema';
 import { TRANSITION_TEMPLATES } from './timeline';
 import type { TransitionTemplate } from './timeline';
@@ -421,11 +421,24 @@ export function applyOperations(
       }
       case 'updateClip': {
         const { t, c } = locate(op.clipId);
-        t.clips[t.clips.indexOf(c)] = clipSchema.parse({ ...c, ...op.patch });
+        const updated = { ...c, ...op.patch };
+        if (
+          (op.patch.durationUs !== undefined &&
+            op.patch.durationUs !== c.durationUs) ||
+          (op.patch.sourceInUs !== undefined &&
+            op.patch.sourceInUs !== c.sourceInUs) ||
+          (op.patch.sourceOutUs !== undefined &&
+            op.patch.sourceOutUs !== c.sourceOutUs) ||
+          (op.patch.speedRamp !== undefined &&
+            JSON.stringify(op.patch.speedRamp) !== JSON.stringify(c.speedRamp))
+        )
+          delete updated.speedRampSourceRange;
+        t.clips[t.clips.indexOf(c)] = clipSchema.parse(updated);
         break;
       }
       case 'trimClip': {
         const { c } = locate(op.clipId);
+        delete c.speedRampSourceRange;
         c.sourceInUs = op.sourceInUs;
         c.sourceOutUs = op.sourceOutUs;
         c.durationUs = sourceDurationUs(c, op.sourceOutUs - op.sourceInUs);
@@ -450,8 +463,13 @@ export function applyOperations(
         const [leftKeys, rightKeys] = splitKeys(c, offset, right.id);
         c.keyframes = leftKeys;
         right.keyframes = rightKeys;
-        const source = sourceTimeUs(c, op.atUs);
+        let source = sourceTimeUs(c, op.atUs);
         if (c.speedRamp) {
+          const bounds = splitRampSourceRange(c, offset);
+          source = bounds.sourceUs;
+          // Retain integer reference bounds and unitless fractions for repeated splits.
+          right.speedRampSourceRange = bounds.right;
+          c.speedRampSourceRange = bounds.left;
           const split = offset / c.durationUs;
           right.speedRamp = sliceRamp(c.speedRamp, split, 1);
           c.speedRamp = sliceRamp(c.speedRamp, 0, split);
@@ -509,6 +527,7 @@ export function applyOperations(
         const hadRamp = !!c.speedRamp;
         c.speed = op.speed;
         delete c.speedRamp;
+        delete c.speedRampSourceRange;
         if (op.pitchMode) c.pitchMode = op.pitchMode;
         const duration = Math.round((c.sourceOutUs! - c.sourceInUs) / op.speed);
         if (hadRamp) retimeClip(c, duration);
@@ -522,6 +541,7 @@ export function applyOperations(
           'INVALID_COMMAND',
           'Speed requires timed media',
         );
+        delete c.speedRampSourceRange;
         if (op.points) c.speedRamp = speedRampSchema.parse(op.points);
         else delete c.speedRamp;
         if (op.pitchMode) c.pitchMode = op.pitchMode;
@@ -565,6 +585,7 @@ export function applyOperations(
           sourceOutUs: c.sourceOutUs,
           speed: c.speed,
           speedRamp: c.speedRamp,
+          speedRampSourceRange: c.speedRampSourceRange,
           pitchMode: c.pitchMode,
           gain: c.gain,
           muted: c.muted || t.muted,

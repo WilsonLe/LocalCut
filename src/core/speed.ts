@@ -64,6 +64,54 @@ export function rampSpeed(points: SpeedRamp, position: number) {
 export function averageSpeed(clip: Pick<Timing, 'speed' | 'speedRamp'>) {
   return clip.speedRamp ? rampIntegral(clip.speedRamp) : clip.speed;
 }
+type SplitRange = {
+  sourceInUs: number;
+  sourceOutUs: number;
+  from: number;
+  to: number;
+};
+export function nominalSourceBounds(
+  clip: Pick<Timing, 'sourceInUs' | 'sourceOutUs'> & {
+    speedRampSourceRange?: SplitRange;
+  },
+) {
+  const range = clip.speedRampSourceRange;
+  if (!range)
+    return {
+      inUs: clip.sourceInUs,
+      outUs: clip.sourceOutUs!,
+      spanUs: clip.sourceOutUs! - clip.sourceInUs,
+    };
+  const span = range.sourceOutUs - range.sourceInUs;
+  return {
+    inUs: range.sourceInUs + span * range.from,
+    outUs: range.sourceInUs + span * range.to,
+    spanUs: span * (range.to - range.from),
+  };
+}
+export function splitRampSourceRange(
+  clip: Timing & { speedRampSourceRange?: SplitRange },
+  localUs: number,
+) {
+  const range = clip.speedRampSourceRange ?? {
+    sourceInUs: clip.sourceInUs,
+    sourceOutUs: clip.sourceOutUs!,
+    from: 0,
+    to: 1,
+  };
+  const boundary =
+    range.from +
+    ((range.to - range.from) *
+      rampIntegral(clip.speedRamp!, localUs / clip.durationUs)) /
+      rampIntegral(clip.speedRamp!);
+  return {
+    left: { ...range, to: boundary },
+    right: { ...range, from: boundary },
+    sourceUs: Math.round(
+      range.sourceInUs + (range.sourceOutUs - range.sourceInUs) * boundary,
+    ),
+  };
+}
 export function sourceDurationUs(
   clip: Pick<Timing, 'speed' | 'speedRamp'>,
   sourceUs: number,

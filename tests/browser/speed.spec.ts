@@ -277,7 +277,40 @@ for (const base of ['/', '/LocalCut/']) {
             exports,
           });
         }
+        const beforeSplit = await editor.projects.snapshot(p.id);
+        await editor.commands.apply({
+          projectId: p.id,
+          expectedRevision: beforeSplit.revision,
+          requestId: 'split-speed',
+          operations: [
+            {
+              type: 'splitClip',
+              clipId: 'c',
+              atUs: 1700001,
+              rightClipId: 'right',
+            },
+          ],
+        });
         const saved = await editor.projects.snapshot(p.id);
+        const state = (project: typeof saved) =>
+          project.tracks[0]!.clips.map((clip) => ({
+            pitchMode: clip.pitchMode,
+            ramp: clip.speedRamp,
+            range: clip.speedRampSourceRange,
+            startUs: clip.startUs,
+            durationUs: clip.durationUs,
+            sourceInUs: clip.sourceInUs,
+            sourceOutUs: clip.sourceOutUs,
+          }));
+        const splitArtifact = await editor.exports.start(p.id, {
+          format: 'mp4',
+        }).completion;
+        artifacts.push(splitArtifact);
+        const splitMedia = await editor.assets.import(
+          new File([splitArtifact.file], 'split.mp4', {
+            type: 'video/mp4',
+          }),
+        ).completion;
         const backup = await editor.projects.exportJSON(p.id),
           copy = await editor.projects.importJSON(backup);
         await editor.projects.versions.save(p.id);
@@ -291,11 +324,13 @@ for (const base of ['/', '/LocalCut/']) {
           history = await editor.projects.versions.snapshot(p.id, version.id);
         return {
           outputs,
-          retained: [reopened, copy, history.project].map((project) => ({
-            pitchMode: project.tracks[0]!.clips[0]!.pitchMode,
-            ramp: project.tracks[0]!.clips[0]!.speedRamp,
-          })),
-          expectedRamp: saved.tracks[0]!.clips[0]!.speedRamp,
+          retained: [reopened, copy, history.project].map(state),
+          expectedClips: state(saved),
+          splitDurationUs: splitMedia.durationUs,
+          expectedDurationUs: saved.tracks[0]!.clips.reduce(
+            (sum, clip) => sum + clip.durationUs,
+            0,
+          ),
         };
       } finally {
         for (const artifact of artifacts) await artifact.dispose();
@@ -326,9 +361,16 @@ for (const base of ['/', '/LocalCut/']) {
         }
       }
     }
-    for (const retained of result.retained) {
-      expect(retained.pitchMode).toBe('preserve');
-      expect(retained.ramp).toEqual(result.expectedRamp);
-    }
+    expect(result.expectedClips).toHaveLength(2);
+    expect(result.expectedClips[0]!.range!.to).toBeGreaterThan(0);
+    expect(result.expectedClips[0]!.range!.to).toBeLessThan(1);
+    expect(result.expectedClips[0]!.sourceOutUs).toBe(
+      result.expectedClips[1]!.sourceInUs,
+    );
+    expect(
+      Math.abs(result.splitDurationUs! - result.expectedDurationUs),
+    ).toBeLessThan(40000);
+    for (const retained of result.retained)
+      expect(retained).toEqual(result.expectedClips);
   });
 }

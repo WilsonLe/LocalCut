@@ -10,6 +10,7 @@ import {
   sourceDurationUs,
   sourcePositionUs,
   rampSpeed,
+  nominalSourceBounds,
 } from '../../src/core/speed';
 import { PitchStretcher } from '../../src/core/stretch';
 
@@ -134,6 +135,173 @@ describe('speed and integrated source timing', () => {
       }
     },
   );
+  it('splits frame-boundary ramps without accumulating rounded source errors', () => {
+    const initial = project();
+    const original = initial.tracks[0]!.clips[0]!;
+    Object.assign(original, {
+      startUs: 0,
+      sourceInUs: 0,
+      sourceOutUs: 8000001,
+      durationUs: 8000001,
+      keyframes: {},
+      fadeInUs: 0,
+      fadeOutUs: 0,
+    });
+    let current = applyOperations(initial, [
+      {
+        type: 'setSpeedRamp',
+        clipId: 'c',
+        points: [
+          { position: 0, speed: 0.25, interpolation: 'hold' },
+          { position: 0.7, speed: 0.25, interpolation: 'linear' },
+          { position: 1, speed: 4, interpolation: 'hold' },
+        ],
+      },
+    ]).project;
+    const unsplit = structuredClone(current.tracks[0]!.clips[0]!);
+    expect(unsplit.durationUs).toBe(9846155);
+    current = applyOperations(current, [
+      {
+        type: 'splitClip',
+        clipId: 'c',
+        atUs: 6966667,
+        rightClipId: 'right-0',
+      },
+    ]).project;
+    expect(current.tracks[0]!.clips[0]!.sourceOutUs).toBe(1745177);
+    for (let i = 1; i < 12; i++) {
+      const left = current.tracks[0]!.clips.find((c) => c.id === 'c')!;
+      const atUs = Math.round(
+        (Math.floor((left.durationUs * 0.7) / (1e6 / 30)) * 1e6) / 30,
+      );
+      if (atUs <= 0) break;
+      current = applyOperations(current, [
+        {
+          type: 'splitClip',
+          clipId: 'c',
+          atUs,
+          rightClipId: `right-${i}`,
+        },
+      ]).project;
+    }
+    const pieces = [...current.tracks[0]!.clips].sort(
+      (a, b) => a.startUs - b.startUs,
+    );
+    expect(pieces.length).toBeGreaterThan(8);
+    expect(pieces.reduce((sum, c) => sum + c.durationUs, 0)).toBe(
+      unsplit.durationUs,
+    );
+    for (let i = 0; i < pieces.length; i++) {
+      const clip = pieces[i]!;
+      if (i) {
+        expect(clip.sourceInUs).toBe(pieces[i - 1]!.sourceOutUs);
+        expect(clip.startUs).toBe(
+          pieces[i - 1]!.startUs + pieces[i - 1]!.durationUs,
+        );
+      }
+      expect(Math.round(nominalSourceBounds(clip).inUs)).toBe(clip.sourceInUs);
+      expect(Math.round(nominalSourceBounds(clip).outUs)).toBe(
+        clip.sourceOutUs,
+      );
+      for (const fraction of [0, 0.17, 0.5, 0.91, 1])
+        expect(
+          Math.abs(
+            sourcePositionUs(clip, clip.durationUs * fraction) -
+              sourcePositionUs(
+                unsplit,
+                clip.startUs + clip.durationUs * fraction,
+              ),
+          ),
+        ).toBeLessThanOrEqual(1);
+    }
+    expect(validateProject(JSON.parse(JSON.stringify(current)))).toEqual(
+      current,
+    );
+    const copied = applyOperations(current, [
+      { type: 'addTrack', track: { id: 'audio', kind: 'audio' } },
+      {
+        type: 'separateAudio',
+        clipId: 'c',
+        audioClipId: 'separated',
+        trackId: 'audio',
+      },
+      {
+        type: 'duplicateClip',
+        clipId: 'separated',
+        newClipId: 'copied',
+        trackId: 'audio',
+        startUs: 20000000,
+      },
+    ]).project;
+    expect(copied.tracks[1]!.clips.map((c) => c.speedRampSourceRange)).toEqual([
+      pieces[0]!.speedRampSourceRange,
+      pieces[0]!.speedRampSourceRange,
+    ]);
+    const invalid = structuredClone(current);
+    invalid.tracks[0]!.clips[0]!.speedRampSourceRange!.to += 0.00001;
+    expect(() => validateProject(invalid)).toThrow();
+    for (const operation of [
+      { type: 'setSpeed', clipId: 'c', speed: 1 },
+      { type: 'setSpeedRamp', clipId: 'c', points: pieces[0]!.speedRamp! },
+      { type: 'trimClip', clipId: 'c', sourceInUs: 0, sourceOutUs: 100000 },
+    ] as const) {
+      const changed = applyOperations(current, [operation]).project.tracks[0]!
+        .clips[0]!;
+      expect(changed.speedRampSourceRange).toBeUndefined();
+    }
+  });
+  it('retains nominal bounds through deep smooth splits and unchanged timing patches', () => {
+    let current = edited('smooth');
+    const original = structuredClone(current.tracks[0]!.clips[0]!);
+    for (let i = 0; i < 30; i++) {
+      const clip = current.tracks[0]!.clips[0]!;
+      current = applyOperations(current, [
+        {
+          type: 'splitClip',
+          clipId: 'c',
+          atUs: clip.startUs + Math.round(clip.durationUs * 0.83),
+          rightClipId: `deep-${i}`,
+        },
+      ]).project;
+    }
+    const clip = current.tracks[0]!.clips[0]!;
+    expect(
+      Math.abs(
+        sourcePositionUs(clip, clip.durationUs) -
+          sourcePositionUs(original, clip.durationUs),
+      ),
+    ).toBeLessThanOrEqual(0.5);
+    const gained = applyOperations(current, [
+      {
+        type: 'updateClip',
+        clipId: 'c',
+        patch: {
+          gain: 0.2,
+          durationUs: clip.durationUs,
+          sourceInUs: clip.sourceInUs,
+          sourceOutUs: clip.sourceOutUs,
+        },
+      },
+    ]).project.tracks[0]!.clips[0]!;
+    expect(gained.speedRampSourceRange).toEqual(clip.speedRampSourceRange);
+    const durationUs =
+      sourceDurationUs(clip, clip.sourceOutUs! - clip.sourceInUs) + 10;
+    const updated = applyOperations(current, [
+      {
+        type: 'updateClip',
+        clipId: 'c',
+        patch: {
+          durationUs,
+          sourceOutUs:
+            clip.sourceInUs + Math.round(durationUs * averageSpeed(clip)),
+          keyframes: {},
+          fadeInUs: 0,
+          fadeOutUs: 0,
+        },
+      },
+    ]).project.tracks[0]!.clips[0]!;
+    expect(updated.speedRampSourceRange).toBeUndefined();
+  });
   it('staircase presets reach their final plateau before the clip endpoint', () => {
     for (const direction of ['up', 'down', 'up-down', 'down-up'] as const) {
       const points = rampPreset(direction, 'hold');
