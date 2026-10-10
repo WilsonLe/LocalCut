@@ -43,6 +43,9 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await expect(projectMenu).toBeVisible();
     await expect(
+      projectMenu.getByRole('menuitem', { name: 'New project', exact: true }),
+    ).toBeFocused();
+    await expect(
       projectMenu.getByRole('menuitem', {
         name: 'Download project backup',
         exact: true,

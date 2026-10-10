@@ -294,7 +294,13 @@ for (const base of ['/', '/LocalCut/']) {
     page,
   }) => {
     await page.goto(base);
-    await page.evaluate(() => localStorage.setItem('unrelated', 'keep'));
+    await page.evaluate(() => {
+      localStorage.setItem('unrelated', 'keep');
+      localStorage.setItem(
+        'localcut.openrouter-credential.v1',
+        JSON.stringify({ version: 1, key: 'synthetic-backup-exclusion-key' }),
+      );
+    });
     await transfer(page, 'Workspace', 'Export workspace');
     const dialog = page.getByRole('dialog', {
       name: 'Export workspace',
@@ -317,6 +323,11 @@ for (const base of ['/', '/LocalCut/']) {
     expect(backup.settings.workspace.chatWidth).toBe(320);
     expect(backup.projects).toEqual([]);
     expect(bytes.toString()).not.toContain('unrelated');
+    expect(bytes.toString()).not.toContain('synthetic-backup-exclusion-key');
+    // This test covers transfer, rather than automatic reconnect on reload.
+    await page.evaluate(() =>
+      localStorage.removeItem('localcut.openrouter-credential.v1'),
+    );
     backup.settings.appearance.theme = 'blue';
     backup.settings.workspace.chatWidth = 450;
     await page.reload();
@@ -382,6 +393,12 @@ for (const base of ['/', '/LocalCut/']) {
         await e.dispose();
       }
     }, base);
+    await page.evaluate(() =>
+      localStorage.setItem(
+        'localcut.openrouter-credential.v1',
+        JSON.stringify({ version: 1, key: 'synthetic-backup-exclusion-key' }),
+      ),
+    );
     await transfer(page, 'Project', 'Export project');
     const projectDialog = page.getByRole('dialog', {
       name: 'Export project',
@@ -406,6 +423,9 @@ for (const base of ['/', '/LocalCut/']) {
     const projectDownload = await projectDownloadEvent;
     const projectBytes = await readFile((await projectDownload.path())!);
     const single = JSON.parse(projectBytes.toString());
+    expect(projectBytes.toString()).not.toContain(
+      'synthetic-backup-exclusion-key',
+    );
     expect(single.projects).toHaveLength(1);
     expect(single.settings).toEqual({});
     await transfer(page, 'Project', 'Import project');

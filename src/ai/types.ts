@@ -90,6 +90,8 @@ export interface OpenRouterClient {
   status(): ConnectionStatus;
   setKey(key: string): void;
   disconnect(): void;
+  /** Explicitly restore an optional local credential, without network activity. */
+  restoreCredential(): ConnectionStatus;
   listModels(signal?: AbortSignal): Promise<OpenRouterModel[]>;
   listSpeechModels(signal?: AbortSignal): Promise<SpeechModel[]>;
   synthesizeSpeech(
@@ -158,5 +160,7 @@ export interface OpenRouterOptions {
   requestTimeoutMs?: number;
   /** Optional test/browser integration storage; resolved lazily on OAuth calls only. */
   oauthStorage?: AuthorizationStorage;
+  /** Opt-in persistent credential store. Resolved only on connect/restore/disconnect. */
+  credentialStorage?: () => AuthorizationStorage;
   now?: () => number;
 }

@@ -11,7 +11,10 @@ import type {
   OpenRouter,
   OpenRouterOptions,
 } from './types';
-export interface ChatGPTOptions extends Omit<OpenRouterOptions, 'compatible'> {
+export interface ChatGPTOptions extends Omit<
+  OpenRouterOptions,
+  'compatible' | 'credentialStorage'
+> {
   credentialStorage?: AuthorizationStorage;
 }
 export interface ChatGPTClient extends OpenRouter {
@@ -184,6 +187,9 @@ export function createChatGPT(options: ChatGPTOptions = {}): ChatGPTClient {
       const result = auth.restore();
       listen();
       return result;
+    },
+    restoreCredential() {
+      return { connected: this.restore() };
     },
     setKey() {
       throw new AiError('AUTH_INVALID', 'Use Continue with ChatGPT.');

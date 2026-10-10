@@ -31,7 +31,7 @@ export interface ProviderConnection {
 /** Reuse the bounded transport/parser and credential cancellation owner. */
 export function createOpenAICompatible(
   endpoint: CompatibleEndpoint,
-  options: Omit<OpenRouterOptions, 'compatible'> = {},
+  options: Omit<OpenRouterOptions, 'compatible' | 'credentialStorage'> = {},
 ): OpenRouter {
   for (const model of [
     endpoint.model,
@@ -257,6 +257,12 @@ export function createServiceRouter(
       throw new AiError(
         'INVALID_REQUEST',
         'Connect credentials to a named provider.',
+      );
+    },
+    restoreCredential() {
+      throw new AiError(
+        'INVALID_REQUEST',
+        'Restore credentials on a named provider.',
       );
     },
     disconnect: stop,

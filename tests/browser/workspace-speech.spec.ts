@@ -289,7 +289,7 @@ for (const base of ['/', '/LocalCut/']) {
     );
     await expect(
       page.getByRole('button', { name: 'Text to speech', exact: true }),
-    ).not.toBeVisible();
+    ).toBeVisible();
   });
   test(`text to speech validates timing before spending and opens from Commands at ${base}`, async ({
     page,
