@@ -177,6 +177,7 @@ test('@performance warmup, two-minute and five-minute 1080p export', async ({
   expect(source.height).toBe(1080);
   expect(source.durationUs).toBe(1e6);
   expect(source.peak).toBeGreaterThan(0.15);
+  let indexAssetId = '';
   for (const duration of [10, 120, 300]) {
     const rss: number[] = [];
     const processRss: { atMs: number; byType: Record<string, number> }[] = [];
@@ -288,6 +289,7 @@ test('@performance warmup, two-minute and five-minute 1080p export', async ({
       await artifact.dispose();
       await editor.projects.delete(p.id);
       return {
+        assetId: asset.id,
         bytes,
         durationUs: asset.durationUs,
         videoCodec: asset.videoCodec,
@@ -297,6 +299,7 @@ test('@performance warmup, two-minute and five-minute 1080p export', async ({
     }, duration);
     sampling = false;
     await sampler;
+    indexAssetId = result.assetId;
     expect(result.durationUs).toBe(duration * 1e6);
     expect(result.videoCodec).toBe('avc');
     expect(result.audioCodec).toBe('aac');
@@ -317,6 +320,22 @@ test('@performance warmup, two-minute and five-minute 1080p export', async ({
     ] ?? 0;
   const two = steady(measurements[1]!.rss),
     five = steady(measurements[2]!.rss);
+  const indexing = await page.evaluate(async (assetId) => {
+    const run = await window.editor.assets.analyze(assetId).completion;
+    return {
+      scanMs: run.analysis.scanMs,
+      generationMs: run.analysis.generationMs,
+      samples: run.analysis.frames.length,
+      scenes: run.analysis.scenes.length,
+      artifactBytes: run.analysis.scenes
+        .flatMap((s) => s.artifacts)
+        .reduce((n, a) => n + a.size, 0),
+    };
+  }, indexAssetId);
+  expect(indexing.samples).toBe(1200);
+  expect(indexing.scenes).toBeGreaterThan(0);
+  expect(indexing.artifactBytes).toBeGreaterThan(0);
+  console.log(JSON.stringify({ indexing }));
   await page.evaluate(() => window.editor.dispose());
   await cdp.detach();
   await testInfo.attach('performance-evidence', {
@@ -337,6 +356,7 @@ test('@performance warmup, two-minute and five-minute 1080p export', async ({
             'Repeated one-second H.264/AAC source with animated gradient and stereo tones; sequential video clips and animated text overlays.',
         },
         measurements,
+        indexing,
         steadyRss: { two, five },
       },
       null,

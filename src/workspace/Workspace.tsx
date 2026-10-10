@@ -16,7 +16,6 @@ import {
   ChevronDown,
   Download,
   Files,
-  Scissors,
   Settings2,
   Upload,
 } from 'lucide-react';
@@ -36,6 +35,9 @@ import { Toaster } from '../components/ui/sonner';
 import { Conversation } from './Conversation';
 import type { ConversationControls } from './Conversation';
 import type { WorkspaceCommand } from './commands';
+import type { IndexConnection } from './Conversation';
+import { KlipMark } from './KlipMark';
+const AssetIndexControls = lazy(() => import('./AssetIndexControls'));
 import { Preview } from './Preview';
 import type { PreviewControls } from './Preview';
 import { Tooltip } from '../components/ui/tooltip';
@@ -119,6 +121,8 @@ export function Workspace() {
   const browsing = useRef(false);
   const viewProject = browsed?.project ?? project;
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [indexConnection, setIndexConnection] =
+    useState<IndexConnection | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
@@ -1297,7 +1301,7 @@ export function Workspace() {
       <header className="workspace-header">
         {busy ? (
           <span className="brand">
-            <Scissors aria-hidden="true" />
+            <KlipMark className="size-6" />
             LocalCut
           </span>
         ) : (
@@ -1307,7 +1311,7 @@ export function Workspace() {
             aria-label="LocalCut home"
             onClick={showProjects}
           >
-            <Scissors aria-hidden="true" />
+            <KlipMark className="size-6" />
             LocalCut
           </button>
         )}
@@ -1429,6 +1433,7 @@ export function Workspace() {
         <div className="workspace-columns" inert={projectsOpen}>
           <Conversation
             controlsRef={conversationControls}
+            onIndexConnection={setIndexConnection}
             editor={editor}
             project={project}
             readOnly={!!browsed}
@@ -1637,6 +1642,16 @@ export function Workspace() {
                           >
                             Relink
                           </Button>
+                        )}
+                        {editor && (
+                          <Suspense fallback={null}>
+                            <AssetIndexControls
+                              editor={editor}
+                              asset={asset}
+                              connection={indexConnection}
+                              readOnly={!!browsed}
+                            />
+                          </Suspense>
                         )}
                       </div>
                     ))}

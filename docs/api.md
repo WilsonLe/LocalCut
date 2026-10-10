@@ -43,17 +43,17 @@ await artifact.dispose();
 await editor.dispose();
 ```
 
-| Family        | Methods                                                                 |
-| ------------- | ----------------------------------------------------------------------- |
-| workspace     | snapshot, export, import                                                |
-| projects      | create, list, open, snapshot, delete, exportJSON, importJSON            |
-| assets        | import, inspect, relink, thumbnails, contactSheet, waveform, derivative |
-| commands      | validate, apply, undo, redo                                             |
-| preview       | frame, session                                                          |
-| exports       | preflight, start                                                        |
-| transcription | status, prepare, transcribe, transcript, clearModelCache                |
-| events        | projects, jobs                                                          |
-| lifecycle     | job.cancel, session.dispose, artifact.dispose, editor.dispose           |
+| Family        | Methods                                                                                   |
+| ------------- | ----------------------------------------------------------------------------------------- |
+| workspace     | snapshot, export, import                                                                  |
+| projects      | create, list, open, snapshot, delete, exportJSON, importJSON                              |
+| assets        | import, inspect, relink, thumbnails, contactSheet, waveform, derivative, analyze, indexes |
+| commands      | validate, apply, undo, redo                                                               |
+| preview       | frame, session                                                                            |
+| exports       | preflight, start                                                                          |
+| transcription | status, prepare, transcribe, transcript, clearModelCache                                  |
+| events        | projects, jobs                                                                            |
+| lifecycle     | job.cancel, session.dispose, artifact.dispose, editor.dispose                             |
 
 The source facade exports inferred Editor, EditorOptions, persisted project/clip/track types, command/receipt types, Job/Progress/events, preview types, export types, subtitle helpers, and EditorError. Generated declarations preserve transitive type references.
 
@@ -104,3 +104,11 @@ Optional `clip.groupId` persists a flat group of at least two clips across track
 `applyTransitionTemplate { transitionId, trackId, fromClipId, toClipId, template, strength? }` supports `crossfade`, `black`, `slide-left`, `slide-right`, `zoom-in`, `zoom-out`, and `blur-dissolve`. Strength is 0–1 (default 0.5). It requires the same ordered adjacent visual overlap as `addTransition`. Recipes expand to ordinary clip-local position, size or blur keyframes plus the existing crossfade/black blend. Preview/export use the existing compositor. Templates preserve source/timeline ranges and unrelated attributes; targeted animation inside the overlap is replaced by sampled current values plus the recipe, while values outside it retain continuity. Slide travel is strength × project width; zoom varies size by up to 25%; blur adds up to 40 units, clamped to 100.
 
 The transition's optional `templateId` and `strength` describe its starting recipe, not a locked effect. Inspect the result and use `updateClip` to tune the base values/keyframes. Reapplying a template builds on current values. `removeTransition` removes only the blend; keyframes remain ordinary authored animation. Undo reverses the complete template edit. Old documents without membership/template metadata still parse; frozen legacy receipt normalization remains unchanged.
+
+## Asset indexing
+
+`editor.assets.analyze(assetId, indexRunId?)` returns the existing cancellable `Job<AssetIndexRun>`; omitting the run ID creates a retained run and supplying it resumes missing local outputs for an unchanged source. Local analysis requires no AI connection. `assets.indexes.list(assetId?)`, `get(runId)`, and `artifact(runId, artifactId)` inspect saved records and files. Callers own preview object URLs. `remove(runId)` explicitly deletes one run under its lease; `withRun`, `recordRequest`, `recordResponse` and `status` are shared coordination/checkpoint APIs. Label publication validates host scene IDs and current source identity; relink invalidates active context without deleting evidence.
+
+The optional `createAssetIndexer({ editor, provider, model, consent })` returns `run(assetId, runId?)` jobs and `dispose()`. The live consent callback is checked around every asynchronous step; consumers must cancel/dispose on revocation. Jobs perform local analysis, sequential scene labeling and an overall summary. Retry is explicit and preserves successful scenes. Reindex omits the old run ID. Source files, records and job identities stay scoped to the editor namespace.
+
+`AssetAnalysis`, `AssetIndexRun`, `IndexScene`, `IndexArtifact`, and `IndexLabel` are public editor types. Audio assets use energy/silence segments with retained WAV excerpts. Source timestamps and highlight boundaries are host-owned integer microseconds; models cannot change them. Generated artifacts are retained Files, separate from disposable exports and derivative caches. Analysis emits scan/generate progress and records their elapsed time separately from provider work.

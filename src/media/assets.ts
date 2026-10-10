@@ -152,6 +152,15 @@ export async function importAsset(
                 'INVALID_COMMAND',
                 'Ready originals cannot be replaced',
               );
+              // Conservative invalidation also covers replacement with identical metadata.
+              const { AssetIndexStore } =
+                await import('../storage/asset-index');
+              const index = await AssetIndexStore.open(store.namespace);
+              try {
+                await index.invalidate(relinkId);
+              } finally {
+                index.close();
+              }
             }
             await store.journal({
               id: jobId,

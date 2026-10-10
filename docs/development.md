@@ -83,3 +83,15 @@ A shared CPU/memory policy selects up to eight slots/unit workers and four Chrom
 Keep the issue, draft PR, implementation, and evidence aligned. Run exactly one automatic independent review cycle for the candidate. Address its findings and run targeted revalidation plus any affected integration gates; do not automatically start another review of those fixes. Record remaining limitations and the checks actually run.
 
 Merge requires authorization and triggers automatic Pages deployment on `main`. Complete local validation before merging and follow [deployment and rollback](../DEPLOY.md) for live release verification; a local pass or review approval does not prove merge or deployment succeeded.
+
+## Indexing checks
+
+```sh
+pnpm test tests/unit/asset-index.test.ts tests/unit/asset-index-provider.test.ts
+pnpm test:ui --grep 'workspace indexing'
+# After both current builds:
+pnpm test:browser tests/browser/asset-index.spec.ts
+pnpm test:performance
+```
+
+The native performance workload measures scanning and excerpt generation separately after its export measurements, with no provider request. Total generation/labeling work depends on detected scene count. Four-Hz discovery covers every detected shot, but can miss shots/transitions shorter than the 250 ms sample interval or visually similar cuts; lighting changes may cause extra cuts; highlight scoring describes sampled pixels rather than semantic importance. Audio uses deterministic energy/silence boundaries and bounded continuous segments, not semantic speech/music sections. LLM labels are nondeterministic. See [AI consent and live verification](ai.md#manual-asset-indexing).

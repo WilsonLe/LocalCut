@@ -500,7 +500,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Data & analytics', exact: true })
       .click();
-    await expect(page.getByRole('checkbox')).toHaveCount(3);
+    await expect(page.getByRole('checkbox')).toHaveCount(4);
     for (const checkbox of await page.getByRole('checkbox').all())
       await expect(checkbox).not.toBeChecked();
     await dialog

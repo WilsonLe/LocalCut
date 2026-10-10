@@ -36,7 +36,9 @@ export type AssistantActionResult =
 /** An assistant may be embedded with just document editing, or the full engine. */
 export interface AssistantEditor {
   projects: Pick<Editor['projects'], 'snapshot'>;
-  assets: Pick<Editor['assets'], 'inspect'>;
+  assets: Pick<Editor['assets'], 'inspect'> & {
+    indexes?: Pick<Editor['assets']['indexes'], 'list'>;
+  };
   transcription: Pick<Editor['transcription'], 'transcript'> &
     Partial<Pick<Editor['transcription'], 'status' | 'prepare' | 'transcribe'>>;
   commands: Pick<Editor['commands'], 'validate' | 'apply'> &

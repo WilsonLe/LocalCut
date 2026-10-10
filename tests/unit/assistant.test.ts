@@ -2253,3 +2253,69 @@ describe('incremental assistant skills', () => {
     await a.dispose();
   });
 });
+
+it('retires index-bearing model history when relinking invalidates saved labels', async () => {
+  const f = fixture(),
+    p = provider([
+      [final('A stale red subject')],
+      [final('No saved observations')],
+    ]);
+  const label = {
+    summary: 'A red subject',
+    subjects: [],
+    scene: '',
+    style: '',
+    tags: ['red'],
+    sound: '',
+  };
+  const run: import('../../src/core/asset-index').AssetIndexRun = {
+    version: 1,
+    id: 'indexed',
+    assetId: 'asset',
+    createdAt: 1,
+    status: 'complete',
+    invalidated: false,
+    source: {
+      size: 10,
+      lastModified: 0,
+      kind: 'video',
+      width: 1920,
+      height: 1080,
+      durationUs: 4000000,
+      hasAudio: false,
+    },
+    analysis: {
+      version: 1,
+      settings: {
+        sampleRate: 4,
+        analysisWidth: 160,
+        cutThreshold: 0.45,
+        excerptUs: 4000000,
+      },
+      frames: [],
+      scenes: [],
+      scanMs: 0,
+      generationMs: 0,
+    },
+    label,
+    requests: [],
+  };
+  f.editor.assets.indexes = { list: async () => [structuredClone(run)] };
+  const assistant = createAssistant({
+    editor: f.editor,
+    provider: p,
+    model: 'test/model',
+    projectId: f.project().id,
+    context: { includeAssetIndexes: true },
+  });
+  try {
+    await assistant.run('Describe the asset').completion;
+    expect(JSON.stringify(p.requests[0])).toContain('A red subject');
+    run.invalidated = true;
+    await assistant.run('Describe the current source').completion;
+    expect(JSON.stringify(p.requests[1])).not.toContain('A stale red subject');
+    expect(JSON.stringify(p.requests[1])).not.toContain('A red subject');
+  } finally {
+    await assistant.dispose();
+  }
+});

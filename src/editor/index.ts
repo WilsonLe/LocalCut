@@ -1,10 +1,17 @@
 import { Store } from '../storage/store';
+import { AssetIndexStore } from '../storage/asset-index';
+import type {
+  AssetIndexRun,
+  IndexLabel,
+  IndexRequestManifest,
+} from '../core/asset-index';
+export type * from '../core/asset-index';
 import { Autosave } from '../services/autosave';
 export type { ProjectVersion, ProjectVersionInfo } from '../storage/store';
 import { Jobs, checkAbort } from '../services/jobs';
 import type { JobEvent } from '../services/jobs';
 import { WorkerClient } from '../services/worker-client';
-import { EditorError, invariant } from '../core/errors';
+import { EditorError, invariant, asEditorError } from '../core/errors';
 import { newProject, validateProject, assetIds } from '../core/model';
 import type { Asset, Project, Transcript } from '../core/model';
 import { applyOperations, parseBatch } from '../core/commands';
@@ -96,6 +103,27 @@ export async function createEditor(options: EditorOptions = {}) {
         { type: 'module' },
       ),
   );
+  const indexing = new WorkerClient(
+    () =>
+      new Worker(new URL('../workers/media.worker.ts', import.meta.url), {
+        type: 'module',
+      }),
+  );
+  const withIndexStore = async <T>(
+    work: (index: AssetIndexStore) => Promise<T>,
+  ) => {
+    active();
+    let index: AssetIndexStore | undefined;
+    try {
+      index = await AssetIndexStore.open(namespace);
+      active();
+      return await work(index);
+    } catch (error) {
+      throw asEditorError(error);
+    } finally {
+      index?.close();
+    }
+  };
   let speechQueue = Promise.resolve();
   const active = () => {
     invariant(!disposed, 'DISPOSED', 'Editor disposed');
@@ -321,6 +349,79 @@ export async function createEditor(options: EditorOptions = {}) {
       },
     },
     assets: {
+      analyze(assetId: string, indexRunId?: string) {
+        return run<AssetIndexRun>(indexing, 'analyzeAsset', {
+          assetId,
+          indexRunId,
+        });
+      },
+      indexes: {
+        list(assetId?: string) {
+          return withIndexStore((index) => index.list(assetId));
+        },
+        get(runId: string) {
+          return withIndexStore((index) => index.get(runId));
+        },
+        artifact(runId: string, artifactId: string) {
+          return withIndexStore((index) => index.artifact(runId, artifactId));
+        },
+        remove(runId: string) {
+          return withIndexStore((index) => index.remove(runId));
+        },
+        withRun<T>(runId: string, work: () => Promise<T>, signal: AbortSignal) {
+          return withIndexStore((index) => index.active(runId, work, signal));
+        },
+        recordRequest(
+          runId: string,
+          manifest: IndexRequestManifest,
+          signal: AbortSignal,
+        ) {
+          return withIndexStore((index) =>
+            index.request(runId, manifest, signal),
+          );
+        },
+        recordResponse(
+          runId: string,
+          requestId: string,
+          response: string,
+          label: IndexLabel | undefined,
+          sceneId: string | undefined,
+          model: string | undefined,
+          usage: IndexRequestManifest['usage'],
+          signal: AbortSignal,
+        ) {
+          return withIndexStore(async (index) => {
+            const run = await index.get(runId),
+              asset = await store.getAsset(run.assetId),
+              file = await store.file(run.assetId);
+            invariant(
+              asset.status === 'ready' &&
+                file.lastModified === run.source.lastModified &&
+                file.size === run.source.size,
+              'MISSING_ASSET',
+              'Index source changed',
+            );
+            return index.response(
+              runId,
+              requestId,
+              response,
+              label,
+              sceneId,
+              model,
+              usage,
+              signal,
+            );
+          });
+        },
+        status(runId: string, status: 'failed' | 'cancelled', error: string) {
+          return withIndexStore((index) =>
+            index.update(runId, (r) => {
+              r.status = status;
+              r.error = error;
+            }),
+          );
+        },
+      },
       import(file: Blob, name = file instanceof File ? file.name : 'media') {
         return run<Asset>(background, 'import', { file, name });
       },
@@ -663,6 +764,7 @@ export async function createEditor(options: EditorOptions = {}) {
       interactive.reset();
       background.reset();
       speech.reset();
+      indexing.reset();
       broadcast.close();
       projectListeners.clear();
       versionListeners.clear();

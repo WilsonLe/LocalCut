@@ -26,6 +26,8 @@ import {
   PopoverTrigger,
 } from '../components/ui/popover';
 import { ModelPicker } from './ModelPicker';
+import { useIndexConsent, saveIndexConsent } from './index-consent';
+import { toast } from 'sonner';
 interface Props {
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
@@ -62,6 +64,7 @@ export default function AIConnectionDialog({
   setPrivacy,
   connectionError,
 }: Props) {
+  const indexingAllowed = useIndexConsent();
   return (
     <Dialog
       open={settingsOpen}
@@ -77,6 +80,26 @@ export default function AIConnectionDialog({
             Configure OpenRouter and choose a model.
           </DialogDescription>
         </DialogHeader>
+        <div className="space-y-2 rounded-lg border p-3">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="asset-index-consent"
+              checked={indexingAllowed}
+              onCheckedChange={(checked) => {
+                if (!saveIndexConsent(checked === true))
+                  toast.error(
+                    'Indexing permission could not be saved. This choice lasts for this session.',
+                  );
+              }}
+            />
+            <Label htmlFor="asset-index-consent">Allow asset indexing</Label>
+          </div>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Index sends locally generated images, audio excerpts and video
+            excerpts with sound to OpenRouter. Saved labels can be shared with
+            Klip in chat. Remembered on this device; revoke here anytime.
+          </p>
+        </div>
         {!connection ? (
           <div className="space-y-5">
             {connecting && (
@@ -180,8 +203,7 @@ export default function AIConnectionDialog({
                 Data & analytics
               </PopoverTitle>
               <PopoverDescription className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Optional project context for OpenRouter. Source media stays on
-                this device.
+                Optional project context for OpenRouter.
               </PopoverDescription>
               <fieldset className="mt-4 space-y-3" disabled={!connection}>
                 <legend className="sr-only">
