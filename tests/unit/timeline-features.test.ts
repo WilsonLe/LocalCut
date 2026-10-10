@@ -263,6 +263,65 @@ describe('editable transition templates', () => {
       expect(tuned.tracks[0]!.clips[1]!.opacity).toBe(0.6);
     },
   );
+  it('expands recipes inside the outer atomic batch before singleton cleanup and final validation', () => {
+    const p = grouped();
+    p.tracks[0]!.clips.push(
+      clipSchema.parse({
+        id: 'c',
+        kind: 'image',
+        assetId: 'image',
+        startUs: 6000000,
+        durationUs: 2000000,
+      }),
+      clipSchema.parse({
+        id: 'd',
+        kind: 'image',
+        assetId: 'image',
+        startUs: 7000000,
+        durationUs: 2000000,
+      }),
+    );
+    const operations = [
+      { type: 'removeClip' as const, clipId: 'a' },
+      {
+        type: 'applyTransitionTemplate' as const,
+        transitionId: 't',
+        trackId: 'visual',
+        fromClipId: 'c',
+        toClipId: 'd',
+        template: 'crossfade' as const,
+      },
+    ];
+    const next = applyOperations(p, operations).project;
+    expect(next.tracks[0]!.clips[0]!.groupId).toBeUndefined();
+    expect(next.transitions[0]).toMatchObject({
+      fromClipId: 'c',
+      toClipId: 'd',
+    });
+    expect(p.tracks[0]!.clips).toHaveLength(4);
+    expect(p.transitions).toHaveLength(0);
+    // A later operation may restore a temporarily invalid source/duration pair.
+    const repaired = applyOperations(project(), [
+      { type: 'updateClip', clipId: 'a', patch: { sourceOutUs: 6500000 } },
+      {
+        type: 'applyTransitionTemplate',
+        transitionId: 't',
+        trackId: 'visual',
+        fromClipId: 'a',
+        toClipId: 'b',
+        template: 'crossfade',
+      },
+      { type: 'updateClip', clipId: 'a', patch: { sourceOutUs: 3500000 } },
+    ]).project;
+    expect(repaired.transitions).toHaveLength(1);
+    expect(() =>
+      applyOperations(p, [
+        ...operations,
+        { type: 'removeClip', clipId: 'missing' },
+      ]),
+    ).toThrow('missing');
+    expect(p.tracks[0]!.clips).toHaveLength(4);
+  });
   it('retains a hold animation after the incoming overlap', () => {
     const p = project();
     p.tracks[0]!.clips[1]!.keyframes.x = [

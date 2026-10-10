@@ -329,7 +329,9 @@ export function applyOperations(
     affected.add(id);
     return copy;
   };
-  for (const op of operations) {
+  const pending = [...operations];
+  for (let index = 0; index < pending.length; index++) {
+    const op = pending[index]!;
     switch (op.type) {
       case 'addTrack':
         p.tracks.push(trackSchema.parse(op.track));
@@ -456,13 +458,11 @@ export function applyOperations(
         }
         break;
       }
-      case 'applyTransitionTemplate': {
-        const result = applyOperations(p, transitionTemplateOperations(p, op));
-        p.tracks = result.project.tracks;
-        p.transitions = result.project.transitions;
-        for (const id of result.affectedIds) affected.add(id);
+      case 'applyTransitionTemplate':
+        // Recipes expand inside the same atomic batch. Validate and clean group
+        // membership only after all authored and generated operations finish.
+        pending.splice(index + 1, 0, ...transitionTemplateOperations(p, op));
         break;
-      }
       case 'separateAudio': {
         const { t, c } = locate(op.clipId);
         invariant(
