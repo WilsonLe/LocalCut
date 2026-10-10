@@ -30,7 +30,7 @@ export interface WorkspaceMenuProps {
 }
 
 const popupClass =
-  'max-h-(--available-height) w-60 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none';
+  'max-h-(--available-height) w-60 max-w-[calc(var(--app-viewport-width)-1rem)] overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none';
 const itemClass =
   'relative flex min-h-9 cursor-default items-center gap-2 rounded-md px-3 py-2 text-sm leading-5 outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50';
 const choiceClass = `${itemClass} pl-8`;

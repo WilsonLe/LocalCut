@@ -3,6 +3,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -57,7 +58,8 @@ import { frameStep, dispatchViewCommand } from './shortcuts';
 import { useEditorShortcuts } from './useEditorShortcuts';
 import { selectionIds, transitionPairs } from '../core/timeline';
 import type { TransitionTemplate } from '../core/timeline';
-import { useAppearance } from './appearance';
+import { interfaceScale, useAppearance } from './appearance';
+import { usePageZoomGuard } from './usePageZoomGuard';
 import {
   saveWorkspacePreferences,
   useWorkspacePreferences,
@@ -82,11 +84,12 @@ const WorkspaceTransferDialog = lazy(() => import('./WorkspaceTransferDialog'));
 const AppearancePanel = lazy(() => import('./AppearancePanel'));
 const ProjectBrowser = lazy(() => import('./ProjectBrowser'));
 type Artifact = ExportResult & { dispose: () => Promise<void> };
-const NARROW_QUERY =
-  '(max-width: 700px), (max-width: 1000px) and (max-height: 500px)';
 
 export function Workspace() {
+  usePageZoomGuard();
   const { dark } = useAppearance();
+  const scale = interfaceScale();
+  const narrowQuery = `(max-width: ${750 * scale}px), (max-width: ${1000 * scale}px) and (max-height: ${500 * scale}px)`;
   const { preferences, saved: preferencesSaved } = useWorkspacePreferences();
   const { chatCollapsed, chatWidth, exportFormat: format } = preferences;
   // Imports can reveal media for this session without changing the user's layout.
@@ -102,7 +105,7 @@ export function Workspace() {
     const measure = () =>
       document.documentElement.style.setProperty(
         '--workspace-header-height',
-        `${header.current!.getBoundingClientRect().height}px`,
+        `${header.current!.offsetHeight}px`,
       );
     const observer = new ResizeObserver(measure);
     observer.observe(header.current);
@@ -115,7 +118,7 @@ export function Workspace() {
     };
   }, []);
   const [narrow, setNarrow] = useState(
-    () => window.matchMedia(NARROW_QUERY).matches,
+    () => window.matchMedia(narrowQuery).matches,
   );
   const [mobileMediaOpen, setMobileMediaOpen] = useState(false);
   const mediaHasFocus = useRef(false);
@@ -130,18 +133,23 @@ export function Workspace() {
       });
     }
   }, []);
-  useEffect(() => {
-    const query = window.matchMedia(NARROW_QUERY);
+  useLayoutEffect(() => {
+    const query = window.matchMedia(narrowQuery);
     const update = () => {
       // CSS may hide and blur the rail before this change event is delivered.
       restoreMediaFocus.current = mediaHasFocus.current;
       mediaHasFocus.current = false;
       setNarrow(query.matches);
+      document.documentElement.dataset.workspaceNarrow = String(query.matches);
       setMobileMediaOpen(false);
     };
+    update();
     query.addEventListener('change', update);
-    return () => query.removeEventListener('change', update);
-  }, []);
+    return () => {
+      query.removeEventListener('change', update);
+      delete document.documentElement.dataset.workspaceNarrow;
+    };
+  }, [narrowQuery]);
   const [mediaLoaded, setMediaLoaded] = useState(false);
   const drawer = narrow
     ? mobileMediaOpen
@@ -1246,7 +1254,7 @@ export function Workspace() {
       }}
       onBlurCapture={(event) => {
         if (
-          window.matchMedia(NARROW_QUERY).matches === narrow &&
+          window.matchMedia(narrowQuery).matches === narrow &&
           !event.currentTarget.contains(event.relatedTarget)
         )
           mediaHasFocus.current = false;

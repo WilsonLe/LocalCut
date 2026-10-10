@@ -1,4 +1,9 @@
-import { appearanceOptions, getAppearance, saveAppearance } from './appearance';
+import {
+  appearanceOptions,
+  defaultAppearance,
+  getAppearance,
+  saveAppearance,
+} from './appearance';
 import type { Appearance } from './appearance';
 import {
   defaultWorkspacePreferences,
@@ -21,7 +26,10 @@ export function validateWorkspaceSettings(
 ) {
   if (!settings) return;
   if (settings.appearance) {
-    const p = settings.appearance;
+    const p: Record<string, unknown> = {
+      interfaceSize: defaultAppearance.interfaceSize,
+      ...settings.appearance,
+    };
     if (
       Object.keys(p).length !== Object.keys(appearanceOptions).length ||
       Object.entries(appearanceOptions).some(
@@ -56,7 +64,10 @@ export function importWorkspaceSettings(
   if (
     appearance &&
     settings.appearance &&
-    !saveAppearance(settings.appearance as Appearance)
+    !saveAppearance({
+      interfaceSize: defaultAppearance.interfaceSize,
+      ...settings.appearance,
+    } as Appearance)
   )
     failures.push('appearance');
   if (

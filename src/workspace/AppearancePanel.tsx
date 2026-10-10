@@ -20,6 +20,7 @@ const labels: Record<keyof Appearance, string> = {
   heading: 'Heading',
   radius: 'Radius',
   density: 'Density',
+  interfaceSize: 'Interface size',
   menuColor: 'Menu color',
   menuAccent: 'Menu accent',
 };
@@ -30,6 +31,11 @@ const optionLabel = (value: string) =>
     mono: 'System mono',
     inherit: 'Same as body',
   })[value] ?? value.charAt(0).toUpperCase() + value.slice(1);
+
+const sizeLabel = (value: string) =>
+  ({ default: 'Default (100%)', small: 'Small (75%)', large: 'Large (125%)' })[
+    value
+  ] ?? optionLabel(value);
 
 export default function AppearancePanel({ onClose }: { onClose: () => void }) {
   const { preferences, saved } = useAppearance();
@@ -45,10 +51,15 @@ export default function AppearancePanel({ onClose }: { onClose: () => void }) {
           id={`appearance-${key}`}
           label={labels[key]}
           value={preferences[key]}
-          selectedLabel={optionLabel(preferences[key])}
+          selectedLabel={
+            key === 'interfaceSize'
+              ? sizeLabel(preferences[key])
+              : optionLabel(preferences[key])
+          }
           options={appearanceOptions[key].map((value) => ({
             value,
-            label: optionLabel(value),
+            label:
+              key === 'interfaceSize' ? sizeLabel(value) : optionLabel(value),
           }))}
           onChange={(value) => saveAppearance({ ...preferences, [key]: value })}
         />
@@ -125,6 +136,7 @@ export default function AppearancePanel({ onClose }: { onClose: () => void }) {
           </div>
         </fieldset>
         <div className="appearance-divider" />
+        {picker('interfaceSize')}
         {picker('heading')}
         {picker('font')}
         {picker('radius')}

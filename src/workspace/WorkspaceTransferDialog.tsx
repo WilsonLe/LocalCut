@@ -365,7 +365,7 @@ export default function WorkspaceTransferDialog({
         )}
         {backup && (
           <div
-            className="max-h-[50vh] overflow-y-auto space-y-3"
+            className="max-h-[calc(var(--app-viewport-height)*0.5)] overflow-y-auto space-y-3"
             aria-busy={pending}
           >
             {!projectOnly &&

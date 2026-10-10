@@ -1,4 +1,4 @@
-/* global AudioContext, OffscreenCanvas, File, indexedDB, navigator */
+/* global AudioContext, OffscreenCanvas, File, indexedDB, navigator, localStorage, window, StorageEvent, requestAnimationFrame, document, innerHeight, innerWidth */
 // Self-contained functions run inside the real Safari production page via WebDriver.
 export async function mediaRoundTrip(base, namespace) {
   const { createEditor } = await import(base + 'editor.js');
@@ -203,5 +203,66 @@ export async function cleanup(namespace) {
     await root.removeEntry(namespace, { recursive: true });
   } catch (error) {
     if (error.name !== 'NotFoundError') throw error;
+  }
+}
+
+// Layout metrics use real Safari CSS zoom, including all body-level portal surfaces.
+export async function interfaceLayout() {
+  const key = 'localcut.appearance.v1';
+  const before = localStorage.getItem(key);
+  const measurements = [];
+  try {
+    for (const [size, scale] of [
+      ['default', 1],
+      ['small', 0.75],
+      ['large', 1.25],
+    ]) {
+      const value = JSON.stringify({
+        version: 1,
+        preferences: { interfaceSize: size },
+      });
+      localStorage.setItem(key, value);
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key,
+          newValue: value,
+          storageArea: localStorage,
+        }),
+      );
+      await new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+      );
+      const timeline = document
+        .querySelector('.timeline')
+        .getBoundingClientRect();
+      const editor = document
+        .querySelector('.editing-area')
+        .getBoundingClientRect();
+      const header = document
+        .querySelector('.workspace-header')
+        .getBoundingClientRect();
+      measurements.push({
+        size,
+        scale,
+        gap: Math.abs(timeline.bottom - editor.bottom),
+        headerHeight: header.height,
+        viewportHeight: innerHeight,
+        workspaceHeight: document
+          .querySelector('.workspace')
+          .getBoundingClientRect().height,
+        overflow: document.documentElement.scrollWidth - innerWidth,
+      });
+    }
+    return measurements;
+  } finally {
+    if (before === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, before);
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key,
+        newValue: before,
+        storageArea: localStorage,
+      }),
+    );
   }
 }

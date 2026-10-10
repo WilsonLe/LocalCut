@@ -23,7 +23,7 @@ export default function SelectField(props: SettingsSelectProps) {
           {props.selectedLabel}
         </SelectValue>
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent alignItemWithTrigger={false}>
         {props.options.map((option) => (
           <SelectItem key={option.value} value={option.value}>
             {option.label}

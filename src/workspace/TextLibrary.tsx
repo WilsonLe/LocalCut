@@ -157,7 +157,7 @@ export function TextLibrary({
         <LoaderCircle className="animate-spin" aria-label="Inserting text" />
       )}
       <div
-        className="grid grid-cols-2 gap-3 max-h-[55dvh] overflow-y-auto"
+        className="grid grid-cols-2 gap-3 max-h-[calc(var(--app-viewport-height)*0.55)] overflow-y-auto"
         aria-label={mode === 'templates' ? 'Text templates' : 'Font library'}
       >
         {found.map((item) => (
