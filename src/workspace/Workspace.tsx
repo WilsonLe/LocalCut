@@ -38,10 +38,19 @@ import type { WorkspaceCommand } from './commands';
 import type { IndexConnection } from './Conversation';
 import { KlipMark } from './KlipMark';
 const AssetIndexControls = lazy(() => import('./AssetIndexControls'));
-import { Preview } from './Preview';
 import type { PreviewControls } from './Preview';
 import { Tooltip } from '../components/ui/tooltip';
-import { frameStep } from './shortcuts';
+import {
+  copySelection,
+  pasteSelection,
+  nudgeSelection,
+  trimAtPlayhead,
+  rippleDeleteSelection,
+  editBoundary,
+} from './editing-actions';
+import type { ClipClipboard } from './editing-actions';
+import type { EditorShortcut } from './shortcuts';
+import { frameStep, dispatchViewCommand } from './shortcuts';
 import { useEditorShortcuts } from './useEditorShortcuts';
 import { selectionIds, transitionPairs } from '../core/timeline';
 import type { TransitionTemplate } from '../core/timeline';
@@ -59,6 +68,9 @@ import {
 
 import type { DialogName, Progress } from './WorkspaceDialogs';
 const WorkspaceDialogs = lazy(() => import('./WorkspaceDialogs'));
+const Preview = lazy(() =>
+  import('./Preview').then(({ Preview }) => ({ default: Preview })),
+);
 const Timeline = lazy(() =>
   import('./Timeline').then(({ Timeline }) => ({ default: Timeline })),
 );
@@ -123,6 +135,7 @@ export function Workspace() {
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [selected, setSelected] = useState<string>();
   const [selection, setSelection] = useState<string[]>([]);
+  const [clipboard, setClipboard] = useState<ClipClipboard | null>(null);
   const selectedIds = selectionIds(viewProject, [
     ...(selected ? [selected] : []),
     ...selection,
@@ -868,6 +881,175 @@ export function Workspace() {
     !!selectedClip &&
     timeUs > selectedClip.startUs &&
     timeUs < selectedClip.startUs + selectedClip.durationUs;
+  const clearSelection = () => {
+    setSelected(undefined);
+    setSelection([]);
+  };
+  const selectAll = () => {
+    const ids =
+      viewProject?.tracks.flatMap((t) => t.clips.map((c) => c.id)) ?? [];
+    setSelected(ids[0]);
+    setSelection(ids);
+  };
+  const copy = () => {
+    if (viewProject) setClipboard(copySelection(viewProject, selectedIds));
+  };
+  const cut = () => {
+    if (!project) return;
+    const saved = copySelection(project, selectedIds);
+    void action(async () => {
+      await apply(
+        selectedIds.map((clipId) => ({ type: 'removeClip', clipId })),
+      );
+      setClipboard(saved);
+      clearSelection();
+    });
+  };
+  const paste = () =>
+    void action(async () => {
+      if (!project || !clipboard) return;
+      const { operations, ids } = pasteSelection(project, clipboard, timeUs);
+      if (!operations.length) return;
+      await apply(operations);
+      setSelected(ids[0]);
+      setSelection(ids);
+    });
+  const editSelection = (operations: EditOperation[], clear = false) =>
+    void action(async () => {
+      if (!operations.length) return;
+      await apply(operations);
+      if (clear) clearSelection();
+    });
+  const trimStartOperations =
+    canSplit && selectedClip
+      ? trimAtPlayhead(selectedClip, timeUs, 'start')
+      : [];
+  const trimEndOperations =
+    canSplit && selectedClip ? trimAtPlayhead(selectedClip, timeUs, 'end') : [];
+  const rippleOperations = project
+    ? rippleDeleteSelection(project, selectedIds)
+    : [];
+  const shortcutActions: Partial<
+    Record<EditorShortcut, (event?: KeyboardEvent) => void>
+  > = {
+    playPause: total
+      ? () => previewControls.current?.togglePlayback()
+      : undefined,
+    save:
+      project && !browsed
+        ? () =>
+            void action(async () => {
+              await editor!.projects.versions.save(project.id);
+              toast.success('Project saved');
+            })
+        : undefined,
+    play: total ? () => previewControls.current?.play() : undefined,
+    pause: total ? () => previewControls.current?.pause() : undefined,
+    previousCut:
+      viewProject && total
+        ? () =>
+            seek(
+              Math.min(
+                editBoundary(viewProject, timeUs, -1),
+                frameStep(total, 0, viewProject.frameRate, total),
+              ),
+            )
+        : undefined,
+    nextCut:
+      viewProject && total
+        ? () =>
+            seek(
+              Math.min(
+                editBoundary(viewProject, timeUs, 1),
+                frameStep(total, 0, viewProject.frameRate, total),
+              ),
+            )
+        : undefined,
+    zoomIn: total ? () => dispatchViewCommand('zoomIn') : undefined,
+    zoomOut: total ? () => dispatchViewCommand('zoomOut') : undefined,
+    zoomFit: total ? () => dispatchViewCommand('zoomFit') : undefined,
+    selectAll: total ? selectAll : undefined,
+    clearSelection: selectedIds.length ? clearSelection : undefined,
+    copy: selectedIds.length && !browsed ? copy : undefined,
+    cut: selectedIds.length && !browsed ? cut : undefined,
+    paste:
+      project && clipboard?.projectId === project.id && !browsed
+        ? paste
+        : undefined,
+    nudgeLeft:
+      selectedIds.length && !browsed
+        ? () => editSelection(nudgeSelection(project!, selectedIds, -1))
+        : undefined,
+    nudgeRight:
+      selectedIds.length && !browsed
+        ? () => editSelection(nudgeSelection(project!, selectedIds, 1))
+        : undefined,
+    nudgeTenLeft:
+      selectedIds.length && !browsed
+        ? () => editSelection(nudgeSelection(project!, selectedIds, -10))
+        : undefined,
+    nudgeTenRight:
+      selectedIds.length && !browsed
+        ? () => editSelection(nudgeSelection(project!, selectedIds, 10))
+        : undefined,
+    trimStart:
+      trimStartOperations.length && !browsed
+        ? () => editSelection(trimStartOperations, true)
+        : undefined,
+    trimEnd:
+      trimEndOperations.length && !browsed
+        ? () => editSelection(trimEndOperations, true)
+        : undefined,
+    rippleDelete:
+      rippleOperations.length && !browsed
+        ? () => editSelection(rippleOperations, true)
+        : undefined,
+    properties: total
+      ? (event) => {
+          const id =
+            event?.target instanceof Element
+              ? event.target.closest<HTMLElement>('.timeline-clip')?.dataset
+                  .clipId
+              : undefined;
+          if (id) {
+            selectClip(id);
+            setDialog('properties');
+          } else if (selectedClip) setDialog('properties');
+        }
+      : undefined,
+    previousFrame: project
+      ? () => seek(frameStep(timeUs, -1, viewProject!.frameRate, total))
+      : undefined,
+    nextFrame: project
+      ? () => seek(frameStep(timeUs, 1, viewProject!.frameRate, total))
+      : undefined,
+    previousTenFrames: project
+      ? () => seek(frameStep(timeUs, -10, viewProject!.frameRate, total))
+      : undefined,
+    nextTenFrames: project
+      ? () => seek(frameStep(timeUs, 10, viewProject!.frameRate, total))
+      : undefined,
+    start: project ? () => seek(0) : undefined,
+    end: project
+      ? () => seek(frameStep(total, 0, viewProject!.frameRate, total))
+      : undefined,
+    split: canSplit && !browsed ? split : undefined,
+    delete: selectedClip && !browsed ? deleteClip : undefined,
+    duplicate: selectedClip && !browsed ? duplicate : undefined,
+    group: canGroup && !browsed ? group : undefined,
+    ungroup: selectedGroups.length && !browsed ? ungroup : undefined,
+    addText: project && !browsed ? addText : undefined,
+    undo: project && !browsed ? undo : undefined,
+    redo: project && !browsed ? redo : undefined,
+    newProject: () => setDialog('new'),
+    openProject: showProjects,
+    import: !browsed ? () => fileInput.current?.click() : undefined,
+    export: total && !browsed ? showExport : undefined,
+    toggleChat,
+    toggleMedia,
+    shortcuts: () => setDialog('shortcuts'),
+    commands: () => showCommands(),
+  };
   useEditorShortcuts({
     enabled: !busy,
     actions: projectsOpen
@@ -876,43 +1058,7 @@ export function Workspace() {
           commands: () => showCommands(),
           shortcuts: () => setDialog('shortcuts'),
         }
-      : {
-          playPause: total
-            ? () => previewControls.current?.togglePlayback()
-            : undefined,
-          previousFrame: project
-            ? () => seek(frameStep(timeUs, -1, viewProject!.frameRate, total))
-            : undefined,
-          nextFrame: project
-            ? () => seek(frameStep(timeUs, 1, viewProject!.frameRate, total))
-            : undefined,
-          previousTenFrames: project
-            ? () => seek(frameStep(timeUs, -10, viewProject!.frameRate, total))
-            : undefined,
-          nextTenFrames: project
-            ? () => seek(frameStep(timeUs, 10, viewProject!.frameRate, total))
-            : undefined,
-          start: project ? () => seek(0) : undefined,
-          end: project
-            ? () => seek(frameStep(total, 0, viewProject!.frameRate, total))
-            : undefined,
-          split: canSplit && !browsed ? split : undefined,
-          delete: selectedClip && !browsed ? deleteClip : undefined,
-          duplicate: selectedClip && !browsed ? duplicate : undefined,
-          group: canGroup && !browsed ? group : undefined,
-          ungroup: selectedGroups.length && !browsed ? ungroup : undefined,
-          addText: project && !browsed ? addText : undefined,
-          undo: project && !browsed ? undo : undefined,
-          redo: project && !browsed ? redo : undefined,
-          newProject: () => setDialog('new'),
-          openProject: showProjects,
-          import: !browsed ? () => fileInput.current?.click() : undefined,
-          export: total && !browsed ? showExport : undefined,
-          toggleChat,
-          toggleMedia,
-          shortcuts: () => setDialog('shortcuts'),
-          commands: () => showCommands(),
-        },
+      : shortcutActions,
   });
   const showCommands = () => {
     const token = ++commandRequest.current;
@@ -920,64 +1066,67 @@ export function Workspace() {
       .then(({ workspaceCommands }) => {
         if (!alive.current || token !== commandRequest.current) return;
         setPaletteCommands(
-          workspaceCommands([
-            projectsOpen,
-            busy,
-            project,
-            browsed,
-            viewProject,
-            versionAssets,
-            assets,
-            !!selectedClip,
-            selectedGroups.length > 0,
-            !!overlap,
-            !!activeTransition,
-            total,
-            canSplit,
-            canSeparate,
-            canGroup,
-            timeUs,
-            versions,
-            versionsOpen,
-            format,
-            chatCollapsed,
-            drawer,
-            appearanceOpen,
-            setDialog,
-            showProjects,
-            returnToEditor,
-            () => backupInput.current?.click(),
-            setTransfer,
-            setAppearanceOpen,
-            seek,
-            backupProject,
-            () => fileInput.current?.click(),
-            relinkMedia,
-            undo,
-            redo,
-            split,
-            deleteClip,
-            duplicate,
-            separateAudio,
-            group,
-            ungroup,
-            setTransition,
-            addText,
-            selectClip,
-            () => previewControls.current?.togglePlayback(),
-            showVersions,
-            browseVersion,
-            leaveVersion,
-            restoreVersion,
-            setVersionsOpen,
-            showExport,
-            setFormat,
-            toggleChat,
-            toggleMedia,
-            closeAppearance,
-            openSettings,
-            () => conversationControls.current?.commands() ?? [],
-          ]),
+          workspaceCommands(
+            [
+              projectsOpen,
+              busy,
+              project,
+              browsed,
+              viewProject,
+              versionAssets,
+              assets,
+              !!selectedClip,
+              selectedGroups.length > 0,
+              !!overlap,
+              !!activeTransition,
+              total,
+              canSplit,
+              canSeparate,
+              canGroup,
+              timeUs,
+              versions,
+              versionsOpen,
+              format,
+              chatCollapsed,
+              drawer,
+              appearanceOpen,
+              setDialog,
+              showProjects,
+              returnToEditor,
+              () => backupInput.current?.click(),
+              setTransfer,
+              setAppearanceOpen,
+              seek,
+              backupProject,
+              () => fileInput.current?.click(),
+              relinkMedia,
+              undo,
+              redo,
+              split,
+              deleteClip,
+              duplicate,
+              separateAudio,
+              group,
+              ungroup,
+              setTransition,
+              addText,
+              selectClip,
+              () => previewControls.current?.togglePlayback(),
+              showVersions,
+              browseVersion,
+              leaveVersion,
+              restoreVersion,
+              setVersionsOpen,
+              showExport,
+              setFormat,
+              toggleChat,
+              toggleMedia,
+              closeAppearance,
+              openSettings,
+              () => conversationControls.current?.commands() ?? [],
+            ],
+            shortcutActions,
+          ),
         );
         setCommandsOpen(true);
       })
@@ -1233,17 +1382,29 @@ export function Workspace() {
               </section>
             )}
             <div className="editing-content">
-              <Preview
-                controlsRef={previewControls}
-                editor={editor}
-                project={viewProject}
-                versionId={browsed?.id}
-                timeUs={timeUs}
-                seekRevision={seekRevision}
-                onTime={setTimeUs}
-                onImport={() => fileInput.current?.click()}
-                onError={error}
-              />
+              <Suspense
+                fallback={
+                  <section
+                    className="preview"
+                    aria-label="Project preview"
+                    role="status"
+                  >
+                    Loading preview…
+                  </section>
+                }
+              >
+                <Preview
+                  controlsRef={previewControls}
+                  editor={editor}
+                  project={viewProject}
+                  versionId={browsed?.id}
+                  timeUs={timeUs}
+                  seekRevision={seekRevision}
+                  onTime={setTimeUs}
+                  onImport={() => fileInput.current?.click()}
+                  onError={error}
+                />
+              </Suspense>
               <Suspense
                 fallback={
                   <section className="timeline" aria-label="Video timeline">
@@ -1254,6 +1415,7 @@ export function Workspace() {
                 <Timeline
                   project={viewProject}
                   assets={browsed ? versionAssets : assets}
+                  versionId={browsed?.id}
                   readOnly={!!browsed}
                   selected={selectedIds}
                   timeUs={timeUs}

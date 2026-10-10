@@ -4,7 +4,7 @@ import type { EditorShortcut } from './shortcuts';
 
 export interface EditorShortcutOptions {
   enabled: boolean;
-  actions: Partial<Record<EditorShortcut, () => void>>;
+  actions: Partial<Record<EditorShortcut, (event: KeyboardEvent) => void>>;
 }
 
 export function useEditorShortcuts({
@@ -24,13 +24,14 @@ export function useEditorShortcuts({
         dialogOpen: !!document.querySelector(
           '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]',
         ),
+        timelineClip: !!target?.closest('.timeline-clip'),
         activationControl: !!target?.closest(
           'button, a[href], summary, [role="button"]',
         ),
       });
       if (!action || !actions[action]) return;
       event.preventDefault();
-      actions[action]();
+      actions[action](event);
     };
     window.addEventListener('keydown', handle);
     return () => window.removeEventListener('keydown', handle);

@@ -12,6 +12,7 @@ import {
 import type { Editor, Project, PreviewSession } from '../editor';
 import { Button } from '../components/ui/button';
 import { Tooltip } from '../components/ui/tooltip';
+import { useViewport } from './useViewport';
 import { formatTime, projectDuration } from './helpers';
 
 interface Props {
@@ -27,6 +28,7 @@ interface Props {
 }
 export interface PreviewControls {
   togglePlayback: () => void;
+  play: () => void;
   pause: () => void;
 }
 export function Preview({
@@ -49,6 +51,11 @@ export function Preview({
   const generation = useRef(0);
   const [loading, setLoading] = useState(false);
   const total = projectDuration(project);
+  const { ref: viewport, view } = useViewport(
+    'preview',
+    `${project?.id}:${versionId}`,
+    total > 0,
+  );
   const frameDuration = project
     ? (1e6 * project.frameRate.den) / project.frameRate.num
     : 1e6 / 30;
@@ -184,6 +191,9 @@ export function Preview({
   };
   useImperativeHandle(controlsRef, () => ({
     togglePlayback: () => void play(),
+    play: () => {
+      if (!playing) void play();
+    },
     pause: () => {
       generation.current++;
       session.current?.pause();
@@ -194,13 +204,27 @@ export function Preview({
   return (
     <section className="preview" aria-label="Project preview">
       <div
+        ref={viewport}
         className="preview-stage"
+        data-editor-viewport="preview"
+        tabIndex={0}
+        aria-label="Preview view"
+        onDoubleClick={(event) => {
+          if (event.target === canvas.current)
+            event.currentTarget.dispatchEvent(
+              new CustomEvent('editor-view', { detail: 'zoomFit' }),
+            );
+        }}
         style={{
           aspectRatio: project ? `${project.width}/${project.height}` : '16/9',
         }}
       >
         <canvas
           ref={canvas}
+          style={{
+            transformOrigin: '0 0',
+            transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
+          }}
           width={960}
           height={
             project ? Math.round((960 * project.height) / project.width) : 540

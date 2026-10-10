@@ -19,7 +19,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { SettingsSelect } from './SettingsSelect';
 import { clipName, downloadFile, formatTime } from './helpers';
-import { SHORTCUT_GROUPS } from './shortcuts';
+import { SHORTCUT_GROUPS } from './shortcut-help';
 export type DialogName = 'new' | 'properties' | 'export' | 'shortcuts' | null;
 export interface Progress {
   label: string;
@@ -247,7 +247,7 @@ export default function WorkspaceDialogs({
           if (!open) onDialogChange(null);
         }}
       >
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Keyboard shortcuts</DialogTitle>
             <DialogDescription>
