@@ -57,6 +57,22 @@ interface Props {
 export function Timeline(props: Props) {
   const { project, assets, selected, timeUs } = props;
   const busy = props.busy || props.readOnly;
+  const addTrackTrigger = useRef<HTMLButtonElement>(null);
+  const trackFocusProject = useRef<string | null>(null);
+  useEffect(() => {
+    if (!trackFocusProject.current) return;
+    if (trackFocusProject.current !== project?.id || props.readOnly) {
+      trackFocusProject.current = null;
+      return;
+    }
+    if (!busy) {
+      trackFocusProject.current = null;
+      // The busy state temporarily removes the trigger. Restore its focus
+      // unless the user has moved to another control while the edit completed.
+      if (document.activeElement === document.body)
+        addTrackTrigger.current?.focus();
+    }
+  }, [busy, project?.id, props.readOnly]);
   const [multiSelect, setMultiSelect] = useState(false);
   useEffect(() => {
     const touchControls = window.matchMedia(
@@ -97,7 +113,10 @@ export function Timeline(props: Props) {
         <div className="flex items-center gap-1">
           {!!project && !busy && (
             <Menu.Root modal={false}>
-              <Menu.Trigger render={<Button variant="ghost" size="sm" />}>
+              <Menu.Trigger
+                ref={addTrackTrigger}
+                render={<Button variant="ghost" size="sm" />}
+              >
                 <Plus aria-hidden="true" /> Add track
                 <ChevronDown aria-hidden="true" />
               </Menu.Trigger>
@@ -116,7 +135,10 @@ export function Timeline(props: Props) {
                       <Menu.Item
                         key={kind}
                         className="flex min-h-9 cursor-default items-center gap-2 rounded-md px-3 py-2 text-sm outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
-                        onClick={() => props.onAddTrack(kind)}
+                        onClick={() => {
+                          trackFocusProject.current = project.id;
+                          props.onAddTrack(kind);
+                        }}
                       >
                         {kind === 'video' ? (
                           <Film aria-hidden="true" />

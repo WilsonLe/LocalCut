@@ -124,13 +124,22 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(lanes).toHaveCount(1);
+    await expect(add).toBeFocused();
     await expect(lanes.first()).toContainText('Video 1');
     await expect(
       page.getByRole('slider', { name: 'Playhead position' }),
     ).toHaveCount(0);
     for (const kind of ['Audio track', 'Video track']) {
-      await add.click();
-      await page.getByRole('menuitem', { name: kind, exact: true }).click();
+      await page.keyboard.press('ArrowDown');
+      await expect(
+        page.getByRole('menuitem', { name: 'Video track', exact: true }),
+      ).toBeFocused();
+      if (kind === 'Audio track') await page.keyboard.press('ArrowDown');
+      await expect(
+        page.getByRole('menuitem', { name: kind, exact: true }),
+      ).toBeFocused();
+      await page.keyboard.press('Enter');
+      await expect(add).toBeFocused();
     }
     await expect(lanes).toHaveCount(3);
     const saved = await p();
