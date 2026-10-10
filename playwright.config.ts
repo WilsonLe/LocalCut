@@ -1,8 +1,6 @@
 import { defineConfig } from '@playwright/test';
-const requestedWorkers = process.env.LOCALCUT_BROWSER_WORKERS ?? '2';
-if (!/^[1-4]$/.test(requestedWorkers))
-  throw new Error('LOCALCUT_BROWSER_WORKERS must be an integer from 1 to 4.');
-const browserWorkers = Number(requestedWorkers);
+import { resources } from './scripts/test-resources.ts';
+const browserWorkers = resources().browserWorkers;
 export default defineConfig({
   testDir: 'tests/browser',
   timeout: 120000,

@@ -146,3 +146,17 @@ export async function runPnpm(args, env = process.env) {
     );
   });
 }
+
+export async function ensureBuilds(env = process.env) {
+  env = { ...env, LOCALCUT_BASE_PATH: '/LocalCut/' };
+  for (const rootBuild of [false, true]) {
+    const build = target(rootBuild, env.LOCALCUT_BASE_PATH);
+    const status = await buildStatus(build);
+    if (status.current)
+      console.log(`Reusing ${build.directory}: ${status.reason}.`);
+    else {
+      console.log(`Building ${build.directory}: ${status.reason}.`);
+      await runPnpm(['run', rootBuild ? 'build:root' : 'build'], env);
+    }
+  }
+}
