@@ -40,7 +40,6 @@ import type { PreviewControls } from './Preview';
 import { Tooltip } from '../components/ui/tooltip';
 import { frameStep } from './shortcuts';
 import { useEditorShortcuts } from './useEditorShortcuts';
-import { Timeline } from './Timeline';
 import {
   selectionIds,
   transitionPairs,
@@ -62,6 +61,9 @@ import {
 
 import type { DialogName, Progress } from './WorkspaceDialogs';
 const WorkspaceDialogs = lazy(() => import('./WorkspaceDialogs'));
+const Timeline = lazy(() =>
+  import('./Timeline').then(({ Timeline }) => ({ default: Timeline })),
+);
 const CommandPalette = lazy(() => import('./CommandPalette'));
 const WorkspaceMenu = lazy(() => import('./WorkspaceMenu'));
 const WorkspaceTransferDialog = lazy(() => import('./WorkspaceTransferDialog'));
@@ -1397,37 +1399,45 @@ export function Workspace() {
                 onImport={() => fileInput.current?.click()}
                 onError={error}
               />
-              <Timeline
-                project={viewProject}
-                assets={browsed ? versionAssets : assets}
-                readOnly={!!browsed}
-                selected={selectedIds}
-                timeUs={timeUs}
-                busy={busy}
-                onSelect={selectClip}
-                canGroup={canGroup}
-                canUngroup={!!selectedGroups.length}
-                canSeparate={canSeparate}
-                overlap={overlap}
-                transitionTemplate={
-                  activeTransition?.templateId ?? activeTransition?.kind
+              <Suspense
+                fallback={
+                  <section className="timeline" aria-label="Video timeline">
+                    <span role="status">Loading timeline…</span>
+                  </section>
                 }
-                onSelectOverlap={(from, to) => {
-                  setSelected(from);
-                  setSelection(selectionIds(viewProject, [from, to]));
-                }}
-                onGroup={group}
-                onUngroup={ungroup}
-                onSeparate={separateAudio}
-                onTransition={setTransition}
-                onTime={seek}
-                onUndo={undo}
-                onRedo={redo}
-                onSplit={split}
-                onDelete={deleteClip}
-                onProperties={() => setDialog('properties')}
-                onText={addText}
-              />
+              >
+                <Timeline
+                  project={viewProject}
+                  assets={browsed ? versionAssets : assets}
+                  readOnly={!!browsed}
+                  selected={selectedIds}
+                  timeUs={timeUs}
+                  busy={busy}
+                  onSelect={selectClip}
+                  canGroup={canGroup}
+                  canUngroup={!!selectedGroups.length}
+                  canSeparate={canSeparate}
+                  overlap={overlap}
+                  transitionTemplate={
+                    activeTransition?.templateId ?? activeTransition?.kind
+                  }
+                  onSelectOverlap={(from, to) => {
+                    setSelected(from);
+                    setSelection(selectionIds(viewProject, [from, to]));
+                  }}
+                  onGroup={group}
+                  onUngroup={ungroup}
+                  onSeparate={separateAudio}
+                  onTransition={setTransition}
+                  onTime={seek}
+                  onUndo={undo}
+                  onRedo={redo}
+                  onSplit={split}
+                  onDelete={deleteClip}
+                  onProperties={() => setDialog('properties')}
+                  onText={addText}
+                />
+              </Suspense>
             </div>
           </main>
           <aside
