@@ -1105,8 +1105,6 @@
   }
   .mobile-media-sheet[data-slot='dialog-content'] {
     inset: 0;
-    translate: none;
-    transform: none;
     width: var(--app-viewport-width);
     height: var(--app-viewport-height);
     max-width: none;
