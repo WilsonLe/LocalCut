@@ -4,6 +4,7 @@ import { SettingsSelect } from './SettingsSelect';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { CollapsibleDisclosure } from '../components/ui/collapsible';
 import {
   TEXT_FONTS,
   TEXT_TEMPLATES,
@@ -314,8 +315,7 @@ export function TextStyleFields({
         ))}
       </div>
       {style.shadow && (
-        <details>
-          <summary className="cursor-pointer text-sm">Shadow settings</summary>
+        <CollapsibleDisclosure summary="Shadow settings">
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div className="grid gap-1">
               <Label htmlFor="shadow-color">Shadow color</Label>
@@ -359,7 +359,7 @@ export function TextStyleFields({
               </div>
             ))}
           </div>
-        </details>
+        </CollapsibleDisclosure>
       )}
     </div>
   );

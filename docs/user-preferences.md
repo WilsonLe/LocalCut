@@ -151,3 +151,8 @@ This is the project record of the user's durable product and workflow choices. U
 - Keep the desktop timeline against the bottom of its editor at every interface size and browser zoom.
 - Offer Default (100%), Small (75%) and Large (125%) under Settings → Appearance, remembered locally and included with appearance backups. Scale the complete interface, including popups and dialogs, while retaining editing/chat state and authored media geometry.
 - Intercept page-delivered browser zoom shortcuts and gestures. Browser-menu zoom, saved site zoom and OS controls remain outside a static web app's authority; keep the layout correct when they change. Independent timeline and preview editing zoom remains available. This supersedes the older choice to leave browser zoom gestures active outside editing surfaces.
+
+## AI settings and disclosures — 10 October 2026
+
+- Keep AI settings in a larger dialog with more space between configuration sections; no separate routed settings page is requested.
+- Adopt the configured shadcn Base UI Accordion and Collapsible components for expandable content. Animate expansion, collapse and indicators; respect reduced motion and preserve input, keyboard and focus behavior.

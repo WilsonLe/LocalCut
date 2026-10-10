@@ -9,6 +9,7 @@ import {
 import type { ContextPolicy, OpenRouterModel } from '../ai';
 import { Button } from '../components/ui/button';
 import { Checkbox } from '../components/ui/checkbox';
+import { CollapsibleDisclosure } from '../components/ui/collapsible';
 import {
   Dialog,
   DialogContent,
@@ -78,7 +79,7 @@ export default function AIConnectionDialog({
         if (!open) setApiKey('');
       }}
     >
-      <DialogContent className="max-h-[calc(var(--app-viewport-height)*0.9)] overflow-y-auto sm:max-w-md">
+      <DialogContent className="ai-settings-dialog max-h-[calc(var(--app-viewport-height)*0.9)] gap-8 overflow-y-auto p-6 sm:max-w-3xl sm:p-8">
         <DialogHeader>
           <DialogTitle>AI connection</DialogTitle>
           <DialogDescription className="sr-only">
@@ -116,10 +117,10 @@ export default function AIConnectionDialog({
           </p>
         </div>
         {!connection ? (
-          <details open={providerProps.connectedProviders.length === 0}>
-            <summary className="cursor-pointer text-sm font-medium">
-              Connect OpenRouter
-            </summary>
+          <CollapsibleDisclosure
+            summary="Connect OpenRouter"
+            defaultOpen={providerProps.connectedProviders.length === 0}
+          >
             <div className="mt-3 space-y-5">
               <Button
                 className="w-full"
@@ -158,7 +159,7 @@ export default function AIConnectionDialog({
                 </Button>
               </form>
             </div>
-          </details>
+          </CollapsibleDisclosure>
         ) : (
           <div className="space-y-5">
             <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
