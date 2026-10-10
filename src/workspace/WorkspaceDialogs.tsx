@@ -29,6 +29,7 @@ export interface Progress {
 interface Props {
   dialog: DialogName;
   busy: boolean;
+  readOnly?: boolean;
   project: Project | null;
   projects: Project[];
   selectedClip: Clip | undefined;
@@ -51,6 +52,7 @@ interface Props {
 export default function WorkspaceDialogs({
   dialog,
   busy,
+  readOnly,
   project,
   projects,
   selectedClip,
@@ -181,6 +183,7 @@ export default function WorkspaceDialogs({
           {selectedClip && (
             <Properties
               key={`${selectedClip.id}:${project?.revision}`}
+              readOnly={readOnly}
               clip={selectedClip}
               busy={busy}
               onSave={onSaveProperties}
@@ -357,10 +360,12 @@ function ProgressView({ progress }: { progress: Progress }) {
 function Properties({
   clip,
   busy,
+  readOnly,
   onSave,
 }: {
   clip: Clip;
   busy: boolean;
+  readOnly?: boolean;
   onSave: (operations: EditOperation[]) => void;
 }) {
   return (
@@ -427,6 +432,7 @@ function Properties({
               min={field.min}
               max={field.max}
               step="any"
+              readOnly={readOnly}
               defaultValue={field.value}
             />
           </div>
@@ -435,13 +441,20 @@ function Properties({
       {clip.text && (
         <div className="grid gap-2">
           <Label htmlFor="clip-text">Text</Label>
-          <Input id="clip-text" name="text" defaultValue={clip.text.text} />
+          <Input
+            id="clip-text"
+            name="text"
+            readOnly={readOnly}
+            defaultValue={clip.text.text}
+          />
         </div>
       )}
       <DialogFooter>
-        <Button type="submit" disabled={busy}>
-          Apply properties
-        </Button>
+        {!readOnly && (
+          <Button type="submit" disabled={busy}>
+            Apply properties
+          </Button>
+        )}
       </DialogFooter>
     </form>
   );

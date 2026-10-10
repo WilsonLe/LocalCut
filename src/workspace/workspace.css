@@ -259,9 +259,14 @@
 .editing-area {
   min-width: 0;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+.editing-content {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
 }
 .preview {
   flex-shrink: 0;
@@ -746,7 +751,8 @@
   .workspace-header {
     padding: 10px 12px;
   }
-  .editing-area {
+  .editing-area,
+  .editing-content {
     overflow: visible;
     flex-shrink: 0;
   }
@@ -823,5 +829,39 @@
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+.version-browser {
+  flex-shrink: 0;
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+}
+.version-list {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  max-height: 160px;
+}
+.version-list button {
+  flex-shrink: 0;
+}
+.version-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.version-actions > span {
+  margin-right: auto;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+@media (max-width: 1023px) {
+  .version-browser .section-heading {
+    padding-right: 40px;
   }
 }

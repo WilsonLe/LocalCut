@@ -19,6 +19,7 @@ interface Props {
   selected?: string;
   timeUs: number;
   busy: boolean;
+  readOnly?: boolean;
   onSelect: (id: string) => void;
   onTime: (timeUs: number) => void;
   onUndo: () => void;
@@ -29,7 +30,8 @@ interface Props {
   onText: () => void;
 }
 export function Timeline(props: Props) {
-  const { project, assets, selected, timeUs, busy } = props;
+  const { project, assets, selected, timeUs } = props;
+  const busy = props.busy || props.readOnly;
   const total = projectDuration(project);
   const selectedClip = project?.tracks
     .flatMap((track) => track.clips)

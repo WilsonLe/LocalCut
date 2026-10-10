@@ -10,6 +10,8 @@ import type { CSSProperties } from 'react';
 import {
   ArrowUpRight,
   HardDrive,
+  History,
+  LoaderCircle,
   Keyboard,
   PanelRightClose,
   ChevronDown,
@@ -28,6 +30,8 @@ import type {
   ExportResult,
   Job,
   Project,
+  ProjectVersion,
+  ProjectVersionInfo,
 } from '../editor';
 import { Button } from '../components/ui/button';
 import { Toaster } from '../components/ui/sonner';
@@ -61,6 +65,12 @@ export function Workspace() {
   };
   const [editor, setEditor] = useState<Editor | null>(null);
   const [project, setProject] = useState<Project | null>(null);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [versions, setVersions] = useState<ProjectVersionInfo[]>([]);
+  const [browsed, setBrowsed] = useState<ProjectVersion | null>(null);
+  const [versionAssets, setVersionAssets] = useState<Asset[]>([]);
+  const browsing = useRef(false);
+  const viewProject = browsed?.project ?? project;
   const [assets, setAssets] = useState<Asset[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selected, setSelected] = useState<string>();
@@ -89,6 +99,7 @@ export function Workspace() {
   const alive = useRef(true);
   const lock = useRef(false);
   const refreshToken = useRef(0);
+  const unsubscribeVersions = useRef<(() => void) | null>(null);
   const unsubscribe = useRef<(() => void) | null>(null);
   const disposeAssistant = useRef<(() => Promise<void>) | null>(null);
   const registerCleanup = useCallback((cleanup: () => Promise<void>) => {
@@ -141,16 +152,18 @@ export function Workspace() {
       return;
     setProject(snapshot);
     setAssets(media);
-    setSelected((previous) =>
-      snapshot.tracks.some((track) =>
-        track.clips.some((clip) => clip.id === previous),
-      )
-        ? previous
-        : undefined,
-    );
-    setTimeUs((previous) =>
-      Math.min(previous, Math.max(0, projectDuration(snapshot) - 1)),
-    );
+    if (!browsing.current) {
+      setSelected((previous) =>
+        snapshot.tracks.some((track) =>
+          track.clips.some((clip) => clip.id === previous),
+        )
+          ? previous
+          : undefined,
+      );
+      setTimeUs((previous) =>
+        Math.min(previous, Math.max(0, projectDuration(snapshot) - 1)),
+      );
+    }
   }, []);
   const ensureEditor = useCallback(async () => {
     instance.current ??= import('../editor')
@@ -162,11 +175,26 @@ export function Workspace() {
         }
         editorRef.current = engine;
         setEditor(engine);
+        unsubscribeVersions.current = engine.events.versions((event) => {
+          if (event.projectId !== projectId.current) return;
+          if (event.error) error(event.error);
+          else
+            void engine.projects.versions
+              .list(event.projectId)
+              .then((value) => {
+                if (alive.current && event.projectId === projectId.current)
+                  setVersions(value);
+              })
+              .catch(error);
+        });
         unsubscribe.current = engine.events.projects((event) => {
           if (event.projectId !== projectId.current) return;
           if (event.type === 'deleted') {
             projectId.current = null;
             setProject(null);
+            browsing.current = false;
+            setBrowsed(null);
+            setVersionsOpen(false);
             setAssets([]);
             setSelected(undefined);
             toast('This project was deleted in another window.');
@@ -185,10 +213,11 @@ export function Workspace() {
       alive.current = false;
       currentJob.current?.cancel();
       unsubscribe.current?.();
+      unsubscribeVersions.current?.();
       void artifactRef.current?.dispose();
       void (async () => {
         await disposeAssistant.current?.();
-        await editorRef.current?.dispose();
+        await editorRef.current?.dispose().catch(() => {});
       })();
     },
     [],
@@ -242,6 +271,13 @@ export function Workspace() {
     }
   };
   const openProject = async (snapshot: Project) => {
+    const engine = await ensureEditor();
+    if (projectId.current)
+      await engine.projects.versions.save(projectId.current);
+    await engine.projects.open(snapshot.id);
+    browsing.current = false;
+    setBrowsed(null);
+    setVersionsOpen(false);
     projectId.current = snapshot.id;
     setSelected(undefined);
     setTimeUs(0);
@@ -249,6 +285,8 @@ export function Workspace() {
     await refresh();
   };
   const apply = async (operations: EditOperation[]) => {
+    if (browsing.current)
+      throw new Error('Return to the current version to edit.');
     if (!project) throw new Error('Create or open a project first.');
     const engine = await ensureEditor();
     if (project.id !== projectId.current)
@@ -263,6 +301,7 @@ export function Workspace() {
   };
   const importMedia = (files: File[]) =>
     void action(async () => {
+      if (browsing.current) return;
       const engine = await ensureEditor();
       if (!projectId.current)
         await openProject(await engine.projects.create('Untitled project'));
@@ -343,8 +382,8 @@ export function Workspace() {
     setDialog(null);
     setExportError('');
   };
-  const total = projectDuration(project);
-  const selectedClip = project?.tracks
+  const total = projectDuration(viewProject);
+  const selectedClip = viewProject?.tracks
     .flatMap((track) => track.clips)
     .find((clip) => clip.id === selected);
   const seek = (value: number) => {
@@ -368,6 +407,61 @@ export function Workspace() {
         `${project.name}.localcut.json`,
       );
     });
+  const showVersions = () =>
+    void action(async () => {
+      if (!project || !editor) return;
+      await editor.projects.versions.save(project.id);
+      setVersions(await editor.projects.versions.list(project.id));
+      setVersionsOpen(true);
+    });
+  const browseVersion = (id: string) =>
+    void action(async () => {
+      if (!project || !editor) return;
+      await editor.projects.versions.save(project.id);
+      setVersions(await editor.projects.versions.list(project.id));
+      const version = await editor.projects.versions.snapshot(project.id, id);
+      const ids = [
+        ...new Set(
+          version.project.tracks.flatMap((t) =>
+            t.clips.flatMap((c) => (c.assetId ? [c.assetId] : [])),
+          ),
+        ),
+      ];
+      const media = await Promise.all(
+        ids.map((id) => editor.assets.inspect(id)),
+      );
+      browsing.current = true;
+      setBrowsed(version);
+      setVersionAssets(media);
+      setSelected(undefined);
+      seek(0);
+      setDialog(null);
+    });
+  const leaveVersion = () =>
+    void action(async () => {
+      await refresh();
+      browsing.current = false;
+      setBrowsed(null);
+      setSelected(undefined);
+      seek(0);
+    });
+  const restoreVersion = () =>
+    void action(async () => {
+      if (!project || !editor || !browsed) return;
+      await editor.projects.versions.restore(
+        project.id,
+        browsed.id,
+        crypto.randomUUID(),
+        project.revision,
+      );
+      await refresh();
+      setVersions(await editor.projects.versions.list(project.id));
+      browsing.current = false;
+      setBrowsed(null);
+      setSelected(undefined);
+      seek(0);
+      toast.success('Restored as a new version');
+    });
   const showExport = () => {
     setExportError('');
     setDialog('export');
@@ -377,7 +471,7 @@ export function Workspace() {
     setSettingsOpen(true);
   };
   const undo = () => {
-    if (!project) return;
+    if (browsing.current || !project) return;
     void action(async () => {
       const engine = await ensureEditor();
       await engine.commands.undo(
@@ -390,7 +484,7 @@ export function Workspace() {
     });
   };
   const redo = () => {
-    if (!project) return;
+    if (browsing.current || !project) return;
     void action(async () => {
       const engine = await ensureEditor();
       await engine.commands.redo(
@@ -488,31 +582,31 @@ export function Workspace() {
         ? () => previewControls.current?.togglePlayback()
         : undefined,
       previousFrame: project
-        ? () => seek(frameStep(timeUs, -1, project.frameRate, total))
+        ? () => seek(frameStep(timeUs, -1, viewProject!.frameRate, total))
         : undefined,
       nextFrame: project
-        ? () => seek(frameStep(timeUs, 1, project.frameRate, total))
+        ? () => seek(frameStep(timeUs, 1, viewProject!.frameRate, total))
         : undefined,
       previousTenFrames: project
-        ? () => seek(frameStep(timeUs, -10, project.frameRate, total))
+        ? () => seek(frameStep(timeUs, -10, viewProject!.frameRate, total))
         : undefined,
       nextTenFrames: project
-        ? () => seek(frameStep(timeUs, 10, project.frameRate, total))
+        ? () => seek(frameStep(timeUs, 10, viewProject!.frameRate, total))
         : undefined,
       start: project ? () => seek(0) : undefined,
       end: project
-        ? () => seek(frameStep(total, 0, project.frameRate, total))
+        ? () => seek(frameStep(total, 0, viewProject!.frameRate, total))
         : undefined,
-      split: canSplit ? split : undefined,
-      delete: selectedClip ? deleteClip : undefined,
-      duplicate: selectedClip ? duplicate : undefined,
-      addText: project ? addText : undefined,
-      undo: project ? undo : undefined,
-      redo: project ? redo : undefined,
+      split: canSplit && !browsed ? split : undefined,
+      delete: selectedClip && !browsed ? deleteClip : undefined,
+      duplicate: selectedClip && !browsed ? duplicate : undefined,
+      addText: project && !browsed ? addText : undefined,
+      undo: project && !browsed ? undo : undefined,
+      redo: project && !browsed ? redo : undefined,
       newProject: () => setDialog('new'),
       openProject: showProjects,
-      import: () => fileInput.current?.click(),
-      export: total ? showExport : undefined,
+      import: !browsed ? () => fileInput.current?.click() : undefined,
+      export: total && !browsed ? showExport : undefined,
       toggleChat: () => setChatCollapsed((collapsed) => !collapsed),
       toggleMedia: () => setDrawer((open) => !open),
       shortcuts: () => setDialog('shortcuts'),
@@ -561,13 +655,15 @@ export function Workspace() {
           disabled={busy}
           onClick={showProjects}
         >
-          {project?.name ?? 'Untitled project'}
+          {viewProject?.name ?? 'Untitled project'}
           <ChevronDown />
         </Button>
         <Tooltip
           content={
             project
-              ? `Revision ${project.revision} · Saved locally. Original media stays on this device.`
+              ? browsed
+                ? `Version ${browsed.number} · Read-only`
+                : `Revision ${project.revision} · Saved locally. Original media stays on this device.`
               : 'Projects and media are saved on this device.'
           }
         >
@@ -589,7 +685,28 @@ export function Workspace() {
           >
             <Plus /> New project
           </Button>
-          <Button size="sm" disabled={!total || busy} onClick={showExport}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!project || busy}
+            aria-expanded={versionsOpen}
+            onClick={showVersions}
+          >
+            {busy && versionsOpen ? (
+              <LoaderCircle
+                className="animate-spin"
+                aria-label="Loading versions"
+              />
+            ) : (
+              <History />
+            )}{' '}
+            Versions
+          </Button>
+          <Button
+            size="sm"
+            disabled={!total || busy || !!browsed}
+            onClick={showExport}
+          >
             <ArrowUpRight /> Export
           </Button>
           <Tooltip content="Keyboard shortcuts (?)">
@@ -607,7 +724,7 @@ export function Workspace() {
               <WorkspaceMenu
                 open={settingsOpen}
                 onOpenChange={setSettingsOpen}
-                busy={busy}
+                busy={busy || !!browsed}
                 hasProject={!!project}
                 canExport={!!total}
                 mediaOpen={drawer}
@@ -634,6 +751,7 @@ export function Workspace() {
           <Conversation
             editor={editor}
             project={project}
+            readOnly={!!browsed}
             selectedClipId={selected}
             onApplied={refresh}
             onError={error}
@@ -649,31 +767,99 @@ export function Workspace() {
             tabIndex={0}
             aria-label="Video editor"
           >
-            <Preview
-              controlsRef={previewControls}
-              editor={editor}
-              project={project}
-              timeUs={timeUs}
-              seekRevision={seekRevision}
-              onTime={setTimeUs}
-              onImport={() => fileInput.current?.click()}
-              onError={error}
-            />
-            <Timeline
-              project={project}
-              assets={assets}
-              selected={selected}
-              timeUs={timeUs}
-              busy={busy}
-              onSelect={setSelected}
-              onTime={seek}
-              onUndo={undo}
-              onRedo={redo}
-              onSplit={split}
-              onDelete={deleteClip}
-              onProperties={() => setDialog('properties')}
-              onText={addText}
-            />
+            {versionsOpen && (
+              <section
+                className="version-browser"
+                aria-label="Project versions"
+              >
+                <div className="section-heading">
+                  <h2>Versions</h2>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => {
+                      leaveVersion();
+                      setVersionsOpen(false);
+                    }}
+                  >
+                    Close versions
+                  </Button>
+                </div>
+                <div
+                  className="version-list"
+                  role="group"
+                  aria-label="Saved versions"
+                >
+                  {versions.map((version) => (
+                    <Button
+                      key={version.id}
+                      variant={
+                        browsed?.id === version.id ? 'secondary' : 'ghost'
+                      }
+                      disabled={busy}
+                      aria-pressed={browsed?.id === version.id}
+                      onClick={() => browseVersion(version.id)}
+                    >
+                      Version {version.number} ·{' '}
+                      {new Date(version.createdAt).toLocaleString([], {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                      })}
+                      {version.kind === 'restore' ? ' · Restored' : ''}
+                    </Button>
+                  ))}
+                </div>
+                {browsed && (
+                  <div className="version-actions">
+                    <span>Version {browsed.number} · Read-only</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busy}
+                      onClick={leaveVersion}
+                    >
+                      Return to current
+                    </Button>
+                    <Button size="sm" disabled={busy} onClick={restoreVersion}>
+                      Restore as new version
+                    </Button>
+                  </div>
+                )}
+              </section>
+            )}
+            <div className="editing-content">
+              <Preview
+                controlsRef={previewControls}
+                editor={editor}
+                project={viewProject}
+                versionId={browsed?.id}
+                timeUs={timeUs}
+                seekRevision={seekRevision}
+                onTime={setTimeUs}
+                onImport={() => fileInput.current?.click()}
+                onError={error}
+              />
+              <Timeline
+                project={viewProject}
+                assets={browsed ? versionAssets : assets}
+                readOnly={!!browsed}
+                selected={selected}
+                timeUs={timeUs}
+                busy={busy}
+                onSelect={setSelected}
+                onTime={seek}
+                onUndo={undo}
+                onRedo={redo}
+                onSplit={split}
+                onDelete={deleteClip}
+                onProperties={() => setDialog('properties')}
+                onText={addText}
+              />
+            </div>
           </main>
           <aside
             className="media-panel"
@@ -706,7 +892,7 @@ export function Workspace() {
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={busy}
+                      disabled={busy || !!browsed}
                       onClick={() => fileInput.current?.click()}
                     >
                       <Upload /> Import media
@@ -714,16 +900,16 @@ export function Workspace() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      disabled={!project || busy}
+                      disabled={!project || busy || !!browsed}
                       onClick={backupProject}
                     >
                       <Download /> Backup
                     </Button>
                   </div>
                 </div>
-                {assets.length ? (
+                {(browsed ? versionAssets : assets).length ? (
                   <div className="media-grid">
-                    {assets.map((asset) => (
+                    {(browsed ? versionAssets : assets).map((asset) => (
                       <div className="media-item" key={asset.id}>
                         <div className="media-symbol">
                           {asset.kind === 'audio' ? <Files /> : <FilmIcon />}
@@ -740,6 +926,7 @@ export function Workspace() {
                           <Button
                             variant="outline"
                             size="sm"
+                            disabled={busy || !!browsed}
                             onClick={() => {
                               const input = document.createElement('input');
                               input.type = 'file';
@@ -747,6 +934,7 @@ export function Workspace() {
                                 const file = input.files?.[0];
                                 if (file)
                                   void action(async () => {
+                                    if (browsing.current) return;
                                     const engine = await ensureEditor();
                                     await awaitJob(
                                       engine.assets.relink(asset.id, file),
@@ -809,6 +997,7 @@ export function Workspace() {
           event.target.value = '';
           if (file)
             void action(async () => {
+              if (browsing.current) return;
               const engine = await ensureEditor();
               await openProject(
                 await engine.projects.importJSON(await file.text()),
@@ -821,10 +1010,11 @@ export function Workspace() {
           <WorkspaceDialogs
             dialog={dialog}
             busy={busy}
-            project={project}
+            project={viewProject}
+            readOnly={!!browsed}
             projects={projects}
             selectedClip={selectedClip}
-            assets={assets}
+            assets={browsed ? versionAssets : assets}
             format={format}
             artifact={artifact}
             exportError={exportError}
