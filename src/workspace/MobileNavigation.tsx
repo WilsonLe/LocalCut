@@ -1,61 +1,47 @@
 import { Film, Files, MessageSquare } from 'lucide-react';
 import type { Ref } from 'react';
 import { Button } from '../components/ui/button';
-import { saveWorkspacePreferences } from './preferences';
+
+export type MobileTab = 'edit' | 'chat' | 'media';
+const tabs = [
+  { id: 'edit', label: 'Edit', Icon: Film, controls: 'workspace-editor' },
+  { id: 'chat', label: 'Chat', Icon: MessageSquare, controls: 'chat-panel' },
+  { id: 'media', label: 'Media', Icon: Files, controls: 'workspace-media' },
+] as const;
 
 export default function MobileNavigation({
-  chatCollapsed,
-  mediaOpen,
-  onToggleMedia,
+  activeTab,
+  onSelect,
   mediaTriggerRef,
 }: {
-  chatCollapsed: boolean;
-  mediaOpen: boolean;
-  onToggleMedia: () => void;
+  activeTab: MobileTab;
+  onSelect: (tab: MobileTab) => void;
   mediaTriggerRef: Ref<HTMLButtonElement>;
 }) {
   return (
-    <nav className="mobile-navigation" aria-label="Workspace sections">
-      <Button
-        variant="ghost"
-        onClick={() => {
-          const target = document.getElementById('workspace-editor');
-          target?.focus({ preventScroll: true });
-          target?.scrollIntoView({ block: 'start' });
-        }}
-      >
-        <Film aria-hidden="true" />
-        Edit
-      </Button>
-      <Button
-        variant="ghost"
-        onClick={() => {
-          if (chatCollapsed) saveWorkspacePreferences({ chatCollapsed: false });
-          requestAnimationFrame(() => {
-            const target = document.querySelector<HTMLButtonElement>(
-              '.conversation-toggle',
-            );
-            target?.focus({ preventScroll: true });
-            target?.closest('aside')?.scrollIntoView({ block: 'start' });
-          });
-        }}
-      >
-        <MessageSquare aria-hidden="true" />
-        Chat
-      </Button>
-      <Button
-        id="mobile-media-trigger"
-        ref={mediaTriggerRef}
-        variant="ghost"
-        aria-label="Expand media"
-        aria-haspopup="dialog"
-        aria-expanded={mediaOpen}
-        aria-controls="workspace-media"
-        onClick={onToggleMedia}
-      >
-        <Files aria-hidden="true" />
-        Media
-      </Button>
+    <nav
+      className="mobile-navigation"
+      aria-label="Workspace sections"
+      data-active-tab={activeTab}
+    >
+      <div className="mobile-navigation-tabs">
+        <span className="mobile-tab-indicator" aria-hidden="true" />
+        {tabs.map(({ id, label, Icon, controls }) => (
+          <Button
+            key={id}
+            id={id === 'media' ? 'mobile-media-trigger' : undefined}
+            ref={id === 'media' ? mediaTriggerRef : undefined}
+            variant="ghost"
+            aria-current={activeTab === id ? 'page' : undefined}
+            aria-controls={controls}
+            aria-label={id === 'media' ? 'Expand media' : undefined}
+            onClick={() => onSelect(id)}
+          >
+            <Icon aria-hidden="true" />
+            {label}
+          </Button>
+        ))}
+      </div>
     </nav>
   );
 }

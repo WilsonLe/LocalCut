@@ -17,7 +17,7 @@ This is the project record of the user's durable product and workflow choices. U
 - Put less-frequent header settings in a dropdown. Organize them into named groups that progressively unfold, rather than showing every setting at once.
 - Keep OpenRouter connection and model controls in the chat interface. The selected provider remains visible there. Connection requires the user's credentials/consent; save credentials locally as specified below and do not initiate paid requests automatically.
 - Make chat narrower and collapsible. Animate the chat moving out/in and the main editing area expanding/contracting together. Preserve the conversation when collapsed, support keyboard control, and respect reduced-motion preferences.
-- Keep a usable stacked layout on narrow screens, with the editing area before the conversation.
+- The newer mobile tab choice below supersedes the earlier stacked narrow-screen layout.
 - Use real editing, progress and export results in production. Illustrative clips and simulated replies belong only in explicitly labelled prototypes.
 
 ## Workspace cleanup and editing access — 10 October 2026
@@ -112,6 +112,12 @@ This is the project record of the user's durable product and workflow choices. U
 ## Timeline seeking — 11 October 2026
 
 - Remove the separate scrub bar below the timeline tracks. Seek by dragging the top of the playhead, with a comfortable touch target and keyboard access.
+
+## Mobile workspace tabs — 11 October 2026
+
+- Show only the currently active Edit, Chat or Media view on mobile. Preserve editing, conversation drafts and media jobs while switching tabs.
+- Give the active tab a clear indicator with smooth, polished animation and reduced-motion support. Keep mobile navigation separate from remembered desktop collapse/visibility preferences.
+- Media fills the mobile content area with its close action returning to the previous tab; the header and tab bar stay reachable. This supersedes the earlier full-screen sheet presentation.
 
 ## Mobile media — 11 October 2026
 
