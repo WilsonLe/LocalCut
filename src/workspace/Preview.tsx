@@ -187,7 +187,7 @@ export function Preview({
     pause: () => {
       generation.current++;
       session.current?.pause();
-      onTime(session.current?.currentTimeUs ?? displayedTime);
+      if (playing) onTime(session.current?.currentTimeUs ?? displayedTime);
       setPlayingIdentity(null);
     },
   }));

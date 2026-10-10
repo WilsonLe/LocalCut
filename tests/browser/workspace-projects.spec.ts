@@ -186,8 +186,15 @@ for (const base of ['/', '/LocalCut/']) {
     expect(
       await page.locator('.timeline-clip[aria-pressed="true"]').count(),
     ).toBe(selected);
-    await page.keyboard.press('ControlOrMeta+o');
+    await playhead.focus();
+    await page.keyboard.press('End');
+    const scrubbed = await playhead.inputValue();
+    expect(Number(scrubbed)).toBeGreaterThan(Number(stopped));
+    await page
+      .getByRole('button', { name: 'Open project', exact: true })
+      .click();
     await browser.getByRole('button', { name: /Zebra film/ }).click();
+    await expect(playhead).toHaveValue(scrubbed);
     await expect(page.getByLabel('Describe your edit')).toHaveValue(
       'Preserve this draft',
     );
