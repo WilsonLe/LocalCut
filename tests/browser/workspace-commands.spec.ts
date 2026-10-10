@@ -188,5 +188,15 @@ for (const base of ['/', '/LocalCut/']) {
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
     expect(bounds.y + bounds.height).toBeLessThanOrEqual(844);
     await page.keyboard.press('Escape');
+    await run(page, 'Collapse chat');
+    await page.reload();
+    await expect(
+      page.getByRole('button', { name: 'Expand chat', exact: true }),
+    ).toBeVisible();
+    await run(page, 'Expand media');
+    await page.reload();
+    await expect(
+      page.getByRole('button', { name: 'Collapse media', exact: true }),
+    ).toBeVisible();
   });
 }
