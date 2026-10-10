@@ -119,7 +119,9 @@ export function useViewport(
       }
     };
     const command = (event: Event) => {
-      if (!allowed()) return;
+      // The resolver and palette authorize commands; the palette is still
+      // mounted during its exit animation. Pointer gestures retain modal guards.
+      if (!enabled) return;
       const name = (event as CustomEvent<ViewCommand>).detail;
       zoom(
         name === 'zoomIn' ? 1.25 : 0.8,

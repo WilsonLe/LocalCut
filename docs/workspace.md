@@ -85,7 +85,7 @@ Focus the preview or timeline to use single-key shortcuts. `Space` toggles playb
 | Nudge selection one / ten frames                | Alt+left/right / Alt+Shift+left/right                         |
 | Trim start / end to playhead                    | Q / W                                                         |
 | Delete / safe ripple delete                     | Delete or Backspace / Shift+Delete                            |
-| Properties                                      | Enter on selected clip or double-click clip                   |
+| Properties                                      | Enter on focused clip or double-click clip                    |
 | Add text                                        | T                                                             |
 | Zoom pointed timeline or preview                | Ctrl/Command+wheel or trackpad pinch                          |
 | Zoom focused view / fit                         | + or = / − / 0 or backslash                                   |

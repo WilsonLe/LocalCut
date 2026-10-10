@@ -2,48 +2,60 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { Project } from '../../src/editor';
 
-async function prepare(page: Page, base: string) {
+async function prepare(page: Page, base: string, overlap = false) {
   await page.goto(base);
-  const id = await page.evaluate(async (base) => {
-    const { createEditor } = (await import(
-      base + 'editor.js'
-    )) as typeof import('../../src/editor');
-    const editor = await createEditor();
-    try {
-      const canvas = new OffscreenCanvas(128, 72),
-        context = canvas.getContext('2d')!;
-      context.fillStyle = '#369';
-      context.fillRect(0, 0, 128, 72);
-      const asset = await editor.assets.import(
-        new File([await canvas.convertToBlob()], 'input.png', {
-          type: 'image/png',
-        }),
-      ).completion;
-      const p = await editor.projects.create('Input combinations');
-      await editor.commands.apply({
-        projectId: p.id,
-        requestId: crypto.randomUUID(),
-        expectedRevision: 0,
-        operations: [
-          { type: 'addTrack', track: { id: 'v', kind: 'video' } },
-          ...[0, 3_000_000].map((startUs, index) => ({
-            type: 'insertClip' as const,
-            trackId: 'v',
-            clip: {
-              id: `clip-${index}`,
-              kind: 'image' as const,
-              assetId: asset.id,
-              startUs,
-              durationUs: 1_000_000,
-            },
-          })),
-        ],
-      });
-      return p.id;
-    } finally {
-      await editor.dispose();
-    }
-  }, base);
+  const id = await page.evaluate(
+    async ({ base, overlap }) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const canvas = new OffscreenCanvas(128, 72),
+          context = canvas.getContext('2d')!;
+        context.fillStyle = '#369';
+        context.fillRect(0, 0, 128, 72);
+        const asset = await editor.assets.import(
+          new File([await canvas.convertToBlob()], 'input.png', {
+            type: 'image/png',
+          }),
+        ).completion;
+        context.fillStyle = '#f00';
+        context.fillRect(0, 0, 128, 72);
+        const upper = overlap
+          ? await editor.assets.import(
+              new File([await canvas.convertToBlob()], 'upper.png', {
+                type: 'image/png',
+              }),
+            ).completion
+          : asset;
+        const p = await editor.projects.create('Input combinations');
+        await editor.commands.apply({
+          projectId: p.id,
+          requestId: crypto.randomUUID(),
+          expectedRevision: 0,
+          operations: [
+            { type: 'addTrack', track: { id: 'v', kind: 'video' } },
+            ...[0, overlap ? 0 : 3_000_000].map((startUs, index) => ({
+              type: 'insertClip' as const,
+              trackId: 'v',
+              clip: {
+                id: `clip-${index}`,
+                kind: 'image' as const,
+                assetId: index ? upper.id : asset.id,
+                startUs,
+                durationUs: 1_000_000,
+              },
+            })),
+          ],
+        });
+        return p.id;
+      } finally {
+        await editor.dispose();
+      }
+    },
+    { base, overlap },
+  );
   await page.getByRole('main', { name: 'Video editor', exact: true }).focus();
   await page.keyboard.press('ControlOrMeta+o');
   await page
@@ -262,6 +274,127 @@ for (const base of ['/', '/LocalCut/']) {
     await last.scrollIntoViewIfNeeded();
     await expect(last).toBeVisible();
     expect((await snapshot(page, base, id)).revision).toBe(revision);
+  });
+
+  test(`editor combinations resolve focused properties and palette view commands ${base}`, async ({
+    page,
+  }) => {
+    await prepare(page, base);
+    const main = page.getByRole('main', { name: 'Video editor', exact: true });
+    const first = page.locator('[data-clip-id="clip-0"]');
+    const second = page.locator('[data-clip-id="clip-1"]');
+    const properties = page.getByRole('dialog', {
+      name: 'Clip properties',
+      exact: true,
+    });
+    await first.click();
+    await second.focus();
+    await page.keyboard.press('Enter');
+    await expect(
+      properties.getByLabel('Start (seconds)', { exact: true }),
+    ).toHaveValue('3');
+    await page.keyboard.press('Escape');
+    await main.focus();
+    await page.keyboard.press('Escape');
+    await expect(
+      page.locator('.timeline-clip[aria-pressed="true"]'),
+    ).toHaveCount(0);
+    await second.focus();
+    await page.keyboard.press('Enter');
+    await expect(
+      properties.getByLabel('Start (seconds)', { exact: true }),
+    ).toHaveValue('3');
+    await page.keyboard.press('Escape');
+    await main.focus();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.press('ControlOrMeta+g');
+    await expect(
+      page.getByText('Clips grouped', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Ungroup clips', exact: true }),
+    ).toBeEnabled();
+    await second.focus();
+    await page.keyboard.press('Enter');
+    await expect(
+      properties.getByLabel('Start (seconds)', { exact: true }),
+    ).toHaveValue('3');
+    await page.keyboard.press('Escape');
+    const timeline = page.locator('.timeline-viewport');
+    const width = () => timeline.evaluate((e) => e.scrollWidth);
+    const initial = await width();
+    const run = async (label: string) => {
+      await main.focus();
+      await page.keyboard.press('ControlOrMeta+k');
+      await page.getByRole('combobox', { name: 'Search commands' }).fill(label);
+      await page.getByRole('option', { name: label, exact: false }).click();
+      await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+    };
+    await run('Zoom timeline in');
+    await expect.poll(width).toBeGreaterThan(initial);
+    const zoomed = await width();
+    await run('Zoom timeline out');
+    await expect.poll(width).toBeLessThan(zoomed);
+    await run('Zoom timeline in');
+    const box = (await timeline.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + 18);
+    await page.mouse.down({ button: 'middle' });
+    await page.mouse.move(box.x + box.width / 2 - 40, box.y + 18);
+    await page.mouse.up({ button: 'middle' });
+    await expect
+      .poll(() => timeline.evaluate((e) => e.scrollLeft))
+      .toBeGreaterThan(0);
+    await run('Fit timeline');
+    await expect.poll(width).toBe(initial);
+    await expect.poll(() => timeline.evaluate((e) => e.scrollLeft)).toBe(0);
+  });
+
+  test(`editor combinations nudge preserves overlapping native frame layers ${base}`, async ({
+    page,
+  }) => {
+    const id = await prepare(page, base, true);
+    const pixel = () =>
+      page.evaluate(
+        async ({ base, id }) => {
+          const { createEditor } = (await import(
+            base + 'editor.js'
+          )) as typeof import('../../src/editor');
+          const editor = await createEditor();
+          try {
+            const frame = await editor.preview.frame(id, 500_000, {
+              width: 128,
+              height: 72,
+            }).completion;
+            const canvas = new OffscreenCanvas(128, 72);
+            const context = canvas.getContext('2d')!;
+            context.drawImage(frame.image, 0, 0);
+            frame.image.close();
+            return [...context.getImageData(64, 36, 1, 1).data];
+          } finally {
+            await editor.dispose();
+          }
+        },
+        { base, id },
+      );
+    expect(await pixel()).toEqual([255, 0, 0, 255]);
+    // The upper overlapping clip covers the lower clip's mouse target.
+    await page.locator('[data-clip-id="clip-0"]').focus();
+    await page.keyboard.press('Space');
+    await page.getByRole('main', { name: 'Video editor', exact: true }).focus();
+    await page.keyboard.press('Alt+ArrowRight');
+    await expect
+      .poll(
+        async () =>
+          (await snapshot(page, base, id)).tracks[0]!.clips.find(
+            (c) => c.id === 'clip-0',
+          )!.startUs,
+      )
+      .toBe(33333);
+    expect(
+      (await snapshot(page, base, id)).tracks[0]!.clips.map((c) => c.id),
+    ).toEqual(['clip-0', 'clip-1']);
+    // Await a fresh native frame from the persisted revision, not a stale canvas.
+    expect(await pixel()).toEqual([255, 0, 0, 255]);
   });
 
   test(`editor combinations clipboard, nudge, trim, boundary and ripple are persisted ${base}`, async ({

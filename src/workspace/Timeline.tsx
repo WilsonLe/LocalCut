@@ -292,6 +292,7 @@ export function Timeline(props: Props) {
                       {track.clips.map((clip) => (
                         <button
                           key={clip.id}
+                          data-clip-id={clip.id}
                           type="button"
                           className={`timeline-clip ${clip.kind}`}
                           aria-label={clipName(clip, assets)}

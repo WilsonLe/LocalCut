@@ -92,10 +92,9 @@ export function nudgeSelection(
         }
         return [
           {
-            type: 'moveClip',
+            type: 'updateClip',
             clipId: clip.id,
-            trackId: track.id,
-            startUs: clip.startUs + deltaUs,
+            patch: { startUs: clip.startUs + deltaUs },
           },
         ];
       }),

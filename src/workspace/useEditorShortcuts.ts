@@ -4,7 +4,7 @@ import type { EditorShortcut } from './shortcuts';
 
 export interface EditorShortcutOptions {
   enabled: boolean;
-  actions: Partial<Record<EditorShortcut, () => void>>;
+  actions: Partial<Record<EditorShortcut, (event: KeyboardEvent) => void>>;
 }
 
 export function useEditorShortcuts({
@@ -31,7 +31,7 @@ export function useEditorShortcuts({
       });
       if (!action || !actions[action]) return;
       event.preventDefault();
-      actions[action]();
+      actions[action](event);
     };
     window.addEventListener('keydown', handle);
     return () => window.removeEventListener('keydown', handle);

@@ -88,6 +88,16 @@ describe('editing combinations use atomic engine commands', () => {
       33333, 1033333,
     ]);
   });
+  it('nudges a single clip without changing compositor order or its animation', () => {
+    const p = project();
+    const next = applyOperations(p, nudgeSelection(p, ['a'], 1)).project;
+    expect(next.tracks[0]!.clips.map((c) => c.id)).toEqual(['a', 'b']);
+    expect(next.tracks[0]!.clips[0]!).toEqual({
+      ...p.tracks[0]!.clips[0]!,
+      startUs: 33333,
+    });
+    expect(next.tracks[0]!.clips[1]!).toEqual(p.tracks[0]!.clips[1]!);
+  });
   it('trims via engine splitting, preserving interpolated animation and rejects endpoint/group trims', () => {
     const p = project(),
       clip = p.tracks[0]!.clips[0]!;

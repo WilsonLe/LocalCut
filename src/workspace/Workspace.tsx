@@ -929,7 +929,9 @@ export function Workspace() {
   const rippleOperations = project
     ? rippleDeleteSelection(project, selectedIds)
     : [];
-  const shortcutActions: Partial<Record<EditorShortcut, () => void>> = {
+  const shortcutActions: Partial<
+    Record<EditorShortcut, (event?: KeyboardEvent) => void>
+  > = {
     playPause: total
       ? () => previewControls.current?.togglePlayback()
       : undefined,
@@ -1002,7 +1004,19 @@ export function Workspace() {
       rippleOperations.length && !browsed
         ? () => editSelection(rippleOperations, true)
         : undefined,
-    properties: selectedClip ? () => setDialog('properties') : undefined,
+    properties: total
+      ? (event) => {
+          const id =
+            event?.target instanceof Element
+              ? event.target.closest<HTMLElement>('.timeline-clip')?.dataset
+                  .clipId
+              : undefined;
+          if (id) {
+            selectClip(id);
+            setDialog('properties');
+          } else if (selectedClip) setDialog('properties');
+        }
+      : undefined,
     previousFrame: project
       ? () => seek(frameStep(timeUs, -1, viewProject!.frameRate, total))
       : undefined,
