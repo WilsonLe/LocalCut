@@ -214,6 +214,10 @@ test('long assistant replies scroll inside the conversation and keep the compose
     .toBeCloseTo(editorWidth, 0);
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 844 });
+    await expect(page.locator('html')).toHaveAttribute(
+      'data-workspace-narrow',
+      'true',
+    );
     const narrow = await page.evaluate(() => {
       const log = document.querySelector('[role="log"]')!;
       return {
