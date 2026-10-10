@@ -2311,6 +2311,13 @@ it('retires index-bearing model history when relinking invalidates saved labels'
   try {
     await assistant.run('Describe the asset').completion;
     expect(JSON.stringify(p.requests[0])).toContain('A red subject');
+    expect(p.requests[0]!.tools.map((tool) => tool.function.name)).toEqual([
+      'load_skill',
+      'search_asset_index',
+      'read_asset_index',
+      'inspect_project',
+      'inspect_proposals',
+    ]);
     run.invalidated = true;
     await assistant.run('Describe the current source').completion;
     expect(JSON.stringify(p.requests[1])).not.toContain('A stale red subject');
@@ -2318,4 +2325,20 @@ it('retires index-bearing model history when relinking invalidates saved labels'
   } finally {
     await assistant.dispose();
   }
+});
+
+it('keeps index consent independent of loaded assistant skills', () => {
+  const capabilities = assistantCapabilities(fixture().editor);
+  const names = (includeIndexes: boolean) =>
+    toolDefinitions(
+      false,
+      capabilities,
+      new Set(['editing']),
+      includeIndexes,
+    ).map((tool) => tool.function.name);
+  expect(names(false)).toContain('propose_edits');
+  expect(names(false)).not.toContain('search_asset_index');
+  expect(names(false)).not.toContain('read_asset_index');
+  expect(names(true)).toContain('search_asset_index');
+  expect(names(true)).toContain('read_asset_index');
 });

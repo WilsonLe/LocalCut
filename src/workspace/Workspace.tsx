@@ -52,7 +52,6 @@ import {
 } from './preferences';
 import {
   appendAsset,
-  clipName,
   downloadFile,
   formatTime,
   projectDuration,
