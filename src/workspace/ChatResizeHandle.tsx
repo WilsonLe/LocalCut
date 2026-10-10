@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
+import { CHAT_MIN_WIDTH, CHAT_MAX_WIDTH } from './preferences';
 
 interface ChatResizeHandleProps {
   width: number;
@@ -11,8 +12,8 @@ interface ChatResizeHandleProps {
 export function ChatResizeHandle({
   width,
   onResize,
-  minWidth = 280,
-  maxWidth = 560,
+  minWidth = CHAT_MIN_WIDTH,
+  maxWidth = CHAT_MAX_WIDTH,
 }: ChatResizeHandleProps) {
   const handle = useRef<HTMLDivElement>(null);
   const gesture = useRef<{

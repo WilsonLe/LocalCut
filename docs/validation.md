@@ -1,5 +1,13 @@
 # Validation
 
+## Local workspace preferences — 10 October 2026
+
+After rebasing onto the OpenRouter controls update (`efa7db8`), `pnpm check` passed 333 unit tests and 86 production stable Chrome scenarios. Fourteen new workspace scenarios cover both static base paths: pointer/keyboard resizing, reload, constrained desktop/phone layouts, scoped Appearance reset, panel and export controls, cross-tab synchronization/latest-field merging, stale event payloads, automatic media opening, malformed records, denied reads/quota failures and recovery, and remembered model validation with fresh credential/sharing consent. Existing OAuth checks assert the exact non-secret preference record while retaining credential/code cleanup checks. Formatting and local documentation link targets were also checked.
+
+Real Whisper preparation/inference and fresh-worker cached replay passed with checksum-verified pinned fixtures. The sequential disk-backed performance gate passed: two minutes exported in 14.06 seconds and five minutes in 34.13 seconds; steady browser/worker RSS grew 74.61 MiB, below 128 MiB. The media/inference implementation and dependency pins are unchanged. The initial Pages graph is 148,786 bytes gzip JavaScript and 11,858 bytes gzip CSS; aggregate JavaScript/CSS is 666,434 bytes gzip, within the retained budgets.
+
+These are author-run local checks. Independent exact-head review is recorded separately on the linked draft PR. No paid-provider request, hosted CI, merge or Pages deployment is claimed. The [preference audit](workspace.md#local-user-preferences) records every included/excluded workspace state and the [storage contract](storage.md) describes compatibility and rollback.
+
 ## Workspace and Safari follow-up — 10 October 2026
 
 The workspace refinement passed `pnpm check`: 327 unit tests and 51 production Chrome scenarios, including both `/` and `/LocalCut/`. The new scenarios cover keyboard edits and native playback, quiet metadata/tooltips, dialog spacing, the independent right media rail at desktop/narrow widths, chat sessions/Markdown/drafts/resizing, and approved assistant history/export actions. Independent-review regressions also cover per-call inspection results and validation errors, noncancellable atomic commits, and resize-handle availability at responsive breakpoints. The initial import graph is 142,654 bytes gzip of JavaScript and 11,171 bytes gzip of CSS; aggregate JavaScript/CSS is 637,347 bytes gzip. Engine, AI, connected conversation, dialogs and Markdown remain deferred until their consumers need them. The final Chrome run completed in 57.1 seconds with two workers and no retries.
