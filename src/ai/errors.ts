@@ -81,7 +81,7 @@ export function httpError(status: number, retryAfter?: string | null): AiError {
     status >= 500 ? 'PROVIDER_UNAVAILABLE' : 'INVALID_REQUEST',
     status >= 500
       ? 'OpenRouter is unavailable.'
-      : 'OpenRouter rejected the request.',
+      : `OpenRouter rejected the request (HTTP ${status}).`,
     details,
   );
 }

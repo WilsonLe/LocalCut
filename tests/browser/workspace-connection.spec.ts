@@ -12,6 +12,120 @@ const models = Array.from({ length: 120 }, (_, index) => ({
   context_length: 32000,
   supported_parameters: ['tools', 'tool_choice'],
 }));
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`mobile OpenRouter chat routes supported parameters and explains endpoint rejection ${base}`, async ({
+    page,
+    context,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await context.route('https://openrouter.ai/api/v1/models', (route) =>
+      route.fulfill({ headers: cors, json: { data: [models[0]] } }),
+    );
+    let requests = 0;
+    let reject = false;
+    await context.route(
+      'https://openrouter.ai/api/v1/chat/completions',
+      async (route) => {
+        if (route.request().method() === 'OPTIONS') {
+          await route.fulfill({ headers: cors, body: '' });
+          return;
+        }
+        requests++;
+        const body = route.request().postDataJSON();
+        expect(body.model).toBe(models[0]!.id);
+        expect(body.provider).toEqual({
+          data_collection: 'deny',
+          require_parameters: true,
+        });
+        expect(body.tool_choice).toBe('auto');
+        // Simulate strict routing rejecting a parameter this model cannot use.
+        if (reject || 'parallel_tool_calls' in body) {
+          await route.fulfill({
+            status: 404,
+            headers: cors,
+            json: {
+              error: 'SECRET echoed prompt and synthetic-connection-key',
+            },
+          });
+          return;
+        }
+        await route.fulfill({
+          headers: cors,
+          contentType: 'text/event-stream',
+          body: 'data: {"choices":[{"index":0,"delta":{"content":"Try a short opening montage."},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+        });
+      },
+    );
+    await page.goto(base);
+    await page
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .click();
+    await page.getByRole('menuitem', { name: 'Project', exact: true }).click();
+    await page
+      .getByRole('menuitem', { name: 'New project', exact: true })
+      .click();
+    await page.getByLabel('Project name', { exact: true }).fill('Brainstorm');
+    await page
+      .getByRole('button', { name: 'Create project', exact: true })
+      .click();
+    await openAISettings(page);
+    const dialog = page.getByRole('dialog', {
+      name: 'AI connection',
+      exact: true,
+    });
+    await dialog
+      .getByLabel('OpenRouter API key', { exact: true })
+      .fill('synthetic-connection-key');
+    await dialog
+      .getByRole('button', { name: 'Use API key', exact: true })
+      .click();
+    await dialog
+      .getByRole('combobox', { name: 'AI model', exact: true })
+      .click();
+    await page.getByRole('option', { name: /Editing model 000/ }).click();
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await page
+      .getByRole('navigation', { name: 'Workspace sections' })
+      .getByRole('button', { name: 'Chat', exact: true })
+      .click();
+    const composer = page.getByLabel('Describe your edit', { exact: true });
+    const send = page.getByRole('button', {
+      name: 'Send edit request',
+      exact: true,
+    });
+    await expect(send).toHaveCount(0);
+    expect(requests).toBe(0);
+    await composer.fill('Brain storm idea on the current project');
+    await send.click();
+    await expect(
+      page.getByRole('article', { name: 'Assistant response' }),
+    ).toContainText('Try a short opening montage.');
+    expect(requests).toBe(1);
+    reject = true;
+    await composer.fill('Another idea');
+    await send.click();
+    await expect(
+      page.getByText(
+        'The selected model or endpoint is unavailable (HTTP 404). Refresh models or choose another tool-capable model.',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(page.locator('body')).not.toContainText('SECRET');
+    await expect(page.locator('body')).not.toContainText(
+      'synthetic-connection-key',
+    );
+    expect(requests).toBe(2);
+    reject = false;
+    await composer.fill('Try again');
+    await send.click();
+    await expect(
+      page.getByRole('article', { name: 'Assistant response' }).last(),
+    ).toContainText('Try a short opening montage.');
+    expect(requests).toBe(3);
+  });
+}
+
 for (const base of ['/', '/LocalCut/']) {
   test(`compact AI connection searches the whole catalog and reveals settings progressively ${base}`, async ({
     page,

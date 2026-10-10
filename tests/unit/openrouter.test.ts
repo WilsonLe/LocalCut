@@ -122,12 +122,58 @@ describe('OpenRouter transport', () => {
       messages: request().messages,
       stream: true,
       max_tokens: 1000,
-      parallel_tool_calls: false,
       provider: { data_collection: 'deny', require_parameters: true },
     });
+    expect(JSON.parse(String(init!.body))).not.toHaveProperty(
+      'parallel_tool_calls',
+    );
     await collect(client);
     expect(fetch).toHaveBeenCalledTimes(3); // One catalog snapshot until explicitly refreshed or disconnected.
   });
+  it.each([false, true])(
+    'routes strict tool requests using advertised parallel-call support: %s',
+    async (parallelSupported) => {
+      let completions = 0;
+      const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
+        if (String(input).endsWith('/models'))
+          return Response.json({
+            data: [
+              {
+                ...model,
+                supported_parameters: [
+                  ...model.supported_parameters,
+                  ...(parallelSupported ? ['parallel_tool_calls'] : []),
+                ],
+              },
+            ],
+          });
+        completions++;
+        const body = JSON.parse(String(init!.body));
+        expect(body.provider).toEqual({
+          data_collection: 'deny',
+          require_parameters: true,
+        });
+        if (!parallelSupported && 'parallel_tool_calls' in body)
+          return Response.json(
+            { error: 'No compatible endpoint' },
+            { status: 404 },
+          );
+        if (parallelSupported) expect(body.parallel_tool_calls).toBe(false);
+        return streamResponse();
+      });
+      const client = createOpenRouter({ fetch });
+      client.setKey('test-key-private');
+      try {
+        expect(await collect(client)).toMatchObject([
+          { type: 'text', text: 'Done' },
+          { type: 'complete' },
+        ]);
+        expect(completions).toBe(1);
+      } finally {
+        client.dispose();
+      }
+    },
+  );
   it('supports explicit unauthenticated catalog reads and protects cached models from mutation', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>(async () =>
       Response.json({ data: [model] }),

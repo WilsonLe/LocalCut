@@ -754,7 +754,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         'AUTH_REQUIRED',
         'Connect to OpenRouter before starting an AI request.',
       );
-      const body = validateRequest(request, !!compatible);
+      let body = validateRequest(request, !!compatible);
       const requestedModel = request.model;
       const requestedTokens = request.maxOutputTokens;
       const epoch = generation;
@@ -773,6 +773,16 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         'INVALID_REQUEST',
         'Output limit exceeds the selected model capability.',
       );
+      // Strict routing must not require an optional parameter the model cannot use.
+      // The assistant already executes all validated tool calls sequentially.
+      if (
+        !compatible &&
+        !model.supportedParameters.includes('parallel_tool_calls')
+      ) {
+        const payload = JSON.parse(body) as Record<string, unknown>;
+        delete payload.parallel_tool_calls;
+        body = JSON.stringify(payload);
+      }
       const op = operation(signal);
       try {
         const response = await op.fetch('/chat/completions', {
