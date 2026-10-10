@@ -18,6 +18,7 @@ export const appearanceOptions = {
   heading: ['inherit', 'sans', 'serif', 'mono'],
   radius: ['none', 'small', 'medium', 'large'],
   density: ['compact', 'default', 'comfortable'],
+  interfaceSize: ['default', 'small', 'large'],
   menuColor: ['default', 'tinted'],
   menuAccent: ['subtle', 'bold'],
 } as const;
@@ -34,6 +35,7 @@ export const defaultAppearance: Appearance = {
   heading: 'inherit',
   radius: 'medium',
   density: 'default',
+  interfaceSize: 'default',
   menuColor: 'default',
   menuAccent: 'subtle',
 };
@@ -111,6 +113,8 @@ function apply() {
   root.classList.toggle('dark', dark);
   root.style.colorScheme = dark ? 'dark' : 'light';
   root.dataset.density = p.density;
+  root.dataset.interfaceSize = p.interfaceSize;
+  root.style.setProperty('--interface-scale', String(interfaceScale()));
   root.dataset.menuAccent = p.menuAccent;
   const set = (name: string, value: string) =>
     root.style.setProperty(`--${name}`, value);
@@ -172,6 +176,12 @@ function apply() {
     'appearance-font-heading',
     fonts[p.heading === 'inherit' ? p.font : p.heading],
   );
+}
+
+export function interfaceScale() {
+  return { default: 1, small: 0.75, large: 1.25 }[
+    snapshot.preferences.interfaceSize
+  ];
 }
 
 function publish() {
@@ -244,7 +254,7 @@ export function useAppearance() {
 export function randomAppearance(): Appearance {
   const result = { ...snapshot.preferences };
   for (const key of Object.keys(appearanceOptions) as (keyof Appearance)[]) {
-    if (key === 'mode') continue;
+    if (key === 'mode' || key === 'interfaceSize') continue;
     const options = appearanceOptions[key];
     Object.assign(result, {
       [key]: options[Math.floor(Math.random() * options.length)],

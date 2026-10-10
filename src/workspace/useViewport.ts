@@ -1,3 +1,4 @@
+import { interfaceScale } from './appearance';
 import { hasBlockingOverlay } from './overlays';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
@@ -53,6 +54,7 @@ export function useViewport(
     const element = ref.current;
     if (!element) return;
     // Identity changes reset transient view state without persisting it to a project.
+    pendingScroll.current = null;
     state.current = { scale: 1, x: 0, y: 0 };
     setView(state.current);
     element.scrollLeft = 0;
@@ -106,8 +108,8 @@ export function useViewport(
         );
         zoom(
           Math.exp(-delta * 0.005),
-          event.clientX - rect.left,
-          event.clientY - rect.top,
+          (event.clientX - rect.left) / interfaceScale(),
+          (event.clientY - rect.top) / interfaceScale(),
         );
       } else if (kind === 'timeline' && event.shiftKey) {
         event.preventDefault();
@@ -136,8 +138,8 @@ export function useViewport(
     };
     const move = (event: PointerEvent) => {
       if (!drag || event.pointerId !== drag.id) return;
-      const dx = event.clientX - drag.x,
-        dy = event.clientY - drag.y;
+      const dx = (event.clientX - drag.x) / interfaceScale(),
+        dy = (event.clientY - drag.y) / interfaceScale();
       drag.x = event.clientX;
       drag.y = event.clientY;
       if (kind === 'timeline') element.scrollLeft -= dx;

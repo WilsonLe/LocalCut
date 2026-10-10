@@ -48,6 +48,8 @@ This example selects the existing speed regression at both `/` and `/LocalCut/`.
 
 Keyboard and assistant service regressions have their own specs. After the same two builds are current, run `pnpm test:browser tests/browser/keyboard.spec.ts tests/browser/ai-actions.spec.ts`. The keyboard tests use real persisted edits and native playback; the assistant tests reopen native MP4/WebM artifacts. To check just the AAC configuration regression before building, use `pnpm test tests/unit/audio-config.test.ts`.
 
+For interface sizing and timeline anchoring, run `pnpm test:ui --grep 'interface size'`. This checks all three sizes, portal placement, scaled editing gestures and saved choices at both bases. Native Safari's `pnpm test:safari` additionally measures size and bottom alignment before its media/storage scenarios.
+
 For a non-UI Chrome regression, build both targets after changing production code, then select its spec:
 
 ```sh

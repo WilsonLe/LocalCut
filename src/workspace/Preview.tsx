@@ -1,5 +1,5 @@
 import { useEffect, useImperativeHandle, useRef, useState } from 'react';
-import type { Ref } from 'react';
+import type { CSSProperties, Ref } from 'react';
 import {
   Film,
   Info,
@@ -204,48 +204,63 @@ export function Preview({
   return (
     <section className="preview" aria-label="Project preview">
       <div
-        ref={viewport}
-        className="preview-stage"
-        data-editor-viewport="preview"
-        tabIndex={0}
-        aria-label="Preview view"
-        onDoubleClick={(event) => {
-          if (event.target === canvas.current)
-            event.currentTarget.dispatchEvent(
-              new CustomEvent('editor-view', { detail: 'zoomFit' }),
-            );
-        }}
-        style={{
-          aspectRatio: project ? `${project.width}/${project.height}` : '16/9',
-        }}
+        className="preview-frame"
+        style={
+          {
+            '--preview-ratio': project
+              ? project.width / project.height
+              : 16 / 9,
+          } as CSSProperties
+        }
       >
-        <canvas
-          ref={canvas}
-          style={{
-            transformOrigin: '0 0',
-            transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
-          }}
-          width={960}
-          height={
-            project ? Math.round((960 * project.height) / project.width) : 540
-          }
-          aria-label="Video preview"
+        <div
+          ref={viewport}
+          className="preview-stage"
+          data-editor-viewport="preview"
           tabIndex={0}
-          hidden={!total}
-        />
-        {!total && (
-          <div className="empty-preview">
-            <Film aria-hidden="true" />
-            <h1>{versionId ? 'Empty timeline' : 'Start with your footage.'}</h1>
-            {!versionId && <Button onClick={onImport}>Import media</Button>}
-          </div>
-        )}
-        {loading && total > 0 && (
-          <LoaderCircle
-            className="preview-loading animate-spin"
-            aria-label="Loading preview"
+          aria-label="Preview view"
+          onDoubleClick={(event) => {
+            if (event.target === canvas.current)
+              event.currentTarget.dispatchEvent(
+                new CustomEvent('editor-view', { detail: 'zoomFit' }),
+              );
+          }}
+          style={{
+            aspectRatio: project
+              ? `${project.width}/${project.height}`
+              : '16/9',
+          }}
+        >
+          <canvas
+            ref={canvas}
+            style={{
+              transformOrigin: '0 0',
+              transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
+            }}
+            width={960}
+            height={
+              project ? Math.round((960 * project.height) / project.width) : 540
+            }
+            aria-label="Video preview"
+            tabIndex={0}
+            hidden={!total}
           />
-        )}
+          {!total && (
+            <div className="empty-preview">
+              <Film aria-hidden="true" />
+              <h1>
+                {versionId ? 'Empty timeline' : 'Start with your footage.'}
+              </h1>
+              {!versionId && <Button onClick={onImport}>Import media</Button>}
+            </div>
+          )}
+          {loading && total > 0 && (
+            <LoaderCircle
+              className="preview-loading animate-spin"
+              aria-label="Loading preview"
+            />
+          )}
+        </div>
       </div>
       <div className="playback-controls">
         <span className="timecode">

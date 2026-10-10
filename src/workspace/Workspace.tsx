@@ -58,6 +58,7 @@ import { useEditorShortcuts } from './useEditorShortcuts';
 import { selectionIds, transitionPairs } from '../core/timeline';
 import type { TransitionTemplate } from '../core/timeline';
 import { useAppearance } from './appearance';
+import { usePageZoomGuard } from './usePageZoomGuard';
 import {
   saveWorkspacePreferences,
   useWorkspacePreferences,
@@ -86,6 +87,7 @@ const NARROW_QUERY =
   '(max-width: 700px), (max-width: 1000px) and (max-height: 500px)';
 
 export function Workspace() {
+  usePageZoomGuard();
   const { dark } = useAppearance();
   const { preferences, saved: preferencesSaved } = useWorkspacePreferences();
   const { chatCollapsed, chatWidth, exportFormat: format } = preferences;
@@ -102,7 +104,7 @@ export function Workspace() {
     const measure = () =>
       document.documentElement.style.setProperty(
         '--workspace-header-height',
-        `${header.current!.getBoundingClientRect().height}px`,
+        `${header.current!.offsetHeight}px`,
       );
     const observer = new ResizeObserver(measure);
     observer.observe(header.current);

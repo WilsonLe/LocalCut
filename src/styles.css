@@ -48,6 +48,9 @@
 }
 
 :root {
+  --interface-scale: 1;
+  --app-viewport-height: calc(100dvh / var(--interface-scale));
+  --app-viewport-width: calc(100vw / var(--interface-scale));
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -132,6 +135,34 @@
   [data-slot='dialog-title'] {
     font-family: var(--font-heading);
   }
+}
+
+/* Scale portal surfaces with the workspace; viewport lengths stay in layout units. */
+body {
+  zoom: var(--interface-scale);
+  touch-action: pan-x pan-y;
+}
+
+/* Give Base UI positioners an offset parent whose measured scale matches the UI.
+   Browser-relative placement otherwise applies CSS zoom twice to popup bounds. */
+[data-base-ui-portal] {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: var(--app-viewport-width);
+  height: var(--app-viewport-height);
+  transform: translateZ(0);
+  pointer-events: none;
+  z-index: 50;
+}
+[data-base-ui-portal] > :not([data-base-ui-portal]) {
+  /* Nested, kept-mounted portals must remain transparent after their popup closes. */
+  pointer-events: auto;
+}
+/* Retained select options stop participating as soon as their picker closes. */
+[data-slot='select-content'][data-closed] {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* Keep all app and portal surfaces scrollable without visible scrollbar chrome. */

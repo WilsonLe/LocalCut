@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
+import { interfaceScale } from './appearance';
 import { CHAT_MIN_WIDTH, CHAT_MAX_WIDTH } from './preferences';
 
 interface ChatResizeHandleProps {
@@ -32,10 +33,10 @@ export function ChatResizeHandle({
       const media = columns.querySelector('.media-panel');
       const available =
         columns.clientWidth -
-        (media?.getBoundingClientRect().width ?? 0) -
+        (media instanceof HTMLElement ? media.offsetWidth : 0) -
         minWidth;
       const next = {
-        width: Math.round(panel.getBoundingClientRect().width),
+        width: Math.round(panel.offsetWidth),
         max: Math.min(maxWidth, Math.max(minWidth, available)),
       };
       setBounds((previous) =>
@@ -84,7 +85,7 @@ export function ChatResizeHandle({
       onPointerMove={(event) => {
         const start = gesture.current;
         if (start?.id === event.pointerId)
-          resize(start.width + event.clientX - start.x);
+          resize(start.width + (event.clientX - start.x) / interfaceScale());
       }}
       onPointerUp={(event) => {
         if (gesture.current?.id !== event.pointerId) return;
@@ -101,8 +102,7 @@ export function ChatResizeHandle({
       onKeyDown={(event) => {
         const step = event.shiftKey ? 64 : 16;
         const renderedWidth = Math.round(
-          event.currentTarget.parentElement?.getBoundingClientRect().width ??
-            bounds.width,
+          event.currentTarget.parentElement?.offsetWidth ?? bounds.width,
         );
         const value =
           event.key === 'ArrowRight'

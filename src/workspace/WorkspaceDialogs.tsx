@@ -145,7 +145,7 @@ export default function WorkspaceDialogs({
           if (!open && !busy) onDialogChange(null);
         }}
       >
-        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-xl">
+        <DialogContent className="flex max-h-[calc(var(--app-viewport-height)-2rem)] flex-col overflow-hidden sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Clip properties</DialogTitle>
             <DialogDescription>

@@ -5,7 +5,12 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { ensureBuilds, root } from './build-state.mjs';
-import { mediaRoundTrip, reopen, cleanup } from '../tests/safari/scenarios.mjs';
+import {
+  mediaRoundTrip,
+  reopen,
+  cleanup,
+  interfaceLayout,
+} from '../tests/safari/scenarios.mjs';
 
 if (process.platform !== 'darwin')
   throw new Error('Native Safari requires macOS and Safari Remote Automation.');
@@ -99,6 +104,10 @@ try {
     script: 150000,
     pageLoad: 30000,
   });
+  await request('POST', `/session/${session}/window/rect`, {
+    width: 1440,
+    height: 1000,
+  });
   for (const base of ['/', '/LocalCut/']) {
     const namespace = 'test-safari-' + randomUUID();
     await request('POST', `/session/${session}/url`, {
@@ -109,8 +118,22 @@ try {
         await request('GET', `/session/${session}/title`),
         'LocalCut',
       );
+      const layout = await execute(interfaceLayout);
+      for (const measurement of layout) {
+        assert.ok(measurement.gap <= 1, JSON.stringify(measurement));
+        assert.ok(measurement.overflow <= 1, JSON.stringify(measurement));
+        assert.ok(
+          Math.abs(measurement.workspaceHeight - measurement.viewportHeight) <=
+            1,
+          JSON.stringify(measurement),
+        );
+        assert.ok(
+          Math.abs(measurement.headerHeight - 64 * measurement.scale) <= 1,
+          JSON.stringify(measurement),
+        );
+      }
       const result = await execute(mediaRoundTrip, base, namespace);
-      report.results.push({ base, ...result });
+      report.results.push({ base, layout, ...result });
       for (const m of result.measurements) {
         assert.ok(m.bytes > 100);
         assert.equal(m.videoCodec, 'avc');

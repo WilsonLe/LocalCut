@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { interfaceScale } from './appearance';
 import { useViewport } from './useViewport';
 import {
   Captions,
@@ -74,7 +75,9 @@ export function Timeline(props: Props) {
     const element = viewport.current;
     if (!element || !total) return;
     const x =
-      clientX - element.getBoundingClientRect().left + element.scrollLeft - 76;
+      (clientX - element.getBoundingClientRect().left) / interfaceScale() +
+      element.scrollLeft -
+      76;
     const fraction = x / Math.max(1, element.scrollWidth - 76);
     props.onTime(
       Math.round(Math.min(total - 1, Math.max(0, fraction * total))),

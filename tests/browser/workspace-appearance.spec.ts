@@ -12,7 +12,16 @@ async function openAppearance(page: Page) {
 }
 async function choose(page: Page, label: string, option: string) {
   await page.getByRole('combobox', { name: label, exact: true }).click();
-  await page.getByRole('option', { name: option, exact: true }).click();
+  await expect(
+    page.getByRole('combobox', { name: label, exact: true }),
+  ).toHaveAttribute('aria-expanded', 'true');
+  await page
+    .getByRole('option', { name: option, exact: true })
+    .filter({ visible: true })
+    .click();
+  await expect(
+    page.locator('[data-slot="select-content"]:visible'),
+  ).toHaveCount(0);
 }
 async function styles(page: Page) {
   return page.evaluate(() => {

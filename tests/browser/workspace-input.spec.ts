@@ -241,6 +241,9 @@ for (const base of ['/', '/LocalCut/']) {
     await input.press('ControlOrMeta+a');
     await input.press('x');
     await expect(input).toHaveValue('x');
+    const modalViewWidth = await page
+      .locator('.timeline-viewport')
+      .evaluate((element) => element.scrollWidth);
     const prevented = await page.locator('.timeline-viewport').evaluate(
       (element) =>
         !element.dispatchEvent(
@@ -252,7 +255,13 @@ for (const base of ['/', '/LocalCut/']) {
           }),
         ),
     );
-    expect(prevented).toBe(false);
+    // The page guard blocks browser zoom even while a modal blocks editing gestures.
+    expect(prevented).toBe(true);
+    expect(
+      await page
+        .locator('.timeline-viewport')
+        .evaluate((element) => element.scrollWidth),
+    ).toBe(modalViewWidth);
     await page.keyboard.press('Escape');
     await expect(page.locator('[role="dialog"]')).toHaveCount(0);
     const initial = await page
