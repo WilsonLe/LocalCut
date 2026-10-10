@@ -1103,29 +1103,37 @@
   .media-panel {
     border: 0;
   }
-  .mobile-media-dialog {
-    top: max(16px, env(safe-area-inset-top));
-    translate: -50% 0;
-    transform: none;
-    width: calc(100% - 24px);
-    max-width: 480px;
+  .mobile-media-sheet[data-slot='dialog-content'] {
+    inset: 0;
+    width: var(--app-viewport-width);
+    height: var(--app-viewport-height);
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: var(--background);
     padding: 0;
     gap: 0;
     overflow: hidden;
-    max-height: calc(
-      var(--app-viewport-height) - 32px - env(safe-area-inset-top) -
-        env(safe-area-inset-bottom)
-    );
+    animation: none;
   }
-  .mobile-media-dialog .media-panel {
-    max-height: calc(
-      var(--app-viewport-height) - 32px - env(safe-area-inset-top) -
-        env(safe-area-inset-bottom)
-    );
-    overflow-y: auto;
+  .mobile-media-sheet .media-panel {
+    min-height: 0;
+    height: 100%;
+    padding: calc(env(safe-area-inset-top) / var(--interface-scale))
+      calc(env(safe-area-inset-right) / var(--interface-scale))
+      calc(env(safe-area-inset-bottom) / var(--interface-scale))
+      calc(env(safe-area-inset-left) / var(--interface-scale));
+    overflow: hidden;
   }
-  .mobile-media-dialog .media-content {
+  .mobile-media-sheet .media-content {
     min-width: 0;
+    overscroll-behavior: contain;
+  }
+  .mobile-media-sheet .media-toggle {
+    top: calc(8px + env(safe-area-inset-top) / var(--interface-scale));
+    right: calc(8px + env(safe-area-inset-right) / var(--interface-scale));
+    background: var(--background);
   }
   .media-toggle {
     top: 8px;

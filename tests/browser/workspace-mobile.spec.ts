@@ -37,6 +37,109 @@ async function select(page: Page, name: RegExp) {
   await page.getByRole('option', { name }).click();
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`mobile media sheet fills every interface size and scrolls its library ${base}`, async ({
+    page,
+  }, info) => {
+    await page.setViewportSize({ width: 320, height: 740 });
+    await page.goto(base);
+    const media = page.getByRole('dialog', {
+      name: 'Media library',
+      exact: true,
+    });
+    for (const interfaceSize of ['default', 'small', 'large']) {
+      await page.evaluate((interfaceSize) => {
+        localStorage.setItem(
+          'localcut.appearance.v1',
+          JSON.stringify({
+            version: 1,
+            preferences: { interfaceSize },
+          }),
+        );
+      }, interfaceSize);
+      await page.reload();
+      for (const viewport of [
+        { width: 320, height: 740 },
+        { width: 600, height: 300 },
+      ]) {
+        await page.setViewportSize(viewport);
+        const trigger = page.locator('#mobile-media-trigger');
+        await trigger.click();
+        await expect(media).toBeVisible();
+        await expect
+          .poll(async () => {
+            const bounds = (await media.boundingBox())!;
+            return Math.max(
+              Math.abs(bounds.x),
+              Math.abs(bounds.y),
+              Math.abs(bounds.width - viewport.width),
+              Math.abs(bounds.height - viewport.height),
+            );
+          })
+          .toBeLessThanOrEqual(1);
+        expect(
+          await media.evaluate((el) => getComputedStyle(el).borderRadius),
+        ).toBe('0px');
+        const close = media.getByRole('button', {
+          name: 'Close media',
+          exact: true,
+        });
+        await expect(close).toBeInViewport();
+        await expect(
+          media.getByRole('button', { name: 'Import media', exact: true }),
+        ).toBeInViewport();
+        if (interfaceSize === 'default') {
+          await page.screenshot({
+            path: info.outputPath(`media-sheet-${viewport.width}.png`),
+          });
+        }
+        await close.click();
+        await expect(media).toBeHidden();
+        await expect(trigger).toBeFocused();
+      }
+    }
+    await page.evaluate(() =>
+      localStorage.removeItem('localcut.appearance.v1'),
+    );
+    await page.setViewportSize({ width: 320, height: 740 });
+    await page.reload();
+    await create(page);
+    await page.locator('#mobile-media-trigger').click();
+    const bytes = await page.evaluate(async () => {
+      const canvas = new OffscreenCanvas(16, 16);
+      canvas.getContext('2d')!.fillRect(0, 0, 16, 16);
+      return [
+        ...new Uint8Array(await (await canvas.convertToBlob()).arrayBuffer()),
+      ];
+    });
+    await page.getByLabel('Import media', { exact: true }).setInputFiles(
+      Array.from({ length: 24 }, (_, i) => ({
+        name: `source-${i}.png`,
+        mimeType: 'image/png',
+        buffer: Buffer.from(bytes),
+      })),
+    );
+    await expect(media.locator('.media-item')).toHaveCount(24);
+    const content = media.locator('.media-content');
+    expect(await content.evaluate((el) => el.scrollHeight)).toBeGreaterThan(
+      await content.evaluate((el) => el.clientHeight),
+    );
+    await media
+      .getByText('source-23.png', { exact: true })
+      .scrollIntoViewIfNeeded();
+    await expect(
+      media.getByText('source-23.png', { exact: true }),
+    ).toBeInViewport();
+    await expect(
+      media.getByRole('button', { name: 'Close media', exact: true }),
+    ).toBeInViewport();
+    await page.screenshot({
+      path: info.outputPath('media-sheet-scrolled.png'),
+    });
+    await page.keyboard.press('Escape');
+    await expect(media).toBeHidden();
+    await expect(page.locator('#mobile-media-trigger')).toBeFocused();
+  });
+
   test(`mobile touch editing, grouping, playback and media focus ${base}`, async ({
     page,
   }, info) => {
@@ -157,8 +260,10 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await expect(media).toBeInViewport();
     const mediaBounds = (await media.boundingBox())!;
-    expect(mediaBounds.y).toBeGreaterThanOrEqual(0);
-    expect(mediaBounds.y + mediaBounds.height).toBeLessThanOrEqual(740);
+    expect(mediaBounds.x).toBeCloseTo(0, 0);
+    expect(mediaBounds.y).toBeCloseTo(0, 0);
+    expect(mediaBounds.width).toBeCloseTo(320, 0);
+    expect(mediaBounds.height).toBeCloseTo(740, 0);
     await expect(media.getByText('first.png', { exact: true })).toBeVisible();
     await expect
       .poll(() => media.evaluate((el) => el.contains(document.activeElement)))
@@ -173,7 +278,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page.keyboard.press('Escape');
     await expect(media).toBeHidden();
     await expect(mediaTrigger).toBeFocused();
-    // A retained, closed media modal must not block the shared viewport owner.
+    // A retained, closed media sheet must not block the shared viewport owner.
     const timeline = page.locator('.timeline-viewport');
     await timeline.scrollIntoViewIfNeeded();
     const initialWidth = await timeline.evaluate((el) => el.scrollWidth);
@@ -325,7 +430,7 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Expand media', exact: true })
       .click();
     await page
-      .getByRole('button', { name: 'Collapse media', exact: true })
+      .getByRole('button', { name: 'Close media', exact: true })
       .click();
     expect(
       await page.evaluate(() =>
@@ -401,9 +506,7 @@ test('media focus follows the mounted trigger across both breakpoints', async ({
   await page.goto('/LocalCut/');
   await create(page);
   await page.getByRole('button', { name: 'Expand media', exact: true }).click();
-  await page
-    .getByRole('button', { name: 'Collapse media', exact: true })
-    .focus();
+  await page.getByRole('button', { name: 'Close media', exact: true }).focus();
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.locator('#desktop-media-trigger')).toBeFocused();
   await page.locator('#desktop-media-trigger').click();
