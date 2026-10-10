@@ -92,6 +92,14 @@ export function Timeline(props: Props) {
     width,
   } = useViewport('timeline', `${project?.id}:${props.versionId}`, hasTracks);
   const scrubbing = useRef<{ id: number; offsetX: number } | null>(null);
+  useEffect(() => {
+    // Removing the captured node sends lostpointercapture to the document,
+    // so its React handler cannot clear the previous gesture.
+    scrubbing.current = null;
+    return () => {
+      scrubbing.current = null;
+    };
+  }, [project?.id, props.versionId, total]);
   const scrub = (clientX: number) => {
     const element = viewport.current;
     if (!element || !total) return;

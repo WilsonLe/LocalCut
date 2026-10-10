@@ -573,6 +573,40 @@ for (const base of ['/', '/LocalCut/']) {
   });
 }
 
+for (const base of ['/', '/LocalCut/']) {
+  test(`playhead dragging recovers after deleting and restoring tracks ${base}`, async ({
+    page,
+  }) => {
+    const id = await prepare(page, base);
+    const original = (await snapshot(page, base, id)).tracks;
+    const main = page.getByRole('main', { name: 'Video editor', exact: true });
+    const handle = page.getByRole('slider', {
+      name: 'Playhead position',
+      exact: true,
+    });
+    await main.press('ControlOrMeta+a');
+    await expect(
+      page.locator('.timeline-clip[aria-pressed="true"]'),
+    ).toHaveCount(2);
+    const hit = (await handle.boundingBox())!;
+    await page.mouse.move(hit.x + hit.width / 2, hit.y + hit.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(hit.x + hit.width / 2 + 10, hit.y + hit.height / 2);
+    // Deleting while capture is held removes the slider before pointerup.
+    await page.keyboard.press('Delete');
+    await expect(handle).toHaveCount(0);
+    await page.mouse.up();
+    await main.press('ControlOrMeta+z');
+    await expect(page.locator('.timeline-clip')).toHaveCount(2);
+    await handle.press('Home');
+    await dragPlayhead(page, 0.5);
+    await expect
+      .poll(async () => Number(await handle.getAttribute('aria-valuenow')))
+      .toBeCloseTo(2_000_000, -4);
+    expect((await snapshot(page, base, id)).tracks).toEqual(original);
+  });
+}
+
 test.describe('touch playhead dragging', () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
   for (const base of ['/', '/LocalCut/']) {
