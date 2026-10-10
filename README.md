@@ -27,7 +27,7 @@ Current desktop Google Chrome is required for native codec, OPFS, Web Locks, and
 
 Contributors and coding agents: start with [AGENTS.md](AGENTS.md) and the [development guide](docs/development.md) for module ownership, fast check selection, build reuse, and the single review-and-address cycle.
 
-Validation runs locally with `pnpm check` and the applicable real transcription/performance acceptance commands. Hosted CI is disabled. The manually triggered GitHub Pages deployment remains separate and requires deployment authorization.
+Validation runs locally with `pnpm check` and the applicable real transcription/performance acceptance commands. Hosted CI is disabled. GitHub Pages builds and publishes automatically on every push to `main`; release packaging remains separate from local validation. Confirmed manual redeployment is also available. See [deployment and rollback](DEPLOY.md).
 
 | Command                   | Purpose                                                       |
 | ------------------------- | ------------------------------------------------------------- |

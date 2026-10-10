@@ -4,11 +4,13 @@ The default production base is /LocalCut/. Set LOCALCUT_BASE_PATH=/ when buildin
 
 Deploy only dist/, which contains index.html, editor.js, hashed support/worker assets, declarations, and the build manifest. Test harnesses, fixtures, models, caches, and large inference binaries remain outside that directory.
 
-.github/workflows/pages.yml is manually triggered and requires confirm_deploy=true. It is not an automatic push deployment. Enable GitHub Pages with GitHub Actions only when deployment is authorized, then dispatch the exact reviewed main revision. A workflow configuration does not prove a live release.
+.github/workflows/pages.yml builds and deploys automatically on every push to `main`, including merged PRs. GitHub Pages uses the GitHub Actions publishing source. The user has authorized this automatic release behavior; merging a reviewed change to `main` triggers deployment without a separate dispatch. Feature branches and PRs do not deploy. For a manual redeploy, select `main` and set `confirm_deploy=true`; other refs or an unconfirmed dispatch skip the build and deployment. A workflow configuration does not prove a live release.
 
-Validation runs locally by user preference: complete `pnpm check` and applicable transcription/performance acceptance before requesting release. Hosted validation and performance workflows are disabled. The Pages action only packages and publishes the static app; it is not a substitute for the local gates.
+Validation runs locally by user preference: complete `pnpm check` and applicable transcription/performance acceptance before merging to `main`. Hosted validation and performance workflows are disabled. The Pages action only packages and publishes the static app; it is not a substitute for the local gates.
 
 After deployment verify the LocalCut title and rendered workspace in Google Chrome at the deployed URL. Initial navigation must remain inert: no editor instance, storage initialization, workers, permission prompts, model downloads, or AI requests before an explicit action (except completion of an explicit OpenRouter OAuth return). Use a fresh browser context to create a project, import generated local media, render a preview and save a real export; verify editor imports and worker asset paths under /LocalCut/. Check the grouped header menus, OpenRouter connection controls, and chat collapse/expand behavior. Record the deployed commit, Pages artifact, and results. Do not use existing personal media or storage for release checks.
+
+To restore manual-only deployment, revert the automatic-release workflow and documentation change through a reviewed `main` commit.
 
 Before rolling back, verify the target release can read the current local data format. This completion release adds persisted keyframe IDs, identity-version metadata on project records/backups, and version-two receipt fingerprints. The older `984107d` release has strict parsers that cannot read every normalized project or new backup, and it does not understand the new receipt format. Rebuilding that release is not a safe data-compatible rollback.
 

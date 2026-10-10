@@ -13,9 +13,9 @@
 - During iteration, run the smallest meaningful test for the changed behavior. `pnpm test:ui --grep 'speed rounding'` is an example of a focused production-UI check that verifies and reuses both static builds. Use the [check-selection recipes](docs/development.md) for other layers.
 - Keep builds and tests in sequence when they share `dist` or `dist-root`. Parallelize isolated tests/read-only investigation; use separate ports and storage namespaces for independent browser runs.
 - Before a code, configuration, or dependency handoff, run `pnpm check` plus the affected real Chrome transcription/performance gates. For documentation-only changes, validate formatting, links, and any new commands, and retain clearly scoped evidence for unchanged runtime code. Do not repeat successful expensive checks without changed inputs, a failure, or an unresolved concern.
-- Run validation locally. The user has disabled remote CI; do not add or re-enable hosted check/performance workflows. The manually approved Pages release is separate from validation.
+- Run validation locally. The user has disabled remote CI; do not add or re-enable hosted check/performance workflows. Pages deploys automatically on pushes to `main`; release packaging is separate from validation.
 - Freeze the candidate and run one independent draft-PR review-and-address cycle. Fix accepted findings and rerun affected checks; do not automatically start another independent review. Record the reviewed and resulting heads and distinguish author validation from independent review.
-- Keep the issue and PR linked both ways. Report the exact head/base, checks, limitations, and release state. Merge and Pages deployment require separate authorization.
+- Keep the issue and PR linked both ways. Report the exact head/base, checks, limitations, and release state. Merge requires authorization. Pushes to `main` automatically deploy Pages under the recorded user preference.
 
 ## Scoped entry points
 

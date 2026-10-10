@@ -10,18 +10,18 @@ Read the root `AGENTS.md`, then the guides in the target file's ancestor directo
 
 ## Find the owner
 
-| Directory                                                                                                                                        | Responsibility                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| [`src/workspace/`](../src/workspace/AGENTS.md)                                                                                                   | Conversation, preview, timeline, settings, and their UI state; editing goes through the shared APIs. |
-| [`src/components/ui/`](../src/components/ui/AGENTS.md), `src/styles.css`, `src/lib/`                                                             | Shared shadcn/Base UI primitives, semantic styling, and utilities.                                   |
-| [`src/core/`](../src/core/AGENTS.md)                                                                                                             | Pure documents, commands, identity, captions, timing, and resampling.                                |
-| [`src/editor/`](../src/editor/AGENTS.md)                                                                                                         | Public editor facade, lifecycle, jobs, and events exposed to consumers.                              |
-| [`src/storage/`](../src/storage/AGENTS.md)                                                                                                       | IndexedDB transactions, OPFS originals, journals, recovery, and quota.                               |
-| [`src/media/`](../src/media/AGENTS.md)                                                                                                           | Import/decode, derivatives, composition, and streaming export.                                       |
-| [`src/services/`](../src/services/AGENTS.md), [`src/workers/`](../src/workers/AGENTS.md)                                                         | Preview clock, job/worker transport, and local media/transcription execution.                        |
-| [`src/ai/`](../src/ai/AGENTS.md)                                                                                                                 | Optional OpenRouter authentication, transport, context policy, and proposed edits.                   |
-| [`tests/`](../tests/AGENTS.md): [`unit/`](../tests/unit/AGENTS.md), [`browser/`](../tests/browser/AGENTS.md), [`live/`](../tests/live/AGENTS.md) | Pure/service tests, production Chrome acceptance, and opt-in paid-provider acceptance.               |
-| [`scripts/`](../scripts/AGENTS.md), [`.github/workflows/`](../.github/workflows/AGENTS.md)                                                       | Local builds/checks, verified build reuse, test server, and manual Pages deployment.                 |
+| Directory                                                                                                                                        | Responsibility                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| [`src/workspace/`](../src/workspace/AGENTS.md)                                                                                                   | Conversation, preview, timeline, settings, and their UI state; editing goes through the shared APIs.     |
+| [`src/components/ui/`](../src/components/ui/AGENTS.md), `src/styles.css`, `src/lib/`                                                             | Shared shadcn/Base UI primitives, semantic styling, and utilities.                                       |
+| [`src/core/`](../src/core/AGENTS.md)                                                                                                             | Pure documents, commands, identity, captions, timing, and resampling.                                    |
+| [`src/editor/`](../src/editor/AGENTS.md)                                                                                                         | Public editor facade, lifecycle, jobs, and events exposed to consumers.                                  |
+| [`src/storage/`](../src/storage/AGENTS.md)                                                                                                       | IndexedDB transactions, OPFS originals, journals, recovery, and quota.                                   |
+| [`src/media/`](../src/media/AGENTS.md)                                                                                                           | Import/decode, derivatives, composition, and streaming export.                                           |
+| [`src/services/`](../src/services/AGENTS.md), [`src/workers/`](../src/workers/AGENTS.md)                                                         | Preview clock, job/worker transport, and local media/transcription execution.                            |
+| [`src/ai/`](../src/ai/AGENTS.md)                                                                                                                 | Optional OpenRouter authentication, transport, context policy, and proposed edits.                       |
+| [`tests/`](../tests/AGENTS.md): [`unit/`](../tests/unit/AGENTS.md), [`browser/`](../tests/browser/AGENTS.md), [`live/`](../tests/live/AGENTS.md) | Pure/service tests, production Chrome acceptance, and opt-in paid-provider acceptance.                   |
+| [`scripts/`](../scripts/AGENTS.md), [`.github/workflows/`](../.github/workflows/AGENTS.md)                                                       | Local builds/checks, verified build reuse, test server, and automatic Pages deployment on `main` pushes. |
 
 See [architecture](architecture.md) and [API contracts](api.md) before crossing a boundary. Preserve the existing owner instead of duplicating project state in a control or transport.
 
@@ -82,4 +82,4 @@ A shared CPU/memory policy selects up to eight slots/unit workers and four Chrom
 
 Keep the issue, draft PR, implementation, and evidence aligned. Run exactly one automatic independent review cycle for the candidate. Address its findings and run targeted revalidation plus any affected integration gates; do not automatically start another review of those fixes. Record remaining limitations and the checks actually run.
 
-Merge and deployment require separate authorization. Follow [deployment and rollback](../DEPLOY.md) for the release gate; a local pass or review approval does not prove merge or deployment succeeded.
+Merge requires authorization and triggers automatic Pages deployment on `main`. Complete local validation before merging and follow [deployment and rollback](../DEPLOY.md) for live release verification; a local pass or review approval does not prove merge or deployment succeeded.
