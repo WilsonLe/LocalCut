@@ -20,7 +20,8 @@ const callback = 'https://wilsonle.github.io/LocalCut/?workspace=one';
 function returned(url: string, target = callback) {
   const actual = new URL(target);
   actual.searchParams.set('code', 'authorization-code');
-  actual.searchParams.set('state', new URL(url).searchParams.get('state')!);
+  const registered = new URL(new URL(url).searchParams.get('callback_url')!);
+  actual.searchParams.set('state', registered.searchParams.get('state')!);
   return actual.href;
 }
 
@@ -43,7 +44,11 @@ describe('OpenRouter explicit PKCE authorization', () => {
     expect(fetch).not.toHaveBeenCalled();
     const url = new URL(authorizationUrl);
     expect(url.origin + url.pathname).toBe('https://openrouter.ai/auth');
-    expect(url.searchParams.get('callback_url')).toBe(callback);
+    const registered = new URL(url.searchParams.get('callback_url')!);
+    expect(registered.searchParams.get('state')).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(url.searchParams.has('state')).toBe(false);
+    registered.searchParams.delete('state');
+    expect(registered.href).toBe(callback);
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
     expect(expiresAt).toBe(1000 + OAUTH_TTL_MS);
     const stored = JSON.parse(store.values.get(OAUTH_STORAGE_KEY)!) as {
@@ -83,7 +88,7 @@ describe('OpenRouter explicit PKCE authorization', () => {
     ).rejects.toMatchObject({ code: 'AUTH_FLOW_INVALID' });
     expect(JSON.stringify(client.status())).not.toContain('private');
   });
-  it('resumes after reload from same tab session storage and returns a clean callback URL', async () => {
+  it('resumes after reload when the provider only appends code to callback_url', async () => {
     const store = storage();
     const first = createOpenRouter({ oauthStorage: store });
     const { authorizationUrl } = await first.beginAuthorization({
@@ -93,16 +98,16 @@ describe('OpenRouter explicit PKCE authorization', () => {
       oauthStorage: store,
       fetch: async () => Response.json({ key: 'test-key-private' }),
     });
-    const actual = returned(
-      authorizationUrl,
-      'http://localhost:5173/?a=one%20two',
+    const actual = new URL(
+      new URL(authorizationUrl).searchParams.get('callback_url')!,
     );
-    expect(await second.completeAuthorization({ callbackUrl: actual })).toEqual(
-      {
-        connected: true,
-        sanitizedCallbackUrl: 'http://localhost:5173/?a=one+two',
-      },
-    );
+    actual.searchParams.set('code', 'authorization-code');
+    expect(
+      await second.completeAuthorization({ callbackUrl: actual.href }),
+    ).toEqual({
+      connected: true,
+      sanitizedCallbackUrl: 'http://localhost:5173/?a=one+two',
+    });
     expect(first.status()).toEqual({ connected: false });
   });
   it.each([

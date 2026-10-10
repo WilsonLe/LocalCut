@@ -340,11 +340,10 @@ for (const base of ['/', '/LocalCut/']) {
     await context.route('https://openrouter.ai/auth?*', async (route) => {
       authorization = new URL(route.request().url());
       const callback = new URL(authorization.searchParams.get('callback_url')!);
+      expect(callback.searchParams.get('state')).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      expect(authorization.searchParams.has('state')).toBe(false);
+      // Model the provider: preserve callback_url and append only its code.
       callback.searchParams.set('code', 'synthetic-ui-authorization');
-      callback.searchParams.set(
-        'state',
-        authorization.searchParams.get('state')!,
-      );
       const href = callback.href
         .replaceAll('&', '&amp;')
         .replaceAll('"', '&quot;');

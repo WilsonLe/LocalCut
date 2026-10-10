@@ -117,7 +117,7 @@ Deterministic tests use synthetic provider PCM and real stable Chrome imports/de
 
 ## Connect with OpenRouter PKCE
 
-`beginAuthorization` returns a URL; it never opens a window or navigates. It generates a cryptographically random verifier/state and an S256 challenge. Temporary verifier/state are kept in the tab's session storage under a LocalCut-owned key for at most ten minutes. This temporary OAuth record never contains the API key. Successful exchange also saves the key when the caller opts into credential storage.
+`beginAuthorization` returns a URL; it never opens a window or navigates. It generates a cryptographically random verifier/state and an S256 challenge. The state is included in the nested `callback_url` query, which OpenRouter preserves when appending the authorization code, following its [callback-state contract](https://openrouter.ai/announcements/privacy-clarity-new-providers-oauth-upgrade-and-gemini-gets-parallel-tools). The stored and sanitized destination excludes that temporary state. Temporary verifier/state are kept in the tab's session storage under a LocalCut-owned key for at most ten minutes. This temporary OAuth record never contains the API key. Successful exchange also saves the key when the caller opts into credential storage.
 
 ```ts
 const provider = createOpenRouter();

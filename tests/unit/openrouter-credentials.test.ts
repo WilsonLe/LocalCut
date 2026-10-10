@@ -129,10 +129,6 @@ describe('persistent OpenRouter credentials', () => {
       });
       const authorization = new URL(flow.authorizationUrl);
       const callback = new URL(authorization.searchParams.get('callback_url')!);
-      callback.searchParams.set(
-        'state',
-        authorization.searchParams.get('state')!,
-      );
       callback.searchParams.set('code', 'synthetic-code');
       return client.completeAuthorization({ callbackUrl: callback.href });
     }
@@ -158,10 +154,8 @@ describe('persistent OpenRouter credentials', () => {
     const flow = await pendingClient.beginAuthorization({
       callbackUrl: 'https://example.com/',
     });
-    const callback = new URL('https://example.com/');
-    callback.searchParams.set(
-      'state',
-      new URL(flow.authorizationUrl).searchParams.get('state')!,
+    const callback = new URL(
+      new URL(flow.authorizationUrl).searchParams.get('callback_url')!,
     );
     callback.searchParams.set('code', 'late-code');
     const pending = pendingClient.completeAuthorization({

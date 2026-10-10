@@ -151,11 +151,14 @@ export class AuthorizationFlow {
         'Session storage is unavailable for authorization.',
       );
     }
+    // OpenRouter preserves callback query parameters; it does not echo an
+    // independent authorization-URL state parameter back to the application.
+    const registeredCallback = new URL(callback.href);
+    registeredCallback.searchParams.set('state', state);
     const url = new URL('https://openrouter.ai/auth');
-    url.searchParams.set('callback_url', callback.href);
+    url.searchParams.set('callback_url', registeredCallback.href);
     url.searchParams.set('code_challenge', challenge);
     url.searchParams.set('code_challenge_method', 'S256');
-    url.searchParams.set('state', state);
     url.searchParams.set('key_label', 'LocalCut');
     return { authorizationUrl: url.href, expiresAt: createdAt + OAUTH_TTL_MS };
   }
