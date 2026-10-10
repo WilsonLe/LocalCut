@@ -980,7 +980,7 @@
     min-width: 0;
   }
   .timeline-content {
-    min-width: 600px;
+    min-width: calc(76px + 524px * var(--timeline-scale, 1));
   }
   .timeline-scrubber {
     height: 44px;

@@ -166,6 +166,23 @@ for (const base of ['/', '/LocalCut/']) {
     await page.keyboard.press('Escape');
     await expect(media).toBeHidden();
     await expect(mediaTrigger).toBeFocused();
+    // A retained, closed media modal must not block the shared viewport owner.
+    const timeline = page.locator('.timeline-viewport');
+    await timeline.scrollIntoViewIfNeeded();
+    const initialWidth = await timeline.evaluate((el) => el.scrollWidth);
+    const box = (await timeline.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + 18);
+    await page.keyboard.down('Control');
+    await page.mouse.wheel(0, -140);
+    await page.keyboard.up('Control');
+    await expect
+      .poll(() => timeline.evaluate((el) => el.scrollWidth))
+      .toBeGreaterThan(initialWidth * 1.5);
+    await timeline.focus();
+    await page.keyboard.press('0');
+    await expect
+      .poll(() => timeline.evaluate((el) => el.scrollWidth))
+      .toBe(initialWidth);
     await nav.getByRole('button', { name: 'Chat', exact: true }).click();
     await expect(
       page.getByRole('button', { name: 'Collapse chat', exact: true }),

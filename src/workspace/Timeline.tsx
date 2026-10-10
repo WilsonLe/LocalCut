@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useViewport } from './useViewport';
 import {
   Captions,
@@ -271,11 +271,14 @@ export function Timeline(props: Props) {
           >
             <div
               className="timeline-content"
-              style={{
-                width: width
-                  ? 76 + Math.max(1, width - 76) * view.scale
-                  : '100%',
-              }}
+              style={
+                {
+                  width: width
+                    ? 76 + Math.max(1, width - 76) * view.scale
+                    : '100%',
+                  '--timeline-scale': view.scale,
+                } as CSSProperties
+              }
             >
               <div
                 className="timeline-ruler"
@@ -350,7 +353,10 @@ export function Timeline(props: Props) {
                           onClick={(event) =>
                             props.onSelect(
                               clip.id,
-                              multiSelect || event.shiftKey || event.metaKey || event.ctrlKey,
+                              multiSelect ||
+                                event.shiftKey ||
+                                event.metaKey ||
+                                event.ctrlKey,
                             )
                           }
                           style={{
