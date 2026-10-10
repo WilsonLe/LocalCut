@@ -81,6 +81,15 @@ export function override(
     throw new Error(`${name} must be an integer from 1 to ${max}.`);
   return Number(value);
 }
+export function poolMaxCost(env: NodeJS.ProcessEnv = {}, browser = false) {
+  const name = browser ? 'LOCALCUT_BROWSER_WORKERS' : 'LOCALCUT_UNIT_WORKERS';
+  const workers = override(env[name], name);
+  // The scheduler's refreshed budget limits automatic pools at launch. A
+  // startup CPU count would prevent growth after quota or affinity recovery.
+  return workers === undefined
+    ? Number.MAX_SAFE_INTEGER
+    : Math.min(Number.MAX_SAFE_INTEGER, workers * (browser ? 2 : 1));
+}
 export interface Capacity {
   cpus: number;
   freeBytes: number;

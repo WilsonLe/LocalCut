@@ -1,5 +1,5 @@
 import { runPnpm, ensureBuilds } from './build-state.mjs';
-import { resources, override } from './test-resources.ts';
+import { resources, poolMaxCost } from './test-resources.ts';
 import { schedule } from './test-scheduler.mjs';
 
 const initial = resources();
@@ -28,9 +28,7 @@ const tasks = [
     id: 'units',
     after: ['format', 'lint', 'types', 'tooling'],
     cost: 1,
-    maxCost:
-      override(env.LOCALCUT_UNIT_WORKERS, 'LOCALCUT_UNIT_WORKERS') ??
-      initial.cpus,
+    maxCost: poolMaxCost(env),
     run: ({ cost }) => runPnpm(['test'], poolEnv(cost)),
   },
   {
@@ -43,9 +41,7 @@ const tasks = [
     id: 'chrome',
     after: ['bundle', 'units'],
     cost: 2,
-    maxCost:
-      (override(env.LOCALCUT_BROWSER_WORKERS, 'LOCALCUT_BROWSER_WORKERS') ??
-        Math.max(1, Math.floor(initial.cpus / 2))) * 2,
+    maxCost: poolMaxCost(env, true),
     run: ({ cost }) => runPnpm(['test:browser'], poolEnv(cost, true)),
   },
 ];

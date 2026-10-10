@@ -7,6 +7,7 @@ import {
   cpuLoad,
   quotaCpus,
   memoryLimit,
+  poolMaxCost,
 } from '../../scripts/test-resources.ts';
 import { schedule } from '../../scripts/test-scheduler.mjs';
 const GiB = 1024 ** 3;
@@ -226,6 +227,44 @@ test('scheduler refreshes capacity while tasks run and grows an elastic pool aft
   slots = 8;
   await run;
   assert.deepEqual(events, ['peer', 7]);
+});
+
+test('pool launches follow recovered CPU quotas while explicit worker limits narrow capacity', async () => {
+  for (const browser of [false, true]) {
+    for (const narrowed of [false, true]) {
+      let cpuLimit = 2;
+      const env = narrowed
+        ? {
+            [browser ? 'LOCALCUT_BROWSER_WORKERS' : 'LOCALCUT_UNIT_WORKERS']:
+              '3',
+          }
+        : {};
+      const maxCost = poolMaxCost(env, browser);
+      let workers;
+      await schedule(
+        [
+          {
+            id: 'static',
+            cost: 1,
+            run: () => {
+              cpuLimit = 18;
+            },
+          },
+          {
+            id: 'pool',
+            after: ['static'],
+            cost: browser ? 2 : 1,
+            maxCost,
+            run: ({ cost }) => {
+              workers = browser ? Math.floor(cost / 2) : cost;
+            },
+          },
+        ],
+        () => allocation({ ...host, cpus: 18, cpuLimit }, env).slots,
+      );
+      assert.equal(workers, narrowed ? 3 : browser ? 9 : 18);
+    }
+  }
 });
 
 test('shrinking budgets drain running tasks before admitting another pool', async () => {
