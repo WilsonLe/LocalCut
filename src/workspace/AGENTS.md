@@ -1,9 +1,10 @@
 # Workspace
 
+- Use the router and focused workspace hooks for route identity, current snapshot, navigation loading and saved-project catalog state. Derive the active screen from the URL; abort superseded loads before publishing. Preserve pending/error recovery, bare startup and both hash-route hosting bases.
 - Own view state and interaction in this directory; the editor snapshot is the canonical saved project. Route edits, history, imports, preview, and export through the public editor API.
 - Submit property edits against the revision that authored the form. On conflict, refresh and let the user retry; never silently apply stale values to a newer snapshot.
 - Preserve exact source endpoints for gain-only and speed-only changes. An explicit duration edit may change the source range; avoid round trips through displayed seconds for untouched values.
-- Keep editor and AI imports lazy behind their existing explicit actions. Preserve the saved-OpenRouter-credential restoration and OAuth-return exceptions and eager synchronous callback-secret removal in `oauth-callback.ts` before the lazy conversation loads.
+- Keep editor and AI imports lazy behind their existing explicit actions and the project-route exception recorded in the parent guide. Preserve the saved-OpenRouter-credential restoration and OAuth-return exceptions and eager synchronous callback-secret removal in `oauth-callback.ts` before the lazy conversation loads.
 - Keep `Conversation`, `WorkspaceDialogs`, `AIConnectionDialog`, and the connected `ConversationSession` lazy. Command metadata in `workspace-command-list.ts` loads when the palette opens; show the palette only after its commands are ready. Measure the full initial import graph with `pnpm check:bundle` after changing shared primitives; moving JSX alone may leave an eager dependency elsewhere.
 - Keep progress, cancellation, errors, and saved revisions tied to actual jobs and receipts. Ignore superseded async results; tear down subscriptions, sessions, and artifacts with their owner.
 - Collapsing chat preserves its mounted conversation and connection state. Hidden contents must be inert; keep focus usable when opening, closing, or navigating settings.

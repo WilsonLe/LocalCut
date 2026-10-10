@@ -10,7 +10,7 @@ Chat follows the CYOBot instructor workspace's interaction structure: session pi
 
 Select the project name in the header, LocalCut home, Settings → Project → Open project, or Mod+O to open the Projects screen. Search saved names, then select a project to open it in the editor. Projects are sorted by name and show clip count and timeline duration; the active project is marked Current. New project and Import backup reuse the existing flows. Workspace/project ZIP imports remain available through settings and Commands.
 
-Back to editor or selecting the Current project preserves the current selection, playhead, version preview and conversation. Browsing pauses playback and hides the mounted editor from keyboard/accessibility interaction. Opening another project flushes the current project's pending version, resets selection/playhead and clears any previous video download. Project events refresh the list across windows; Refresh projects retries failed loads and picks up saved changes. Initial page navigation remains inert: project storage and editing services initialize only after an explicit create/open/import or browse action. This screen does not delete, rename or migrate projects.
+Back to editor or selecting the Current project preserves the current selection, playhead, version preview and conversation. Browsing pauses playback and hides the mounted editor from keyboard/accessibility interaction. Opening another project flushes the current project's pending version, resets selection/playhead and clears any previous video download. Project events refresh the list across windows; Refresh projects retries failed loads and picks up saved changes. Bare page navigation remains inert: project storage and editing services initialize after an explicit create/open/import or browse action, or a valid project/catalog route. This screen does not delete, rename or migrate projects.
 
 ## Local user preferences
 
@@ -24,21 +24,21 @@ Invalid or unknown preference records use safe defaults, with finite widths clam
 
 The audit covers the workspace, conversation/session picker, preview/timeline, dialogs, settings, appearance and shared UI controls:
 
-| State                                                                                                                         | Decision                   | Reason                                                           |
-| ----------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ---------------------------------------------------------------- |
-| Appearance choices, including interface size                                                                                  | Persist (existing)         | Durable visual customization                                     |
-| Chat width and collapsed state                                                                                                | Persist                    | Deliberate workspace layout                                      |
-| Media visibility                                                                                                              | Persist deliberate toggles | Import-driven opening remains temporary                          |
-| MP4/WebM export format                                                                                                        | Persist                    | Repeated export choice; never skips capability checks            |
-| OpenRouter model ID                                                                                                           | Persist                    | Repeated provider choice, validated after connection             |
-| OpenRouter credential                                                                                                         | Separate local record      | Restore connection after refresh; exclude from backups           |
-| OAuth state, sharing toggles                                                                                                  | Session/consent only       | Temporary PKCE state and explicit sharing consent                |
-| Projects, assets, versions, clip properties, history, transcripts                                                             | Existing project storage   | Authored content has its own canonical owner and backup contract |
-| Active project/clip, playhead, playback, historical version                                                                   | Session only               | Contextual editing state; reload must retain inert startup       |
-| Conversations, drafts, proposals, approval/tool disclosures                                                                   | Session only               | Content or operation state, not a user preference                |
-| Search, scroll/follow-latest, session-picker disclosure, tooltip/menu/popover/model-picker/dialog/Appearance-panel visibility | Session only               | Temporary navigation and focus state                             |
-| Jobs, loading, errors, progress, rendered layout bounds, resource handles                                                     | Runtime only               | Derived or disposable state                                      |
-| Project defaults, provider identity, shortcuts, codec/inference settings                                                      | Existing fixed contracts   | No configurable user choice currently exists                     |
+| State                                                                                                                         | Decision                   | Reason                                                             |
+| ----------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------ |
+| Appearance choices, including interface size                                                                                                     | Persist (existing)         | Durable visual customization                                       |
+| Chat width and collapsed state                                                                                                | Persist                    | Deliberate workspace layout                                        |
+| Media visibility                                                                                                              | Persist deliberate toggles | Import-driven opening remains temporary                            |
+| MP4/WebM export format                                                                                                        | Persist                    | Repeated export choice; never skips capability checks              |
+| OpenRouter model ID                                                                                                           | Persist                    | Repeated provider choice, validated after connection               |
+| OpenRouter credential                                                                                                         | Separate local record      | Restore connection after refresh; exclude from backups             |
+| OAuth state, sharing toggles                                                                                                  | Session/consent only       | Temporary PKCE state and explicit sharing consent                  |
+| Projects, assets, versions, clip properties, history, transcripts                                                             | Existing project storage   | Authored content has its own canonical owner and backup contract   |
+| Active clip, playhead, playback, historical version                                                                           | Session only               | Transient editing view; explicit project identity lives in the URL |
+| Conversations, drafts, proposals, approval/tool disclosures                                                                   | Session only               | Content or operation state, not a user preference                  |
+| Search, scroll/follow-latest, session-picker disclosure, tooltip/menu/popover/model-picker/dialog/Appearance-panel visibility | Session only               | Temporary navigation and focus state                               |
+| Jobs, loading, errors, progress, rendered layout bounds, resource handles                                                     | Runtime only               | Derived or disposable state                                        |
+| Project defaults, provider identity, shortcuts, codec/inference settings                                                      | Existing fixed contracts   | No configurable user choice currently exists                       |
 
 ## Appearance
 
@@ -54,7 +54,9 @@ Close the panel or press Escape to return focus to Workspace settings. An open p
 
 ## Projects and media
 
-Creating or opening a project explicitly initializes the existing engine. Initial navigation does not open IndexedDB, start workers, request permissions or download models. The Projects screen lists projects in this browser. Reloading closes the active session; use Open project to continue a saved project.
+Creating or opening a project explicitly initializes the existing engine. Bare initial navigation does not open IndexedDB, start workers, request permissions or download models. The Projects screen lists projects in this browser. React Router hash routes identify the current saved project as `#/project/<id>` and the project catalog as `#/projects`. The catalog URL includes `?project=<id>` when returning to the current editor is possible. Creating, opening or importing a project updates the URL. Reload or a direct project link restores that local project and its committed edits; Back/Forward selects the screen and project recorded in history. These routes work at both `/` and `/LocalCut/` without server rewrites. Project links refer to this browser's local storage, not shared cloud projects.
+
+The bare app URL stays inert. Explicit project/catalog URLs may initialize local editing; they never create a missing project, download models or start paid AI. Loading blocks stale editing, with accessible progress; missing/deleted projects and invalid addresses show recovery to saved projects, and storage failures offer Retry. Navigation waits for a running authored operation and ignores superseded loads. Routed project restoration also restores chat readiness when its separately saved credential/model is available; sharing choices remain off.
 
 Import media accepts the supported video, audio and image formats described in the engine API. Each successful file import is appended to its matching track through an atomic command batch. Images begin with five seconds; video and audio use their measured source duration. Images/video are fitted inside the project dimensions without changing their aspect ratio. Files that fail validation do not create clips; files already committed earlier in the same selection remain available.
 

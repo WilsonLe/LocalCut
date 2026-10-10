@@ -1,3 +1,5 @@
+// Strip callback secrets before the lazy routed workspace or any startup work.
+import './workspace/oauth-callback';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import './styles.css';

@@ -92,6 +92,8 @@ This is the project record of the user's durable product and workflow choices. U
 ## Project navigation — 10 October 2026
 
 - Provide a workspace screen for navigating saved projects, alongside the existing editor.
+- Keep the current project in the URL so reload, direct project links and browser Back/Forward restore the intended local project. Use a pinned router package where useful; routes must work on root and GitHub Pages hosting.
+- Keep route, project loading and catalog state in focused React hooks consumed by components. The engine remains the canonical project owner. Explicit project URLs may reopen local editing on startup; the bare app URL remains inert. This supersedes the earlier session-only active-project navigation choice.
 
 ## Keyboard and mouse editing — 10 October 2026
 
@@ -138,7 +140,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Save pasted and OAuth-issued OpenRouter credentials locally in this browser/origin and restore the connection after refresh or navigation. This supersedes the earlier memory-only credential choices.
 - Keep credentials separate from preferences, project data and all portable backups. Disconnect removes the saved credential; ordinary cleanup preserves it. Removing or replacing it in another tab retires the old connection.
-- Restoring a connection may refresh the model catalog, but never sends chat, generates speech or indexes media automatically. Text/name/transcript sharing remains off after reload; conversations and active project selection remain session-only.
+- Restoring a connection may refresh the model catalog, but never sends chat, generates speech or indexes media automatically. Text/name/transcript sharing remains off after reload; conversations remain session-only. Active project restoration follows the newer project-routing choice above.
 
 ## Mobile usability — 10 October 2026
 
