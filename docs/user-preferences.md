@@ -72,6 +72,11 @@ This is the project record of the user's durable product and workflow choices. U
 - Export/import the workspace with all user settings/preferences and saved projects. Allow the user to select the preference groups, projects, versions and individual source files in either direction; originals are optional ZIP content.
 - Provide project-level export/import through the same flow, including asset checkboxes. Preserve existing projects by importing new copies and keep credentials/AI consent outside portable backups.
 
+## Timeline editing and transition templates — 10 October 2026
+
+- Provide audio separation from video, clip group/ungroup, and transition controls for overlapping visual clips on one video track.
+- Treat transitions as editable templates built from base attributes. A user can request a template in chat and the assistant can inspect and fine-tune its ordinary keyframes for a better result. Keep the resulting edits inspectable through the shared engine.
+
 ## Delivery and validation
 
 - Pull and rebase onto current `main`, including the OpenRouter integration, before completing the workspace.

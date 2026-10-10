@@ -393,7 +393,16 @@ function Properties({
           patch.sourceOutUs = clip.sourceInUs + Math.round(durationUs * speed);
         if (clip.text)
           patch.text = { ...clip.text, text: String(form.get('text') ?? '') };
-        onSave([{ type: 'updateClip', clipId: clip.id, patch }]);
+        const operations: EditOperation[] = [];
+        if (clip.groupId && startUs !== clip.startUs) {
+          operations.push({
+            type: 'moveGroup',
+            groupId: clip.groupId,
+            deltaUs: startUs - clip.startUs,
+          });
+          delete patch.startUs;
+        }
+        onSave([...operations, { type: 'updateClip', clipId: clip.id, patch }]);
       }}
       className="grid gap-4"
     >

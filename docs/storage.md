@@ -51,3 +51,9 @@ Every staged original has an import journal and held recovery lease. Quota recov
 Settings are applied through their existing owners after project publication. localStorage and IndexedDB have no shared transaction: a settings write failure reports which preferences were not saved and retains imported projects. The dialog clears their selection so retrying settings does not duplicate those copies. Settings-only import never opens editing storage or starts workers/provider requests. Rollback retains regular imported projects and existing legacy backup compatibility; older builds ignore the separate transfer envelope.
 
 No application shell caching or offline navigation is installed. Cached inference can run without remote model/runtime hosts after reload as long as the static app itself remains available.
+
+## Timeline metadata compatibility
+
+Version-one clips may now carry optional `groupId`; transitions may carry optional template ID and strength. Existing documents omit these fields and retain their behavior. Membership and generated template keyframes persist through the existing atomic document/history/receipt commits, immutable versions and JSON backups; no database version or new store is needed. Groups use globally distinct IDs, require at least two members, and are validated on open/import. Originals are reused for separated audio.
+
+An older application build with strict schemas rejects these fields in working documents and saved history/version snapshots. Export backups before downgrading. Use a fresh storage namespace and a compatible backup without group/template metadata if an older build is required; ungrouping or restoring only the working state can leave newer snapshots behind. Reverting app files alone is not a compatibility migration. Ordinary generated attribute keyframes remain compatible with the existing renderer.
