@@ -55,8 +55,10 @@ export function parseWorkspacePreferences(
     if (
       'aiModel' in p &&
       typeof p.aiModel === 'string' &&
-      p.aiModel.length <= 200 &&
-      (p.aiModel === '' || /^[a-zA-Z0-9][a-zA-Z0-9._:/-]*$/.test(p.aiModel)) &&
+      // Match the provider catalog's bounded IDs, including supported aliases.
+      !p.aiModel.includes('://') &&
+      (p.aiModel === '' ||
+        /^~?[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/.test(p.aiModel)) &&
       p.aiModel !== 'openrouter/auto'
     )
       result.aiModel = p.aiModel;

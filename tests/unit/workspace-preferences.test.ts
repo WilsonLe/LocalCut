@@ -54,10 +54,24 @@ describe('local workspace preference validation', () => {
   });
   it('retains only a bounded model identifier, never arbitrary text or routing defaults', () => {
     for (const aiModel of [
+      '',
+      'vendor/model:free',
+      '~deepseek/deepseek-pro-latest',
+      'a'.repeat(256),
+      `~${'a'.repeat(256)}`,
+    ])
+      expect(parseWorkspacePreferences(record({ aiModel })).aiModel).toBe(
+        aiModel,
+      );
+    for (const aiModel of [
       'openrouter/auto',
       'model with spaces',
       '<script>',
-      'a'.repeat(201),
+      'https://vendor/model',
+      '~',
+      '~~vendor/model',
+      'a'.repeat(257),
+      `~${'a'.repeat(257)}`,
       12,
     ])
       expect(parseWorkspacePreferences(record({ aiModel })).aiModel).toBe('');

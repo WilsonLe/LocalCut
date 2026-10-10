@@ -6,7 +6,9 @@ After rebasing onto the OpenRouter controls update (`efa7db8`), `pnpm check` pas
 
 Real Whisper preparation/inference and fresh-worker cached replay passed with checksum-verified pinned fixtures. The sequential disk-backed performance gate passed: two minutes exported in 14.06 seconds and five minutes in 34.13 seconds; steady browser/worker RSS grew 74.61 MiB, below 128 MiB. The media/inference implementation and dependency pins are unchanged. The initial Pages graph is 148,786 bytes gzip JavaScript and 11,858 bytes gzip CSS; aggregate JavaScript/CSS is 666,434 bytes gzip, within the retained budgets.
 
-These are author-run local checks. Independent exact-head review is recorded separately on the linked draft PR. No paid-provider request, hosted CI, merge or Pages deployment is claimed. The [preference audit](workspace.md#local-user-preferences) records every included/excluded workspace state and the [storage contract](storage.md) describes compatibility and rollback.
+The one independent draft-PR review inspected head `22e97de` against base `efa7db8` and found one model identifier compatibility issue. Preference validation now preserves the provider catalog's supported aliases and length bounds. Author verification covers boundary values and alias persistence, reload, reconnect and unavailable-model handling at both static paths; the resulting changes were validated without another independent review. The review and final head are recorded on [PR #29](https://github.com/WilsonLe/LocalCut/pull/29).
+
+These are author-run local checks. No paid-provider request, hosted validation workflow, merge or Pages deployment is claimed. The [preference audit](workspace.md#local-user-preferences) records every included/excluded workspace state and the [storage contract](storage.md) describes compatibility and rollback.
 
 ## Workspace and Safari follow-up — 10 October 2026
 

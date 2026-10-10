@@ -443,7 +443,7 @@ for (const base of ['/', '/LocalCut/']) {
         json: {
           data: [
             {
-              id: available ? 'test/preferences' : 'test/other',
+              id: available ? '~deepseek/deepseek-pro-latest' : 'test/other',
               name: 'Preference model',
               context_length: 32000,
               supported_parameters: ['tools', 'tool_choice'],
@@ -461,7 +461,7 @@ for (const base of ['/', '/LocalCut/']) {
     await choice.click();
     await page
       .getByRole('option', {
-        name: 'Preference model · test/preferences',
+        name: 'Preference model · ~deepseek/deepseek-pro-latest',
         exact: true,
       })
       .click();
@@ -478,7 +478,9 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('checkbox', { name: 'Share source transcripts' })
       .click();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-    expect((await preferences(page)).aiModel).toBe('test/preferences');
+    expect((await preferences(page)).aiModel).toBe(
+      '~deepseek/deepseek-pro-latest',
+    );
     const storage = await page.evaluate(() => ({ ...localStorage }));
     expect(JSON.stringify(storage)).not.toContain('synthetic-preference-key');
     expect(JSON.stringify(storage)).not.toContain('includeText');
@@ -503,14 +505,18 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Disconnect', exact: true })
       .click();
-    expect((await preferences(page)).aiModel).toBe('test/preferences');
+    expect((await preferences(page)).aiModel).toBe(
+      '~deepseek/deepseek-pro-latest',
+    );
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     available = false;
     dialog = await connect(page);
     await expect(
       dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toContainText('Choose a model');
-    expect((await preferences(page)).aiModel).toBe('test/preferences');
+    expect((await preferences(page)).aiModel).toBe(
+      '~deepseek/deepseek-pro-latest',
+    );
     await dialog
       .getByRole('button', { name: 'Disconnect', exact: true })
       .click();
