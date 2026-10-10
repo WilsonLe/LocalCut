@@ -1,6 +1,6 @@
 # Local acceptance evidence
 
-Current acceptance runs locally, as described in [validation](validation.md). Hosted CI is disabled; earlier hosted checks linked from release history remain historical evidence for those revisions. Manual Pages deployment and its live verification remain separate.
+Current acceptance runs locally, as described in [validation](validation.md). Hosted CI is disabled; earlier hosted checks linked from release history remain historical evidence for those revisions. Pages deploys automatically on pushes to `main`; live release verification remains separate. See [deployment and rollback](../DEPLOY.md).
 
 ## Conversation-led workspace
 
