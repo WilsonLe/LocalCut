@@ -110,3 +110,7 @@ pnpm test:performance
 ```
 
 The native performance workload measures scanning and excerpt generation separately after its export measurements, with no provider request. Total generation/labeling work depends on detected scene count. Four-Hz discovery covers every detected shot, but can miss shots/transitions shorter than the 250 ms sample interval or visually similar cuts; lighting changes may cause extra cuts; highlight scoring describes sampled pixels rather than semantic importance. Audio uses deterministic energy/silence boundaries and bounded continuous segments, not semantic speech/music sections. LLM labels are nondeterministic. See [AI consent and live verification](ai.md#manual-asset-indexing).
+
+## Resizable panel compatibility
+
+Workspace splits use the shadcn Base Resizable wrappers over pinned `react-resizable-panels` 4.14.3. Its browser ESM pointer calculation is patched through pnpm to translate visual pointer deltas into layout pixels under CSS zoom; keep the patch and lockfile together. This preserves the saved 75%/100%/125% interface sizes. Verify any dependency upgrade with `pnpm test:ui --grep 'workspace resizable|interface size'`, covering horizontal and vertical dividers at both static bases. Save sizes from completed layouts, not stale imperative reads or per-move callbacks.

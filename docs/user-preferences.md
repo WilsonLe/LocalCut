@@ -156,3 +156,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Keep AI settings in a larger dialog with more space between configuration sections; no separate routed settings page is requested.
 - Adopt the configured shadcn Base UI Accordion and Collapsible components for expandable content. Animate expansion, collapse and indicators; respect reduced motion and preserve input, keyboard and focus behavior.
+
+## Workspace resizing — 10 October 2026
+
+- Use the shadcn Base Resizable component for chat, media, the central editor and the preview/timeline split. Keep dragging immediate and smooth; save deliberate sizes after the gesture, preserving responsive layouts and mounted editing/chat sessions.

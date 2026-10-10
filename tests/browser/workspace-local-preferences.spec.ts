@@ -45,7 +45,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(base);
     await resize(page).press('ArrowRight');
-    await expect(resize(page)).toHaveAttribute('aria-valuenow', '336');
+    await expect(resize(page)).toHaveAttribute('aria-valuetext', '336 pixels');
     const box = (await resize(page).boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + 100);
     await page.mouse.down();
@@ -53,7 +53,7 @@ for (const base of ['/', '/LocalCut/']) {
       steps: 4,
     });
     await page.mouse.up();
-    await expect(resize(page)).toHaveAttribute('aria-valuenow', '416');
+    await expect(resize(page)).toHaveAttribute('aria-valuetext', '416 pixels');
     await page
       .getByRole('button', { name: 'Expand media', exact: true })
       .click();
@@ -81,7 +81,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Expand chat', exact: true })
       .click();
-    await expect(resize(page)).toHaveAttribute('aria-valuenow', '416');
+    await expect(resize(page)).toHaveAttribute('aria-valuetext', '416 pixels');
     await menu(page, 'Export');
     await expect(
       page.getByRole('menuitemradio', { name: 'WebM', exact: true }),
@@ -92,9 +92,9 @@ for (const base of ['/', '/LocalCut/']) {
     await page.reload();
     expect((await preferences(page)).chatWidth).toBe(416);
     await page.setViewportSize({ width: 1440, height: 900 });
-    await expect(resize(page)).toHaveAttribute('aria-valuenow', '416');
+    await expect(resize(page)).toHaveAttribute('aria-valuetext', '416 pixels');
     await resize(page).press('End');
-    await expect(resize(page)).toHaveAttribute('aria-valuenow', '560');
+    await expect(resize(page)).toHaveAttribute('aria-valuetext', '560 pixels');
     await page
       .getByRole('button', { name: 'Workspace settings', exact: true })
       .click();
@@ -104,7 +104,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page.setViewportSize({ width: 1120, height: 900 });
     await expect
       .poll(async () =>
-        Number(await resize(page).getAttribute('aria-valuenow')),
+        parseInt((await resize(page).getAttribute('aria-valuetext'))!),
       )
       .toBeLessThan(560);
     expect((await preferences(page)).chatWidth).toBe(560);
@@ -114,7 +114,7 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Close appearance', exact: true })
       .click();
     await page.setViewportSize({ width: 1440, height: 900 });
-    await expect(resize(page)).toHaveAttribute('aria-valuenow', '560');
+    await expect(resize(page)).toHaveAttribute('aria-valuetext', '560 pixels');
     await page.setViewportSize({ width: 901, height: 900 });
     await page.reload();
     await expect
@@ -126,7 +126,7 @@ for (const base of ['/', '/LocalCut/']) {
       .toBeGreaterThanOrEqual(279);
     expect((await preferences(page)).chatWidth).toBe(560);
     await page.setViewportSize({ width: 1440, height: 900 });
-    await expect(resize(page)).toHaveAttribute('aria-valuenow', '560');
+    await expect(resize(page)).toHaveAttribute('aria-valuetext', '560 pixels');
     await page.screenshot({
       path: `.artifacts/preferences-${base === '/' ? 'root' : 'pages'}.png`,
     });
@@ -147,7 +147,10 @@ for (const base of ['/', '/LocalCut/']) {
     await second.emulateMedia({ reducedMotion: 'reduce' });
     await second.goto(base === '/' ? '/LocalCut/' : '/');
     await resize(page).press('ArrowRight');
-    await expect(resize(second)).toHaveAttribute('aria-valuenow', '336');
+    await expect(resize(second)).toHaveAttribute(
+      'aria-valuetext',
+      '336 pixels',
+    );
     await menu(second, 'Export');
     await second
       .getByRole('menuitemradio', { name: 'WebM', exact: true })
@@ -180,7 +183,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByRole('button', { name: 'Collapse chat', exact: true }),
     ).toBeVisible();
-    await expect(resize(page)).toHaveAttribute('aria-valuenow', '320');
+    await expect(resize(page)).toHaveAttribute('aria-valuetext', '320 pixels');
     await expect(
       page.getByRole('button', { name: 'Expand media', exact: true }),
     ).toBeVisible();
@@ -213,7 +216,7 @@ for (const base of ['/', '/LocalCut/']) {
         ),
       key,
     );
-    await expect(resize(page)).toHaveAttribute('aria-valuenow', '336');
+    await expect(resize(page)).toHaveAttribute('aria-valuetext', '336 pixels');
     await second.close();
   });
 
@@ -328,7 +331,10 @@ for (const base of ['/', '/LocalCut/']) {
         { key, record },
       );
       await page.reload();
-      await expect(resize(page)).toHaveAttribute('aria-valuenow', '320');
+      await expect(resize(page)).toHaveAttribute(
+        'aria-valuetext',
+        '320 pixels',
+      );
       await expect(
         page.getByRole('button', { name: 'Collapse chat' }),
       ).toBeVisible();
@@ -349,7 +355,7 @@ for (const base of ['/', '/LocalCut/']) {
       key,
     );
     await page.reload();
-    await expect(resize(page)).toHaveAttribute('aria-valuenow', '560');
+    await expect(resize(page)).toHaveAttribute('aria-valuetext', '560 pixels');
     await menu(page, 'Export');
     await expect(
       page.getByRole('menuitemradio', { name: 'WebM', exact: true }),
@@ -375,7 +381,7 @@ for (const base of ['/', '/LocalCut/']) {
     }, key);
     await page.goto(base);
     await resize(page).press('ArrowRight');
-    await expect(resize(page)).toHaveAttribute('aria-valuenow', '336');
+    await expect(resize(page)).toHaveAttribute('aria-valuetext', '336 pixels');
     await expect(
       page.getByText(
         'Workspace preferences could not be saved. Allow browser storage to keep them after reload.',
@@ -427,7 +433,7 @@ for (const base of ['/', '/LocalCut/']) {
       page.getByRole('button', { name: 'Expand chat' }),
     ).toBeVisible();
     await page.getByRole('button', { name: 'Expand chat' }).click();
-    await expect(resize(page)).toHaveAttribute('aria-valuenow', '336');
+    await expect(resize(page)).toHaveAttribute('aria-valuetext', '336 pixels');
     expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
   });
 

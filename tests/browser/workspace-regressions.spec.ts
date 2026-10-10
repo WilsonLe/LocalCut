@@ -214,10 +214,18 @@ test('long assistant replies scroll inside the conversation and keep the compose
     .toBeCloseTo(editorWidth, 0);
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 844 });
-    await expect(page.locator('html')).toHaveAttribute(
-      'data-workspace-narrow',
-      'true',
-    );
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            document.querySelector('.editing-area')!.getBoundingClientRect()
+              .top <
+            document
+              .querySelector('aside[aria-label="Editing conversation"]')!
+              .getBoundingClientRect().top,
+        ),
+      )
+      .toBe(true);
     const narrow = await page.evaluate(() => {
       const log = document.querySelector('[role="log"]')!;
       return {

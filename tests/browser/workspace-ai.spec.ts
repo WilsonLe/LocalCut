@@ -414,6 +414,8 @@ for (const base of ['/', '/LocalCut/']) {
           version: 1,
           preferences: {
             chatWidth: 320,
+            mediaWidth: 300,
+            timelineHeight: 260,
             chatCollapsed: false,
             mediaOpen: false,
             exportFormat: 'mp4',

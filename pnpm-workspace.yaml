@@ -3,3 +3,5 @@ allowBuilds:
   protobufjs: false
 minimumReleaseAgeExclude:
   - vite@8.3.4
+patchedDependencies:
+  react-resizable-panels@4.14.3: patches/react-resizable-panels@4.14.3.patch

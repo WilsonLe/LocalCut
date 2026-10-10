@@ -24,27 +24,30 @@ test('chat resize controls match responsive layout and report actual desktop wid
   await expect
     .poll(async () => Math.round((await panel.boundingBox())!.width))
     .toBe(320);
-  const before = Number(await handle.getAttribute('aria-valuenow'));
+  const before = parseInt((await handle.getAttribute('aria-valuetext'))!);
   await handle.focus();
   await handle.press('ArrowRight');
   await expect
     .poll(async () => Math.round((await panel.boundingBox())!.width))
     .toBe(before + 16);
-  await expect(handle).toHaveAttribute('aria-valuenow', String(before + 16));
-  const min = Number(await handle.getAttribute('aria-valuemin'));
-  const max = Number(await handle.getAttribute('aria-valuemax'));
+  await expect(handle).toHaveAttribute(
+    'aria-valuetext',
+    `${before + 16} pixels`,
+  );
+  const min = 280;
+  const max = 560;
   expect(before + 16).toBeGreaterThanOrEqual(min);
   expect(before + 16).toBeLessThanOrEqual(max);
   await handle.press('Home');
   await expect
     .poll(async () => Math.round((await panel.boundingBox())!.width))
     .toBe(min);
-  await expect(handle).toHaveAttribute('aria-valuenow', String(min));
+  await expect(handle).toHaveAttribute('aria-valuetext', `${min} pixels`);
   await handle.press('End');
   await expect
     .poll(async () => Math.round((await panel.boundingBox())!.width))
     .toBe(max);
-  await expect(handle).toHaveAttribute('aria-valuenow', String(max));
+  await expect(handle).toHaveAttribute('aria-valuetext', `${max} pixels`);
 });
 
 for (const base of ['/', '/LocalCut/']) {
@@ -123,7 +126,7 @@ for (const base of ['/', '/LocalCut/']) {
           ((await editor.boundingBox())!.x +
             (await editor.boundingBox())!.width),
       )
-      .toBeCloseTo(0, 0);
+      .toBeCloseTo(1, 0);
     await page.getByRole('button', { name: 'Collapse media' }).click();
     await expect(
       media.getByRole('button', { name: 'Import media', exact: true }),
@@ -292,10 +295,10 @@ test('CYOBot chat structure keeps local sessions, markdown, drafts and keyboard 
   await page.keyboard.press('Escape');
   const resize = page.getByRole('separator', { name: 'Resize workspace chat' });
   await resize.focus();
-  const before = Number(await resize.getAttribute('aria-valuenow'));
+  const before = parseInt((await resize.getAttribute('aria-valuetext'))!);
   await resize.press('ArrowRight');
   await expect
-    .poll(async () => Number(await resize.getAttribute('aria-valuenow')))
+    .poll(async () => parseInt((await resize.getAttribute('aria-valuetext'))!))
     .toBe(before + 16);
   await page.getByRole('button', { name: 'Collapse chat' }).click();
   await page.getByRole('button', { name: 'Expand chat' }).click();

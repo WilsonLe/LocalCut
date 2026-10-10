@@ -24,7 +24,7 @@ async function choose(page: Page, label: string, option: string) {
   ).toHaveCount(0);
 }
 async function styles(page: Page) {
-  await expect(page.locator('.preview')).toBeVisible();
+  await page.locator('.preview').waitFor({ state: 'visible' });
   return page.evaluate(() => {
     const root = getComputedStyle(document.documentElement);
     const button = getComputedStyle(document.querySelector('button')!);
@@ -55,7 +55,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'Resize workspace chat',
     });
     await resize.press('End');
-    await expect(resize).toHaveAttribute('aria-valuenow', '560');
+    await expect(resize).toHaveAttribute('aria-valuetext', '560 pixels');
     await page.getByRole('button', { name: 'Expand media' }).click();
     await page.setViewportSize({ width: 1120, height: 900 });
     const editorWidth = () =>
@@ -78,8 +78,12 @@ for (const base of ['/', '/LocalCut/']) {
           const maximum = Number(node.getAttribute('aria-valuemax'));
           return (
             current <= maximum &&
-            current ===
-              Math.round(node.parentElement!.getBoundingClientRect().width)
+            parseInt(node.getAttribute('aria-valuetext')!) ===
+              Math.round(
+                document
+                  .querySelector('.conversation-panel')!
+                  .getBoundingClientRect().width,
+              )
           );
         }),
       )
@@ -97,7 +101,9 @@ for (const base of ['/', '/LocalCut/']) {
     await page.getByRole('button', { name: 'Expand chat' }).click();
     await expect.poll(editorWidth).toBeGreaterThanOrEqual(279);
     await panel.getByRole('button', { name: 'Close appearance' }).click();
-    await expect(resize).toHaveAttribute('aria-valuenow', '560');
+    await expect(resize).toHaveAttribute('aria-valuetext', '538 pixels');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(resize).toHaveAttribute('aria-valuetext', '560 pixels');
   });
 
   test(`workspace appearance keeps phone preview, timeline and chat from overlapping ${base}`, async ({

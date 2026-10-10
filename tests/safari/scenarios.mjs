@@ -208,6 +208,18 @@ export async function cleanup(namespace) {
 
 // Layout metrics use real Safari CSS zoom, including all body-level portal surfaces.
 export async function interfaceLayout() {
+  // Navigation completion precedes the lazily loaded workspace modules.
+  const readyDeadline = Date.now() + 15000;
+  while (
+    !document.querySelector('.timeline-toolbar') ||
+    !document.querySelector('.preview-frame')
+  ) {
+    if (Date.now() > readyDeadline)
+      throw new Error(
+        'Workspace did not become ready for Safari layout verification',
+      );
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  }
   const key = 'localcut.appearance.v1';
   const before = localStorage.getItem(key);
   const measurements = [];
