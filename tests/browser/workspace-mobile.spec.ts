@@ -444,7 +444,17 @@ test.describe('fine-pointer responsive selection', () => {
     await expect(
       page.getByRole('button', { name: 'Select multiple clips' }),
     ).toBeHidden();
-    await clips.nth(1).press('Enter');
+    // CSS can hide the control before its media-query listener commits the reset.
+    await expect(
+      page.getByRole('button', {
+        name: 'Select multiple clips',
+        exact: true,
+        includeHidden: true,
+      }),
+    ).toHaveAttribute('aria-pressed', 'false');
+    // Enter opens Clip properties; native Space activation selects the button
+    // without opening a modal that intercepts the following pointer checks.
+    await clips.nth(1).press('Space');
     await expect(selected).toHaveCount(1);
     await clips.nth(0).click();
     await expect(selected).toHaveCount(1);
