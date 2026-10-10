@@ -31,7 +31,6 @@ import type {
 import type { ProviderConnection, ChatGPTClient } from '../ai';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
-import { ChatResizeHandle } from './ChatResizeHandle';
 import type { ChatSession } from './ChatSessionPicker';
 const AIConnectionDialog = lazy(() => import('./AIConnectionDialog'));
 const AIInfoPopover = lazy(() => import('./AIInfoPopover'));
@@ -71,8 +70,6 @@ export interface ConversationProps {
   onError: (error: unknown) => void;
   registerCleanup?: (cleanup: () => Promise<void>) => void;
   collapsed: boolean;
-  width: number;
-  onResize: (width: number) => void;
   onToggle: () => void;
 }
 
@@ -841,9 +838,6 @@ export function Conversation(props: ConversationProps) {
         }
       }}
     >
-      {!props.collapsed && (
-        <ChatResizeHandle width={props.width} onResize={props.onResize} />
-      )}
       <Button
         className="conversation-toggle"
         variant="ghost"
