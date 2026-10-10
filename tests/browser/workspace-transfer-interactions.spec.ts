@@ -76,7 +76,13 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: /^Asset project/ })
       .click();
     await expect(page.getByRole('dialog')).not.toBeVisible();
-    await openTransfer(page, 'Project', 'Export project');
+    await page.getByRole('button', { name: 'Commands', exact: true }).click();
+    const palette = page.getByRole('dialog', { name: 'Commands', exact: true });
+    await palette.getByRole('combobox').fill('Export project');
+    await palette
+      .getByRole('option')
+      .filter({ has: page.getByText('Export project', { exact: true }) })
+      .click();
     const dialog = page.getByRole('dialog', { name: 'Export project' });
     await dialog
       .getByRole('checkbox', { name: /Bundle original assets/ })
