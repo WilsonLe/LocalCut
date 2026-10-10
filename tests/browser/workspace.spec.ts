@@ -905,7 +905,7 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Expand media', exact: true })
       .click();
     await page
-      .getByRole('button', { name: 'Collapse media', exact: true })
+      .getByRole('button', { name: 'Close media', exact: true })
       .click();
     await properties();
     // The core allows strictly ordered points closer than 0.01%; the form must too.

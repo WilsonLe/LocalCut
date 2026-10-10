@@ -160,7 +160,7 @@ for (const base of ['/', '/LocalCut/']) {
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(390);
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.getByRole('button', { name: 'Collapse media' }).click();
+    await page.getByRole('button', { name: 'Close media' }).click();
     await expect(
       page.getByRole('button', { name: 'Expand media' }),
     ).toBeInViewport();
