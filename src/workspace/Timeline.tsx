@@ -91,7 +91,7 @@ export function Timeline(props: Props) {
     view,
     width,
   } = useViewport('timeline', `${project?.id}:${props.versionId}`, hasTracks);
-  const scrubbing = useRef<number | null>(null);
+  const scrubbing = useRef<{ id: number; offsetX: number } | null>(null);
   const scrub = (clientX: number) => {
     const element = viewport.current;
     if (!element || !total) return;
@@ -351,13 +351,13 @@ export function Timeline(props: Props) {
                 onPointerDown={(event) => {
                   if (event.button !== 0) return;
                   event.preventDefault();
-                  scrubbing.current = event.pointerId;
+                  scrubbing.current = { id: event.pointerId, offsetX: 0 };
                   event.currentTarget.setPointerCapture(event.pointerId);
                   viewport.current?.focus();
                   scrub(event.clientX);
                 }}
                 onPointerMove={(event) => {
-                  if (scrubbing.current === event.pointerId)
+                  if (scrubbing.current?.id === event.pointerId)
                     scrub(event.clientX);
                 }}
                 onPointerUp={() => {
@@ -481,28 +481,70 @@ export function Timeline(props: Props) {
                   </div>
                 ))}
                 {!!total && (
-                  <div
-                    className="timeline-playhead"
-                    style={{
-                      left: `calc(76px + (100% - 76px) * ${Math.min(1, timeUs / total)})`,
-                    }}
-                  />
+                  <>
+                    <div
+                      className="timeline-playhead-handle"
+                      role="slider"
+                      tabIndex={0}
+                      aria-label="Playhead position"
+                      aria-orientation="horizontal"
+                      aria-valuemin={0}
+                      aria-valuemax={total - 1}
+                      aria-valuenow={Math.min(timeUs, total - 1)}
+                      aria-valuetext={formatTime(timeUs)}
+                      style={{
+                        left: `clamp(0px, calc(76px + (100% - 76px) * ${Math.min(1, timeUs / total)} - 22px), calc(100% - 44px))`,
+                      }}
+                      onPointerDown={(event) => {
+                        if (event.button !== 0 || scrubbing.current) return;
+                        const element = viewport.current;
+                        if (!element) return;
+                        event.preventDefault();
+                        // Preserve where the marker was grabbed, even in its padded hit area.
+                        const markerX =
+                          element.getBoundingClientRect().left +
+                          (76 +
+                            (timeUs / total) * (element.scrollWidth - 76) -
+                            element.scrollLeft) *
+                            interfaceScale();
+                        scrubbing.current = {
+                          id: event.pointerId,
+                          offsetX: event.clientX - markerX,
+                        };
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                        event.currentTarget.focus({ preventScroll: true });
+                      }}
+                      onPointerMove={(event) => {
+                        if (scrubbing.current?.id === event.pointerId)
+                          scrub(event.clientX - scrubbing.current.offsetX);
+                      }}
+                      onPointerUp={(event) => {
+                        if (scrubbing.current?.id !== event.pointerId) return;
+                        scrub(event.clientX - scrubbing.current.offsetX);
+                        scrubbing.current = null;
+                        event.currentTarget.releasePointerCapture(
+                          event.pointerId,
+                        );
+                      }}
+                      onPointerCancel={() => {
+                        scrubbing.current = null;
+                      }}
+                      onLostPointerCapture={() => {
+                        scrubbing.current = null;
+                      }}
+                    />
+                    <div
+                      className="timeline-playhead"
+                      aria-hidden="true"
+                      style={{
+                        left: `calc(76px + (100% - 76px) * ${Math.min(1, timeUs / total)})`,
+                      }}
+                    />
+                  </>
                 )}
               </div>
             </div>
           </div>
-          {!!total && (
-            <input
-              className="timeline-scrubber"
-              aria-label="Playhead position"
-              type="range"
-              min={0}
-              max={Math.max(0, total - 1)}
-              step={1}
-              value={Math.min(timeUs, total - 1)}
-              onChange={(event) => props.onTime(Number(event.target.value))}
-            />
-          )}
         </>
       ) : (
         <div className="empty-timeline">

@@ -247,7 +247,7 @@ for (const base of ['/', '/LocalCut/']) {
             Number(
               await page
                 .getByRole('slider', { name: 'Playhead position' })
-                .inputValue(),
+                .getAttribute('aria-valuenow'),
             ),
           )
           .toBeGreaterThan(0);

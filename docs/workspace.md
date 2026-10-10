@@ -80,6 +80,8 @@ See the [text library](images/text-library.png) and [narrow text library](images
 
 Preview uses the same engine compositor as export. Playback creates its audio context only from the Play action. Scrubbing supersedes pending frames; project changes stop the old playback session. Disposal releases image bitmaps, sessions, audio contexts and active jobs. No media is sent to a server.
 
+Seek by dragging the top marker of the playhead with a mouse or touch. Its padded target sits above the tracks so clip selection remains available. The timeline has no separate bottom scrub bar. Focus the marker to use the shared playback shortcuts, including frame steps and Home/End. See the [mobile](images/timeline-playhead-mobile.png) and [desktop](images/timeline-playhead-desktop.png) layouts.
+
 ## Keyboard editing
 
 Focus the preview or timeline to use single-key shortcuts. `Space` toggles playback; `K` pauses and `L` plays forward. Left/right arrows step one frame, Shift+left/right step ten frames, up/down visit previous/next edit boundaries, and Home/End seek to the first/last frame.
@@ -101,7 +103,7 @@ Focus the preview or timeline to use single-key shortcuts. `Space` toggles playb
 | Zoom pointed timeline or preview                | Ctrl/Command+wheel or trackpad pinch                          |
 | Zoom focused view / fit                         | + or = / − / 0 or backslash                                   |
 | Pan                                             | Middle-button drag; Shift+wheel scrolls timeline horizontally |
-| Seek / scrub                                    | Click an empty lane or click/drag the ruler                   |
+| Seek / scrub                                    | Drag playhead; click empty lane or click/drag ruler           |
 | Fit preview                                     | Double-click preview                                          |
 | New project / toggle chat / toggle media / help | N / C / M / ?                                                 |
 

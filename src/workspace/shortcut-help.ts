@@ -54,7 +54,10 @@ export const SHORTCUT_GROUPS = [
       { keys: '\\ / 0', label: 'Fit focused timeline or preview' },
       { keys: 'Shift + wheel', label: 'Scroll timeline horizontally' },
       { keys: 'Middle-button drag', label: 'Pan timeline or zoomed preview' },
-      { keys: 'Click / drag ruler', label: 'Seek / scrub playhead' },
+      {
+        keys: 'Drag playhead / click or drag ruler',
+        label: 'Seek / scrub playhead',
+      },
       { keys: 'Double-click preview', label: 'Fit preview' },
     ],
   },

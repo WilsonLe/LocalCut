@@ -93,7 +93,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page.keyboard.press('Shift+ArrowRight');
     await expect(
       page.getByRole('slider', { name: 'Playhead position', exact: true }),
-    ).toHaveValue('1000000');
+    ).toHaveAttribute('aria-valuenow', '1000000');
     await page.keyboard.press('s');
     await expect.poll(async () => (await clips()).length).toBe(2);
     await page
@@ -121,7 +121,7 @@ for (const base of ['/', '/LocalCut/']) {
         Number(
           await page
             .getByRole('slider', { name: 'Playhead position', exact: true })
-            .inputValue(),
+            .getAttribute('aria-valuenow'),
         ),
       )
       .toBeGreaterThan(50_000);

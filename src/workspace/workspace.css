@@ -557,7 +557,7 @@
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--muted-foreground);
-  margin-bottom: 8px;
+  height: 44px;
 }
 .timeline-tracks {
   position: relative;
@@ -627,7 +627,7 @@
   position: absolute;
   width: 1px;
   background: var(--foreground);
-  top: -10px;
+  top: -16px;
   bottom: 0;
   pointer-events: none;
   z-index: 2;
@@ -636,18 +636,27 @@
   content: '';
   position: absolute;
   top: 0;
-  left: -3px;
-  border-top: 5px solid var(--foreground);
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
+  left: -7px;
+  border-top: 16px solid var(--foreground);
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
 }
-.timeline-scrubber {
-  display: block;
-  width: calc(100% - 76px);
-  margin: 10px 0 0 76px;
-  height: 12px;
-  accent-color: var(--foreground);
+.timeline-playhead-handle {
+  position: absolute;
+  top: -44px;
+  width: 44px;
+  height: 44px;
+  z-index: 3;
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+  border-radius: calc(var(--radius) * 0.4);
 }
+.timeline-playhead-handle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
 .empty-timeline {
   min-height: 100px;
   display: grid;
@@ -1065,9 +1074,6 @@
   .timeline-content {
     min-width: calc(76px + 524px * var(--timeline-scale, 1));
   }
-  .timeline-scrubber {
-    height: 44px;
-  }
   .track-lane {
     height: 52px;
   }
@@ -1344,6 +1350,7 @@
 }
 .timeline-content {
   padding-top: 8px;
+  overflow: clip;
 }
 .timeline-ruler {
   cursor: ew-resize;

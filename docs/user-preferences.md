@@ -109,6 +109,10 @@ This is the project record of the user's durable product and workflow choices. U
 - Provide speed adjustments with either preserved audio pitch or pitch changing with speed.
 - Provide customizable speed ramps that curve, rise/fall linearly, or step up/down. Allow direction changes and editable points.
 
+## Timeline seeking — 11 October 2026
+
+- Remove the separate scrub bar below the timeline tracks. Seek by dragging the top of the playhead, with a comfortable touch target and keyboard access.
+
 ## Mobile media — 11 October 2026
 
 - Open the mobile Media tab as a full-screen page or sheet, with a clear close control, rather than a small floating dialog.

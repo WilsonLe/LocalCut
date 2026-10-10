@@ -1,3 +1,4 @@
+import { dragPlayhead } from './workspace-playhead-helper';
 import { openAISettings } from './workspace-settings-helper';
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
@@ -334,15 +335,15 @@ for (const base of ['/', '/LocalCut/']) {
       exact: true,
     });
     await expect
-      .poll(async () => Number(await playingHead.inputValue()))
+      .poll(async () => Number(await playingHead.getAttribute('aria-valuenow')))
       .toBeGreaterThan(50_000);
     await playingHead.press('Home');
     await expect(
       page.getByRole('button', { name: 'Play preview', exact: true }),
     ).toBeVisible();
-    await expect(playingHead).toHaveValue('0');
+    await expect(playingHead).toHaveAttribute('aria-valuenow', '0');
     await page.waitForTimeout(150);
-    await expect(playingHead).toHaveValue('0');
+    await expect(playingHead).toHaveAttribute('aria-valuenow', '0');
     await clipButton.click();
     await page
       .getByRole('button', { name: 'Clip properties', exact: true })
@@ -372,15 +373,7 @@ for (const base of ['/', '/LocalCut/']) {
           (await snapshot(page, base, name)).tracks[0]?.clips[0]?.startUs,
       )
       .toBe(250000);
-    const playhead = page.getByRole('slider', {
-      name: 'Playhead position',
-      exact: true,
-    });
-    const bounds = await playhead.boundingBox();
-    if (!bounds) throw new Error('Playhead has no interaction surface');
-    await playhead.click({
-      position: { x: bounds.width / 2, y: bounds.height / 2 },
-    });
+    await dragPlayhead(page, 0.5);
     await expect.poll(() => previewPixel(page)).toEqual([255, 0, 0, 255]);
 
     await page.reload();
@@ -444,16 +437,7 @@ for (const base of ['/', '/LocalCut/']) {
     }
     expect(errors).toEqual([]);
     expect(remote).toEqual([]);
-    const restoredPlayhead = page.getByRole('slider', {
-      name: 'Playhead position',
-      exact: true,
-    });
-    const restoredBounds = await restoredPlayhead.boundingBox();
-    if (!restoredBounds)
-      throw new Error('Restored playhead has no interaction surface');
-    await restoredPlayhead.click({
-      position: { x: restoredBounds.width / 2, y: restoredBounds.height / 2 },
-    });
+    await dragPlayhead(page, 0.5);
     await expect.poll(() => previewPixel(page)).toEqual([255, 0, 0, 255]);
     await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
     const desktop = testInfo.outputPath('workspace-desktop.png');
