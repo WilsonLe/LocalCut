@@ -101,11 +101,9 @@ export function SpeedRampEditor({
                   id={`ramp-position-${i}`}
                   type="number"
                   required
-                  min={i ? points[i - 1]!.position * 100 + 0.01 : 0}
+                  min={i ? points[i - 1]!.position * 100 : 0}
                   max={
-                    i < points.length - 1
-                      ? points[i + 1]!.position * 100 - 0.01
-                      : 100
+                    i < points.length - 1 ? points[i + 1]!.position * 100 : 100
                   }
                   step="any"
                   readOnly={readOnly || i === 0 || i === points.length - 1}

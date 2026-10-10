@@ -887,6 +887,20 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Collapse media', exact: true })
       .click();
     await properties();
+    // The core allows strictly ordered points closer than 0.01%; the form must too.
+    await page.getByLabel('Point 2 (%)', { exact: true }).fill('0.001');
+    await page.getByLabel('Point 3 (%)', { exact: true }).fill('0.002');
+    await page
+      .getByRole('button', { name: 'Apply properties', exact: true })
+      .click();
+    await expect(dialog).not.toBeVisible();
+    const dense = (await snapshot(page, base, name)).tracks.flatMap(
+      (t) => t.clips,
+    )[0]!;
+    expect(dense.speedRamp?.map((p) => p.position)).toEqual([
+      0, 0.00001, 0.00002, 1,
+    ]);
+    await properties();
     await page.getByLabel('Gain', { exact: true }).fill('0.4');
     await page
       .getByRole('button', { name: 'Apply properties', exact: true })
@@ -895,8 +909,8 @@ for (const base of ['/', '/LocalCut/']) {
     const gained = (await snapshot(page, base, name)).tracks.flatMap(
       (t) => t.clips,
     )[0]!;
-    expect(gained.speedRamp).toEqual(saved.speedRamp);
-    expect(gained.durationUs).toBe(saved.durationUs);
+    expect(gained.speedRamp).toEqual(dense.speedRamp);
+    expect(gained.durationUs).toBe(dense.durationUs);
     await properties();
     await select('Speed profile', 'Constant');
     await page.getByLabel('Speed', { exact: true }).fill('2');

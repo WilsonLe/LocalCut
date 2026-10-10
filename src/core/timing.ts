@@ -1,8 +1,6 @@
 import { sourcePositionUs, localTimeForSource } from './speed';
-import type { Clip, Keyframe, Parameter, Project, Cue } from './model';
-export function frameTimeUs(index: number, rate: Project['frameRate']): number {
-  return Math.round((index * 1_000_000 * rate.den) / rate.num);
-}
+import type { Clip, Keyframe, Parameter, Cue } from './model';
+export { frameTimeUs } from './frame-time';
 export function sourceTimeUs(clip: Clip, timeUs: number): number {
   return Math.round(sourcePositionUs(clip, timeUs - clip.startUs));
 }
