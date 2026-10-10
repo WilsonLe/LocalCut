@@ -28,7 +28,10 @@ import {
 import { ModelPicker } from './ModelPicker';
 import { useIndexConsent, saveIndexConsent } from './index-consent';
 import { toast } from 'sonner';
-interface Props {
+import { ProviderSettings } from './ProviderSettings';
+import type { ProviderSettingsProps } from './ProviderSettings';
+interface Props extends Omit<ProviderSettingsProps, 'connecting'> {
+  providerName?: string;
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
   connection: boolean;
@@ -63,6 +66,8 @@ export default function AIConnectionDialog({
   privacy,
   setPrivacy,
   connectionError,
+  providerName,
+  ...providerProps
 }: Props) {
   const indexingAllowed = useIndexConsent();
   return (
@@ -77,9 +82,19 @@ export default function AIConnectionDialog({
         <DialogHeader>
           <DialogTitle>AI connection</DialogTitle>
           <DialogDescription className="sr-only">
-            Configure OpenRouter and choose a model.
+            Configure providers, service routes and models.
           </DialogDescription>
         </DialogHeader>
+        {connecting && (
+          <p role="status" className="flex items-center gap-2 text-sm">
+            <LoaderCircle
+              className="size-4 motion-safe:animate-spin"
+              aria-hidden="true"
+            />
+            Connecting provider…
+          </p>
+        )}
+        <ProviderSettings {...providerProps} connecting={connecting} />
         <div className="space-y-2 rounded-lg border p-3">
           <div className="flex items-center gap-2">
             <Checkbox
@@ -101,53 +116,49 @@ export default function AIConnectionDialog({
           </p>
         </div>
         {!connection ? (
-          <div className="space-y-5">
-            {connecting && (
-              <p role="status" className="flex items-center gap-2 text-sm">
-                <LoaderCircle
-                  className="size-4 motion-safe:animate-spin"
-                  aria-hidden="true"
-                />
-                Connecting OpenRouter…
-              </p>
-            )}
-            <Button
-              className="w-full"
-              disabled={connecting}
-              onClick={() => void authorize()}
-            >
-              Connect with OpenRouter
-            </Button>
-            <form
-              onSubmit={(event: FormEvent) => {
-                event.preventDefault();
-                const key = apiKey;
-                setApiKey('');
-                void connect('key', key);
-              }}
-              className="space-y-3"
-            >
-              <Label htmlFor="openrouter-key">OpenRouter API key</Label>
-              <Input
-                id="openrouter-key"
-                type="password"
-                autoComplete="off"
-                spellCheck={false}
-                value={apiKey}
-                onChange={(event) => setApiKey(event.target.value)}
-                disabled={connecting}
-              />
+          <details open={providerProps.connectedProviders.length === 0}>
+            <summary className="cursor-pointer text-sm font-medium">
+              Connect OpenRouter
+            </summary>
+            <div className="mt-3 space-y-5">
               <Button
-                type="submit"
-                variant="outline"
                 className="w-full"
-                disabled={connecting || !apiKey.trim()}
+                disabled={connecting}
+                onClick={() => void authorize()}
               >
-                <KeyRound aria-hidden="true" />
-                Use API key
+                Connect with OpenRouter
               </Button>
-            </form>
-          </div>
+              <form
+                onSubmit={(event: FormEvent) => {
+                  event.preventDefault();
+                  const key = apiKey;
+                  setApiKey('');
+                  void connect('key', key);
+                }}
+                className="space-y-3"
+              >
+                <Label htmlFor="openrouter-key">OpenRouter API key</Label>
+                <Input
+                  id="openrouter-key"
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={apiKey}
+                  onChange={(event) => setApiKey(event.target.value)}
+                  disabled={connecting}
+                />
+                <Button
+                  type="submit"
+                  variant="outline"
+                  className="w-full"
+                  disabled={connecting || !apiKey.trim()}
+                >
+                  <KeyRound aria-hidden="true" />
+                  Use API key
+                </Button>
+              </form>
+            </div>
+          </details>
         ) : (
           <div className="space-y-5">
             <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
@@ -167,16 +178,18 @@ export default function AIConnectionDialog({
                 Disconnect
               </Button>
             </div>
-            <div className="space-y-2">
-              <Label>AI model</Label>
-              <ModelPicker
-                models={models}
-                model={model}
-                onChange={setModel}
-                loading={connecting}
-                refresh={refreshCatalog}
-              />
-            </div>
+          </div>
+        )}
+        {(connection || providerProps.connectedProviders.length > 0) && (
+          <div className="space-y-2">
+            <Label title={providerName}>AI model</Label>
+            <ModelPicker
+              models={models}
+              model={model}
+              onChange={setModel}
+              loading={connecting}
+              refresh={refreshCatalog}
+            />
           </div>
         )}
         {connectionError && (
@@ -203,11 +216,14 @@ export default function AIConnectionDialog({
                 Data & analytics
               </PopoverTitle>
               <PopoverDescription className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Optional project context for OpenRouter.
+                Optional project context for configured LLM providers.
               </PopoverDescription>
-              <fieldset className="mt-4 space-y-3" disabled={!connection}>
+              <fieldset
+                className="mt-4 space-y-3"
+                disabled={models.length === 0}
+              >
                 <legend className="sr-only">
-                  Project context shared with OpenRouter
+                  Project context shared with configured LLM providers
                 </legend>
                 {(
                   [
@@ -219,7 +235,7 @@ export default function AIConnectionDialog({
                   <div className="flex items-center gap-2" key={key}>
                     <Checkbox
                       id={`share-${key}`}
-                      disabled={!connection}
+                      disabled={models.length === 0}
                       checked={privacy[key]}
                       onCheckedChange={(checked) =>
                         setPrivacy((value) => ({

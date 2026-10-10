@@ -1,4 +1,5 @@
 export type AiErrorCode =
+  | 'AUTH_STORAGE'
   | 'AUTH_REQUIRED'
   | 'AUTH_INVALID'
   | 'AUTH_FLOW_INVALID'

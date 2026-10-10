@@ -61,6 +61,9 @@ interface Props {
   project: Project;
   onClose: () => void;
   onApplied: () => Promise<void>;
+  preferredModel?: string;
+  preferredVoice?: string;
+  onSelection?: (model: string, voice: string) => void;
   registerSession: (cleanup: () => Promise<void>) => () => void;
 }
 
@@ -71,10 +74,13 @@ export default function SpeechDialog({
   onClose,
   onApplied,
   registerSession,
+  preferredModel = '',
+  preferredVoice = '',
+  onSelection,
 }: Props) {
   const [models, setModels] = useState<SpeechModel[]>([]);
-  const [model, setModel] = useState('');
-  const [voice, setVoice] = useState('');
+  const [model, setModel] = useState(preferredModel);
+  const [voice, setVoice] = useState(preferredVoice);
   const [script, setScript] = useState('');
   const [selectedLanguages, setLanguages] = useState<string[]>(['English']);
   const [languageQuery, setLanguageQuery] = useState('');
@@ -154,7 +160,7 @@ export default function SpeechDialog({
         );
         if (!catalog.length)
           setError(
-            'No supported Gemini speech models are available. Refresh to try again.',
+            'No supported speech models are available. Refresh to try again.',
           );
       }),
     [connection.provider, run],
@@ -200,6 +206,7 @@ export default function SpeechDialog({
     invalidate();
     run('Generating speech…', async (signal) => {
       connection.api.validateSpeechTiming(timing());
+      onSelection?.(model, voice);
       const source = await connection.provider.synthesizeSpeech(
         {
           model,

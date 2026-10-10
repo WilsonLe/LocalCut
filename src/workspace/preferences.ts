@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { parseProviderConfiguration } from './provider-preferences';
 
 export const WORKSPACE_PREFERENCES_KEY = 'localcut.workspace-preferences.v1';
 export const CHAT_MIN_WIDTH = 280;
@@ -9,6 +10,7 @@ export interface WorkspacePreferences {
   mediaOpen: boolean;
   exportFormat: 'mp4' | 'webm';
   aiModel: string;
+  aiProviders: string;
 }
 export const defaultWorkspacePreferences: WorkspacePreferences = {
   chatWidth: 320,
@@ -16,6 +18,7 @@ export const defaultWorkspacePreferences: WorkspacePreferences = {
   mediaOpen: false,
   exportFormat: 'mp4',
   aiModel: '',
+  aiProviders: '',
 };
 
 /** Whitelist durable choices; never hydrate credentials, consent or project state. */
@@ -52,6 +55,14 @@ export function parseWorkspacePreferences(
       (p.exportFormat === 'mp4' || p.exportFormat === 'webm')
     )
       result.exportFormat = p.exportFormat;
+    if (
+      'aiProviders' in p &&
+      typeof p.aiProviders === 'string' &&
+      p.aiProviders
+    )
+      result.aiProviders = JSON.stringify(
+        parseProviderConfiguration(p.aiProviders),
+      );
     if (
       'aiModel' in p &&
       typeof p.aiModel === 'string' &&

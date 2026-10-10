@@ -56,9 +56,12 @@ export function speechModelsFrom(value: unknown): SpeechModel[] {
   return models.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function speechBody(request: SpeechRequest): string {
+export function speechBody(request: SpeechRequest, compatible = false): string {
   aiInvariant(
-    typeof request.model === 'string' && geminiTts.test(request.model),
+    typeof request.model === 'string' &&
+      (compatible
+        ? /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/.test(request.model)
+        : geminiTts.test(request.model)),
     'MODEL_UNSUPPORTED',
     'Select an instruction-capable Gemini speech model.',
   );
@@ -96,7 +99,7 @@ export function speechBody(request: SpeechRequest): string {
     ]
       .filter(Boolean)
       .join('\n'),
-    provider: { data_collection: 'deny' },
+    ...(!compatible ? { provider: { data_collection: 'deny' } } : {}),
   });
 }
 

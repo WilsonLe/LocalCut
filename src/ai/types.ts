@@ -137,7 +137,16 @@ export interface IndexLabelResult {
   model?: string;
   usage?: Usage;
 }
+export interface CompatibleEndpoint {
+  baseUrl: string;
+  /** Explicit user declaration: this chat model supports function tools. */
+  model?: string;
+  speechModel?: string;
+  voices?: string[];
+}
 export interface OpenRouterOptions {
+  /** Internal shared transport configuration; use createOpenAICompatible. */
+  compatible?: CompatibleEndpoint;
   fetch?: typeof fetch;
   /** Total time for one HTTP request, including a streamed response (default 120 s). */
   requestTimeoutMs?: number;

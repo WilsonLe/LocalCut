@@ -33,7 +33,8 @@ export function validateWorkspaceSettings(
       throw new Error('Invalid appearance settings in backup');
   }
   if (settings.workspace) {
-    const p = settings.workspace;
+    const p = { ...settings.workspace };
+    if (!('aiProviders' in p)) p.aiProviders = '';
     const parsed = parseWorkspacePreferences(
       JSON.stringify({ version: 1, preferences: p }),
     );

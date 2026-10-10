@@ -10,11 +10,13 @@ import {
 
 export default function AIInfoPopover({
   modelName,
+  providerName,
   configure,
   open,
   onOpenChange,
 }: {
   modelName?: string;
+  providerName?: string;
   configure: () => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -27,14 +29,16 @@ export default function AIInfoPopover({
             variant="ghost"
             size="icon-sm"
             aria-label="AI settings"
-            title="OpenRouter settings"
+            title="AI provider settings"
           />
         }
       >
         <Info aria-hidden="true" />
       </PopoverTrigger>
       <PopoverContent side="top" aria-label="AI information">
-        <PopoverTitle className="font-medium">OpenRouter</PopoverTitle>
+        <PopoverTitle className="font-medium">
+          {providerName ?? 'AI providers'}
+        </PopoverTitle>
         <PopoverDescription className="mt-1 break-words text-muted-foreground">
           {modelName ?? 'Choose a model'}
         </PopoverDescription>

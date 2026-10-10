@@ -8,19 +8,23 @@ export function errorCode(error: unknown): string {
 }
 export function errorText(error: unknown): string {
   const messages: Record<string, string> = {
-    AUTH_REQUIRED: 'Connect an OpenRouter account to continue.',
-    AUTH_INVALID: 'OpenRouter rejected the key. Check it and connect again.',
+    INVALID_REQUEST: 'Check the endpoint, model, voice and request settings.',
+    AUTH_STORAGE:
+      'Credentials could not be saved. Allow browser storage and reconnect.',
+    AUTH_REQUIRED: 'Connect a provider for this service to continue.',
+    AUTH_INVALID:
+      'Authorization was rejected. Check credentials and reconnect.',
     AUTH_FLOW_INVALID:
       'This connection link is invalid. Start a new connection.',
     AUTH_EXPIRED: 'The connection link expired. Start a new connection.',
-    AUTH_CANCELLED: 'OpenRouter connection was cancelled.',
-    INSUFFICIENT_CREDITS: 'Your OpenRouter account needs more credits.',
-    RATE_LIMITED: 'OpenRouter is rate limiting requests. Try again later.',
+    AUTH_CANCELLED: 'Provider connection was cancelled.',
+    INSUFFICIENT_CREDITS: 'The provider account needs more credits.',
+    RATE_LIMITED: 'The provider is rate limiting requests. Try again later.',
     MODEL_UNSUPPORTED: 'Choose a model that supports editing tools.',
     REVISION_CONFLICT: 'The project changed. Ask for a new proposal.',
     RESPONSE_INCOMPLETE: 'The response ended early. No proposal was published.',
-    NETWORK_ERROR: 'OpenRouter could not be reached. Check your connection.',
-    TIMEOUT: 'OpenRouter took too long. You can send the request again.',
+    NETWORK_ERROR: 'The provider could not be reached. Check your connection.',
+    TIMEOUT: 'The provider took too long. You can send the request again.',
     PROVIDER_UNAVAILABLE:
       'The selected provider is unavailable. Try again later.',
   };
