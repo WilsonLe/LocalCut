@@ -223,7 +223,7 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Refresh models', exact: true }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     release();
     await expect(
       page.getByText('No models loaded. Try refreshing.', { exact: true }),

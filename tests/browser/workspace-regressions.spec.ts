@@ -3,7 +3,13 @@ import type { Page } from '@playwright/test';
 import type { Project } from '../../src/editor';
 
 async function createProject(page: Page, name: string) {
-  await page.getByRole('button', { name: 'New project', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Workspace settings', exact: true })
+    .click();
+  await page.getByRole('menuitem', { name: 'Project', exact: true }).click();
+  await page
+    .getByRole('menuitem', { name: 'New project', exact: true })
+    .click();
   await page.getByLabel('Project name', { exact: true }).fill(name);
   await page
     .getByRole('button', { name: 'Create project', exact: true })
@@ -122,6 +128,12 @@ test('long assistant replies scroll inside the conversation and keep the compose
     )
     .toBe(true);
   await expect(page.getByText(/Response in progress/)).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Send edit request', exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByLabel('Describe your edit', { exact: true })
+    .fill('Next edit');
   const desktop = await page.evaluate(() => {
     const log = document.querySelector('[role="log"]')!;
     const composer = document.querySelector(

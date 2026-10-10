@@ -84,7 +84,11 @@ for (const base of ['/', '/LocalCut/']) {
     );
     await page.goto(base);
     await page
-      .getByRole('button', { name: 'New project', exact: true })
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .click();
+    await page.getByRole('menuitem', { name: 'Project', exact: true }).click();
+    await page
+      .getByRole('menuitem', { name: 'New project', exact: true })
       .click();
     await page.getByLabel('Project name').fill('Chat controls');
     await page.getByRole('button', { name: 'Create project' }).click();
@@ -125,6 +129,24 @@ for (const base of ['/', '/LocalCut/']) {
     );
     await composer.fill('Draft to keep');
     await create();
+    await expect(composer).toHaveValue('');
+    const focusComposer = async () => {
+      await page.getByRole('button', { name: 'Commands', exact: true }).click();
+      const palette = page.getByRole('dialog', {
+        name: 'Commands',
+        exact: true,
+      });
+      await palette.getByRole('combobox').fill('Describe an edit');
+      await palette.getByRole('combobox').press('Enter');
+      await expect(palette).not.toBeVisible();
+      await expect(composer).toBeFocused();
+    };
+    // Session zero retains a hidden composer; target the selected session instead.
+    await focusComposer();
+    await page
+      .getByRole('button', { name: 'Collapse chat', exact: true })
+      .click();
+    await focusComposer();
     await expect(composer).toHaveValue('');
     await create();
     await trigger.click();

@@ -3,9 +3,12 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useRef,
   useState,
 } from 'react';
+import type { Ref } from 'react';
+import type { WorkspaceCommand } from './commands';
 import {
   ArrowUp,
   ChevronDown,
@@ -35,7 +38,11 @@ export interface Connection {
   api: AiModule;
   id: number;
 }
+export interface ConversationControls {
+  commands: () => WorkspaceCommand[];
+}
 export interface ConversationProps {
+  controlsRef?: Ref<ConversationControls>;
   editor: Editor | null;
   project: Project | null;
   selectedClipId?: string;
@@ -84,6 +91,7 @@ export function Conversation(props: ConversationProps) {
   ]);
   const [sessionBusy, setSessionBusy] = useState(false);
   const [pickerLoaded, setPickerLoaded] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [infoLoaded, setInfoLoaded] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const nextSession = useRef(0);
@@ -304,6 +312,60 @@ export function Conversation(props: ConversationProps) {
     ]);
     setConversationNumber(id);
   };
+  const openSessionPicker = () => {
+    setPickerLoaded(true);
+    setPickerOpen(true);
+  };
+  useImperativeHandle(props.controlsRef, () => ({
+    commands: () => [
+      {
+        id: 'ai-settings',
+        label: connection ? 'OpenRouter settings' : 'Connect OpenRouter',
+        group: 'Chat',
+        run: () => setSettingsOpen(true),
+      },
+      ...(ready && !props.readOnly
+        ? [
+            {
+              id: 'focus-chat',
+              label: 'Describe an edit',
+              group: 'Chat',
+              run: () => {
+                requestAnimationFrame(() =>
+                  document
+                    .querySelector<HTMLElement>(
+                      '#workspace-chat .conversation-session:not([hidden]) textarea',
+                    )
+                    ?.focus(),
+                );
+              },
+            },
+          ]
+        : []),
+      ...(!sessionBusy
+        ? [
+            {
+              id: 'new-chat',
+              label: 'New chat',
+              group: 'Chat',
+              run: newConversation,
+            },
+            {
+              id: 'chat-sessions',
+              label: 'Chat sessions',
+              group: 'Chat',
+              run: openSessionPicker,
+            },
+            ...chatSessions.map((session) => ({
+              id: `chat-session-${session.id}`,
+              label: `Switch to ${session.title} (${session.id + 1})`,
+              group: 'Chat',
+              run: () => setConversationNumber(session.id),
+            })),
+          ]
+        : []),
+    ],
+  }));
   const infoTrigger = (
     <Button
       type="button"
@@ -343,7 +405,7 @@ export function Conversation(props: ConversationProps) {
       className="chat-session-trigger"
       aria-label="Chat sessions"
       disabled={sessionBusy}
-      onClick={() => setPickerLoaded(true)}
+      onClick={openSessionPicker}
     >
       <span>
         {chatSessions.find((session) => session.id === conversationNumber)
@@ -397,6 +459,8 @@ export function Conversation(props: ConversationProps) {
           {pickerLoaded ? (
             <Suspense fallback={sessionTrigger}>
               <ChatSessionPicker
+                open={pickerOpen}
+                onOpenChange={setPickerOpen}
                 sessions={chatSessions}
                 selected={conversationNumber}
                 busy={sessionBusy}

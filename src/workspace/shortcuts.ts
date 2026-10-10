@@ -21,7 +21,8 @@ export type EditorShortcut =
   | 'export'
   | 'toggleChat'
   | 'toggleMedia'
-  | 'shortcuts';
+  | 'shortcuts'
+  | 'commands';
 
 export const SHORTCUT_GROUPS = [
   {
@@ -53,6 +54,7 @@ export const SHORTCUT_GROUPS = [
       { keys: 'Mod + E', label: 'Export video' },
       { keys: 'C / M', label: 'Toggle chat or media panel' },
       { keys: '?', label: 'Keyboard shortcuts' },
+      { keys: 'Mod + K', label: 'Commands' },
     ],
   },
 ] as const;
@@ -94,6 +96,7 @@ export function resolveShortcut(
     if (key === 'z') return event.shiftKey ? 'redo' : 'undo';
     if (event.shiftKey) return;
     if (key === 'y' && event.ctrlKey) return 'redo';
+    if (key === 'k') return 'commands';
     if (key === 'o') return 'openProject';
     if (key === 'i') return 'import';
     if (key === 'e') return 'export';

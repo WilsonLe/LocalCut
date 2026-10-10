@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { LoaderCircle, RefreshCw } from 'lucide-react';
 import type { OpenRouterModel } from '../ai';
 import { Button } from '../components/ui/button';
@@ -27,6 +27,7 @@ export function ModelPicker({
   refresh: () => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
+  const search = useRef<HTMLInputElement>(null);
   return (
     <Combobox
       open={open}
@@ -62,6 +63,7 @@ export function ModelPicker({
       >
         <div className="flex items-center gap-1 border-b p-2">
           <ComboboxInput
+            ref={search}
             aria-label="Search models"
             placeholder="Search models…"
             className="min-w-0 flex-1"
@@ -73,17 +75,21 @@ export function ModelPicker({
             aria-label="Refresh models"
             title="Refresh models"
             disabled={loading}
-            onClick={() => void refresh()}
+            onClick={() => {
+              // Refresh becomes unavailable while loading; keep focus in the
+              // popup when its button disappears so Escape closes this layer.
+              search.current?.focus();
+              void refresh();
+            }}
           >
-            {loading ? (
-              <LoaderCircle
-                className="motion-safe:animate-spin"
-                aria-hidden="true"
-              />
-            ) : (
-              <RefreshCw aria-hidden="true" />
-            )}
+            <RefreshCw aria-hidden="true" />
           </Button>
+          {loading && (
+            <LoaderCircle
+              className="size-4 motion-safe:animate-spin"
+              aria-hidden="true"
+            />
+          )}
         </div>
         {loading ? (
           <p role="status" className="p-3 text-sm text-muted-foreground">

@@ -13,19 +13,22 @@ export interface ChatSession {
 
 /** The instructor dashboard session-picker pattern, scoped to local chat state. */
 export default function ChatSessionPicker({
+  open,
+  onOpenChange,
   sessions,
   selected,
   busy,
   onSelect,
   onNew,
 }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   sessions: ChatSession[];
   selected: number;
   busy: boolean;
   onSelect: (id: number) => void;
   onNew: () => void;
 }) {
-  const [open, setOpen] = useState(true);
   const [search, setSearch] = useState('');
   const content = useRef<HTMLDivElement>(null);
   const matches = sessions.filter((session) =>
@@ -35,7 +38,7 @@ export default function ChatSessionPicker({
     <Menu.Root
       open={open}
       onOpenChange={(value) => {
-        setOpen(value);
+        onOpenChange(value);
         if (!value) setSearch('');
       }}
       modal={false}
@@ -92,7 +95,7 @@ export default function ChatSessionPicker({
                 aria-label="New conversation"
                 onClick={() => {
                   onNew();
-                  setOpen(false);
+                  onOpenChange(false);
                 }}
                 render={<Button size="icon" />}
               >
@@ -105,7 +108,7 @@ export default function ChatSessionPicker({
                 value={selected}
                 onValueChange={(id) => {
                   onSelect(Number(id));
-                  setOpen(false);
+                  onOpenChange(false);
                 }}
               >
                 {matches.map((session) => (

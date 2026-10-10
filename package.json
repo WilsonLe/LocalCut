@@ -29,6 +29,7 @@
     "@base-ui/react": "1.8.0",
     "@huggingface/transformers": "4.3.1",
     "class-variance-authority": "0.7.1",
+    "cmdk": "1.1.1",
     "cn": "0.4.0",
     "idb": "8.0.4",
     "lucide-react": "1.53.0",

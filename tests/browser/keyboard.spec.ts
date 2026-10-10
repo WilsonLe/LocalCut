@@ -141,12 +141,14 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(help).not.toBeVisible();
 
     const newProject = page.getByRole('button', {
-      name: 'New project',
+      name: 'Commands',
       exact: true,
     });
     await newProject.focus();
     await page.keyboard.press('Space');
-    await expect(dialog).toBeVisible();
+    await expect(
+      page.getByRole('dialog', { name: 'Commands', exact: true }),
+    ).toBeVisible();
     await page.keyboard.press('Escape');
     expect((await snapshot(page, base, name)).revision).toBe(before);
   });

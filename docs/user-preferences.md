@@ -59,6 +59,13 @@ This is the project record of the user's durable product and workflow choices. U
 - Browse historical versions by recreating the complete project in the real editor, timeline and playback preview in read-only mode. Do not use screenshots as version previews.
 - Past versions are immutable. Restoring a version appends a new version containing that saved state and advances the current revision; it never rewrites or removes later versions.
 
+## Workspace commands and uncluttered controls — 10 October 2026
+
+- Hide scrollbars while retaining scrolling throughout the workspace and popups.
+- Remove the local-storage information tooltip/icon and the duplicate New project header button. Keep project creation in settings.
+- Render buttons only when they can be clicked, including Versions and Export. Keep actual progress and actionable errors visible while an action is unavailable. Keep keyboard shortcut help in settings.
+- Provide a shadcn Base Command palette for workspace operations, opened from the header or Mod+K. Show available actions for the current project, selection and version. Reuse existing workflows for values, files and AI approval.
+
 ## Delivery and validation
 
 - Pull and rebase onto current `main`, including the OpenRouter integration, before completing the workspace.

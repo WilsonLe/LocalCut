@@ -222,42 +222,45 @@ export function Preview({
           <span className="text-muted-foreground">/ {formatTime(total)}</span>
         </span>
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={!total}
-            aria-label="Previous frame"
-            onClick={() =>
-              void seek(Math.max(0, displayedTime - frameDuration))
-            }
-          >
-            <SkipBack />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={!total}
-            aria-label={playing ? 'Pause preview' : 'Play preview'}
-            onClick={() => void play()}
-          >
-            {playing ? <Pause /> : <Play />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={!total}
-            aria-label="Next frame"
-            onClick={() =>
-              void seek(
-                Math.min(
-                  Math.max(0, total - frameDuration),
-                  displayedTime + frameDuration,
-                ),
-              )
-            }
-          >
-            <SkipForward />
-          </Button>
+          {!!total && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Previous frame"
+              onClick={() =>
+                void seek(Math.max(0, displayedTime - frameDuration))
+              }
+            >
+              <SkipBack />
+            </Button>
+          )}
+          {!!total && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={playing ? 'Pause preview' : 'Play preview'}
+              onClick={() => void play()}
+            >
+              {playing ? <Pause /> : <Play />}
+            </Button>
+          )}
+          {!!total && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Next frame"
+              onClick={() =>
+                void seek(
+                  Math.min(
+                    Math.max(0, total - frameDuration),
+                    displayedTime + frameDuration,
+                  ),
+                )
+              }
+            >
+              <SkipForward />
+            </Button>
+          )}
         </div>
         <Tooltip
           content={`${project?.width ?? 1920} × ${project?.height ?? 1080} · ${project ? (project.frameRate.num / project.frameRate.den).toFixed(2).replace(/\.00$/, '') : 30} fps`}

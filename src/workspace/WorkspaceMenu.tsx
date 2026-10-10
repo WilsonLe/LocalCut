@@ -21,6 +21,8 @@ export interface WorkspaceMenuProps {
   onExport: () => void;
   onFormatChange: (format: 'mp4' | 'webm') => void;
   onAppearance: () => void;
+  onShortcuts: () => void;
+  onCommands: () => void;
 }
 
 const popupClass =
@@ -84,6 +86,8 @@ export function WorkspaceMenu({
   onExport,
   onFormatChange,
   onAppearance,
+  onShortcuts,
+  onCommands,
 }: WorkspaceMenuProps) {
   return (
     <Menu.Root
@@ -125,27 +129,27 @@ export function WorkspaceMenu({
             }}
           >
             <Submenu label="Project">
-              <Menu.Item className={itemClass} disabled={busy} onClick={onNew}>
-                New project
-              </Menu.Item>
-              <Menu.Item className={itemClass} disabled={busy} onClick={onOpen}>
-                Open project
-              </Menu.Item>
+              {!busy && (
+                <Menu.Item className={itemClass} onClick={onNew}>
+                  New project
+                </Menu.Item>
+              )}
+              {!busy && (
+                <Menu.Item className={itemClass} onClick={onOpen}>
+                  Open project
+                </Menu.Item>
+              )}
               <Menu.Separator className="my-1 h-px bg-border" />
-              <Menu.Item
-                className={itemClass}
-                disabled={busy || !hasProject}
-                onClick={onBackup}
-              >
-                Download project backup
-              </Menu.Item>
-              <Menu.Item
-                className={itemClass}
-                disabled={busy}
-                onClick={onImportBackup}
-              >
-                Import project backup
-              </Menu.Item>
+              {!busy && hasProject && (
+                <Menu.Item className={itemClass} onClick={onBackup}>
+                  Download project backup
+                </Menu.Item>
+              )}
+              {!busy && (
+                <Menu.Item className={itemClass} onClick={onImportBackup}>
+                  Import project backup
+                </Menu.Item>
+              )}
             </Submenu>
             <Submenu label="View">
               <Menu.CheckboxItem
@@ -186,14 +190,18 @@ export function WorkspaceMenu({
                 </Menu.RadioItem>
               </Menu.RadioGroup>
               <Menu.Separator className="my-1 h-px bg-border" />
-              <Menu.Item
-                className={itemClass}
-                disabled={busy || !canExport}
-                onClick={onExport}
-              >
-                Export video
-              </Menu.Item>
+              {!busy && canExport && (
+                <Menu.Item className={itemClass} onClick={onExport}>
+                  Export video
+                </Menu.Item>
+              )}
             </Submenu>
+            <Menu.Item className={itemClass} onClick={onCommands}>
+              Commands
+            </Menu.Item>
+            <Menu.Item className={itemClass} onClick={onShortcuts}>
+              Keyboard shortcuts
+            </Menu.Item>
             <Menu.Item className={itemClass} onClick={onAppearance}>
               Appearance
             </Menu.Item>

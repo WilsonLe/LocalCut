@@ -59,10 +59,13 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByRole('button', { name: 'Collapse media' }),
     ).toBeVisible();
-    const current = Number(await resize.getAttribute('aria-valuenow'));
-    expect(current).toBeLessThanOrEqual(
-      Number(await resize.getAttribute('aria-valuemax')),
-    );
+    await expect
+      .poll(
+        async () =>
+          Number(await resize.getAttribute('aria-valuenow')) <=
+          Number(await resize.getAttribute('aria-valuemax')),
+      )
+      .toBe(true);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBe(1120);
@@ -156,7 +159,11 @@ for (const base of ['/', '/LocalCut/']) {
   }) => {
     await page.goto(base);
     await page
-      .getByRole('button', { name: 'New project', exact: true })
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .click();
+    await page.getByRole('menuitem', { name: 'Project', exact: true }).click();
+    await page
+      .getByRole('menuitem', { name: 'New project', exact: true })
       .click();
     await page
       .getByLabel('Project name', { exact: true })
@@ -386,7 +393,11 @@ for (const base of ['/', '/LocalCut/']) {
     ).toHaveAttribute('aria-pressed', 'true');
     await panel.getByRole('button', { name: 'Close appearance' }).click();
     await page
-      .getByRole('button', { name: 'New project', exact: true })
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .click();
+    await page.getByRole('menuitem', { name: 'Project', exact: true }).click();
+    await page
+      .getByRole('menuitem', { name: 'New project', exact: true })
       .click();
     await expect(
       page.getByRole('dialog', { name: 'New project', exact: true }),

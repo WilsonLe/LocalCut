@@ -27,7 +27,13 @@ async function catalog(context: BrowserContext) {
   );
 }
 async function createProject(page: Page, name: string) {
-  await page.getByRole('button', { name: 'New project', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Workspace settings', exact: true })
+    .click();
+  await page.getByRole('menuitem', { name: 'Project', exact: true }).click();
+  await page
+    .getByRole('menuitem', { name: 'New project', exact: true })
+    .click();
   await page.getByLabel('Project name', { exact: true }).fill(name);
   await page
     .getByRole('button', { name: 'Create project', exact: true })
@@ -239,7 +245,7 @@ test('manual edits make an earlier proposal stale without committing it', async 
   await expect(
     page.getByRole('dialog', { name: 'Clip properties', exact: true }),
   ).not.toBeVisible();
-  await expect(apply).toBeDisabled();
+  await expect(apply).toHaveCount(0);
   await expect(
     page.getByText('Project changed. Ask for a new proposal.', { exact: true }),
   ).toBeVisible();

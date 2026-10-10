@@ -4,7 +4,13 @@ import type { Page } from '@playwright/test';
 import type { Project } from '../../src/core/model';
 
 async function createProject(page: Page, name: string) {
-  await page.getByRole('button', { name: 'New project', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Workspace settings', exact: true })
+    .click();
+  await page.getByRole('menuitem', { name: 'Project', exact: true }).click();
+  await page
+    .getByRole('menuitem', { name: 'New project', exact: true })
+    .click();
   await page.getByLabel('Project name', { exact: true }).fill(name);
   await page
     .getByRole('button', { name: 'Create project', exact: true })
@@ -13,7 +19,7 @@ async function createProject(page: Page, name: string) {
     page.getByRole('dialog', { name: 'New project', exact: true }),
   ).not.toBeVisible();
   await expect(
-    page.getByRole('button', { name: 'New project', exact: true }),
+    page.getByRole('button', { name: 'Workspace settings', exact: true }),
   ).toBeEnabled();
   await expect(page.getByLabel('Import media', { exact: true })).toBeAttached();
 }

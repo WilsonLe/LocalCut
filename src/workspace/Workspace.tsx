@@ -9,15 +9,12 @@ import {
 import type { CSSProperties } from 'react';
 import {
   ArrowUpRight,
-  HardDrive,
   History,
-  LoaderCircle,
-  Keyboard,
+  Search,
   PanelRightClose,
   ChevronDown,
   Download,
   Files,
-  Plus,
   Scissors,
   Settings2,
   Upload,
@@ -36,6 +33,8 @@ import type {
 import { Button } from '../components/ui/button';
 import { Toaster } from '../components/ui/sonner';
 import { Conversation } from './Conversation';
+import type { ConversationControls } from './Conversation';
+import type { WorkspaceCommand } from './commands';
 import { Preview } from './Preview';
 import type { PreviewControls } from './Preview';
 import { Tooltip } from '../components/ui/tooltip';
@@ -49,6 +48,7 @@ import {
 } from './preferences';
 import {
   appendAsset,
+  clipName,
   downloadFile,
   formatTime,
   projectDuration,
@@ -56,6 +56,7 @@ import {
 
 import type { DialogName, Progress } from './WorkspaceDialogs';
 const WorkspaceDialogs = lazy(() => import('./WorkspaceDialogs'));
+const CommandPalette = lazy(() => import('./CommandPalette'));
 const WorkspaceMenu = lazy(() => import('./WorkspaceMenu'));
 const AppearancePanel = lazy(() => import('./AppearancePanel'));
 type Artifact = ExportResult & { dispose: () => Promise<void> };
@@ -107,6 +108,11 @@ export function Workspace() {
   const [timeUs, setTimeUs] = useState(0);
   const [seekRevision, setSeekRevision] = useState(0);
   const [dialog, setDialog] = useState<DialogName>(null);
+  const [commandsOpen, setCommandsOpen] = useState(false);
+  const [paletteCommands, setPaletteCommands] = useState<WorkspaceCommand[]>(
+    [],
+  );
+  const conversationControls = useRef<ConversationControls>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -221,6 +227,7 @@ export function Workspace() {
             browsing.current = false;
             setBrowsed(null);
             setVersionsOpen(false);
+            setVersions([]);
             setAssets([]);
             setSelected(undefined);
             toast('This project was deleted in another window.');
@@ -304,6 +311,7 @@ export function Workspace() {
     browsing.current = false;
     setBrowsed(null);
     setVersionsOpen(false);
+    setVersions([]);
     projectId.current = snapshot.id;
     setSelected(undefined);
     setTimeUs(0);
@@ -357,6 +365,24 @@ export function Workspace() {
         `${files.length} ${files.length === 1 ? 'file' : 'files'} added to the timeline`,
       );
     });
+  const relinkMedia = (assetId: string) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (file)
+        void action(async () => {
+          if (browsing.current) return;
+          const engine = await ensureEditor();
+          await awaitJob(
+            engine.assets.relink(assetId, file),
+            'Relinking media',
+          );
+          await refresh();
+        });
+    };
+    input.click();
+  };
   const startExport = () =>
     void action(async () => {
       const engine = await ensureEditor();
@@ -636,8 +662,268 @@ export function Workspace() {
       toggleChat,
       toggleMedia,
       shortcuts: () => setDialog('shortcuts'),
+      commands: () => showCommands(),
     },
   });
+  const getCommands = () => {
+    const commands: WorkspaceCommand[] = [];
+    const command = (
+      id: string,
+      label: string,
+      group: string,
+      available: boolean,
+      run: () => void,
+      shortcut?: string,
+    ) => {
+      if (available) commands.push({ id, label, group, run, shortcut });
+    };
+    const editable = !!project && !browsed && !busy;
+    const focusEditor = () =>
+      document.querySelector<HTMLElement>('[data-editor-shortcuts]')?.focus();
+    const navigate = (value: number) => {
+      seek(value);
+      focusEditor();
+    };
+    command(
+      'new',
+      'New project',
+      'Project',
+      !busy,
+      () => setDialog('new'),
+      'N',
+    );
+    command('open', 'Open project', 'Project', !busy, showProjects, 'Mod+O');
+    command(
+      'backup',
+      'Download project backup',
+      'Project',
+      editable,
+      backupProject,
+    );
+    command(
+      'import-backup',
+      'Import project backup',
+      'Project',
+      !busy && !browsed,
+      () => backupInput.current?.click(),
+    );
+    command(
+      'import',
+      'Import media',
+      'Media',
+      !busy && !browsed,
+      () => fileInput.current?.click(),
+      'Mod+I',
+    );
+    for (const asset of assets) {
+      command(
+        `relink-${asset.id}`,
+        `Relink ${asset.name}`,
+        'Media',
+        editable && asset.status === 'missing',
+        () => relinkMedia(asset.id),
+      );
+    }
+    command('undo', 'Undo', 'Editing', editable, undo, 'Mod+Z');
+    command('redo', 'Redo', 'Editing', editable, redo, 'Mod+Shift+Z');
+    command(
+      'split',
+      'Split clip at playhead',
+      'Editing',
+      editable && canSplit,
+      split,
+      'S',
+    );
+    command(
+      'delete',
+      'Delete selected clip',
+      'Editing',
+      editable && !!selectedClip,
+      deleteClip,
+      'Delete',
+    );
+    command(
+      'duplicate',
+      'Duplicate selected clip',
+      'Editing',
+      editable && !!selectedClip,
+      duplicate,
+      'D',
+    );
+    command('text', 'Add text', 'Editing', editable, addText, 'T');
+    command(
+      'properties',
+      'Clip properties',
+      'Editing',
+      !busy && !!selectedClip,
+      () => setDialog('properties'),
+    );
+    for (const track of viewProject?.tracks ?? [])
+      for (const clip of track.clips) {
+        command(
+          `select-${clip.id}`,
+          `Select ${clipName(clip, browsed ? versionAssets : assets)} (${formatTime(clip.startUs)})`,
+          'Clips',
+          !busy,
+          () => {
+            setSelected(clip.id);
+            navigate(clip.startUs);
+          },
+        );
+      }
+    command(
+      'play',
+      'Play or pause preview',
+      'Playback',
+      !!total && !busy,
+      () => {
+        previewControls.current?.togglePlayback();
+        focusEditor();
+      },
+      'Space',
+    );
+    for (const [id, label, frames, shortcut] of [
+      ['previous', 'Previous frame', -1, '←'],
+      ['next', 'Next frame', 1, '→'],
+      ['previous-ten', 'Back ten frames', -10, 'Shift+←'],
+      ['next-ten', 'Forward ten frames', 10, 'Shift+→'],
+    ] as const)
+      command(
+        id,
+        label,
+        'Playback',
+        !!total && !busy,
+        () =>
+          navigate(frameStep(timeUs, frames, viewProject!.frameRate, total)),
+        shortcut,
+      );
+    command(
+      'start',
+      'Go to beginning',
+      'Playback',
+      !!total && !busy,
+      () => navigate(0),
+      'Home',
+    );
+    command(
+      'end',
+      'Go to last frame',
+      'Playback',
+      !!total && !busy,
+      () => navigate(frameStep(total, 0, viewProject!.frameRate, total)),
+      'End',
+    );
+    command(
+      'versions',
+      'Browse project versions',
+      'Versions',
+      !!project && !busy,
+      showVersions,
+    );
+    for (const version of versions)
+      command(
+        `version-${version.id}`,
+        `Browse version ${version.number}`,
+        'Versions',
+        !!project && !busy,
+        () => browseVersion(version.id),
+      );
+    command(
+      'current',
+      'Return to current version',
+      'Versions',
+      !!browsed && !busy,
+      leaveVersion,
+    );
+    command(
+      'restore',
+      'Restore as new version',
+      'Versions',
+      !!browsed && !busy,
+      restoreVersion,
+    );
+    command(
+      'close-versions',
+      'Close versions',
+      'Versions',
+      versionsOpen && !busy,
+      () => {
+        leaveVersion();
+        setVersionsOpen(false);
+      },
+    );
+    command(
+      'export',
+      'Export video',
+      'Export',
+      editable && !!total,
+      showExport,
+      'Mod+E',
+    );
+    command(
+      'mp4',
+      'Use MP4 export format',
+      'Export',
+      !busy && !browsed && format !== 'mp4',
+      () => setFormat('mp4'),
+    );
+    command(
+      'webm',
+      'Use WebM export format',
+      'Export',
+      !busy && !browsed && format !== 'webm',
+      () => setFormat('webm'),
+    );
+    command(
+      'chat',
+      chatCollapsed ? 'Expand chat' : 'Collapse chat',
+      'View',
+      true,
+      () => {
+        toggleChat();
+        focusEditor();
+      },
+      'C',
+    );
+    command(
+      'media',
+      drawer ? 'Collapse media' : 'Expand media',
+      'View',
+      true,
+      () => {
+        toggleMedia();
+        focusEditor();
+      },
+      'M',
+    );
+    command(
+      'appearance',
+      appearanceOpen ? 'Close appearance' : 'Appearance',
+      'Settings',
+      true,
+      () => (appearanceOpen ? closeAppearance() : setAppearanceOpen(true)),
+    );
+    command('settings', 'Workspace settings', 'Settings', true, openSettings);
+    command(
+      'shortcuts',
+      'Keyboard shortcuts',
+      'Settings',
+      true,
+      () => setDialog('shortcuts'),
+      '?',
+    );
+    const revealChat = (run: () => void) => () => {
+      saveWorkspacePreferences({ chatCollapsed: false });
+      run();
+    };
+    for (const item of conversationControls.current?.commands() ?? [])
+      commands.push({ ...item, run: revealChat(item.run) });
+    return commands;
+  };
+  const showCommands = () => {
+    setPaletteCommands(getCommands());
+    setCommandsOpen(true);
+  };
   const settingsTrigger = (
     <Button
       id="workspace-settings-trigger"
@@ -674,77 +960,45 @@ export function Workspace() {
           <Scissors aria-hidden="true" />
           LocalCut
         </a>
-        <Button
-          variant="ghost"
-          className="project-picker"
-          aria-label="Open project"
-          disabled={busy}
-          onClick={showProjects}
-        >
-          {viewProject?.name ?? 'Untitled project'}
-          <ChevronDown />
-        </Button>
-        <Tooltip
-          content={
-            project
-              ? browsed
-                ? `Version ${browsed.number} · Read-only`
-                : `Revision ${project.revision} · Saved locally. Original media stays on this device.`
-              : 'Projects and media are saved on this device.'
-          }
-        >
+        {!busy && (
           <Button
             variant="ghost"
-            size="icon-sm"
-            aria-label="Local storage information"
-            className="local-indicator"
+            className="project-picker"
+            aria-label="Open project"
+            onClick={showProjects}
           >
-            <HardDrive />
+            {viewProject?.name ?? 'Untitled project'}
+            <ChevronDown />
           </Button>
-        </Tooltip>
+        )}
         <div className="header-actions">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={busy}
-            onClick={() => setDialog('new')}
-          >
-            <Plus /> New project
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!project || busy}
-            aria-expanded={versionsOpen}
-            onClick={showVersions}
-          >
-            {busy && versionsOpen ? (
-              <LoaderCircle
-                className="animate-spin"
-                aria-label="Loading versions"
-              />
-            ) : (
-              <History />
-            )}{' '}
-            Versions
-          </Button>
-          <Button
-            size="sm"
-            disabled={!total || busy || !!browsed}
-            onClick={showExport}
-          >
-            <ArrowUpRight /> Export
-          </Button>
-          <Tooltip content="Keyboard shortcuts (?)">
+          {project && !busy && (
             <Button
+              variant="outline"
+              size="sm"
+              aria-expanded={versionsOpen}
+              onClick={showVersions}
+            >
+              <History /> Versions
+            </Button>
+          )}
+          {!!total && !busy && !browsed && (
+            <Button size="sm" onClick={showExport}>
+              <ArrowUpRight /> Export
+            </Button>
+          )}
+          {!busy && (
+            <Button
+              id="workspace-command-trigger"
               variant="ghost"
               size="icon-sm"
-              aria-label="Keyboard shortcuts"
-              onClick={() => setDialog('shortcuts')}
+              aria-label="Commands"
+              aria-haspopup="dialog"
+              onClick={showCommands}
             >
-              <Keyboard />
+              <Search />
             </Button>
-          </Tooltip>
+          )}
           {settingsLoaded ? (
             <Suspense fallback={settingsTrigger}>
               <WorkspaceMenu
@@ -765,6 +1019,8 @@ export function Workspace() {
                 onExport={showExport}
                 onFormatChange={setFormat}
                 onAppearance={() => setAppearanceOpen(true)}
+                onShortcuts={() => setDialog('shortcuts')}
+                onCommands={showCommands}
               />
             </Suspense>
           ) : (
@@ -775,6 +1031,7 @@ export function Workspace() {
       <div className="workspace-body" data-appearance-open={appearanceOpen}>
         <div className="workspace-columns">
           <Conversation
+            controlsRef={conversationControls}
             editor={editor}
             project={project}
             readOnly={!!browsed}
@@ -800,56 +1057,60 @@ export function Workspace() {
               >
                 <div className="section-heading">
                   <h2>Versions</h2>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => {
-                      leaveVersion();
-                      setVersionsOpen(false);
-                    }}
-                  >
-                    Close versions
-                  </Button>
+                  {!busy && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        leaveVersion();
+                        setVersionsOpen(false);
+                      }}
+                    >
+                      Close versions
+                    </Button>
+                  )}
                 </div>
                 <div
                   className="version-list"
                   role="group"
                   aria-label="Saved versions"
                 >
-                  {versions.map((version) => (
-                    <Button
-                      key={version.id}
-                      variant={
-                        browsed?.id === version.id ? 'secondary' : 'ghost'
-                      }
-                      disabled={busy}
-                      aria-pressed={browsed?.id === version.id}
-                      onClick={() => browseVersion(version.id)}
-                    >
-                      Version {version.number} ·{' '}
-                      {new Date(version.createdAt).toLocaleString([], {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                      })}
-                      {version.kind === 'restore' ? ' · Restored' : ''}
-                    </Button>
-                  ))}
+                  {versions.map(
+                    (version) =>
+                      !busy && (
+                        <Button
+                          key={version.id}
+                          variant={
+                            browsed?.id === version.id ? 'secondary' : 'ghost'
+                          }
+                          aria-pressed={browsed?.id === version.id}
+                          onClick={() => browseVersion(version.id)}
+                        >
+                          Version {version.number} ·{' '}
+                          {new Date(version.createdAt).toLocaleString([], {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                          })}
+                          {version.kind === 'restore' ? ' · Restored' : ''}
+                        </Button>
+                      ),
+                  )}
                 </div>
                 {browsed && (
                   <div className="version-actions">
                     <span>Version {browsed.number} · Read-only</span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={busy}
-                      onClick={leaveVersion}
-                    >
-                      Return to current
-                    </Button>
+                    {!busy && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={leaveVersion}
+                      >
+                        Return to current
+                      </Button>
+                    )}
                     <Button size="sm" disabled={busy} onClick={restoreVersion}>
                       Restore as new version
                     </Button>
@@ -915,22 +1176,20 @@ export function Workspace() {
                 <div className="section-heading">
                   <h2>Media</h2>
                   <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={busy || !!browsed}
-                      onClick={() => fileInput.current?.click()}
-                    >
-                      <Upload /> Import media
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={!project || busy || !!browsed}
-                      onClick={backupProject}
-                    >
-                      <Download /> Backup
-                    </Button>
+                    {!busy && !browsed && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInput.current?.click()}
+                      >
+                        <Upload /> Import media
+                      </Button>
+                    )}
+                    {!!project && !busy && !browsed && (
+                      <Button variant="ghost" size="sm" onClick={backupProject}>
+                        <Download /> Backup
+                      </Button>
+                    )}
                   </div>
                 </div>
                 {(browsed ? versionAssets : assets).length ? (
@@ -948,28 +1207,12 @@ export function Workspace() {
                               ? `${asset.width} × ${asset.height}`
                               : formatTime(asset.durationUs)}
                         </small>
-                        {asset.status === 'missing' && (
+                        {asset.status === 'missing' && !busy && !browsed && (
                           <Button
                             variant="outline"
                             size="sm"
-                            disabled={busy || !!browsed}
                             onClick={() => {
-                              const input = document.createElement('input');
-                              input.type = 'file';
-                              input.onchange = () => {
-                                const file = input.files?.[0];
-                                if (file)
-                                  void action(async () => {
-                                    if (browsing.current) return;
-                                    const engine = await ensureEditor();
-                                    await awaitJob(
-                                      engine.assets.relink(asset.id, file),
-                                      'Relinking media',
-                                    );
-                                    await refresh();
-                                  });
-                              };
-                              input.click();
+                              relinkMedia(asset.id);
                             }}
                           >
                             Relink
@@ -1069,6 +1312,15 @@ export function Workspace() {
                 toast.success('Clip updated');
               })
             }
+          />
+        </Suspense>
+      )}
+      {commandsOpen && (
+        <Suspense fallback={null}>
+          <CommandPalette
+            open
+            onOpenChange={setCommandsOpen}
+            commands={paletteCommands}
           />
         </Suspense>
       )}
