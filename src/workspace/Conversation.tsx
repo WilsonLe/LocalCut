@@ -22,6 +22,8 @@ import type { ContextPolicy, OpenRouter, OpenRouterModel } from '../ai';
 import { useIndexConsent } from './index-consent';
 import { KlipMark } from './KlipMark';
 import { takePendingCallback } from './oauth-callback';
+import { parseProjectRoute } from './project-route';
+import { useWorkspaceRoute } from './useWorkspaceRoute';
 import { parseProviderConfiguration } from './provider-preferences';
 import type {
   ProviderConfiguration,
@@ -83,6 +85,11 @@ const storageError = () =>
 /** Conversation UI is optional; the editor continues to own every saved edit. */
 export function Conversation(props: ConversationProps) {
   const { onError, registerCleanup } = props;
+  const { go } = useWorkspaceRoute();
+  const navigateRef = useRef(go);
+  useEffect(() => {
+    navigateRef.current = go;
+  }, [go]);
   const [connection, setConnection] = useState<Connection | null>(null);
   const [providerConfiguration, setProviderConfiguration] = useState(() =>
     parseProviderConfiguration(
@@ -510,11 +517,23 @@ export function Conversation(props: ConversationProps) {
         if (kind === 'key') provider.setKey(credential);
         else if (kind === 'saved') {
           if (!provider.restoreCredential().connected) return;
-        } else
-          await provider.completeAuthorization(
+        } else {
+          const result = await provider.completeAuthorization(
             { callbackUrl: credential },
             controller.signal,
           );
+          if (!current()) return;
+          const hash = new URL(result.sanitizedCallbackUrl).hash;
+          if (hash) {
+            const destination = new URL(hash.slice(1), window.location.origin);
+            const route = parseProjectRoute(
+              destination.pathname,
+              destination.search,
+            );
+            if (route.screen !== 'invalid')
+              navigateRef.current(route.screen, route.projectId, true);
+          }
+        }
         if (!current()) return;
         providers.current.get('openrouter')?.client.dispose();
         providers.current.set('openrouter', {

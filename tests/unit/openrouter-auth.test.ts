@@ -105,10 +105,62 @@ describe('OpenRouter explicit PKCE authorization', () => {
     );
     expect(first.status()).toEqual({ connected: false });
   });
+  it.each(['#/project/local-project', '#/projects?project=local-project'])(
+    'keeps hash navigation %s local and restores it only after verified exchange',
+    async (hash) => {
+      const store = storage();
+      const first = createOpenRouter({ oauthStorage: store });
+      const flow = await first.beginAuthorization({
+        callbackUrl: callback + hash,
+      });
+      const registered = new URL(
+        new URL(flow.authorizationUrl).searchParams.get('callback_url')!,
+      );
+      expect(registered.href).toBe(callback);
+      expect(registered.hash).toBe('');
+      expect(flow.authorizationUrl).not.toContain('local-project');
+      const second = createOpenRouter({
+        oauthStorage: store,
+        fetch: async () => Response.json({ key: 'test-key-private' }),
+      });
+      expect(
+        await second.completeAuthorization({
+          callbackUrl: returned(flow.authorizationUrl),
+        }),
+      ).toEqual({
+        connected: true,
+        sanitizedCallbackUrl: callback + hash,
+      });
+      expect(store.getItem(OAUTH_STORAGE_KEY)).toBeNull();
+    },
+  );
+  it.each(['denied', 'wrong-state', 'fragment'])(
+    'does not return saved hash navigation after %s',
+    async (variant) => {
+      const store = storage();
+      const fetch = vi.fn<typeof globalThis.fetch>();
+      const client = createOpenRouter({ oauthStorage: store, fetch });
+      const flow = await client.beginAuthorization({
+        callbackUrl: callback + '#/project/local-project',
+      });
+      const actual = new URL(returned(flow.authorizationUrl));
+      if (variant === 'denied')
+        actual.searchParams.set('error', 'access_denied');
+      if (variant === 'wrong-state') actual.searchParams.set('state', 'wrong');
+      if (variant === 'fragment') actual.hash = '#/project/another-project';
+      await expect(
+        client.completeAuthorization({ callbackUrl: actual.href }),
+      ).rejects.toMatchObject({
+        code: variant === 'denied' ? 'AUTH_CANCELLED' : 'AUTH_FLOW_INVALID',
+      });
+      expect(fetch).not.toHaveBeenCalled();
+      expect(client.status()).toEqual({ connected: false });
+      expect(store.getItem(OAUTH_STORAGE_KEY)).toBeNull();
+    },
+  );
   it.each([
     'http://example.com/callback',
     'https://user:pass@example.com/callback',
-    'https://example.com/callback#fragment',
     'javascript:alert(1)',
     '/relative',
     'https://example.com/?code=old',

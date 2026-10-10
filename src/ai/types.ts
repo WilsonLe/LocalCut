@@ -115,7 +115,7 @@ export type AuthorizationStorage = Pick<
   'getItem' | 'setItem' | 'removeItem'
 >;
 export interface AuthorizationOptions {
-  /** Begin: exact return URL. Complete: actual URL including code and state. */
+  /** Begin: return URL, with any hash kept locally. Complete: fragment-free URL including code and state. */
   callbackUrl: string;
   storage?: AuthorizationStorage;
 }
