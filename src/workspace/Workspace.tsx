@@ -62,12 +62,7 @@ import {
   saveWorkspacePreferences,
   useWorkspacePreferences,
 } from './preferences';
-import {
-  appendAsset,
-  downloadFile,
-  formatTime,
-  projectDuration,
-} from './helpers';
+import { appendAsset, downloadFile, projectDuration } from './helpers';
 
 import type { TextStyleInput } from '../core/text-library';
 import type { DialogName, Progress } from './WorkspaceDialogs';
@@ -145,9 +140,7 @@ export function Workspace() {
   const drawer = narrow
     ? mobileMediaOpen
     : (mediaOverride ?? preferences.mediaOpen);
-  useEffect(() => {
-    if (drawer) setMediaLoaded(true);
-  }, [drawer]);
+  if (drawer && !mediaLoaded) setMediaLoaded(true);
   const toggleMedia = () => {
     if (narrow) {
       setMobileMediaOpen(!mobileMediaOpen);

@@ -265,6 +265,16 @@ test('long assistant replies scroll inside the conversation and keep the compose
   await expect(
     page.getByRole('button', { name: 'Send edit request', exact: true }),
   ).toBeInViewport();
+  const send = page.getByRole('button', {
+    name: 'Send edit request',
+    exact: true,
+  });
+  await send.click({ trial: true });
+  const sendBounds = (await send.boundingBox())!;
+  const navBounds = (await page
+    .getByRole('navigation', { name: 'Workspace sections' })
+    .boundingBox())!;
+  expect(sendBounds.y + sendBounds.height).toBeLessThanOrEqual(navBounds.y);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page
