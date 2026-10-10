@@ -6,6 +6,12 @@ The narrower chat can collapse into a rail while the editor expands, and returns
 
 Chat follows the CYOBot instructor workspace's interaction structure: session picker, scrolling transcript, right-aligned user bubbles, plain assistant replies, tool disclosures, approval cards, and a growing composer using the same corner radius as other controls. Tool disclosures expose each call's bounded input, result or error separately, subject to the same sharing policy as its remote context. Enter sends; Shift+Enter inserts a newline. IME composition and repeated Enter do not submit. Stop cancels the active turn, and scrolling up reveals a return-to-latest control. The header session picker searches chat titles, reuses an unused chat or creates one when every chat has messages or a draft, and restores each chat’s transcript and unsent draft. Switching is disabled while a response or approved operation is running. Sessions are local to the current connection/project/model/sharing policy and are not saved across reloads. Chat resizing is available above 900px; narrower layouts use a fixed responsive width.
 
+## Project navigation
+
+Select the project name in the header, LocalCut home, Settings → Project → Open project, or Mod+O to open the Projects screen. Search saved names, then select a project to open it in the editor. Projects are sorted by name and show clip count and timeline duration; the active project is marked Current. New project and Import backup reuse the existing flows. Workspace/project ZIP imports remain available through settings and Commands.
+
+Back to editor or selecting the Current project preserves the current selection, playhead, version preview and conversation. Browsing pauses playback and hides the mounted editor from keyboard/accessibility interaction. Opening another project flushes the current project's pending version, resets selection/playhead and clears any previous video download. Project events refresh the list across windows; Refresh projects retries failed loads and picks up saved changes. Initial page navigation remains inert: project storage and editing services initialize only after an explicit create/open/import or browse action. This screen does not delete, rename or migrate projects.
+
 ## Local user preferences
 
 The browser remembers preferred chat width, whether chat is collapsed, deliberate media-panel visibility, export format, and the last selected OpenRouter model, alongside the existing appearance choices. These choices apply before the workspace renders, without opening a project or starting editing/AI services. Root and `/LocalCut/` share preferences on the same origin, and workspace choices synchronize across tabs. Changing preferences never changes project content or exported media.
@@ -45,7 +51,7 @@ Close the panel or press Escape to return focus to Workspace settings. An open p
 
 ## Projects and media
 
-Creating or opening a project explicitly initializes the existing engine. Initial navigation does not open IndexedDB, start workers, request permissions or download models. The project menu lists projects in this browser. Reloading closes the active session; use Open project to continue a saved project.
+Creating or opening a project explicitly initializes the existing engine. Initial navigation does not open IndexedDB, start workers, request permissions or download models. The Projects screen lists projects in this browser. Reloading closes the active session; use Open project to continue a saved project.
 
 Import media accepts the supported video, audio and image formats described in the engine API. Each successful file import is appended to its matching track through an atomic command batch. Images begin with five seconds; video and audio use their measured source duration. Images/video are fitted inside the project dimensions without changing their aspect ratio. Files that fail validation do not create clips; files already committed earlier in the same selection remain available.
 
@@ -75,7 +81,7 @@ Command on macOS or Ctrl elsewhere works with `Z` for Undo, Shift+`Z` for Redo, 
 
 ## Version browsing
 
-The workspace omits unavailable editing, media and playback buttons; the header omits unavailable Versions and Export actions, the duplicate New project button and local-storage information icon. Create projects through Workspace settings → Project → New project or Commands. Scrollbars are hidden throughout the workspace and popup surfaces; wheel, touch, trackpad and keyboard scrolling remain available.
+The workspace omits unavailable editing, media and playback buttons; the header omits unavailable Versions and Export actions, the duplicate New project button and local-storage information icon. Create projects through the Projects screen, Workspace settings → Project → New project or Commands. Scrollbars are hidden throughout the workspace and popup surfaces; wheel, touch, trackpad and keyboard scrolling remain available.
 
 Versions in the header opens the saved history and checkpoints pending edits. Select a version to recreate its full timeline, project dimensions, media references and preview. You can select clips, inspect read-only properties, scrub and play the saved state. Editing controls, imports, relinking and export are hidden while browsing; AI requests/application remain blocked. The conversation stays mounted and refers to the current project; transient chat and playhead state are not part of the saved project document.
 

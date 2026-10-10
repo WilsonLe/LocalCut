@@ -72,7 +72,7 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Open project', exact: true })
       .click();
     await page
-      .getByRole('dialog', { name: 'Open project' })
+      .getByRole('main', { name: 'Projects' })
       .getByRole('button', { name: /^Asset project/ })
       .click();
     await expect(page.getByRole('dialog')).not.toBeVisible();

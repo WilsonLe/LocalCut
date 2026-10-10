@@ -13,6 +13,127 @@
 .workspace-body > .workspace-columns {
   min-width: 0;
 }
+.workspace-body[data-projects-open='true'] > .workspace-columns {
+  display: none;
+}
+.project-browser {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 32px clamp(16px, 5vw, 64px);
+}
+.project-browser-inner {
+  max-width: 960px;
+  margin: 0 auto;
+}
+.project-browser-back {
+  margin-left: -8px;
+  margin-bottom: 24px;
+}
+.project-browser-heading,
+.project-browser-actions,
+.project-browser-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.project-browser-heading {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.project-browser-heading h1 {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.6px;
+}
+.project-browser-toolbar {
+  margin-bottom: 24px;
+}
+.project-browser-search {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.project-browser-search svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+.project-browser-search input {
+  padding-left: 36px;
+}
+.project-browser-list {
+  border-top: 1px solid var(--border);
+}
+.project-browser-list li {
+  border-bottom: 1px solid var(--border);
+}
+.project-browser-row {
+  width: 100%;
+  height: auto;
+  min-height: 80px;
+  padding: 16px 12px;
+  justify-content: flex-start;
+  gap: 16px;
+  text-align: left;
+}
+.project-browser-row .project-browser-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--muted-foreground);
+}
+.project-browser-details {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+.project-browser-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-browser-meta,
+.project-browser-current {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 400;
+}
+.project-browser-empty {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 16px;
+  padding: 64px 0;
+}
+.project-browser-empty > svg {
+  width: 32px;
+  height: 32px;
+  color: var(--muted-foreground);
+}
+.project-browser-empty h2 {
+  font-size: 16px;
+  font-weight: 500;
+}
+@media (max-width: 700px) {
+  .project-browser {
+    padding-top: 20px;
+  }
+  .project-browser-actions {
+    flex-wrap: wrap;
+  }
+  .project-browser-row {
+    gap: 12px;
+    padding-inline: 4px;
+  }
+}
 .workspace-header {
   flex-shrink: 0;
   min-height: 64px;

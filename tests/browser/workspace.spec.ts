@@ -288,7 +288,7 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Open project', exact: true })
       .click();
     await page
-      .getByRole('dialog', { name: 'Open project', exact: true })
+      .getByRole('main', { name: 'Projects', exact: true })
       .getByRole('button')
       .filter({ has: page.getByText(name, { exact: true }) })
       .click();

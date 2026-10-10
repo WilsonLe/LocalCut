@@ -311,7 +311,7 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await expect(
       page
-        .getByRole('dialog')
+        .getByRole('main', { name: 'Projects' })
         .getByRole('button', { name: /Appearance project/ }),
     ).toBeVisible();
   });
