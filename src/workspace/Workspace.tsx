@@ -53,7 +53,11 @@ const EditorPanels = lazy(() =>
   })),
 );
 import type { PreviewControls } from './Preview';
-import { Tooltip } from '../components/ui/tooltip';
+const Tooltip = lazy(() =>
+  import('../components/ui/tooltip').then(({ Tooltip }) => ({
+    default: Tooltip,
+  })),
+);
 import {
   copySelection,
   pasteSelection,
@@ -99,7 +103,12 @@ const CommandPalette = lazy(() => import('./CommandPalette'));
 const WorkspaceMenu = lazy(() => import('./WorkspaceMenu'));
 const WorkspaceTransferDialog = lazy(() => import('./WorkspaceTransferDialog'));
 const AppearancePanel = lazy(() => import('./AppearancePanel'));
-const ProjectBrowser = lazy(() => import('./ProjectBrowser'));
+import ProjectBrowser from './ProjectBrowser';
+import {
+  WorkspaceSkeleton,
+  PreviewSkeleton,
+  TimelineSkeleton,
+} from './LoadingState';
 type Artifact = ExportResult & { dispose: () => Promise<void> };
 
 export function Workspace() {
@@ -1290,6 +1299,23 @@ export function Workspace() {
       <Settings2 />
     </Button>
   );
+  const mediaToggle = (
+    <Button
+      className="media-toggle"
+      id={narrow ? undefined : 'desktop-media-trigger'}
+      ref={narrow ? undefined : mediaTriggerRef}
+      variant="ghost"
+      size="icon-sm"
+      aria-label={
+        drawer ? (narrow ? 'Close media' : 'Collapse media') : 'Expand media'
+      }
+      aria-expanded={drawer}
+      aria-controls="workspace-media-content"
+      onClick={toggleMedia}
+    >
+      {drawer ? narrow ? <X /> : <PanelLeftClose /> : <Files />}
+    </Button>
+  );
   const mediaPanel = (
     <aside
       className="media-panel"
@@ -1307,31 +1333,15 @@ export function Workspace() {
           mediaHasFocus.current = false;
       }}
     >
-      <Tooltip
-        content={
-          drawer ? (narrow ? 'Close media' : 'Collapse media') : 'Open media'
-        }
-      >
-        <Button
-          className="media-toggle"
-          id={narrow ? undefined : 'desktop-media-trigger'}
-          ref={narrow ? undefined : mediaTriggerRef}
-          variant="ghost"
-          size="icon-sm"
-          aria-label={
-            drawer
-              ? narrow
-                ? 'Close media'
-                : 'Collapse media'
-              : 'Expand media'
+      <Suspense fallback={mediaToggle}>
+        <Tooltip
+          content={
+            drawer ? (narrow ? 'Close media' : 'Collapse media') : 'Open media'
           }
-          aria-expanded={drawer}
-          aria-controls="workspace-media-content"
-          onClick={toggleMedia}
         >
-          {drawer ? narrow ? <X /> : <PanelLeftClose /> : <Files />}
-        </Button>
-      </Tooltip>
+          {mediaToggle}
+        </Tooltip>
+      </Suspense>
       <div
         id="workspace-media-content"
         className="media-content"
@@ -1480,7 +1490,7 @@ export function Workspace() {
         data-appearance-open={appearanceOpen}
         data-projects-open={projectsOpen || navigation.blocked}
       >
-        {navigation.blocked && (
+        {navigation.blocked && (!projectsOpen || navigation.error) && (
           <section
             className="project-browser"
             aria-label="Project navigation"
@@ -1500,53 +1510,33 @@ export function Workspace() {
                   </div>
                 </>
               ) : (
-                <p role="status" className="flex items-center gap-2">
-                  <LoaderCircle
-                    className="size-5 animate-spin"
-                    aria-hidden="true"
-                  />
-                  Opening project…
-                </p>
+                <WorkspaceSkeleton label="Opening project" />
               )}
             </div>
           </section>
         )}
-        {projectsOpen && !navigation.blocked && (
-          <Suspense
-            fallback={
-              <div
-                className="project-browser"
-                role="status"
-                aria-label="Loading projects"
-              >
-                <LoaderCircle className="animate-spin size-5" />
-              </div>
+        {projectsOpen && !navigation.error && (
+          <ProjectBrowser
+            projects={catalog.projects}
+            currentProjectId={project?.id}
+            busy={busy}
+            refreshing={catalog.pending}
+            loaded={catalog.loaded}
+            failed={catalog.failed}
+            onOpen={(id) =>
+              id === getProjectId() ? returnToEditor() : go('editor', id)
             }
-          >
-            <ProjectBrowser
-              projects={catalog.projects}
-              currentProjectId={project?.id}
-              busy={busy || catalog.pending}
-              loaded={catalog.loaded}
-              onOpen={(snapshot) =>
-                snapshot.id === getProjectId()
-                  ? returnToEditor()
-                  : void action(() => openProject(snapshot))
-              }
-              onBack={returnToEditor}
-              onRefresh={showProjects}
-              onNew={() => setDialog('new')}
-              onImport={() => backupInput.current?.click()}
-            />
-          </Suspense>
+            onBack={returnToEditor}
+            onRefresh={showProjects}
+            onNew={() => setDialog('new')}
+            onImport={() => backupInput.current?.click()}
+          />
         )}
         <Suspense
           fallback={
-            <div
-              className="workspace-columns"
-              role="status"
-              aria-label="Loading workspace"
-            />
+            <div className="workspace-columns">
+              <WorkspaceSkeleton label="Loading workspace" />
+            </div>
           }
         >
           <WorkspacePanels
@@ -1661,17 +1651,7 @@ export function Workspace() {
                 </section>
               )}
               <EditorPanels narrow={narrow}>
-                <Suspense
-                  fallback={
-                    <section
-                      className="preview"
-                      aria-label="Project preview"
-                      role="status"
-                    >
-                      Loading preview…
-                    </section>
-                  }
-                >
+                <Suspense fallback={<PreviewSkeleton />}>
                   <Preview
                     controlsRef={previewControls}
                     editor={editor}
@@ -1684,13 +1664,7 @@ export function Workspace() {
                     onError={error}
                   />
                 </Suspense>
-                <Suspense
-                  fallback={
-                    <section className="timeline" aria-label="Video timeline">
-                      <span role="status">Loading timeline…</span>
-                    </section>
-                  }
-                >
+                <Suspense fallback={<TimelineSkeleton />}>
                   <Timeline
                     project={viewProject}
                     assets={browsed ? versionAssets : assets}

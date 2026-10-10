@@ -9,17 +9,20 @@ import {
   Search,
   Upload,
 } from 'lucide-react';
-import type { Project } from '../editor';
+import type { ProjectSummary } from './project-catalog-cache';
+import { ProjectListSkeleton } from './LoadingState';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { formatTime, projectDuration } from './helpers';
+import { formatTime } from './helpers';
 
 interface Props {
-  projects: Project[];
+  projects: ProjectSummary[];
   currentProjectId?: string;
   busy: boolean;
   loaded: boolean;
-  onOpen: (project: Project) => void;
+  refreshing: boolean;
+  failed: boolean;
+  onOpen: (id: string) => void;
   onBack: () => void;
   onRefresh: () => void;
   onNew: () => void;
@@ -31,6 +34,8 @@ export default function ProjectBrowser({
   currentProjectId,
   busy,
   loaded,
+  refreshing,
+  failed,
   onOpen,
   onBack,
   onRefresh,
@@ -50,7 +55,11 @@ export default function ProjectBrowser({
     )
     .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
   return (
-    <main className="project-browser" aria-label="Projects" aria-busy={busy}>
+    <main
+      className="project-browser"
+      aria-label="Projects"
+      aria-busy={busy || refreshing}
+    >
       <div className="project-browser-inner">
         <Button
           variant="ghost"
@@ -83,9 +92,9 @@ export default function ProjectBrowser({
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
-          {busy ? (
+          {busy || refreshing ? (
             <LoaderCircle
-              className="animate-spin size-5"
+              className="loading-spinner size-5"
               role="status"
               aria-label="Loading projects"
             />
@@ -100,7 +109,8 @@ export default function ProjectBrowser({
             </Button>
           )}
         </div>
-        {!loaded && !busy && (
+        {!loaded && !failed && <ProjectListSkeleton />}
+        {!loaded && failed && !refreshing && !busy && (
           <Button variant="outline" onClick={onRefresh}>
             Try again
           </Button>
@@ -109,17 +119,14 @@ export default function ProjectBrowser({
           (matches.length ? (
             <ul className="project-browser-list" aria-label="Saved projects">
               {matches.map((project) => {
-                const count = project.tracks.reduce(
-                  (sum, track) => sum + track.clips.length,
-                  0,
-                );
+                const count = project.clipCount;
                 return (
                   <li key={project.id}>
                     <Button
                       variant="ghost"
                       className="project-browser-row"
                       disabled={busy}
-                      onClick={() => onOpen(project)}
+                      onClick={() => onOpen(project.id)}
                     >
                       <Film
                         aria-hidden="true"
@@ -131,7 +138,7 @@ export default function ProjectBrowser({
                         </span>
                         <span className="project-browser-meta">
                           {count} {count === 1 ? 'clip' : 'clips'} ·{' '}
-                          {formatTime(projectDuration(project))}
+                          {formatTime(project.durationUs)}
                         </span>
                       </span>
                       {project.id === currentProjectId && (

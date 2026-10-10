@@ -177,3 +177,8 @@ This is the project record of the user's durable product and workflow choices. U
 - Put Media on the left, the editor in the middle and AI Chat on the right. Preserve the editing-first stacked layout on narrow screens. This supersedes the earlier right-side media preference.
 - Dragging either sidebar below its collapse threshold collapses it to its edge rail. Preserve its expanded width and mounted content, remember deliberate collapse and keep reopening accessible.
 - Keep a clean scissors logo for LocalCut and use a four-point star for Klip that follows the appearance palette/theme. Remove the film-cell mascot identity from the workspace and app icons.
+
+## Loading and cached screens — 11 October 2026
+
+- Use polished loading indicators that match the workspace layout and appearance, with accessible status labels and reduced-motion support.
+- Render available cached results immediately and refresh them in the background. Retain visible content and usable navigation during refresh; use skeletons only when no content is available. Display caches never replace authoritative saved editing data.

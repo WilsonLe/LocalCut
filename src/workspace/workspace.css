@@ -1421,3 +1421,88 @@
     display: none;
   }
 }
+
+/* Loading uses the same geometry and palette as the content it replaces. */
+.loading-placeholder {
+  border-radius: var(--radius);
+  background: var(--muted);
+  animation: loading-breathe 1.8s ease-in-out infinite;
+}
+.loading-title {
+  width: min(44%, 240px);
+  height: 14px;
+}
+.loading-detail {
+  width: min(30%, 160px);
+  height: 10px;
+}
+.project-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 80px;
+  padding: 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.project-list-skeleton {
+  border-top: 1px solid var(--border);
+}
+.project-skeleton-icon {
+  width: 32px;
+  height: 32px;
+}
+.project-skeleton-details {
+  flex: 1;
+  display: grid;
+  gap: 10px;
+}
+.workspace-skeleton {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 360px;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+.workspace-skeleton-preview {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 20px;
+  padding: 32px;
+}
+.loading-frame {
+  width: min(100%, 640px);
+  aspect-ratio: 16 / 9;
+  max-height: 50vh;
+}
+.workspace-skeleton-timeline {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  border-top: 1px solid var(--border);
+}
+.loading-track {
+  height: 40px;
+  width: 72%;
+}
+.loading-track-short {
+  width: 48%;
+}
+.loading-spinner {
+  animation: spin 1s linear infinite;
+}
+@keyframes loading-breathe {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-placeholder,
+  .loading-spinner {
+    animation: none;
+  }
+}
