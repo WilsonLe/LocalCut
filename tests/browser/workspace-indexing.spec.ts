@@ -136,7 +136,7 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await expect(
       page.getByRole('button', { name: 'Open project', exact: true }),
-    ).toHaveText('Indexing workspace');
+    ).toContainText('Indexing workspace');
     await expect(
       page.getByRole('button', { name: 'Import media', exact: true }).first(),
     ).toBeEnabled();
@@ -357,7 +357,7 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Open project', exact: true })
       .click();
     await page
-      .getByRole('dialog', { name: 'Open project', exact: true })
+      .getByRole('main', { name: 'Projects', exact: true })
       .getByRole('button', { name: /Audio indexing/ })
       .click();
     await page

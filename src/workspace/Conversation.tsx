@@ -30,7 +30,6 @@ const AIInfoPopover = lazy(() => import('./AIInfoPopover'));
 const ChatSessionPicker = lazy(() => import('./ChatSessionPicker'));
 const ConversationSession = lazy(() => import('./ConversationSession'));
 const SpeechDialog = lazy(() => import('./SpeechDialog'));
-import { errorText } from './conversation-errors';
 import {
   getWorkspacePreferences,
   saveWorkspacePreferences,
@@ -148,9 +147,17 @@ export function Conversation(props: ConversationProps) {
   const report = useCallback(
     (error: unknown) => {
       if (!mounted.current) return;
-      const text = errorText(error);
-      setConnectionError(text);
-      onError(error);
+      const token = attempt.current;
+      const publish = (text: string) => {
+        if (!mounted.current || token !== attempt.current) return;
+        setConnectionError(text);
+        onError(error);
+      };
+      void import('./conversation-errors').then(
+        ({ errorText }) => publish(errorText(error)),
+        () =>
+          publish('The AI request could not be completed. You can try again.'),
+      );
     },
     [onError],
   );
