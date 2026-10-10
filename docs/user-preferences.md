@@ -71,6 +71,7 @@ This is the project record of the user's durable product and workflow choices. U
 - Provide a favicon and PWA install manifest/icons that work at both hosting bases.
 - Export/import the workspace with all user settings/preferences and saved projects. Allow the user to select the preference groups, projects, versions and individual source files in either direction; originals are optional ZIP content.
 - Provide project-level export/import through the same flow, including asset checkboxes. Preserve existing projects by importing new copies and keep credentials/AI consent outside portable backups.
+
 ## Text library — 10 October 2026
 
 - Offer searchable font names and style labels, including cute, minimal, script, serif, mono and display looks.

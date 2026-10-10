@@ -267,7 +267,7 @@ export function TextStyleFields({
       <div className="grid grid-cols-2 gap-3">
         {(
           [
-            ['fontSize', 'Font size', 64, 1, 1000],
+            ['fontSize', 'Font size', 64, 0, undefined],
             ['letterSpacing', 'Letter spacing', 0, -10, 100],
             ['curve', 'Curve (degrees)', 0, -180, 180],
             ['outlineWidth', 'Outline width', 0, 0, 20],
@@ -284,7 +284,14 @@ export function TextStyleFields({
               required
               readOnly={readOnly}
               value={style[key] ?? fallback}
-              onChange={(event) => patch({ [key]: Number(event.target.value) })}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                if (key === 'fontSize')
+                  event.target.setCustomValidity(
+                    value > 0 ? '' : 'Font size must be greater than zero.',
+                  );
+                patch({ [key]: value });
+              }}
             />
           </div>
         ))}

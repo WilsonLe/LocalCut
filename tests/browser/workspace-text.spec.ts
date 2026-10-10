@@ -2,20 +2,26 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { Project } from '../../src/core/model';
 
-async function snapshot(page: Page, base: string): Promise<Project> {
-  return page.evaluate(async (base) => {
-    const { createEditor } = await import(base + 'editor.js');
-    const editor = await createEditor();
-    try {
-      return await editor.projects.snapshot(
-        (await editor.projects.list()).find(
-          (p: Project) => p.name === 'Text library',
-        )!.id,
-      );
-    } finally {
-      await editor.dispose();
-    }
-  }, base);
+async function snapshot(
+  page: Page,
+  base: string,
+  name = 'Text library',
+): Promise<Project> {
+  return page.evaluate(
+    async ({ base, name }) => {
+      const { createEditor } = await import(base + 'editor.js');
+      const editor = await createEditor();
+      try {
+        return await editor.projects.snapshot(
+          (await editor.projects.list()).find((p: Project) => p.name === name)!
+            .id,
+        );
+      } finally {
+        await editor.dispose();
+      }
+    },
+    { base, name },
+  );
 }
 for (const base of ['/', '/LocalCut/']) {
   test(`searchable fonts and text templates insert, edit, undo and reload ${base}`, async ({
@@ -152,5 +158,83 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       properties.getByRole('button', { name: 'Apply properties' }),
     ).toBeInViewport();
+  });
+  test(`existing text font sizes remain editable ${base}`, async ({ page }) => {
+    await page.goto(base);
+    await page.evaluate(async (base) => {
+      const { createEditor } = await import(base + 'editor.js');
+      const editor = await createEditor();
+      try {
+        const project = await editor.projects.create('Existing font sizes');
+        await editor.commands.apply({
+          projectId: project.id,
+          expectedRevision: 0,
+          requestId: 'legacy-sizes',
+          operations: [
+            { type: 'addTrack', track: { id: 'overlay', kind: 'overlay' } },
+            ...[1001, 0.5].map((fontSize, index) => ({
+              type: 'insertClip',
+              trackId: 'overlay',
+              clip: {
+                id: 'text-' + index,
+                kind: 'text',
+                startUs: index * 1000000,
+                durationUs: 1000000,
+                text: { text: 'Existing ' + fontSize, fontSize },
+              },
+            })),
+          ],
+        });
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    await page
+      .getByRole('button', { name: 'Open project', exact: true })
+      .click();
+    await page.getByRole('button', { name: /^Existing font sizes/ }).click();
+    for (const fontSize of [1001, 0.5]) {
+      await page
+        .getByRole('button', { name: 'Existing ' + fontSize, exact: true })
+        .click();
+      await page
+        .getByRole('button', { name: 'Clip properties', exact: true })
+        .click();
+      const form = page.getByRole('dialog', {
+        name: 'Clip properties',
+        exact: true,
+      });
+      const input = form.getByLabel('Font size', { exact: true });
+      await expect(input).toHaveValue(String(fontSize));
+      await form.getByLabel('Text', { exact: true }).fill('Edited ' + fontSize);
+      await form
+        .getByRole('button', { name: 'Apply properties', exact: true })
+        .click();
+      await expect(form).not.toBeVisible();
+      const saved = await snapshot(page, base, 'Existing font sizes');
+      expect(
+        saved.tracks[0]!.clips.find((clip) => clip.text?.fontSize === fontSize)!
+          .text,
+      ).toMatchObject({ text: 'Edited ' + fontSize, fontSize });
+    }
+    await page.getByRole('button', { name: 'Edited 0.5', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Clip properties', exact: true })
+      .click();
+    const input = page.getByLabel('Font size', { exact: true });
+    await input.fill('0');
+    expect(
+      await input.evaluate((node: HTMLInputElement) => node.checkValidity()),
+    ).toBe(false);
+    await page
+      .getByRole('button', { name: 'Apply properties', exact: true })
+      .click();
+    await expect(
+      page.getByRole('dialog', { name: 'Clip properties', exact: true }),
+    ).toBeVisible();
+    expect(
+      (await snapshot(page, base, 'Existing font sizes')).tracks[0]!.clips[1]!
+        .text!.fontSize,
+    ).toBe(0.5);
   });
 }
