@@ -59,9 +59,12 @@ async function prepare(page: Page, base: string, overlap = false) {
   await page.getByRole('main', { name: 'Video editor', exact: true }).focus();
   await page.keyboard.press('ControlOrMeta+o');
   await page
-    .getByRole('dialog', { name: 'Open project', exact: true })
+    .getByRole('main', { name: 'Projects', exact: true })
     .getByRole('button', { name: /Input combinations/ })
     .click();
+  await expect(
+    page.getByRole('main', { name: 'Projects', exact: true }),
+  ).not.toBeVisible();
   await expect(page.locator('.timeline-clip')).toHaveCount(2);
   await expect(page.locator('[role="dialog"]')).toHaveCount(0);
   return id;

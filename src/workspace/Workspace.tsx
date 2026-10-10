@@ -1052,11 +1052,13 @@ export function Workspace() {
   };
   useEditorShortcuts({
     enabled: !busy,
-    actions: projectsOpen ? {
-      openProject: showProjects,
-      commands: () => showCommands(),
-      shortcuts: () => setDialog('shortcuts'),
-    } : shortcutActions,
+    actions: projectsOpen
+      ? {
+          openProject: showProjects,
+          commands: () => showCommands(),
+          shortcuts: () => setDialog('shortcuts'),
+        }
+      : shortcutActions,
   });
   const showCommands = () => {
     const token = ++commandRequest.current;
