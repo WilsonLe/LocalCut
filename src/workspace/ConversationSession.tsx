@@ -92,6 +92,7 @@ interface SessionProps extends ConversationProps {
   composerControl: ReactNode;
   onBusy: (busy: boolean) => void;
   onTitle: (title: string) => void;
+  onDraftChange: (hasDraft: boolean) => void;
 }
 export default function ConversationSession({
   editor,
@@ -108,6 +109,7 @@ export default function ConversationSession({
   composerControl,
   onBusy,
   onTitle,
+  onDraftChange,
   readOnly,
 }: SessionProps) {
   const [prompt, setPrompt] = useState('');
@@ -205,6 +207,7 @@ export default function ConversationSession({
       activeTurn = assistant.current.run(context + text);
       turn.current = activeTurn;
       setPrompt('');
+      onDraftChange(false);
       nearBottom.current = true;
       setFollowing(true);
       setMessages((current) => [
@@ -630,7 +633,10 @@ export default function ConversationSession({
             disabled={readOnly}
             aria-label="Describe your edit"
             value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
+            onChange={(event) => {
+              setPrompt(event.target.value);
+              onDraftChange(event.target.value.length > 0);
+            }}
             placeholder={
               messages.length ? 'Follow up…' : 'What would you like to change?'
             }

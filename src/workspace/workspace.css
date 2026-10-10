@@ -162,7 +162,7 @@
 .chat-composer {
   overflow: hidden;
   border: 1px solid var(--input);
-  border-radius: calc(var(--radius) * 2.4);
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--muted) 40%, transparent);
   box-shadow: 0 1px 2px #0001;
 }

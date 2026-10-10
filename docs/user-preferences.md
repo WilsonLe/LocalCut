@@ -37,6 +37,11 @@ This is the project record of the user's durable product and workflow choices. U
 - Reveal optional OpenRouter sharing through a Data & analytics popover, with all choices off initially. Keep credentials in memory and source media local.
 - Put the model/provider information behind a small icon in the composer footer, revealing configuration progressively. Use the CYOBot instructor chat's searchable session switcher, transcript, and rounded composer structure.
 
+## Chat controls — 10 October 2026
+
+- Match the new-chat plus button height to its search field. Reuse an unused chat on repeated clicks while preserving conversations and drafts.
+- Keep the composer squarer, using the same design-system corner token as other controls and respecting appearance customization.
+
 ## Appearance customization — 10 October 2026
 
 - Provide an appearance section inspired by shadcn Create. The actual workspace is the live preview, and appearance preferences survive reload locally in the browser.
