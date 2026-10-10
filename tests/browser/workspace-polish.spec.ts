@@ -1,3 +1,4 @@
+import { openAISettings } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 
 test('chat resize controls match responsive layout and report actual desktop width', async ({
@@ -26,7 +27,7 @@ test('chat resize controls match responsive layout and report actual desktop wid
     .toBe(320);
   const before = parseInt((await handle.getAttribute('aria-valuetext'))!);
   await handle.focus();
-  await handle.press('ArrowRight');
+  await handle.press('ArrowLeft');
   await expect
     .poll(async () => Math.round((await panel.boundingBox())!.width))
     .toBe(before + 16);
@@ -51,7 +52,7 @@ test('chat resize controls match responsive layout and report actual desktop wid
 });
 
 for (const base of ['/', '/LocalCut/']) {
-  test(`workspace keeps metadata quiet, project forms spacious and media on the right ${base}`, async ({
+  test(`workspace keeps metadata quiet, project forms spacious and media on the left ${base}`, async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -68,7 +69,7 @@ for (const base of ['/', '/LocalCut/']) {
       await expect(page.getByText(copy, { exact: true })).toHaveCount(0);
     }
     await expect(
-      page.getByRole('button', { name: 'Connect AI', exact: true }),
+      page.getByRole('button', { name: 'Workspace settings', exact: true }),
     ).toHaveCount(1);
     await expect(
       page
@@ -122,9 +123,8 @@ for (const base of ['/', '/LocalCut/']) {
     await expect
       .poll(
         async () =>
-          (await media.boundingBox())!.x -
-          ((await editor.boundingBox())!.x +
-            (await editor.boundingBox())!.width),
+          (await editor.boundingBox())!.x -
+          ((await media.boundingBox())!.x + (await media.boundingBox())!.width),
       )
       .toBeCloseTo(1, 0);
     await page.getByRole('button', { name: 'Collapse media' }).click();
@@ -219,7 +219,7 @@ test('CYOBot chat structure keeps local sessions, markdown, drafts and keyboard 
     .click();
   await page.getByLabel('Project name').fill('Chat structure');
   await page.getByRole('button', { name: 'Create project' }).click();
-  await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+  await openAISettings(page);
   const settings = page.getByRole('dialog', {
     name: 'AI connection',
     exact: true,
@@ -288,15 +288,15 @@ test('CYOBot chat structure keeps local sessions, markdown, drafts and keyboard 
   await page.keyboard.press('Enter');
   await expect(composer).toHaveValue('Draft to retain');
   await expect(log).toContainText('First chat');
-  await page.getByRole('button', { name: 'AI settings', exact: true }).click();
+  await openAISettings(page);
   await expect(
-    page.getByRole('dialog', { name: 'OpenRouter', exact: true }),
+    page.getByRole('dialog', { name: 'AI connection', exact: true }),
   ).toHaveCount(1);
   await page.keyboard.press('Escape');
   const resize = page.getByRole('separator', { name: 'Resize workspace chat' });
   await resize.focus();
   const before = parseInt((await resize.getAttribute('aria-valuetext'))!);
-  await resize.press('ArrowRight');
+  await resize.press('ArrowLeft');
   await expect
     .poll(async () => parseInt((await resize.getAttribute('aria-valuetext'))!))
     .toBe(before + 16);

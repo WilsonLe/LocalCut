@@ -12,7 +12,8 @@ import {
   History,
   LoaderCircle,
   Search,
-  PanelRightClose,
+  PanelLeftClose,
+  Scissors,
   ChevronDown,
   Files,
   Settings2,
@@ -40,7 +41,6 @@ const Conversation = lazy(() =>
 import type { ConversationControls } from './Conversation';
 import type { WorkspaceCommand } from './commands';
 import type { IndexConnection } from './Conversation';
-import { KlipMark } from './KlipMark';
 const WorkspacePanels = lazy(() =>
   import('./WorkspacePanels').then(({ WorkspacePanels }) => ({
     default: WorkspacePanels,
@@ -1302,7 +1302,7 @@ export function Workspace() {
           aria-controls="workspace-media-content"
           onClick={toggleMedia}
         >
-          {drawer ? <PanelRightClose /> : <Files />}
+          {drawer ? <PanelLeftClose /> : <Files />}
         </Button>
       </Tooltip>
       <div
@@ -1347,7 +1347,7 @@ export function Workspace() {
       <header ref={header} className="workspace-header">
         {busy ? (
           <span className="brand">
-            <KlipMark className="size-6" />
+            <Scissors aria-hidden="true" />
             LocalCut
           </span>
         ) : (
@@ -1357,7 +1357,7 @@ export function Workspace() {
             aria-label="LocalCut home"
             onClick={showProjects}
           >
-            <KlipMark className="size-6" />
+            <Scissors aria-hidden="true" />
             LocalCut
           </button>
         )}
@@ -1440,6 +1440,9 @@ export function Workspace() {
                 onAppearance={() => setAppearanceOpen(true)}
                 onShortcuts={() => setDialog('shortcuts')}
                 onCommands={showCommands}
+                onAISettings={() =>
+                  conversationControls.current?.openSettings()
+                }
               />
             </Suspense>
           ) : (
@@ -1526,6 +1529,8 @@ export function Workspace() {
             inert={projectsOpen || navigation.blocked}
             chatCollapsed={chatCollapsed}
             mediaOpen={drawer}
+            onCollapseChat={toggleChat}
+            onCollapseMedia={toggleMedia}
             media={!narrow ? mediaPanel : null}
           >
             <Suspense

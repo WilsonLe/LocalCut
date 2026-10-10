@@ -151,6 +151,9 @@
   letter-spacing: -0.5px;
   font-size: 18px;
 }
+.klip-mark {
+  color: var(--primary);
+}
 .brand svg {
   width: 21px;
   height: 21px;
@@ -173,6 +176,7 @@
   height: 13px;
 }
 .header-actions {
+  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -353,8 +357,7 @@
 }
 .media-panel {
   position: relative;
-  border-left: 1px solid var(--border);
-  border-right: 0 !important;
+  border-right: 1px solid var(--border);
 }
 .media-toggle {
   position: absolute;
@@ -372,7 +375,7 @@
 }
 .media-panel[data-collapsed='true'] .media-content {
   opacity: 0;
-  transform: translateX(16px);
+  transform: translateX(-16px);
   pointer-events: none;
 }
 .media-library .section-heading {
@@ -404,7 +407,7 @@
 }
 .conversation-panel[data-collapsed='true'] .conversation-content {
   opacity: 0;
-  transform: translateX(-16px);
+  transform: translateX(16px);
   pointer-events: none;
 }
 .editing-area {
@@ -960,7 +963,7 @@
   }
   .workspace-columns .conversation-panel {
     order: 2;
-    border-right: 0;
+    border-left: 0;
     border-top: 1px solid var(--border);
     min-height: 0;
     height: clamp(

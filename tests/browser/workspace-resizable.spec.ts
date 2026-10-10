@@ -20,14 +20,14 @@ for (const base of ['/', '/LocalCut/']) {
         name: 'Resize workspace chat',
         selector: '.conversation-panel',
         axis: 'width',
-        delta: 72,
+        delta: -72,
         field: 'chatWidth',
       },
       {
         name: 'Resize media library',
         selector: '#workspace-media',
         axis: 'width',
-        delta: -60,
+        delta: 60,
         field: 'mediaWidth',
       },
       {
@@ -73,7 +73,7 @@ for (const base of ['/', '/LocalCut/']) {
       await expect
         .poll(async () => (await target.boundingBox())![axis])
         .toBeCloseTo(
-          before + (name === 'Resize workspace chat' ? delta : -delta),
+          before + (name === 'Resize media library' ? delta : -delta),
           0,
         );
       expect(
@@ -112,9 +112,9 @@ for (const base of ['/', '/LocalCut/']) {
         .toBe(after);
       await handle.press(
         name === 'Resize workspace chat'
-          ? 'ArrowRight'
+          ? 'ArrowLeft'
           : name === 'Resize media library'
-            ? 'ArrowLeft'
+            ? 'ArrowRight'
             : 'ArrowUp',
       );
       await expect
@@ -209,8 +209,8 @@ for (const input of ['mouse', 'touch'] as const) {
           );
           await page.goto(base);
           for (const [name, axis, direction, field] of [
-            ['Resize workspace chat', 'width', 1, 'chatWidth'],
-            ['Resize media library', 'width', -1, 'mediaWidth'],
+            ['Resize workspace chat', 'width', -1, 'chatWidth'],
+            ['Resize media library', 'width', 1, 'mediaWidth'],
             ['Resize timeline', 'height', -1, 'timelineHeight'],
           ] as const) {
             const handle = page.getByRole('separator', { name, exact: true });

@@ -1,3 +1,4 @@
+import { openAISettings } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 
 const cors = {
@@ -55,7 +56,7 @@ for (const base of ['/', '/LocalCut/']) {
       },
     );
     await page.goto(base);
-    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    await openAISettings(page);
     const dialog = page.getByRole('dialog', {
       name: 'AI connection',
       exact: true,
@@ -145,19 +146,15 @@ for (const base of ['/', '/LocalCut/']) {
       dialog.getByRole('button', { name: 'Data & analytics', exact: true }),
     ).toBeFocused();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-    const info = page.getByRole('button', { name: 'AI settings', exact: true });
-    await info.click();
-    const details = page.getByRole('dialog', {
-      name: 'OpenRouter',
-      exact: true,
-    });
-    await expect(details).toContainText('Editing model 119');
+    await openAISettings(page);
+    await expect(
+      dialog.getByRole('combobox', { name: 'AI model', exact: true }),
+    ).toContainText('Editing model 119');
     await page.keyboard.press('Escape');
-    await expect(info).toBeFocused();
-    await info.click();
-    await details
-      .getByRole('button', { name: 'Configure AI', exact: true })
-      .click();
+    await expect(
+      page.getByRole('button', { name: 'Workspace settings', exact: true }),
+    ).toBeFocused();
+    await openAISettings(page);
     await expect(dialog).toBeVisible();
     await dialog
       .getByRole('button', { name: 'Disconnect', exact: true })
@@ -207,7 +204,7 @@ for (const base of ['/', '/LocalCut/']) {
     );
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(base);
-    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    await openAISettings(page);
     const dialog = page.getByRole('dialog', {
       name: 'AI connection',
       exact: true,
@@ -252,7 +249,7 @@ for (const base of ['/', '/LocalCut/']) {
     await option.click();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await expect(
-      page.getByRole('button', { name: 'AI settings', exact: true }),
+      page.getByRole('button', { name: 'Workspace settings', exact: true }),
     ).toBeFocused();
   });
 }

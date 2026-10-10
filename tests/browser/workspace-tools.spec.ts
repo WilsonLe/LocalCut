@@ -1,3 +1,4 @@
+import { openAISettings } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 
 const cors = {
@@ -101,10 +102,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Create project', exact: true })
       .click();
-    await page
-      .getByRole('button', { name: 'Connect AI', exact: true })
-      .first()
-      .click();
+    await openAISettings(page);
     const connection = page.getByRole('dialog', {
       name: 'AI connection',
       exact: true,
@@ -286,10 +284,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Create project', exact: true })
       .click();
-    await page
-      .getByRole('button', { name: 'Connect AI', exact: true })
-      .first()
-      .click();
+    await openAISettings(page);
     const connection = page.getByRole('dialog', {
       name: 'AI connection',
       exact: true,

@@ -23,6 +23,7 @@ export interface WorkspaceMenuProps {
   onAppearance: () => void;
   onShortcuts: () => void;
   onCommands: () => void;
+  onAISettings: () => void;
   onProjectExport: () => void;
   onProjectImport: () => void;
   onWorkspaceExport: () => void;
@@ -92,6 +93,7 @@ export function WorkspaceMenu({
   onAppearance,
   onShortcuts,
   onCommands,
+  onAISettings,
   onProjectExport,
   onProjectImport,
   onWorkspaceExport,
@@ -231,6 +233,9 @@ export function WorkspaceMenu({
             </Menu.Item>
             <Menu.Item className={itemClass} onClick={onShortcuts}>
               Keyboard shortcuts
+            </Menu.Item>
+            <Menu.Item className={itemClass} onClick={onAISettings}>
+              AI settings
             </Menu.Item>
             <Menu.Item className={itemClass} onClick={onAppearance}>
               Appearance
