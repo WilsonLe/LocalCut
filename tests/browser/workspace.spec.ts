@@ -1,3 +1,4 @@
+import { openAISettings } from './workspace-settings-helper';
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -518,10 +519,7 @@ for (const base of ['/', '/LocalCut/']) {
     const initial = await snapshot(page, base, name);
     clipId = initial.tracks[0]!.clips[0]!.id;
 
-    await page
-      .getByRole('button', { name: 'Connect AI', exact: true })
-      .first()
-      .click();
+    await openAISettings(page);
     const settings = page.getByRole('dialog', {
       name: 'AI connection',
       exact: true,

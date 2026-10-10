@@ -1,3 +1,4 @@
+import { openAISettings } from './workspace-settings-helper';
 import { versionJourney } from './workspace-version-journey';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -118,9 +119,7 @@ for (const base of ['/', '/LocalCut/']) {
             },
           }),
         );
-        await page
-          .getByRole('button', { name: 'Connect AI', exact: true })
-          .click();
+        await openAISettings(page);
         const connection = page.getByRole('dialog', {
           name: 'AI connection',
           exact: true,

@@ -224,7 +224,7 @@ for (const base of ['/', '/LocalCut/']) {
           page.getByRole('button', { name: 'Collapse chat', exact: true }),
         ).toBeFocused();
         await expect(
-          page.getByRole('button', { name: 'Connect AI', exact: true }),
+          page.getByRole('button', { name: 'Workspace settings', exact: true }),
         ).toBeInViewport();
         await nav.getByRole('button', { name: 'Edit', exact: true }).click();
         await expect(

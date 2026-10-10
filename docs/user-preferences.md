@@ -162,3 +162,10 @@ This is the project record of the user's durable product and workflow choices. U
 ## Workspace resizing — 10 October 2026
 
 - Use the shadcn Base Resizable component for chat, media, the central editor and the preview/timeline split. Keep dragging immediate and smooth; save deliberate sizes after the gesture, preserving responsive layouts and mounted editing/chat sessions.
+
+## Workspace layout and identity — 11 October 2026
+
+- Put search/Commands and Settings at the far right of the header. Move the AI connection dialog trigger into Settings → AI settings and remove the composer information button and intermediate provider popover. This supersedes the earlier composer entry-point preference.
+- Put Media on the left, the editor in the middle and AI Chat on the right. Preserve the editing-first stacked layout on narrow screens. This supersedes the earlier right-side media preference.
+- Dragging either sidebar below its collapse threshold collapses it to its edge rail. Preserve its expanded width and mounted content, remember deliberate collapse and keep reopening accessible.
+- Keep a clean scissors logo for LocalCut and use a four-point star for Klip that follows the appearance palette/theme. Remove the film-cell mascot identity from the workspace and app icons.

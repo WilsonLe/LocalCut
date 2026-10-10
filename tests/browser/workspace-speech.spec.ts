@@ -1,3 +1,4 @@
+import { openAISettings } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 import type { Page, BrowserContext } from '@playwright/test';
 import type { Project } from '../../src/editor';
@@ -55,7 +56,7 @@ async function connect(page: Page, context: BrowserContext, base: string) {
     exact: true,
   });
   if (await closeToast.count()) await closeToast.first().click();
-  await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+  await openAISettings(page);
   const connection = page.getByRole('dialog', {
     name: 'AI connection',
     exact: true,

@@ -1,3 +1,4 @@
+import { openAISettings } from './workspace-settings-helper';
 import { test, expect } from '@playwright/test';
 
 for (const base of ['/', '/LocalCut/']) {
@@ -97,9 +98,7 @@ for (const base of ['/', '/LocalCut/']) {
           .click();
         await page.getByLabel('Project name').fill('Chat controls');
         await page.getByRole('button', { name: 'Create project' }).click();
-        await page
-          .getByRole('button', { name: 'Connect AI', exact: true })
-          .click();
+        await openAISettings(page);
         const settings = page.getByRole('dialog', {
           name: 'AI connection',
           exact: true,

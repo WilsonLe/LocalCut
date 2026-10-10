@@ -1,3 +1,4 @@
+import { openAISettings } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { Project } from '../../src/editor';
@@ -82,10 +83,7 @@ test('long assistant replies scroll inside the conversation and keep the compose
   );
   await page.goto('/LocalCut/');
   await createProject(page, 'Long conversation');
-  await page
-    .getByRole('button', { name: 'Connect AI', exact: true })
-    .first()
-    .click();
+  await openAISettings(page);
   const settings = page.getByRole('dialog', {
     name: 'AI connection',
     exact: true,

@@ -13,9 +13,8 @@ import type { WorkspaceCommand } from './commands';
 import {
   ArrowUp,
   ChevronDown,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Info,
+  PanelRightClose,
+  PanelRightOpen,
   AudioLines,
 } from 'lucide-react';
 import type { Editor, Project } from '../editor';
@@ -33,7 +32,6 @@ import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
 import type { ChatSession } from './ChatSessionPicker';
 const AIConnectionDialog = lazy(() => import('./AIConnectionDialog'));
-const AIInfoPopover = lazy(() => import('./AIInfoPopover'));
 const ChatSessionPicker = lazy(() => import('./ChatSessionPicker'));
 const ConversationSession = lazy(() => import('./ConversationSession'));
 const SpeechDialog = lazy(() => import('./SpeechDialog'));
@@ -54,6 +52,7 @@ export interface Connection {
 }
 export interface ConversationControls {
   commands: () => WorkspaceCommand[];
+  openSettings: () => void;
 }
 export interface IndexConnection extends Connection {
   model: string;
@@ -114,8 +113,6 @@ export function Conversation(props: ConversationProps) {
   const [sessionBusy, setSessionBusy] = useState(false);
   const [pickerLoaded, setPickerLoaded] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [infoLoaded, setInfoLoaded] = useState(false);
-  const [infoOpen, setInfoOpen] = useState(false);
   const nextSession = useRef(0);
   const providerRef = useRef<OpenRouter | null>(null);
   const moduleRef = useRef<AiModule | null>(null);
@@ -703,6 +700,7 @@ export function Conversation(props: ConversationProps) {
     setPickerOpen(true);
   };
   useImperativeHandle(props.controlsRef, () => ({
+    openSettings: () => setSettingsOpen(true),
     commands: () => [
       ...(speechReady
         ? [
@@ -762,47 +760,6 @@ export function Conversation(props: ConversationProps) {
         : []),
     ],
   }));
-  const infoTrigger = (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      aria-label={connection ? 'AI settings' : 'Connect AI'}
-      title={connection ? 'AI provider settings' : 'Connect AI providers'}
-      onClick={() => {
-        if (connection) {
-          setInfoLoaded(true);
-          setInfoOpen(true);
-        } else setSettingsOpen(true);
-      }}
-    >
-      <Info aria-hidden="true" />
-    </Button>
-  );
-  const connectionControl = (
-    <div className="composer-ai-control">
-      {connection && infoLoaded ? (
-        <Suspense fallback={infoTrigger}>
-          <AIInfoPopover
-            open={infoOpen}
-            onOpenChange={setInfoOpen}
-            modelName={selectedModel?.name}
-            providerName={
-              providerConfiguration.profiles.find(
-                (p) =>
-                  p.id ===
-                  (connection?.provider.selectedProvider('llm') ??
-                    providerConfiguration.routes.llm[0]?.providerId),
-              )?.name
-            }
-            configure={() => setSettingsOpen(true)}
-          />
-        </Suspense>
-      ) : (
-        infoTrigger
-      )}
-    </div>
-  );
   const sessionTrigger = (
     <Button
       variant="ghost"
@@ -822,7 +779,7 @@ export function Conversation(props: ConversationProps) {
   return (
     <aside
       aria-label="Editing conversation"
-      className="conversation-panel flex min-h-96 min-w-0 flex-col border-b bg-background lg:h-full lg:border-r lg:border-b-0"
+      className="conversation-panel flex min-h-96 min-w-0 flex-col border-b bg-background lg:h-full lg:border-l lg:border-b-0"
       data-collapsed={props.collapsed}
       onKeyDown={(event) => {
         if (
@@ -848,7 +805,7 @@ export function Conversation(props: ConversationProps) {
         onClick={props.onToggle}
         title={props.collapsed ? 'Expand chat' : 'Collapse chat'}
       >
-        {props.collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+        {props.collapsed ? <PanelRightOpen /> : <PanelRightClose />}
       </Button>
       <div
         id="workspace-chat"
@@ -902,11 +859,10 @@ export function Conversation(props: ConversationProps) {
                   model={model}
                   privacy={{ ...privacy, includeAssetIndexes: indexingAllowed }}
                   registerSession={registerSession}
+                  composerControl={null}
                   retireSession={retireSession}
                   waitForRetired={waitForRetired}
-                  composerControl={
-                    session.id === conversationNumber ? connectionControl : null
-                  }
+
                   onBusy={setSessionBusy}
                   onDraftChange={(hasDraft) =>
                     setChatSessions((sessions) =>
@@ -941,7 +897,6 @@ export function Conversation(props: ConversationProps) {
                 rows={1}
               />
               <div className="composer-actions">
-                {connectionControl}
                 <Button size="icon-sm" aria-label="Send edit request" disabled>
                   <ArrowUp />
                 </Button>

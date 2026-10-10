@@ -1,3 +1,4 @@
+import { openAISettings } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 import type { BrowserContext, Page } from '@playwright/test';
 const cors = {
@@ -40,7 +41,7 @@ async function catalog(context: BrowserContext, audio = false) {
   );
 }
 async function connect(page: Page) {
-  await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+  await openAISettings(page);
   const dialog = page.getByRole('dialog', {
     name: 'AI connection',
     exact: true,
@@ -61,8 +62,7 @@ async function connect(page: Page) {
   return dialog;
 }
 async function settings(page: Page) {
-  await page.getByRole('button', { name: 'AI settings', exact: true }).click();
-  await page.getByRole('button', { name: 'Configure AI', exact: true }).click();
+  await openAISettings(page);
   return page.getByRole('dialog', { name: 'AI connection', exact: true });
 }
 async function image(page: Page) {

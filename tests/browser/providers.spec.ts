@@ -1,3 +1,4 @@
+import { openAISettings } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 const cors = {
   'access-control-allow-origin': '*',
@@ -13,7 +14,7 @@ for (const base of ['/', '/LocalCut/']) {
       if (r.url().startsWith('https:')) remote.push(r.url());
     });
     await page.goto(base);
-    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    await openAISettings(page);
     const dialog = page.getByRole('dialog', {
       name: 'AI connection',
       exact: true,
@@ -66,7 +67,7 @@ for (const base of ['/', '/LocalCut/']) {
     expect(remote).toEqual([]);
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await page.reload();
-    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    await openAISettings(page);
     await dialog.getByText('Providers & services', { exact: true }).click();
     await expect(dialog).toContainText('Local server → OpenRouter');
     await expect(dialog).toContainText('Local server → Local Whisper');
@@ -166,9 +167,7 @@ for (const base of ['/', '/LocalCut/']) {
         ),
       );
       await page.reload();
-      await page
-        .getByRole('button', { name: 'Connect AI', exact: true })
-        .click();
+      await openAISettings(page);
       const dialog = page.getByRole('dialog', {
         name: 'AI connection',
         exact: true,
@@ -460,7 +459,7 @@ for (const base of ['/', '/LocalCut/']) {
       });
     });
     await page.goto(base);
-    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    await openAISettings(page);
     const dialog = page.getByRole('dialog', {
       name: 'AI connection',
       exact: true,
@@ -533,7 +532,7 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await popup.close();
     await page.reload();
-    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    await openAISettings(page);
     await dialog.getByText('Providers & services', { exact: true }).click();
     await dialog.getByRole('button', { name: 'Connect', exact: true }).click();
     await dialog

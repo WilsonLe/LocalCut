@@ -1,3 +1,4 @@
+import { openAISettings } from './workspace-settings-helper';
 import { secondaryTab } from './workspace-tab';
 import { settingsJourney } from './workspace-settings-journey';
 import { expect, test, type Page } from '@playwright/test';
@@ -22,10 +23,7 @@ async function closeMenu(page: Page) {
   await page.keyboard.press('Escape');
 }
 async function connect(page: Page) {
-  await page
-    .getByRole('button', { name: 'Connect AI', exact: true })
-    .first()
-    .click();
+  await openAISettings(page);
   const dialog = page.getByRole('dialog', { name: 'AI connection' });
   await dialog
     .getByLabel('OpenRouter API key', { exact: true })
@@ -51,7 +49,7 @@ for (const base of ['/', '/LocalCut/']) {
         await page.emulateMedia({ reducedMotion: 'reduce' });
         await page.setViewportSize({ width: 1440, height: 900 });
         await page.goto(base);
-        await resize(page).press('ArrowRight');
+        await resize(page).press('ArrowLeft');
         await expect(resize(page)).toHaveAttribute(
           'aria-valuetext',
           '336 pixels',
@@ -59,7 +57,7 @@ for (const base of ['/', '/LocalCut/']) {
         const box = (await resize(page).boundingBox())!;
         await page.mouse.move(box.x + box.width / 2, box.y + 100);
         await page.mouse.down();
-        await page.mouse.move(box.x + box.width / 2 + 80, box.y + 100, {
+        await page.mouse.move(box.x + box.width / 2 - 80, box.y + 100, {
           steps: 4,
         });
         await page.mouse.up();
@@ -161,7 +159,9 @@ for (const base of ['/', '/LocalCut/']) {
         // Restoring preferences alone must not reopen the last editor or connect AI.
         expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
         await expect(
-          page.getByRole('button', { name: 'Connect AI', exact: true }).first(),
+          page
+            .getByRole('button', { name: 'Workspace settings', exact: true })
+            .first(),
         ).toBeVisible();
       });
       // Restore the settings story's explicit default-format precondition through the UI.
@@ -187,7 +187,7 @@ for (const base of ['/', '/LocalCut/']) {
         const second = await secondaryTab(context, page);
         await second.emulateMedia({ reducedMotion: 'reduce' });
         await second.goto(base === '/' ? '/LocalCut/' : '/');
-        await resize(page).press('ArrowRight');
+        await resize(page).press('ArrowLeft');
         await expect(resize(second)).toHaveAttribute(
           'aria-valuetext',
           '336 pixels',
@@ -242,7 +242,7 @@ for (const base of ['/', '/LocalCut/']) {
           record.preferences.exportFormat = 'webm';
           localStorage.setItem(key, JSON.stringify(record));
         }, key);
-        await resize(page).press('ArrowRight');
+        await resize(page).press('ArrowLeft');
         expect(await preferences(page)).toMatchObject({
           chatWidth: 336,
           exportFormat: 'webm',
@@ -440,7 +440,7 @@ for (const base of ['/', '/LocalCut/']) {
       };
     }, key);
     await page.goto(base);
-    await resize(page).press('ArrowRight');
+    await resize(page).press('ArrowLeft');
     await expect(resize(page)).toHaveAttribute('aria-valuetext', '336 pixels');
     await expect(
       page.getByText(
@@ -487,7 +487,7 @@ for (const base of ['/', '/LocalCut/']) {
         'Workspace preferences could not be saved. Allow browser storage to keep them after reload.',
       ),
     ).toBeVisible();
-    await resize(page).press('ArrowRight');
+    await resize(page).press('ArrowLeft');
     await page.getByRole('button', { name: 'Collapse chat' }).click();
     await expect(
       page.getByRole('button', { name: 'Expand chat' }),
@@ -561,12 +561,7 @@ for (const base of ['/', '/LocalCut/']) {
     expect(JSON.stringify(storage)).not.toContain('synthetic-preference-key');
     expect(JSON.stringify(storage)).not.toContain('includeText');
     await page.reload();
-    await page
-      .getByRole('button', { name: 'AI settings', exact: true })
-      .click();
-    await page
-      .getByRole('button', { name: 'Configure AI', exact: true })
-      .click();
+    await openAISettings(page);
     await expect.poll(() => requests).toBe(2);
     dialog = page.getByRole('dialog', { name: 'AI connection', exact: true });
     await expect(

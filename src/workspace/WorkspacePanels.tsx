@@ -101,6 +101,8 @@ export function WorkspacePanels({
   chatCollapsed,
   mediaOpen,
   inert,
+  onCollapseChat,
+  onCollapseMedia,
 }: {
   children: ReactNode;
   media: ReactNode;
@@ -108,6 +110,8 @@ export function WorkspacePanels({
   chatCollapsed: boolean;
   mediaOpen: boolean;
   inert: boolean;
+  onCollapseChat: () => void;
+  onCollapseMedia: () => void;
 }) {
   const { preferences } = useWorkspacePreferences();
   const chat = useRef<PanelImperativeHandle>(null);
@@ -209,40 +213,65 @@ export function WorkspacePanels({
         resizing.current = null;
         const fraction = layout[`${target}-panel`];
         if (fraction === undefined) return;
-        if (target === 'chat' && !chatCollapsed)
-          saveWorkspacePreferences({
-            chatWidth: Math.round(
-              (fraction / 100) *
-                ((group.current?.clientWidth ?? width) -
-                  Number(!chatCollapsed) -
-                  Number(mediaOpen)),
-            ),
-          });
-        if (target === 'media' && mediaOpen)
-          saveWorkspacePreferences({
-            mediaWidth: Math.round(
-              (fraction / 100) *
-                ((group.current?.clientWidth ?? width) -
-                  Number(!chatCollapsed) -
-                  Number(mediaOpen)),
-            ),
-          });
+        const size = Math.round(
+          (fraction / 100) *
+            ((group.current?.clientWidth ?? width) -
+              Number(!chatCollapsed) -
+              Number(mediaOpen)),
+        );
+        if (size <= 53) {
+          if (target === 'chat' && !chatCollapsed) {
+            onCollapseChat();
+            document
+              .querySelector<HTMLButtonElement>('.conversation-toggle')
+              ?.focus();
+          }
+          if (target === 'media' && mediaOpen) {
+            onCollapseMedia();
+            document.querySelector<HTMLButtonElement>('.media-toggle')?.focus();
+          }
+        } else if (target === 'chat' && !chatCollapsed) {
+          saveWorkspacePreferences({ chatWidth: size });
+        } else if (target === 'media' && mediaOpen) {
+          saveWorkspacePreferences({ mediaWidth: size });
+        }
       }}
     >
       <ResizablePanel
-        id="chat-panel"
-        panelRef={chat}
-        defaultSize={chatCollapsed ? 52 : preferences.chatWidth}
-        minSize={chatCollapsed ? 52 : minimum}
-        maxSize={chatCollapsed ? 52 : chatMaximum}
+        id="media-panel"
+        panelRef={library}
+        defaultSize={mediaSize}
+        collapsible
+        collapsedSize={52}
+        minSize={mediaMinimum}
+        maxSize={mediaMaximum}
         groupResizeBehavior="preserve-pixel-size"
-        className="chat-panel-slot"
-        disabled={chatCollapsed}
+        disabled={!mediaOpen}
+        className="media-panel-slot"
       >
-        {conversation[0]}
+        {media}
+      </ResizablePanel>
+      <Divider
+        resizeTarget="media"
+        preferred={preferences.mediaWidth}
+        label="Resize media library"
+        panel={library}
+        target="media-panel"
+        min={mediaMinimum}
+        max={mediaMaximum}
+        hidden={narrow || !mediaOpen}
+        save={(mediaWidth) => saveWorkspacePreferences({ mediaWidth })}
+      />
+      <ResizablePanel
+        id="editor-panel"
+        minSize={minimum}
+        className="editor-panel-slot"
+      >
+        {conversation[1]}
       </ResizablePanel>
       <Divider
         resizeTarget="chat"
+        reverse
         preferred={preferences.chatWidth}
         label="Resize workspace chat"
         panel={chat}
@@ -253,35 +282,18 @@ export function WorkspacePanels({
         save={(chatWidth) => saveWorkspacePreferences({ chatWidth })}
       />
       <ResizablePanel
-        id="editor-panel"
+        id="chat-panel"
+        panelRef={chat}
+        defaultSize={chatCollapsed ? 52 : preferences.chatWidth}
+        collapsible
+        collapsedSize={52}
         minSize={minimum}
-        className="editor-panel-slot"
-      >
-        {conversation[1]}
-      </ResizablePanel>
-      <Divider
-        resizeTarget="media"
-        preferred={preferences.mediaWidth}
-        label="Resize media library"
-        panel={library}
-        target="media-panel"
-        min={mediaMinimum}
-        max={mediaMaximum}
-        reverse
-        hidden={narrow || !mediaOpen}
-        save={(mediaWidth) => saveWorkspacePreferences({ mediaWidth })}
-      />
-      <ResizablePanel
-        id="media-panel"
-        panelRef={library}
-        defaultSize={mediaSize}
-        minSize={mediaOpen ? mediaMinimum : 52}
-        maxSize={mediaOpen ? mediaMaximum : 52}
+        maxSize={chatMaximum}
         groupResizeBehavior="preserve-pixel-size"
-        disabled={!mediaOpen}
-        className="media-panel-slot"
+        className="chat-panel-slot"
+        disabled={chatCollapsed}
       >
-        {media}
+        {conversation[0]}
       </ResizablePanel>
     </ResizablePanelGroup>
   );
