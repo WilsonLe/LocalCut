@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { CSSProperties } from 'react';
 import {
   ArrowUpRight,
   History,
@@ -42,6 +41,16 @@ import type { ConversationControls } from './Conversation';
 import type { WorkspaceCommand } from './commands';
 import type { IndexConnection } from './Conversation';
 import { KlipMark } from './KlipMark';
+const WorkspacePanels = lazy(() =>
+  import('./WorkspacePanels').then(({ WorkspacePanels }) => ({
+    default: WorkspacePanels,
+  })),
+);
+const EditorPanels = lazy(() =>
+  import('./WorkspacePanels').then(({ EditorPanels }) => ({
+    default: EditorPanels,
+  })),
+);
 import type { PreviewControls } from './Preview';
 import { Tooltip } from '../components/ui/tooltip';
 import {
@@ -91,7 +100,7 @@ export function Workspace() {
   const scale = interfaceScale();
   const narrowQuery = `(max-width: ${750 * scale}px), (max-width: ${1000 * scale}px) and (max-height: ${500 * scale}px)`;
   const { preferences, saved: preferencesSaved } = useWorkspacePreferences();
-  const { chatCollapsed, chatWidth, exportFormat: format } = preferences;
+  const { chatCollapsed, exportFormat: format } = preferences;
   // Imports can reveal media for this session without changing the user's layout.
   const [mediaOverride, setMediaOverride] = useState<boolean | null>(null);
   const [mediaPreference, setMediaPreference] = useState(preferences.mediaOpen);
@@ -167,8 +176,6 @@ export function Workspace() {
     saveWorkspacePreferences({ chatCollapsed: !chatCollapsed });
   const setFormat = (exportFormat: 'mp4' | 'webm') =>
     saveWorkspacePreferences({ exportFormat });
-  const setChatWidth = (chatWidth: number) =>
-    saveWorkspacePreferences({ chatWidth });
   useEffect(() => {
     if (!preferencesSaved)
       toast.error(
@@ -1313,7 +1320,6 @@ export function Workspace() {
       className="workspace"
       data-chat-collapsed={chatCollapsed}
       data-media-open={drawer}
-      style={{ '--chat-preferred-width': `${chatWidth}px` } as CSSProperties}
     >
       <header ref={header} className="workspace-header">
         {busy ? (
@@ -1452,185 +1458,203 @@ export function Workspace() {
             />
           </Suspense>
         )}
-        <div className="workspace-columns" inert={projectsOpen}>
-          <Suspense
-            fallback={
-              <aside
-                aria-label="Editing conversation"
-                data-collapsed={chatCollapsed}
-                className="conversation-panel min-w-0 border-b bg-background lg:border-r lg:border-b-0"
-              />
-            }
-          >
-            <Conversation
-              controlsRef={conversationControls}
-              onIndexConnection={setIndexConnection}
-              editor={editor}
-              project={project}
-              readOnly={!!browsed}
-              selectedClipId={selected}
-              onApplied={refresh}
-              onError={error}
-              registerCleanup={registerCleanup}
-              collapsed={chatCollapsed}
-              width={chatWidth}
-              onResize={setChatWidth}
-              onToggle={toggleChat}
+        <Suspense
+          fallback={
+            <div
+              className="workspace-columns"
+              role="status"
+              aria-label="Loading workspace"
             />
-          </Suspense>
-          <main
-            id="workspace-editor"
-            className="editing-area"
-            data-editor-shortcuts
-            tabIndex={0}
-            aria-label="Video editor"
+          }
+        >
+          <WorkspacePanels
+            narrow={narrow}
+            inert={projectsOpen}
+            chatCollapsed={chatCollapsed}
+            mediaOpen={drawer}
+            media={!narrow ? mediaPanel : null}
           >
-            {versionsOpen && (
-              <section
-                className="version-browser"
-                aria-label="Project versions"
-              >
-                <div className="section-heading">
-                  <h2>Versions</h2>
-                  {!busy && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        leaveVersion();
-                        setVersionsOpen(false);
-                      }}
-                    >
-                      Close versions
-                    </Button>
-                  )}
-                </div>
-                <div
-                  className="version-list"
-                  role="group"
-                  aria-label="Saved versions"
+            <Suspense
+              fallback={
+                <aside
+                  aria-label="Editing conversation"
+                  data-collapsed={chatCollapsed}
+                  className="conversation-panel min-w-0 border-b bg-background lg:border-r lg:border-b-0"
+                />
+              }
+            >
+              <Conversation
+                controlsRef={conversationControls}
+                onIndexConnection={setIndexConnection}
+                editor={editor}
+                project={project}
+                readOnly={!!browsed}
+                selectedClipId={selected}
+                onApplied={refresh}
+                onError={error}
+                registerCleanup={registerCleanup}
+                collapsed={chatCollapsed}
+                onToggle={toggleChat}
+              />
+            </Suspense>
+            <main
+              id="workspace-editor"
+              className="editing-area"
+              data-editor-shortcuts
+              tabIndex={0}
+              aria-label="Video editor"
+            >
+              {versionsOpen && (
+                <section
+                  className="version-browser"
+                  aria-label="Project versions"
                 >
-                  {versions.map(
-                    (version) =>
-                      !busy && (
-                        <Button
-                          key={version.id}
-                          variant={
-                            browsed?.id === version.id ? 'secondary' : 'ghost'
-                          }
-                          aria-pressed={browsed?.id === version.id}
-                          onClick={() => browseVersion(version.id)}
-                        >
-                          Version {version.number} ·{' '}
-                          {new Date(version.createdAt).toLocaleString([], {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                          })}
-                          {version.kind === 'restore' ? ' · Restored' : ''}
-                        </Button>
-                      ),
-                  )}
-                </div>
-                {browsed && (
-                  <div className="version-actions">
-                    <span>Version {browsed.number} · Read-only</span>
+                  <div className="section-heading">
+                    <h2>Versions</h2>
                     {!busy && (
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        onClick={leaveVersion}
+                        onClick={() => {
+                          leaveVersion();
+                          setVersionsOpen(false);
+                        }}
                       >
-                        Return to current
+                        Close versions
                       </Button>
                     )}
-                    <Button size="sm" disabled={busy} onClick={restoreVersion}>
-                      Restore as new version
-                    </Button>
                   </div>
-                )}
-              </section>
-            )}
-            <div className="editing-content">
-              <Suspense
-                fallback={
-                  <section
-                    className="preview"
-                    aria-label="Project preview"
-                    role="status"
+                  <div
+                    className="version-list"
+                    role="group"
+                    aria-label="Saved versions"
                   >
-                    Loading preview…
-                  </section>
-                }
-              >
-                <Preview
-                  controlsRef={previewControls}
-                  editor={editor}
-                  project={viewProject}
-                  versionId={browsed?.id}
-                  timeUs={timeUs}
-                  seekRevision={seekRevision}
-                  onTime={setTimeUs}
-                  onImport={() => fileInput.current?.click()}
-                  onError={error}
-                />
-              </Suspense>
-              <Suspense
-                fallback={
-                  <section className="timeline" aria-label="Video timeline">
-                    <span role="status">Loading timeline…</span>
-                  </section>
-                }
-              >
-                <Timeline
-                  project={viewProject}
-                  assets={browsed ? versionAssets : assets}
-                  versionId={browsed?.id}
-                  readOnly={!!browsed}
-                  selected={selectedIds}
-                  timeUs={timeUs}
-                  busy={busy}
-                  onSelect={selectClip}
-                  canGroup={canGroup}
-                  canUngroup={!!selectedGroups.length}
-                  canSeparate={canSeparate}
-                  overlap={overlap}
-                  transitionTemplate={
-                    activeTransition?.templateId ?? activeTransition?.kind
+                    {versions.map(
+                      (version) =>
+                        !busy && (
+                          <Button
+                            key={version.id}
+                            variant={
+                              browsed?.id === version.id ? 'secondary' : 'ghost'
+                            }
+                            aria-pressed={browsed?.id === version.id}
+                            onClick={() => browseVersion(version.id)}
+                          >
+                            Version {version.number} ·{' '}
+                            {new Date(version.createdAt).toLocaleString([], {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                            })}
+                            {version.kind === 'restore' ? ' · Restored' : ''}
+                          </Button>
+                        ),
+                    )}
+                  </div>
+                  {browsed && (
+                    <div className="version-actions">
+                      <span>Version {browsed.number} · Read-only</span>
+                      {!busy && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={leaveVersion}
+                        >
+                          Return to current
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        disabled={busy}
+                        onClick={restoreVersion}
+                      >
+                        Restore as new version
+                      </Button>
+                    </div>
+                  )}
+                </section>
+              )}
+              <EditorPanels narrow={narrow}>
+                <Suspense
+                  fallback={
+                    <section
+                      className="preview"
+                      aria-label="Project preview"
+                      role="status"
+                    >
+                      Loading preview…
+                    </section>
                   }
-                  onSelectOverlap={(from, to) => {
-                    setSelected(from);
-                    setSelection(selectionIds(viewProject, [from, to]));
-                  }}
-                  onGroup={group}
-                  onUngroup={ungroup}
-                  onSeparate={separateAudio}
-                  onTransition={setTransition}
-                  onTime={seek}
-                  onUndo={undo}
-                  onRedo={redo}
-                  onSplit={split}
-                  onDelete={deleteClip}
-                  onProperties={() => setDialog('properties')}
-                  onText={addText}
-                />
-              </Suspense>
-            </div>
-          </main>
-          {!narrow && mediaPanel}
-          {narrow && (
-            <Suspense fallback={null}>
-              <MobileMediaDialog
-                open={drawer}
-                onClose={() => setMobileMediaOpen(false)}
-              >
-                {mediaPanel}
-              </MobileMediaDialog>
-            </Suspense>
-          )}
-        </div>
+                >
+                  <Preview
+                    controlsRef={previewControls}
+                    editor={editor}
+                    project={viewProject}
+                    versionId={browsed?.id}
+                    timeUs={timeUs}
+                    seekRevision={seekRevision}
+                    onTime={setTimeUs}
+                    onImport={() => fileInput.current?.click()}
+                    onError={error}
+                  />
+                </Suspense>
+                <Suspense
+                  fallback={
+                    <section className="timeline" aria-label="Video timeline">
+                      <span role="status">Loading timeline…</span>
+                    </section>
+                  }
+                >
+                  <Timeline
+                    project={viewProject}
+                    assets={browsed ? versionAssets : assets}
+                    versionId={browsed?.id}
+                    readOnly={!!browsed}
+                    selected={selectedIds}
+                    timeUs={timeUs}
+                    busy={busy}
+                    onSelect={selectClip}
+                    canGroup={canGroup}
+                    canUngroup={!!selectedGroups.length}
+                    canSeparate={canSeparate}
+                    overlap={overlap}
+                    transitionTemplate={
+                      activeTransition?.templateId ?? activeTransition?.kind
+                    }
+                    onSelectOverlap={(from, to) => {
+                      setSelected(from);
+                      setSelection(selectionIds(viewProject, [from, to]));
+                    }}
+                    onGroup={group}
+                    onUngroup={ungroup}
+                    onSeparate={separateAudio}
+                    onTransition={setTransition}
+                    onTime={seek}
+                    onUndo={undo}
+                    onRedo={redo}
+                    onSplit={split}
+                    onDelete={deleteClip}
+                    onProperties={() => setDialog('properties')}
+                    onText={addText}
+                  />
+                </Suspense>
+              </EditorPanels>
+            </main>
+          </WorkspacePanels>
+        </Suspense>
+        {narrow && (
+          <Suspense fallback={null}>
+            <MobileMediaDialog
+              open={drawer}
+              onClose={() => setMobileMediaOpen(false)}
+            >
+              {mediaPanel}
+            </MobileMediaDialog>
+          </Suspense>
+        )}
+
         {transfer && (
           <Suspense
             fallback={<div role="status">Loading workspace transfer…</div>}

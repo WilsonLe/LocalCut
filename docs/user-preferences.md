@@ -149,3 +149,7 @@ This is the project record of the user's durable product and workflow choices. U
 - Keep the desktop timeline against the bottom of its editor at every interface size and browser zoom.
 - Offer Default (100%), Small (75%) and Large (125%) under Settings → Appearance, remembered locally and included with appearance backups. Scale the complete interface, including popups and dialogs, while retaining editing/chat state and authored media geometry.
 - Intercept page-delivered browser zoom shortcuts and gestures. Browser-menu zoom, saved site zoom and OS controls remain outside a static web app's authority; keep the layout correct when they change. Independent timeline and preview editing zoom remains available. This supersedes the older choice to leave browser zoom gestures active outside editing surfaces.
+
+## Workspace resizing — 10 October 2026
+
+- Use the shadcn Base Resizable component for chat, media, the central editor and the preview/timeline split. Keep dragging immediate and smooth; save deliberate sizes after the gesture, preserving responsive layouts and mounted editing/chat sessions.

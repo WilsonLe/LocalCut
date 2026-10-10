@@ -6,6 +6,8 @@ export const CHAT_MIN_WIDTH = 280;
 export const CHAT_MAX_WIDTH = 560;
 export interface WorkspacePreferences {
   chatWidth: number;
+  mediaWidth: number;
+  timelineHeight: number;
   chatCollapsed: boolean;
   mediaOpen: boolean;
   exportFormat: 'mp4' | 'webm';
@@ -14,6 +16,8 @@ export interface WorkspacePreferences {
 }
 export const defaultWorkspacePreferences: WorkspacePreferences = {
   chatWidth: 320,
+  mediaWidth: 300,
+  timelineHeight: 260,
   chatCollapsed: false,
   mediaOpen: false,
   exportFormat: 'mp4',
@@ -46,6 +50,15 @@ export function parseWorkspacePreferences(
       result.chatWidth = Math.round(
         Math.max(CHAT_MIN_WIDTH, Math.min(CHAT_MAX_WIDTH, p.chatWidth)),
       );
+    for (const [field, min, max] of [
+      ['mediaWidth', 250, 560],
+      ['timelineHeight', 210, 700],
+    ] as const) {
+      const value =
+        field in p ? (p as Record<string, unknown>)[field] : undefined;
+      if (typeof value === 'number' && Number.isFinite(value))
+        result[field] = Math.round(Math.max(min, Math.min(max, value)));
+    }
     if ('chatCollapsed' in p && typeof p.chatCollapsed === 'boolean')
       result.chatCollapsed = p.chatCollapsed;
     if ('mediaOpen' in p && typeof p.mediaOpen === 'boolean')

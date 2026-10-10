@@ -52,6 +52,23 @@ describe('local workspace preference validation', () => {
         320,
       );
   });
+  it('retains bounded media and timeline sizes with legacy defaults', () => {
+    expect(
+      parseWorkspacePreferences(
+        record({ mediaWidth: 10000, timelineHeight: -1 }),
+      ),
+    ).toMatchObject({ mediaWidth: 560, timelineHeight: 210 });
+    expect(
+      parseWorkspacePreferences(
+        record({ mediaWidth: '300', timelineHeight: null }),
+      ),
+    ).toMatchObject({ mediaWidth: 300, timelineHeight: 260 });
+    expect(
+      parseWorkspacePreferences(
+        record({ mediaWidth: 342.5, timelineHeight: 315.6 }),
+      ),
+    ).toMatchObject({ mediaWidth: 343, timelineHeight: 316 });
+  });
   it('retains only a bounded model identifier, never arbitrary text or routing defaults', () => {
     for (const aiModel of [
       '',

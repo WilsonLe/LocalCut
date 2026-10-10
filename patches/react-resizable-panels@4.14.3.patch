@@ -1,0 +1,20 @@
+diff --git a/dist/react-resizable-panels.js b/dist/react-resizable-panels.js
+index 430a2e4888fe7ab6c18446f3b36c1b8bd3fa2475..ea53f6461619bea17782102f0a1d405e39a7ddbd 100644
+--- a/dist/react-resizable-panels.js
++++ b/dist/react-resizable-panels.js
+@@ -1087,8 +1087,14 @@ function dt({
+     if (e && f.resizePreviewMode !== "separator")
+       return;
+     const { disableCursor: I } = f.mutableState;
++    // Pointer coordinates are physical CSS pixels; panel sizes are unzoomed layout pixels.
++    // Normalize for the workspace's CSS zoom (also covers ancestor scaling).
++    const rect = f.element.getBoundingClientRect();
++    const layoutSize = h === "horizontal" ? f.element.offsetWidth : f.element.offsetHeight;
++    const visualSize = h === "horizontal" ? rect.width : rect.height;
++    const pointerScale = layoutSize > 0 ? visualSize / layoutSize : 1;
+     let x = 0;
+-    s ? h === "horizontal" ? x = (n.clientX - s.x) / S * 100 : x = (n.clientY - s.y) / S * 100 : h === "horizontal" ? x = n.clientX < 0 ? -100 : 100 : x = n.clientY < 0 ? -100 : 100;
++    s ? h === "horizontal" ? x = (n.clientX - s.x) / (S * pointerScale) * 100 : x = (n.clientY - s.y) / (S * pointerScale) * 100 : h === "horizontal" ? x = n.clientX < 0 ? -100 : 100 : x = n.clientY < 0 ? -100 : 100;
+     const C = r.get(f), A = i.get(f);
+     if (!C || !A)
+       return;

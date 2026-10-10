@@ -338,7 +338,7 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
     await expect(
       page.getByRole('separator', { name: 'Resize workspace chat' }),
-    ).toHaveAttribute('aria-valuenow', '560');
+    ).toHaveAttribute('aria-valuetext', '560 pixels');
     await expect(
       page.getByRole('navigation', { name: 'Workspace sections' }),
     ).toBeHidden();
