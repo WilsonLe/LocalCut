@@ -62,6 +62,8 @@ When only that test changed and the production builds are still current, reuse t
 
 For documentation-only edits, check formatting and the referenced files/commands. Reuse existing code evidence when the code and tests are unchanged; a full build or browser rerun adds no evidence for a prose correction.
 
+For compatible browser stories, use [the Playwright journey inventory](playwright-journeys.md) to reuse an open app, project and tab across named steps. Batch related specs into one runner invocation before adding browser workers or tabs. The inventory describes proposed consolidation, current reuse, shared-state boundaries and cases that still need an isolated context; the tests have not yet been reorganized into those journeys.
+
 For text-to-speech changes, start with `pnpm test tests/unit/speech.test.ts tests/unit/openrouter.test.ts`, then `pnpm test:ui --grep 'text to speech'`. These test live catalog/voice validation, multilingual request settings, cancellation, exact pitch-preserving timing, local import/history/reopening and native export. Provider interception is deterministic transport evidence; assess natural delivery separately with an explicitly connected account and a Generate action.
 
 ## Expand verification at the boundary
