@@ -1,4 +1,5 @@
 import { AuthorizationFlow } from './auth.ts';
+import { speechModelsFrom, speechBody, readSpeechAudio } from './speech';
 import { AiError, aiInvariant, httpError } from './errors.ts';
 import {
   parseChatStream,
@@ -11,6 +12,7 @@ import type {
   OpenRouterModel,
   OpenRouterOptions,
   ProviderEvent,
+  SpeechModel,
 } from './types.ts';
 
 const API = 'https://openrouter.ai/api/v1';
@@ -48,6 +50,14 @@ function modelsFrom(value: unknown): OpenRouterModel[] {
   const models: OpenRouterModel[] = [];
   const ids = new Set<string>();
   for (const item of value.data) {
+    // Speech and embedding models have no chat context window/tool contract.
+    if (
+      object(item) &&
+      object(item.architecture) &&
+      Array.isArray(item.architecture.output_modalities) &&
+      !item.architecture.output_modalities.includes('text')
+    )
+      continue;
     aiInvariant(
       object(item) &&
         typeof item.id === 'string' &&
@@ -248,6 +258,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
   let disposed = false;
   let generation = 0;
   let catalog: OpenRouterModel[] | undefined;
+  let speechCatalog: SpeechModel[] | undefined;
   const active = new Set<AbortController>();
   const assertActive = () =>
     aiInvariant(!disposed, 'DISPOSED', 'OpenRouter client is disposed.');
@@ -274,7 +285,12 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
       signal: controller.signal,
       check,
       async fetch(
-        path: '/auth/keys' | '/models' | '/chat/completions',
+        path:
+          | '/auth/keys'
+          | '/models'
+          | '/models?output_modalities=speech'
+          | '/audio/speech'
+          | '/chat/completions',
         init: RequestInit,
       ): Promise<Response> {
         check();
@@ -327,6 +343,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
   function disconnect() {
     key = undefined;
     catalog = undefined;
+    speechCatalog = undefined;
     generation++;
     auth.invalidate();
     for (const controller of active) controller.abort();
@@ -375,6 +392,69 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
     disconnect,
     beginAuthorization: (args) => auth.begin(args),
     completeAuthorization: (args, signal) => auth.complete(args, signal),
+    async listSpeechModels(signal) {
+      const op = operation(signal);
+      try {
+        const response = await op.fetch('/models?output_modalities=speech', {
+          method: 'GET',
+          headers: key ? { Authorization: `Bearer ${key}` } : {},
+        });
+        const result = speechModelsFrom(await readJson(response, op.signal));
+        op.check();
+        speechCatalog = structuredClone(result);
+        return result;
+      } catch (error) {
+        return op.error(error);
+      } finally {
+        op.finish();
+      }
+    },
+    async synthesizeSpeech(request, signal) {
+      assertActive();
+      aiInvariant(
+        key,
+        'AUTH_REQUIRED',
+        'Connect to OpenRouter before generating speech.',
+      );
+      // Capture/validate user input before any async catalog request.
+      const body = speechBody(request);
+      const { model, voice } = JSON.parse(body) as {
+        model: string;
+        voice: string;
+      };
+      const epoch = generation;
+      const models = speechCatalog ?? (await client.listSpeechModels(signal));
+      assertActive();
+      aiInvariant(
+        epoch === generation,
+        'CANCELLED',
+        'Speech request cancelled.',
+      );
+      aiInvariant(
+        models.some((item) => item.id === model && item.voices.includes(voice)),
+        'MODEL_UNSUPPORTED',
+        'Choose a current speech model and one of its voices.',
+      );
+      const op = operation(signal);
+      try {
+        const response = await op.fetch('/audio/speech', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${key}`,
+            'Content-Type': 'application/json',
+            Accept: 'audio/pcm',
+          },
+          body,
+        });
+        const audio = await readSpeechAudio(response, op.signal);
+        op.check();
+        return audio;
+      } catch (error) {
+        return op.error(error);
+      } finally {
+        op.finish();
+      }
+    },
     async listModels(signal) {
       const op = operation(signal);
       try {

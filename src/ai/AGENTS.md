@@ -9,6 +9,8 @@
 - Tools may inspect and propose. `applyProposal` retains the edit-only contract; explicit `approveProposal` can also execute reviewed history/export/transcription/preparation actions. Preserve request IDs, stale-revision rejection and committed results during disposal. Never let a model approve its own proposal, prepare a model automatically or trigger a browser Save.
 - Model/privacy changes require a new session. Cancellation discards unfinished proposals without allowing late work to republish them. Forward only bounded progress and result metadata; retain export Files locally and dispose them with their owner. Local transcription approval never grants remote transcript sharing.
 
+- Speech discovery/requests reuse this adapter's in-memory credentials, cancellation generation and fixed endpoints. Offer instruction-capable Gemini models with advertised voices and the documented PCM contract; never share source media or project context. `speech-audio.ts` owns local pitch-preserving timing and WAV rendering; controls do not duplicate that processing or retry paid generation automatically.
+
 Check the relevant protocol/authentication/assistant cases without a paid provider:
 
 ```sh

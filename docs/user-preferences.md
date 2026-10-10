@@ -77,6 +77,12 @@ This is the project record of the user's durable product and workflow choices. U
 - Provide audio separation from video, clip group/ungroup, and transition controls for overlapping visual clips on one video track.
 - Treat transitions as editable templates built from base attributes. A user can request a template in chat and the assistant can inspect and fine-tune its ordinary keyframes for a better result. Keep the resulting edits inspectable through the shared engine.
 
+## Text to speech — 10 October 2026
+
+- Generate natural speech through the existing OpenRouter connection. Let users edit the script, select a voice, declare multiple languages, and set delivery directions.
+- Provide both a speaking-speed control and a total-length control. Preserve voice pitch when adjusting generated audio, and preview the result before adding it to the timeline.
+- Explicit Generate shares the authored script and speech choices only. Retain in-memory credentials and local ownership of the resulting audio; never upload source media.
+
 ## Delivery and validation
 
 - Pull and rebase onto current `main`, including the OpenRouter integration, before completing the workspace.
