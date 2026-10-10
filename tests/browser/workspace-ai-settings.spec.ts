@@ -3,12 +3,13 @@ import type { Locator } from '@playwright/test';
 
 async function toggleAnimation(trigger: Locator) {
   return trigger.evaluate(async (element) => {
-    const panel = document.getElementById(
-      element.getAttribute('aria-controls')!,
-    )!;
+    const id = element.getAttribute('aria-controls');
     (element as HTMLButtonElement).click();
     await new Promise(requestAnimationFrame);
     await new Promise(requestAnimationFrame);
+    const panel = document.getElementById(
+      id ?? element.getAttribute('aria-controls')!,
+    )!;
     const animation = panel
       .getAnimations()
       .find((animation) => animation.playState === 'running');
@@ -26,6 +27,7 @@ for (const base of ['/', '/LocalCut/']) {
   test(`spacious AI settings animate disclosures and preserve input on desktop and phone ${base}`, async ({
     page,
   }, testInfo) => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto(base);
     await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
     const dialog = page.getByRole('dialog', {
@@ -33,7 +35,9 @@ for (const base of ['/', '/LocalCut/']) {
       exact: true,
     });
     await expect(dialog).toBeVisible();
-    expect((await dialog.boundingBox())!.width).toBeGreaterThanOrEqual(760);
+    await expect
+      .poll(async () => (await dialog.boundingBox())!.width)
+      .toBeGreaterThanOrEqual(760);
     const providers = dialog.getByRole('button', {
       name: 'Providers & services',
       exact: true,
@@ -79,6 +83,15 @@ for (const base of ['/', '/LocalCut/']) {
       path: testInfo.outputPath('ai-settings-desktop.png'),
     });
     await page.setViewportSize({ width: 390, height: 844 });
+    await expect(
+      dialog.getByRole('heading', { name: 'AI connection', exact: true }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole('button', { name: 'Close', exact: true }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole('button', { name: 'Done', exact: true }),
+    ).toBeVisible();
     await expect
       .poll(() =>
         dialog.evaluate(
@@ -112,6 +125,29 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByRole('button', { name: 'Connect AI', exact: true }),
     ).toBeFocused();
+    await page
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .click();
+    await page
+      .getByRole('menuitem', { name: 'Appearance', exact: true })
+      .click();
+    await page
+      .getByRole('combobox', { name: 'Interface size', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'Large (125%)', exact: true })
+      .click();
+    await page
+      .getByRole('button', { name: 'Close appearance', exact: true })
+      .click();
+    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    await expect(dialog).toBeVisible();
+    const largeBounds = (await dialog.boundingBox())!;
+    expect(largeBounds.y).toBeGreaterThanOrEqual(0);
+    expect(largeBounds.y + largeBounds.height).toBeLessThanOrEqual(844);
+    expect(largeBounds.x).toBeGreaterThanOrEqual(0);
+    expect(largeBounds.x + largeBounds.width).toBeLessThanOrEqual(390);
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
   });
 }
