@@ -20,8 +20,7 @@ const callback = 'https://wilsonle.github.io/LocalCut/?workspace=one';
 function returned(url: string, target = callback) {
   const actual = new URL(target);
   actual.searchParams.set('code', 'authorization-code');
-  const registered = new URL(new URL(url).searchParams.get('callback_url')!);
-  actual.searchParams.set('state', registered.searchParams.get('state')!);
+  actual.searchParams.set('state', new URL(url).searchParams.get('state')!);
   return actual.href;
 }
 
@@ -44,11 +43,7 @@ describe('OpenRouter explicit PKCE authorization', () => {
     expect(fetch).not.toHaveBeenCalled();
     const url = new URL(authorizationUrl);
     expect(url.origin + url.pathname).toBe('https://openrouter.ai/auth');
-    const registered = new URL(url.searchParams.get('callback_url')!);
-    expect(registered.searchParams.get('state')).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(url.searchParams.has('state')).toBe(false);
-    registered.searchParams.delete('state');
-    expect(registered.href).toBe(callback);
+    expect(url.searchParams.get('callback_url')).toBe(callback);
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
     expect(expiresAt).toBe(1000 + OAUTH_TTL_MS);
     const stored = JSON.parse(store.values.get(OAUTH_STORAGE_KEY)!) as {
@@ -88,7 +83,7 @@ describe('OpenRouter explicit PKCE authorization', () => {
     ).rejects.toMatchObject({ code: 'AUTH_FLOW_INVALID' });
     expect(JSON.stringify(client.status())).not.toContain('private');
   });
-  it('resumes after reload when the provider only appends code to callback_url', async () => {
+  it('resumes after reload from same tab session storage and returns a clean callback URL', async () => {
     const store = storage();
     const first = createOpenRouter({ oauthStorage: store });
     const { authorizationUrl } = await first.beginAuthorization({
@@ -98,22 +93,74 @@ describe('OpenRouter explicit PKCE authorization', () => {
       oauthStorage: store,
       fetch: async () => Response.json({ key: 'test-key-private' }),
     });
-    const actual = new URL(
-      new URL(authorizationUrl).searchParams.get('callback_url')!,
+    const actual = returned(
+      authorizationUrl,
+      'http://localhost:5173/?a=one%20two',
     );
-    actual.searchParams.set('code', 'authorization-code');
-    expect(
-      await second.completeAuthorization({ callbackUrl: actual.href }),
-    ).toEqual({
-      connected: true,
-      sanitizedCallbackUrl: 'http://localhost:5173/?a=one+two',
-    });
+    expect(await second.completeAuthorization({ callbackUrl: actual })).toEqual(
+      {
+        connected: true,
+        sanitizedCallbackUrl: 'http://localhost:5173/?a=one+two',
+      },
+    );
     expect(first.status()).toEqual({ connected: false });
   });
+  it.each(['#/project/local-project', '#/projects?project=local-project'])(
+    'keeps hash navigation %s local and restores it only after verified exchange',
+    async (hash) => {
+      const store = storage();
+      const first = createOpenRouter({ oauthStorage: store });
+      const flow = await first.beginAuthorization({
+        callbackUrl: callback + hash,
+      });
+      const registered = new URL(
+        new URL(flow.authorizationUrl).searchParams.get('callback_url')!,
+      );
+      expect(registered.href).toBe(callback);
+      expect(registered.hash).toBe('');
+      expect(flow.authorizationUrl).not.toContain('local-project');
+      const second = createOpenRouter({
+        oauthStorage: store,
+        fetch: async () => Response.json({ key: 'test-key-private' }),
+      });
+      expect(
+        await second.completeAuthorization({
+          callbackUrl: returned(flow.authorizationUrl),
+        }),
+      ).toEqual({
+        connected: true,
+        sanitizedCallbackUrl: callback + hash,
+      });
+      expect(store.getItem(OAUTH_STORAGE_KEY)).toBeNull();
+    },
+  );
+  it.each(['denied', 'wrong-state', 'fragment'])(
+    'does not return saved hash navigation after %s',
+    async (variant) => {
+      const store = storage();
+      const fetch = vi.fn<typeof globalThis.fetch>();
+      const client = createOpenRouter({ oauthStorage: store, fetch });
+      const flow = await client.beginAuthorization({
+        callbackUrl: callback + '#/project/local-project',
+      });
+      const actual = new URL(returned(flow.authorizationUrl));
+      if (variant === 'denied')
+        actual.searchParams.set('error', 'access_denied');
+      if (variant === 'wrong-state') actual.searchParams.set('state', 'wrong');
+      if (variant === 'fragment') actual.hash = '#/project/another-project';
+      await expect(
+        client.completeAuthorization({ callbackUrl: actual.href }),
+      ).rejects.toMatchObject({
+        code: variant === 'denied' ? 'AUTH_CANCELLED' : 'AUTH_FLOW_INVALID',
+      });
+      expect(fetch).not.toHaveBeenCalled();
+      expect(client.status()).toEqual({ connected: false });
+      expect(store.getItem(OAUTH_STORAGE_KEY)).toBeNull();
+    },
+  );
   it.each([
     'http://example.com/callback',
     'https://user:pass@example.com/callback',
-    'https://example.com/callback#fragment',
     'javascript:alert(1)',
     '/relative',
     'https://example.com/?code=old',

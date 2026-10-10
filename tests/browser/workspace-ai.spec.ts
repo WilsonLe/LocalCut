@@ -329,8 +329,10 @@ test('rate-limit errors remain visible and retry requires a fresh send', async (
   expect((await snapshot(page, name)).revision).toBe(0);
 });
 
-for (const base of ['/', '/LocalCut/']) {
-  test(`OAuth UI navigates back, strips secrets before exchange, and restores saved credentials on reload ${base}`, async ({
+for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
+  [false, true].map((openProject) => ({ base, openProject })),
+)) {
+  test(`OAuth UI navigates back, strips secrets before exchange, and restores saved credentials on reload ${openProject ? 'with open project' : 'without project'} ${base}`, async ({
     page,
     context,
   }) => {
@@ -340,10 +342,12 @@ for (const base of ['/', '/LocalCut/']) {
     await context.route('https://openrouter.ai/auth?*', async (route) => {
       authorization = new URL(route.request().url());
       const callback = new URL(authorization.searchParams.get('callback_url')!);
-      expect(callback.searchParams.get('state')).toMatch(/^[A-Za-z0-9_-]{43}$/);
-      expect(authorization.searchParams.has('state')).toBe(false);
-      // Model the provider: preserve callback_url and append only its code.
+      expect(callback.hash).toBe('');
       callback.searchParams.set('code', 'synthetic-ui-authorization');
+      callback.searchParams.set(
+        'state',
+        authorization.searchParams.get('state')!,
+      );
       const href = callback.href
         .replaceAll('&', '&amp;')
         .replaceAll('"', '&quot;');
@@ -361,6 +365,7 @@ for (const base of ['/', '/LocalCut/']) {
         }
         exchanges++;
         expect(new URL(page.url()).search).toBe('?campaign=ui-test');
+        expect(new URL(page.url()).hash).toBe('');
         const body = route.request().postDataJSON() as Record<string, string>;
         expect(body.code).toBe('synthetic-ui-authorization');
         expect(body.code_verifier).toMatch(/^[A-Za-z0-9_-]{43}$/);
@@ -369,6 +374,10 @@ for (const base of ['/', '/LocalCut/']) {
       },
     );
     await page.goto(base + '?campaign=ui-test');
+    if (openProject)
+      await createProject(page, 'OAuth project ' + crypto.randomUUID());
+    const originalHash = new URL(page.url()).hash;
+    if (openProject) expect(originalHash).toMatch(/^#\/project\//);
     await openAISettings(page);
     await page
       .getByRole('button', { name: 'Connect with OpenRouter', exact: true })
@@ -392,7 +401,12 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
     expect(new URL(page.url()).search).toBe('?campaign=ui-test');
     expect(exchanges).toBe(1);
+    await expect.poll(() => new URL(page.url()).hash).toBe(originalHash);
     await chooseModel(page);
+    if (openProject)
+      await expect(
+        page.getByRole('button', { name: 'Add text', exact: true }),
+      ).toBeEnabled();
     const stored = await page.evaluate(() => ({
       local: { ...localStorage },
       session: { ...sessionStorage },
@@ -435,6 +449,11 @@ for (const base of ['/', '/LocalCut/']) {
     expect(JSON.stringify(stored)).not.toContain('synthetic-ui-authorization');
     expect(await page.locator('body').innerText()).not.toContain(key);
     await page.reload();
+    await expect.poll(() => new URL(page.url()).hash).toBe(originalHash);
+    if (openProject)
+      await expect(
+        page.getByRole('button', { name: 'Add text', exact: true }),
+      ).toBeEnabled();
     await openConnectedSettings(page);
     await expect(
       page.getByText('Key connected', { exact: true }),

@@ -7,6 +7,7 @@ const reserved = ['code', 'state', 'error', 'error_description'];
 interface PendingAuthorization {
   version: 1;
   callbackUrl: string;
+  returnHash?: string;
   verifier: string;
   state: string;
   createdAt: number;
@@ -27,7 +28,7 @@ const invalid = () =>
     'AUTH_FLOW_INVALID',
     'OpenRouter authorization could not be verified. Restart authorization.',
   );
-function parseUrl(value: string): URL {
+function parseUrl(value: string, allowNavigationHash = false): URL {
   try {
     aiInvariant(
       typeof value === 'string' && value.length <= 8192,
@@ -40,7 +41,7 @@ function parseUrl(value: string): URL {
       (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) ||
       url.username ||
       url.password ||
-      url.hash
+      (url.hash && !allowNavigationHash)
     )
       throw invalid();
     url.search = url.searchParams.toString();
@@ -64,6 +65,10 @@ function isPending(value: unknown): value is PendingAuthorization {
   return (
     pending.version === 1 &&
     typeof pending.callbackUrl === 'string' &&
+    (pending.returnHash === undefined ||
+      (typeof pending.returnHash === 'string' &&
+        pending.returnHash.startsWith('#') &&
+        pending.returnHash.length <= 8192)) &&
     typeof pending.verifier === 'string' &&
     /^[A-Za-z0-9_-]{43}$/.test(pending.verifier) &&
     typeof pending.state === 'string' &&
@@ -114,7 +119,10 @@ export class AuthorizationFlow {
     options: AuthorizationOptions,
   ): Promise<{ authorizationUrl: string; expiresAt: number }> {
     this.dependencies.assertActive();
-    const callback = parseUrl(options.callbackUrl);
+    const callback = parseUrl(options.callbackUrl, true);
+    // Hash routes are local navigation, never part of the provider callback.
+    const returnHash = callback.hash;
+    callback.hash = '';
     if (reserved.some((name) => callback.searchParams.has(name)))
       throw invalid();
     const storage = this.storage(options.storage);
@@ -140,6 +148,7 @@ export class AuthorizationFlow {
         JSON.stringify({
           version: 1,
           callbackUrl: callback.href,
+          ...(returnHash ? { returnHash } : {}),
           verifier,
           state,
           createdAt,
@@ -151,14 +160,11 @@ export class AuthorizationFlow {
         'Session storage is unavailable for authorization.',
       );
     }
-    // OpenRouter preserves callback query parameters; it does not echo an
-    // independent authorization-URL state parameter back to the application.
-    const registeredCallback = new URL(callback.href);
-    registeredCallback.searchParams.set('state', state);
     const url = new URL('https://openrouter.ai/auth');
-    url.searchParams.set('callback_url', registeredCallback.href);
+    url.searchParams.set('callback_url', callback.href);
     url.searchParams.set('code_challenge', challenge);
     url.searchParams.set('code_challenge_method', 'S256');
+    url.searchParams.set('state', state);
     url.searchParams.set('key_label', 'LocalCut');
     return { authorizationUrl: url.href, expiresAt: createdAt + OAUTH_TTL_MS };
   }
@@ -218,6 +224,8 @@ export class AuthorizationFlow {
     if (sequence !== this.sequence || signal?.aborted)
       throw new AiError('CANCELLED', 'Authorization was cancelled.');
     this.dependencies.connect(key);
-    return { connected: true, sanitizedCallbackUrl: pending.callbackUrl };
+    const destination = new URL(pending.callbackUrl);
+    destination.hash = pending.returnHash ?? '';
+    return { connected: true, sanitizedCallbackUrl: destination.href };
   }
 }
