@@ -24,6 +24,7 @@ async function choose(page: Page, label: string, option: string) {
   ).toHaveCount(0);
 }
 async function styles(page: Page) {
+  await expect(page.locator('.preview')).toBeVisible();
   return page.evaluate(() => {
     const root = getComputedStyle(document.documentElement);
     const button = getComputedStyle(document.querySelector('button')!);

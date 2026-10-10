@@ -49,6 +49,7 @@ for (const base of ['/', '/LocalCut/']) {
     const requests: string[] = [];
     page.on('request', (request) => requests.push(request.url()));
     await page.goto(base);
+    await expect(page.locator('.workspace')).toBeVisible();
     const before = await page.evaluate(async (path) => {
       const ai = (await import(
         path + 'ai.js'
