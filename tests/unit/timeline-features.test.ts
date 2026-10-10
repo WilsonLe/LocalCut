@@ -408,7 +408,22 @@ describe('editable transition templates', () => {
     const batch = proposalBatch(p, operations, 'request', 10);
     expect(parseBatch(batch).operations[0]).toEqual(operations[0]);
     expect(legacyCommandReceiptContent(batch)).toBeUndefined();
-    expect(JSON.stringify(toolDefinitions(false))).toContain('blur-dissolve');
+    expect(
+      JSON.stringify(
+        toolDefinitions(
+          false,
+          {
+            undo: false,
+            redo: false,
+            export: false,
+            transcriptionStatus: false,
+            transcription: false,
+            transcriptionPreparation: false,
+          },
+          new Set(['editing']),
+        ),
+      ),
+    ).toContain('blur-dissolve');
     expect(() =>
       parseBatch({ ...batch, operations: [{ ...operations[0], strength: 2 }] }),
     ).toThrow();

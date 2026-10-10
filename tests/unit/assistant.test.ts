@@ -14,6 +14,7 @@ import {
 import { EditorError } from '../../src/core/errors';
 import { Jobs } from '../../src/services/jobs';
 import { supportedEditOperations, toolDefinitions } from '../../src/ai/tools';
+import { assistantCapabilities } from '../../src/ai/actions';
 import type { EditOperation } from '../../src/core/commands';
 
 function deferred<T>() {
@@ -167,12 +168,81 @@ const proposal = (
   final(null as unknown as string, [
     call('propose_edits', { summary: 'Move the clip', operations }),
   ]);
-function provider(rounds: ProviderEvent[][]) {
+function provider(rounds: ProviderEvent[][], loadDomains = true) {
   const requests: ChatRequest[] = [];
   return {
     requests,
     stream: vi.fn(async function* (request: ChatRequest) {
       requests.push(structuredClone(request));
+      // Existing scenario scripts describe domain work. Simulate explicit discovery first;
+      // raw boundary regressions below disable this fixture convenience.
+      if (loadDomains) {
+        const calls =
+          rounds[0]?.flatMap((event) =>
+            event.type === 'complete' ? (event.message.tool_calls ?? []) : [],
+          ) ?? [];
+        const catalog = JSON.parse(request.messages[1]!.content!)
+          .skillCatalog as { id: string }[];
+        const names = new Set(request.tools.map((tool) => tool.function.name));
+        const loaded = new Set(
+          request.messages
+            .slice(
+              request.messages
+                .map((message) => message.role)
+                .lastIndexOf('user') + 1,
+            )
+            .filter((message) => message.role === 'tool')
+            .flatMap((message) => {
+              const result = JSON.parse(message.content);
+              return result.status === 'loaded' ? [result.skillId] : [];
+            }),
+        );
+        // History cannot authorize this turn; infer current loads from declared tools instead.
+        if (names.size === 3) loaded.clear();
+        const required = new Set<string>();
+        for (const tool of calls) {
+          const name = tool.function.name;
+          if (name === 'propose_action') {
+            let type: string | undefined;
+            try {
+              type = JSON.parse(tool.function.arguments).action?.type;
+            } catch {
+              /* Invalid scripted args still reach the parser. */
+            }
+            required.add(
+              type === 'export'
+                ? 'export'
+                : type === 'undo' || type === 'redo'
+                  ? 'history'
+                  : 'transcription',
+            );
+          } else if (
+            ['inspect_transcription', 'read_transcript'].includes(name)
+          )
+            required.add('transcription');
+          else if (name === 'check_export') required.add('export');
+          else if (
+            [
+              'inspect_asset',
+              'inspect_timeline',
+              'inspect_capabilities',
+              'validate_edits',
+              'propose_edits',
+            ].includes(name)
+          )
+            required.add('editing');
+        }
+        const missing = [...required].filter(
+          (id) => !loaded.has(id) && catalog.some((skill) => skill.id === id),
+        );
+        if (missing.length) {
+          yield final(
+            '',
+            missing.map((skillId) => call('load_skill', { skillId }, skillId)),
+          );
+          return;
+        }
+      }
       yield* rounds.shift() ?? [final()];
     }),
   };
@@ -577,7 +647,9 @@ describe('headless assistant boundaries', () => {
       if (event.type === 'tool') events.push(event);
     });
     await f.assistant.run('Inspect and validate').completion;
-    const starts = events.filter((event) => event.phase === 'started');
+    const starts = events.filter(
+      (event) => event.phase === 'started' && event.name !== 'load_skill',
+    );
     expect(starts).toHaveLength(4);
     expect(new Set(starts.map((event) => event.callId)).size).toBe(4);
     for (const start of starts) {
@@ -585,7 +657,9 @@ describe('headless assistant boundaries', () => {
         events.filter((event) => event.callId === start.callId),
       ).toHaveLength(2);
     }
-    const inspections = events.filter((event) => event.phase === 'completed');
+    const inspections = events.filter(
+      (event) => event.phase === 'completed' && event.name !== 'load_skill',
+    );
     expect(inspections).toHaveLength(2);
     expect(inspections[0]!.result).toMatchObject({
       revision: 0,
@@ -667,7 +741,7 @@ describe('headless assistant boundaries', () => {
     );
     expect(bytes).toBeLessThanOrEqual(128 * 1024);
     expect(
-      p.requests[1]!.messages.filter((message) => message.role === 'tool'),
+      p.requests.at(-1)!.messages.filter((message) => message.role === 'tool'),
     ).toHaveLength(7);
     await assistant.dispose();
   });
@@ -717,7 +791,7 @@ describe('headless assistant boundaries', () => {
       const result = await f.assistant.run('Edit').completion;
       expect(result.proposalIds).toEqual([]);
       expect(f.editor.commands.apply).not.toHaveBeenCalled();
-      expect(f.provider.requests[1]!.messages.at(-1)).toMatchObject({
+      expect(f.provider.requests.at(-1)!.messages.at(-1)).toMatchObject({
         role: 'tool',
         content: expect.stringContaining('error'),
       });
@@ -951,7 +1025,7 @@ describe('headless assistant boundaries', () => {
     ).toEqual([]);
     expect(f.project()).toEqual(original);
     expect(f.editor.commands.apply).not.toHaveBeenCalled();
-    const response = f.provider.requests[1]!.messages.at(-1)!;
+    const response = f.provider.requests.at(-1)!.messages.at(-1)!;
     expect(response).toMatchObject({
       role: 'tool',
       content: expect.stringContaining('EDIT_REJECTED'),
@@ -962,7 +1036,9 @@ describe('headless assistant boundaries', () => {
     let round = 0;
     const p = {
       async *stream() {
-        if (++round === 1) yield proposal();
+        if (++round === 1)
+          yield final('', [call('load_skill', { skillId: 'editing' })]);
+        else if (round === 2) yield proposal();
         else throw new Error('sensitive provider error');
       },
     };
@@ -1307,9 +1383,11 @@ describe('headless assistant boundaries', () => {
     ).completion;
     expect(f.project()).toEqual(before);
     expect(f.editor.commands.apply).not.toHaveBeenCalled();
-    const feedback = p.requests[1]!.messages.filter(
-      (message) => message.role === 'tool',
-    ).map((message) => JSON.parse(message.content));
+    const feedback = p.requests
+      .at(-1)!
+      .messages.filter((message) => message.role === 'tool')
+      .map((message) => JSON.parse(message.content))
+      .filter((result) => !result.skillId);
     expect(feedback[0].editOperations).toEqual(supportedEditOperations);
     expect(feedback[1]).toMatchObject({ frameIndex: 30, frameTimeUs: 1e6 });
     expect(feedback[1].tracks[0].clips[0]).toMatchObject({
@@ -1370,7 +1448,7 @@ describe('headless assistant boundaries', () => {
       model: 'test/model',
     });
     await a.run('Evaluate').completion;
-    const response = JSON.parse(p.requests[1]!.messages.at(-1)!.content!);
+    const response = JSON.parse(p.requests.at(-1)!.messages.at(-1)!.content!);
     expect(response.tracks[0].clips[0].values.opacity).toBe(0.75);
     expect(response.transitions).toEqual([
       expect.objectContaining({
@@ -1385,7 +1463,9 @@ describe('headless assistant boundaries', () => {
   });
   it('exposes optional services honestly and never accepts undeclared action tools', async () => {
     expect(
-      toolDefinitions(false).map((tool) => tool.function.name),
+      toolDefinitions(false, assistantCapabilities(fixture().editor)).map(
+        (tool) => tool.function.name,
+      ),
     ).not.toContain('propose_action');
     const f = setup([
       [
@@ -1845,5 +1925,331 @@ describe('headless assistant boundaries', () => {
     expect(f.project().tracks[0]!.clips[0]!.transcriptId).toBe('generated');
     await a.dispose();
     await jobs.dispose();
+  });
+});
+
+describe('incremental assistant skills', () => {
+  const load = (skillId: string, id = skillId) =>
+    call('load_skill', { skillId }, id);
+  const names = (request: ChatRequest) =>
+    request.tools.map((tool) => tool.function.name);
+  const baseTools = ['load_skill', 'inspect_project', 'inspect_proposals'];
+  const rawSetup = (rounds: ProviderEvent[][]) => {
+    const f = fixture(),
+      p = provider(rounds, false);
+    const assistant = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    return { ...f, provider: p, assistant };
+  };
+
+  it('starts with metadata only, incrementally enables editing, and resets authority each turn', async () => {
+    const f = rawSetup([
+      [final('', [load('editing')])],
+      [proposal()],
+      [final()],
+      [proposal()],
+      [final()],
+    ]);
+    const first = await f.assistant.run('Move the clip').completion;
+    expect(first.proposalIds).toHaveLength(1);
+    expect(names(f.provider.requests[0]!)).toEqual(baseTools);
+    expect(JSON.stringify(f.provider.requests[0])).not.toContain(
+      'Transition templates are editable recipes',
+    );
+    expect(names(f.provider.requests[1]!)).toContain('propose_edits');
+    expect(names(f.provider.requests[1]!)).not.toContain('propose_action');
+    expect(JSON.stringify(f.provider.requests[1])).toContain(
+      'Transition templates are editable recipes',
+    );
+    expect(
+      (await f.assistant.run('Move it again').completion).proposalIds,
+    ).toEqual([]);
+    expect(names(f.provider.requests[3]!)).toEqual(baseTools);
+    expect(JSON.stringify(f.provider.requests[3])).not.toContain(
+      'Transition templates are editable recipes',
+    );
+    expect(JSON.stringify(f.provider.requests[3])).toContain(
+      'loaded_in_previous_turn',
+    );
+    expect(f.editor.commands.validate).toHaveBeenCalledTimes(1);
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+    await f.assistant.dispose();
+  });
+
+  it('rejects unloaded tools even when paired with a successful load in the same response', async () => {
+    const f = rawSetup([
+      [
+        final('', [
+          load('editing'),
+          call(
+            'propose_edits',
+            {
+              summary: 'Move',
+              operations: [
+                {
+                  type: 'moveClip',
+                  clipId: 'video',
+                  trackId: 'main',
+                  startUs: 1e6,
+                },
+              ],
+            },
+            'edit',
+          ),
+        ]),
+      ],
+      [final()],
+    ]);
+    expect((await f.assistant.run('Edit').completion).proposalIds).toEqual([]);
+    expect(f.editor.commands.validate).not.toHaveBeenCalled();
+    expect(f.provider.requests[1]!.messages.at(-1)!.content).toContain(
+      'TOOL_NOT_ALLOWED',
+    );
+    expect(names(f.provider.requests[1]!)).toContain('propose_edits');
+    await f.assistant.dispose();
+  });
+
+  it('rejects unavailable and unknown skills without broadening the catalog', async () => {
+    const f = rawSetup([
+      [final('', [load('export'), load('network', 'unknown')])],
+      [final()],
+    ]);
+    await f.assistant.run('Export').completion;
+    expect(
+      JSON.parse(
+        f.provider.requests[0]!.messages[1]!.content!,
+      ).skillCatalog.map((skill: { id: string }) => skill.id),
+    ).toEqual(['editing']);
+    expect(names(f.provider.requests[1]!)).toEqual(baseTools);
+    const results = f.provider.requests[1]!.messages.filter(
+      (message) => message.role === 'tool',
+    ).map((message) => JSON.parse(message.content));
+    expect(results[0].error.code).toBe('TOOL_NOT_ALLOWED');
+    expect(results[1].error.code).toBe('INVALID_TOOL_ARGUMENTS');
+    await f.assistant.dispose();
+  });
+
+  it('narrows action schemas and enforces domain authority beyond the tool name', async () => {
+    const f = fixture();
+    f.editor.commands.undo = vi.fn();
+    f.editor.commands.redo = vi.fn();
+    const p = provider(
+      [
+        [final('', [load('history')])],
+        [
+          final('', [
+            load('transcription'),
+            call(
+              'propose_action',
+              { summary: 'Prepare', action: { type: 'prepare_transcription' } },
+              'escalation',
+            ),
+          ]),
+        ],
+        [final()],
+      ],
+      false,
+    );
+    f.editor.transcription.prepare = vi.fn();
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    expect(
+      (await a.run('Undo then transcribe').completion).proposalIds,
+    ).toEqual([]);
+    const action = p.requests[1]!.tools.find(
+      (tool) => tool.function.name === 'propose_action',
+    )!;
+    const serialized = JSON.stringify(action);
+    expect(serialized).toContain('undo');
+    expect(serialized).toContain('redo');
+    expect(serialized).not.toContain('prepare_transcription');
+    expect(serialized).not.toContain('export');
+    expect(p.requests[2]!.messages.at(-1)!.content).toContain(
+      'TOOL_NOT_ALLOWED',
+    );
+    expect(f.editor.transcription.prepare).not.toHaveBeenCalled();
+    expect(JSON.stringify(p.requests[2]!.tools)).toContain(
+      'prepare_transcription',
+    );
+    await a.dispose();
+  });
+
+  it('can load another domain later and keeps duplicate loads idempotent', async () => {
+    const f = fixture();
+    f.editor.commands.undo = vi.fn();
+    const p = provider(
+      [
+        [final('', [load('editing')])],
+        [final('', [load('editing', 'again'), load('history')])],
+        [
+          final('', [
+            call('propose_action', {
+              summary: 'Undo',
+              action: { type: 'undo' },
+            }),
+          ]),
+        ],
+        [final()],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    expect(
+      (await a.run('Inspect edits then Undo').completion).proposalIds,
+    ).toHaveLength(1);
+    const results = p.requests[2]!.messages.filter(
+      (message) => message.role === 'tool',
+    ).map((message) => JSON.parse(message.content));
+    expect(results.some((result) => result.status === 'already_loaded')).toBe(
+      true,
+    );
+    expect(names(p.requests[1]!)).not.toContain('propose_action');
+    expect(names(p.requests[2]!)).toContain('propose_action');
+    expect(names(p.requests[2]!)).toContain('propose_edits');
+    expect(f.editor.commands.undo).not.toHaveBeenCalled();
+    await a.dispose();
+  });
+
+  it.each([false, true])(
+    'respects transcript sharing after loading transcription: %s',
+    async (includeTranscripts) => {
+      const f = fixture();
+      f.editor.transcription.status = vi.fn(async () => ({
+        ready: false,
+        missing: [],
+      }));
+      const p = provider(
+        [
+          [final('', [load('transcription')])],
+          [
+            final('', [
+              call('read_transcript', { transcriptId: 'transcript' }),
+            ]),
+          ],
+          [final()],
+        ],
+        false,
+      );
+      const a = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test/model',
+        context: { includeTranscripts },
+      });
+      await a.run('Read the transcript').completion;
+      expect(names(p.requests[1]!)).toContain('inspect_transcription');
+      expect(names(p.requests[1]!)).not.toContain('propose_action');
+      expect(names(p.requests[1]!).includes('read_transcript')).toBe(
+        includeTranscripts,
+      );
+      expect(f.editor.transcription.transcript).toHaveBeenCalledTimes(
+        includeTranscripts ? 1 : 0,
+      );
+      expect(
+        JSON.stringify(p.requests).includes('Private transcript phrase'),
+      ).toBe(includeTranscripts);
+      await a.dispose();
+    },
+  );
+
+  it('keeps unsupported service variants out even when all domains are loaded', () => {
+    const capabilities = assistantCapabilities(fixture().editor);
+    capabilities.undo = true;
+    const tools = toolDefinitions(
+      false,
+      capabilities,
+      new Set(['editing', 'export', 'transcription', 'history']),
+    );
+    const action = tools.find(
+      (tool) => tool.function.name === 'propose_action',
+    )!;
+    expect(JSON.stringify(action.function.parameters)).toContain('undo');
+    expect(JSON.stringify(action.function.parameters)).not.toMatch(
+      /redo|export|transcribe|prepare_transcription/,
+    );
+    expect(tools.map((tool) => tool.function.name)).not.toContain(
+      'check_export',
+    );
+  });
+
+  it('counts discovery calls against limits and rejects malformed skill input', async () => {
+    const f = rawSetup([
+      [
+        final('', [
+          call('load_skill', {
+            skillId: 'editing',
+            url: 'https://untrusted.example',
+          }),
+        ]),
+      ],
+      [final()],
+    ]);
+    await f.assistant.run('Load').completion;
+    expect(names(f.provider.requests[1]!)).toEqual(baseTools);
+    expect(f.provider.requests[1]!.messages.at(-1)!.content).toContain(
+      'INVALID_TOOL_ARGUMENTS',
+    );
+    const p = provider(
+      [[final('', [load('editing'), load('editing', 'again')])]],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      limits: { maxToolCalls: 1 },
+    });
+    await expect(a.run('Load').completion).rejects.toMatchObject({
+      code: 'TOOL_LIMIT',
+    });
+    await f.assistant.dispose();
+    await a.dispose();
+  });
+
+  it('cancellation rejects late skill discovery and starts fresh on the next turn', async () => {
+    const f = fixture(),
+      gate = deferred<ProviderEvent>(),
+      started = deferred<void>();
+    let first = true;
+    const requests: ChatRequest[] = [];
+    const a = createAssistant({
+      editor: f.editor,
+      projectId: f.project().id,
+      model: 'test/model',
+      provider: {
+        async *stream(request) {
+          requests.push(structuredClone(request));
+          if (first) {
+            first = false;
+            started.resolve();
+            yield await gate.promise;
+          } else yield final();
+        },
+      },
+    });
+    const turn = a.run('Edit');
+    await started.promise;
+    turn.cancel();
+    await expect(turn.completion).rejects.toMatchObject({ code: 'CANCELLED' });
+    gate.resolve(final('', [load('editing')]));
+    await a.run('Fresh').completion;
+    expect(names(requests[1]!)).toEqual(baseTools);
+    expect(a.snapshot().proposals).toEqual([]);
+    await a.dispose();
   });
 });

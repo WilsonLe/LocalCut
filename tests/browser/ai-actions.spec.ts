@@ -38,6 +38,38 @@ for (const base of ['/', '/LocalCut/']) {
           async *stream(request) {
             requests.push(structuredClone(request));
             const calls = next;
+            if (
+              calls &&
+              !request.tools.some(
+                (tool) => tool.function.name === calls[0]!.function.name,
+              )
+            ) {
+              const args = JSON.parse(calls[0]!.function.arguments);
+              const skillId =
+                calls[0]!.function.name === 'propose_edits'
+                  ? 'editing'
+                  : args.action.type === 'export'
+                    ? 'export'
+                    : 'history';
+              yield {
+                type: 'complete' as const,
+                message: {
+                  role: 'assistant' as const,
+                  content: null,
+                  tool_calls: [
+                    {
+                      id: crypto.randomUUID(),
+                      type: 'function' as const,
+                      function: {
+                        name: 'load_skill',
+                        arguments: JSON.stringify({ skillId }),
+                      },
+                    },
+                  ],
+                },
+              };
+              return;
+            }
             next = undefined;
             yield {
               type: 'complete' as const,
