@@ -27,6 +27,7 @@ interface Props {
 }
 export interface PreviewControls {
   togglePlayback: () => void;
+  pause: () => void;
 }
 export function Preview({
   editor,
@@ -183,6 +184,12 @@ export function Preview({
   };
   useImperativeHandle(controlsRef, () => ({
     togglePlayback: () => void play(),
+    pause: () => {
+      generation.current++;
+      session.current?.pause();
+      if (playing) onTime(session.current?.currentTimeUs ?? displayedTime);
+      setPlayingIdentity(null);
+    },
   }));
   return (
     <section className="preview" aria-label="Project preview">

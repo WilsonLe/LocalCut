@@ -10,6 +10,7 @@ import type { CSSProperties } from 'react';
 import {
   ArrowUpRight,
   History,
+  LoaderCircle,
   Search,
   PanelRightClose,
   ChevronDown,
@@ -68,6 +69,7 @@ const CommandPalette = lazy(() => import('./CommandPalette'));
 const WorkspaceMenu = lazy(() => import('./WorkspaceMenu'));
 const WorkspaceTransferDialog = lazy(() => import('./WorkspaceTransferDialog'));
 const AppearancePanel = lazy(() => import('./AppearancePanel'));
+const ProjectBrowser = lazy(() => import('./ProjectBrowser'));
 type Artifact = ExportResult & { dispose: () => Promise<void> };
 
 export function Workspace() {
@@ -118,6 +120,8 @@ export function Workspace() {
   const viewProject = browsed?.project ?? project;
   const [assets, setAssets] = useState<Asset[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsOpen, setProjectsOpen] = useState(false);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [selected, setSelected] = useState<string>();
   const [selection, setSelection] = useState<string[]>([]);
   const selectedIds = selectionIds(viewProject, [
@@ -163,6 +167,7 @@ export function Workspace() {
   const alive = useRef(true);
   const lock = useRef(false);
   const refreshToken = useRef(0);
+  const projectsToken = useRef(0);
   const unsubscribeVersions = useRef<(() => void) | null>(null);
   const unsubscribe = useRef<(() => void) | null>(null);
   const disposeAssistant = useRef<(() => Promise<void>) | null>(null);
@@ -279,6 +284,29 @@ export function Workspace() {
       });
     return instance.current;
   }, [refresh, error]);
+  useEffect(() => {
+    if (!editor || !projectsOpen) return;
+    let stale = false;
+    const stop = editor.events.projects(() => {
+      const request = ++projectsToken.current;
+      void editor.projects
+        .list()
+        .then((value) => {
+          if (!stale && request === projectsToken.current) {
+            setProjects(value);
+            setProjectsLoaded(true);
+          }
+        })
+        .catch((failure) => {
+          if (!stale) error(failure);
+        });
+    });
+    return () => {
+      stale = true;
+      projectsToken.current++;
+      stop();
+    };
+  }, [editor, projectsOpen, error]);
   useEffect(
     () => () => {
       alive.current = false;
@@ -356,6 +384,14 @@ export function Workspace() {
     setTimeUs(0);
     setDialog(null);
     await refresh();
+    await artifactRef.current?.dispose();
+    artifactRef.current = null;
+    setArtifact(null);
+    setExportError('');
+    setProjectsOpen(false);
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>('[data-editor-shortcuts]')?.focus(),
+    );
   };
   const apply = async (operations: EditOperation[]) => {
     if (browsing.current)
@@ -484,12 +520,28 @@ export function Workspace() {
     setTimeUs(value);
     setSeekRevision((value) => value + 1);
   };
-  const showProjects = () =>
+  const showProjects = () => {
+    if (lock.current) return;
+    previewControls.current?.pause();
+    setProjectsOpen(true);
+    setDialog(null);
+    setAppearanceOpen(false);
+    const request = ++projectsToken.current;
     void action(async () => {
       const engine = await ensureEditor();
-      setProjects(await engine.projects.list());
-      setDialog('projects');
+      const value = await engine.projects.list();
+      if (alive.current && request === projectsToken.current) {
+        setProjects(value);
+        setProjectsLoaded(true);
+      }
     });
+  };
+  const returnToEditor = () => {
+    setProjectsOpen(false);
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>('[data-editor-shortcuts]')?.focus(),
+    );
+  };
   const backupProject = () =>
     void action(async () => {
       if (!project) return;
@@ -818,43 +870,49 @@ export function Workspace() {
     timeUs < selectedClip.startUs + selectedClip.durationUs;
   useEditorShortcuts({
     enabled: !busy,
-    actions: {
-      playPause: total
-        ? () => previewControls.current?.togglePlayback()
-        : undefined,
-      previousFrame: project
-        ? () => seek(frameStep(timeUs, -1, viewProject!.frameRate, total))
-        : undefined,
-      nextFrame: project
-        ? () => seek(frameStep(timeUs, 1, viewProject!.frameRate, total))
-        : undefined,
-      previousTenFrames: project
-        ? () => seek(frameStep(timeUs, -10, viewProject!.frameRate, total))
-        : undefined,
-      nextTenFrames: project
-        ? () => seek(frameStep(timeUs, 10, viewProject!.frameRate, total))
-        : undefined,
-      start: project ? () => seek(0) : undefined,
-      end: project
-        ? () => seek(frameStep(total, 0, viewProject!.frameRate, total))
-        : undefined,
-      split: canSplit && !browsed ? split : undefined,
-      delete: selectedClip && !browsed ? deleteClip : undefined,
-      duplicate: selectedClip && !browsed ? duplicate : undefined,
-      group: canGroup && !browsed ? group : undefined,
-      ungroup: selectedGroups.length && !browsed ? ungroup : undefined,
-      addText: project && !browsed ? addText : undefined,
-      undo: project && !browsed ? undo : undefined,
-      redo: project && !browsed ? redo : undefined,
-      newProject: () => setDialog('new'),
-      openProject: showProjects,
-      import: !browsed ? () => fileInput.current?.click() : undefined,
-      export: total && !browsed ? showExport : undefined,
-      toggleChat,
-      toggleMedia,
-      shortcuts: () => setDialog('shortcuts'),
-      commands: () => showCommands(),
-    },
+    actions: projectsOpen
+      ? {
+          openProject: showProjects,
+          commands: () => showCommands(),
+          shortcuts: () => setDialog('shortcuts'),
+        }
+      : {
+          playPause: total
+            ? () => previewControls.current?.togglePlayback()
+            : undefined,
+          previousFrame: project
+            ? () => seek(frameStep(timeUs, -1, viewProject!.frameRate, total))
+            : undefined,
+          nextFrame: project
+            ? () => seek(frameStep(timeUs, 1, viewProject!.frameRate, total))
+            : undefined,
+          previousTenFrames: project
+            ? () => seek(frameStep(timeUs, -10, viewProject!.frameRate, total))
+            : undefined,
+          nextTenFrames: project
+            ? () => seek(frameStep(timeUs, 10, viewProject!.frameRate, total))
+            : undefined,
+          start: project ? () => seek(0) : undefined,
+          end: project
+            ? () => seek(frameStep(total, 0, viewProject!.frameRate, total))
+            : undefined,
+          split: canSplit && !browsed ? split : undefined,
+          delete: selectedClip && !browsed ? deleteClip : undefined,
+          duplicate: selectedClip && !browsed ? duplicate : undefined,
+          group: canGroup && !browsed ? group : undefined,
+          ungroup: selectedGroups.length && !browsed ? ungroup : undefined,
+          addText: project && !browsed ? addText : undefined,
+          undo: project && !browsed ? undo : undefined,
+          redo: project && !browsed ? redo : undefined,
+          newProject: () => setDialog('new'),
+          openProject: showProjects,
+          import: !browsed ? () => fileInput.current?.click() : undefined,
+          export: total && !browsed ? showExport : undefined,
+          toggleChat,
+          toggleMedia,
+          shortcuts: () => setDialog('shortcuts'),
+          commands: () => showCommands(),
+        },
   });
   const getCommands = () => {
     const commands: WorkspaceCommand[] = [];
@@ -868,6 +926,34 @@ export function Workspace() {
     ) => {
       if (available) commands.push({ id, label, group, run, shortcut });
     };
+    if (projectsOpen) {
+      command('new', 'New project', 'Project', !busy, () => setDialog('new'));
+      command(
+        'open',
+        'Refresh projects',
+        'Project',
+        !busy,
+        showProjects,
+        'Mod+O',
+      );
+      command('back', 'Back to editor', 'Project', !busy, returnToEditor);
+      command('import-backup', 'Import project backup', 'Project', !busy, () =>
+        backupInput.current?.click(),
+      );
+      command('import-project', 'Import project', 'Project', !busy, () =>
+        setTransfer({ mode: 'import', projectOnly: true }),
+      );
+      command('export-workspace', 'Export workspace', 'Workspace', !busy, () =>
+        setTransfer({ mode: 'export' }),
+      );
+      command('import-workspace', 'Import workspace', 'Workspace', !busy, () =>
+        setTransfer({ mode: 'import' }),
+      );
+      command('appearance', 'Appearance', 'Settings', !busy, () =>
+        setAppearanceOpen(true),
+      );
+      return commands;
+    }
     const editable = !!project && !browsed && !busy;
     const focusEditor = () =>
       document.querySelector<HTMLElement>('[data-editor-shortcuts]')?.focus();
@@ -1209,15 +1295,23 @@ export function Workspace() {
       style={{ '--chat-preferred-width': `${chatWidth}px` } as CSSProperties}
     >
       <header className="workspace-header">
-        <a
-          className="brand"
-          href={import.meta.env.BASE_URL}
-          aria-label="LocalCut home"
-        >
-          <Scissors aria-hidden="true" />
-          LocalCut
-        </a>
-        {!busy && (
+        {busy ? (
+          <span className="brand">
+            <Scissors aria-hidden="true" />
+            LocalCut
+          </span>
+        ) : (
+          <button
+            className="brand"
+            type="button"
+            aria-label="LocalCut home"
+            onClick={showProjects}
+          >
+            <Scissors aria-hidden="true" />
+            LocalCut
+          </button>
+        )}
+        {!busy && !projectsOpen && (
           <Button
             variant="ghost"
             className="project-picker"
@@ -1225,11 +1319,12 @@ export function Workspace() {
             onClick={showProjects}
           >
             {viewProject?.name ?? 'Untitled project'}
+            <span className="sr-only">Projects</span>
             <ChevronDown />
           </Button>
         )}
         <div className="header-actions">
-          {project && !busy && (
+          {project && !busy && !projectsOpen && (
             <Button
               variant="outline"
               size="sm"
@@ -1239,7 +1334,7 @@ export function Workspace() {
               <History /> Versions
             </Button>
           )}
-          {!!total && !busy && !browsed && (
+          {!!total && !busy && !browsed && !projectsOpen && (
             <Button size="sm" onClick={showExport}>
               <ArrowUpRight /> Export
             </Button>
@@ -1262,8 +1357,8 @@ export function Workspace() {
                 open={settingsOpen}
                 onOpenChange={setSettingsOpen}
                 busy={busy || !!browsed}
-                hasProject={!!project}
-                canExport={!!total}
+                hasProject={!!project && !projectsOpen}
+                canExport={!!total && !projectsOpen}
                 mediaOpen={drawer}
                 chatCollapsed={chatCollapsed}
                 format={format}
@@ -1297,8 +1392,41 @@ export function Workspace() {
           )}
         </div>
       </header>
-      <div className="workspace-body" data-appearance-open={appearanceOpen}>
-        <div className="workspace-columns">
+      <div
+        className="workspace-body"
+        data-appearance-open={appearanceOpen}
+        data-projects-open={projectsOpen}
+      >
+        {projectsOpen && (
+          <Suspense
+            fallback={
+              <div
+                className="project-browser"
+                role="status"
+                aria-label="Loading projects"
+              >
+                <LoaderCircle className="animate-spin size-5" />
+              </div>
+            }
+          >
+            <ProjectBrowser
+              projects={projects}
+              currentProjectId={project?.id}
+              busy={busy}
+              loaded={projectsLoaded}
+              onOpen={(snapshot) =>
+                snapshot.id === projectId.current
+                  ? returnToEditor()
+                  : void action(() => openProject(snapshot))
+              }
+              onBack={returnToEditor}
+              onRefresh={showProjects}
+              onNew={() => setDialog('new')}
+              onImport={() => backupInput.current?.click()}
+            />
+          </Suspense>
+        )}
+        <div className="workspace-columns" inert={projectsOpen}>
           <Conversation
             controlsRef={conversationControls}
             editor={editor}
@@ -1577,7 +1705,7 @@ export function Workspace() {
           event.target.value = '';
           if (file)
             void action(async () => {
-              if (browsing.current) return;
+              if (browsing.current && !projectsOpen) return;
               const engine = await ensureEditor();
               await openProject(
                 await engine.projects.importJSON(await file.text()),
@@ -1592,7 +1720,6 @@ export function Workspace() {
             busy={busy}
             project={viewProject}
             readOnly={!!browsed}
-            projects={projects}
             selectedClip={selectedClip}
             assets={browsed ? versionAssets : assets}
             format={format}
@@ -1605,10 +1732,6 @@ export function Workspace() {
             onStartExport={startExport}
             onFormatChange={setFormat}
             onCancelWork={cancelWork}
-            onImportBackup={() => backupInput.current?.click()}
-            onOpenProject={(snapshot) =>
-              void action(() => openProject(snapshot))
-            }
             onCreateProject={(name) =>
               void action(async () => {
                 const engine = await ensureEditor();

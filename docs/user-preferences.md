@@ -83,6 +83,10 @@ This is the project record of the user's durable product and workflow choices. U
 - Provide both a speaking-speed control and a total-length control. Preserve voice pitch when adjusting generated audio, and preview the result before adding it to the timeline.
 - Explicit Generate shares the authored script and speech choices only. Retain in-memory credentials and local ownership of the resulting audio; never upload source media.
 
+## Project navigation — 10 October 2026
+
+- Provide a workspace screen for navigating saved projects, alongside the existing editor.
+
 ## Delivery and validation
 
 - Pull and rebase onto current `main`, including the OpenRouter integration, before completing the workspace.

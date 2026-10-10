@@ -1,4 +1,4 @@
-import { Download, FolderOpen, LoaderCircle } from 'lucide-react';
+import { Download, LoaderCircle } from 'lucide-react';
 import type {
   Asset,
   Clip,
@@ -18,10 +18,9 @@ import {
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { SettingsSelect } from './SettingsSelect';
-import { clipName, downloadFile, formatTime, projectDuration } from './helpers';
+import { clipName, downloadFile, formatTime } from './helpers';
 import { SHORTCUT_GROUPS } from './shortcuts';
-export type DialogName =
-  'new' | 'projects' | 'properties' | 'export' | 'shortcuts' | null;
+export type DialogName = 'new' | 'properties' | 'export' | 'shortcuts' | null;
 export interface Progress {
   label: string;
   fraction?: number;
@@ -31,7 +30,6 @@ interface Props {
   busy: boolean;
   readOnly?: boolean;
   project: Project | null;
-  projects: Project[];
   selectedClip: Clip | undefined;
   assets: Asset[];
   format: 'mp4' | 'webm';
@@ -44,8 +42,6 @@ interface Props {
   onStartExport: () => void;
   onFormatChange: (format: 'mp4' | 'webm') => void;
   onCancelWork: () => void;
-  onImportBackup: () => void;
-  onOpenProject: (project: Project) => void;
   onCreateProject: (name: string) => void;
   onSaveProperties: (operations: EditOperation[]) => void;
 }
@@ -54,7 +50,6 @@ export default function WorkspaceDialogs({
   busy,
   readOnly,
   project,
-  projects,
   selectedClip,
   assets,
   format,
@@ -67,8 +62,6 @@ export default function WorkspaceDialogs({
   onStartExport,
   onFormatChange,
   onCancelWork,
-  onImportBackup,
-  onOpenProject,
   onCreateProject,
   onSaveProperties,
 }: Props) {
@@ -116,55 +109,6 @@ export default function WorkspaceDialogs({
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
-      <Dialog
-        open={dialog === 'projects'}
-        onOpenChange={(open) => {
-          if (!open) onDialogChange(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Open project</DialogTitle>
-            <DialogDescription>
-              Projects saved in this browser.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="project-list">
-            {projects.length ? (
-              projects.map((item) => (
-                <Button
-                  className="justify-between h-auto py-3"
-                  variant="outline"
-                  key={item.id}
-                  disabled={busy}
-                  onClick={() => onOpenProject(item)}
-                >
-                  <span className="truncate">{item.name}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {formatTime(projectDuration(item))}
-                  </span>
-                </Button>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No saved projects yet.
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              disabled={busy}
-              onClick={() => onImportBackup()}
-            >
-              <FolderOpen /> Import backup
-            </Button>
-            <Button disabled={busy} onClick={() => onDialogChange('new')}>
-              New project
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
       <Dialog
