@@ -18,7 +18,7 @@ async function openTransfer(page: Page, scope: string, action: string) {
 for (const base of ['/', '/LocalCut/']) {
   test(`project asset checkboxes control ZIP export and import and preserve the active project ${base}`, async ({
     page,
-  }) => {
+  }, testInfo) => {
     await page.goto(base);
     await page.evaluate(async (base) => {
       const { createEditor } = (await import(
@@ -94,7 +94,9 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog.getByRole('button', { name: 'Download backup' }).click();
     const download = await pending;
     expect(download.suggestedFilename()).toBe('localcut-project.zip');
-    const bytes = await readFile((await download.path())!);
+    const downloadPath = testInfo.outputPath('project.zip');
+    await download.saveAs(downloadPath);
+    const bytes = await readFile(downloadPath);
     const zip = unzipSync(bytes);
     const backup = JSON.parse(strFromU8(zip['workspace.json']!));
     expect(backup.files).toHaveLength(1);

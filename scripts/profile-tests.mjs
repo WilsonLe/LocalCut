@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync, createWriteStream } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { root } from './build-state.mjs';
 import { join } from 'node:path';
-import { resources } from './test-resources.ts';
+import { resources, normalBrowserEnv } from './test-resources.ts';
 const [label, ...args] = process.argv.slice(2);
 if (!label || !/^[a-zA-Z0-9_-]+$/.test(label) || !args.length)
   throw new Error(
@@ -26,7 +26,11 @@ if (
   throw new Error(
     'Choose a local validation command (live providers are excluded).',
   );
-const allocation = resources();
+const allocation = resources(
+  ['check', 'test:browser', 'test:ui'].includes(args[0])
+    ? normalBrowserEnv()
+    : process.env,
+);
 const directory = join(root, '.artifacts', 'test-profiles');
 const name = `${label}-${new Date().toISOString().replace(/[:.]/g, '-')}`;
 mkdirSync(directory, { recursive: true });

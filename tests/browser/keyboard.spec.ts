@@ -29,6 +29,8 @@ for (const base of ['/', '/LocalCut/']) {
   test(`keyboard editing respects typing, native controls and modal focus ${base}`, async ({
     page,
   }) => {
+    // Retain focus-restoration coverage through real modal exit motion.
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto(base);
     const workspace = page.getByRole('main', {
       name: 'Video editor',

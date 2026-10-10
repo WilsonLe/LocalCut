@@ -1,4 +1,6 @@
 import { openAISettings } from './workspace-settings-helper';
+import { secondaryTab } from './workspace-tab';
+import { settingsJourney } from './workspace-settings-journey';
 import { expect, test, type Page } from '@playwright/test';
 
 const key = 'localcut.workspace-preferences.v1';
@@ -36,275 +38,333 @@ async function connect(page: Page) {
 }
 
 for (const base of ['/', '/LocalCut/']) {
-  test(`workspace local preferences retain deliberate layout and export choices ${base}`, async ({
-    page,
-  }) => {
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(base);
-    await resize(page).press('ArrowLeft');
-    await expect(resize(page)).toHaveAttribute('aria-valuetext', '336 pixels');
-    const box = (await resize(page).boundingBox())!;
-    await page.mouse.move(box.x + box.width / 2, box.y + 100);
-    await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2 - 80, box.y + 100, {
-      steps: 4,
-    });
-    await page.mouse.up();
-    await expect(resize(page)).toHaveAttribute('aria-valuetext', '416 pixels');
-    await page
-      .getByRole('button', { name: 'Expand media', exact: true })
-      .click();
-    await menu(page, 'Export');
-    await page
-      .getByRole('menuitemradio', { name: 'WebM', exact: true })
-      .click();
-    await closeMenu(page);
-    await page
-      .getByRole('button', { name: 'Collapse chat', exact: true })
-      .click();
-    expect(await preferences(page)).toMatchObject({
-      chatWidth: 416,
-      chatCollapsed: true,
-      mediaOpen: true,
-      exportFormat: 'webm',
-    });
-    await page.reload();
-    await expect(
-      page.getByRole('button', { name: 'Expand chat', exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'Collapse media', exact: true }),
-    ).toBeVisible();
-    await page
-      .getByRole('button', { name: 'Expand chat', exact: true })
-      .click();
-    await expect(resize(page)).toHaveAttribute('aria-valuetext', '416 pixels');
-    await menu(page, 'Export');
-    await expect(
-      page.getByRole('menuitemradio', { name: 'WebM', exact: true }),
-    ).toBeChecked();
-    await closeMenu(page);
-    // Responsive rendering must never rewrite the preferred desktop width.
-    await page.setViewportSize({ width: 320, height: 844 });
-    await page.reload();
-    expect((await preferences(page)).chatWidth).toBe(416);
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await expect(resize(page)).toHaveAttribute('aria-valuetext', '416 pixels');
-    await resize(page).press('End');
-    await expect(resize(page)).toHaveAttribute('aria-valuetext', '560 pixels');
-    await page
-      .getByRole('button', { name: 'Workspace settings', exact: true })
-      .click();
-    await page
-      .getByRole('menuitem', { name: 'Appearance', exact: true })
-      .click();
-    await page.setViewportSize({ width: 1120, height: 900 });
-    await expect
-      .poll(async () =>
-        parseInt((await resize(page).getAttribute('aria-valuetext'))!),
-      )
-      .toBeLessThan(560);
-    expect((await preferences(page)).chatWidth).toBe(560);
-    await page.getByRole('button', { name: 'Reset', exact: true }).click();
-    expect((await preferences(page)).chatWidth).toBe(560);
-    await page
-      .getByRole('button', { name: 'Close appearance', exact: true })
-      .click();
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await expect(resize(page)).toHaveAttribute('aria-valuetext', '560 pixels');
-    await page.setViewportSize({ width: 901, height: 900 });
-    await page.reload();
-    await expect
-      .poll(() =>
-        page
-          .locator('.editing-area')
-          .evaluate((node) => node.getBoundingClientRect().width),
-      )
-      .toBeGreaterThanOrEqual(279);
-    expect((await preferences(page)).chatWidth).toBe(560);
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await expect(resize(page)).toHaveAttribute('aria-valuetext', '560 pixels');
-    await page.screenshot({
-      path: `.artifacts/preferences-${base === '/' ? 'root' : 'pages'}.png`,
-    });
-    // Restoring preferences alone must not reopen the last editor or connect AI.
-    expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
-    await expect(
-      page
-        .getByRole('button', { name: 'Workspace settings', exact: true })
-        .first(),
-    ).toBeVisible();
-  });
+  test(
+    '@journey ' +
+      [
+        `workspace local preferences retain deliberate layout and export choices ${base}`,
+        `workspace settings progressively disclose groups and support keyboard navigation ${base}`,
+      ].join(' | '),
+    async ({ page }) => {
+      await test.step(`workspace local preferences retain deliberate layout and export choices ${base}`, async () => {
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await page.goto(base);
+        await resize(page).press('ArrowLeft');
+        await expect(resize(page)).toHaveAttribute(
+          'aria-valuetext',
+          '336 pixels',
+        );
+        const box = (await resize(page).boundingBox())!;
+        await page.mouse.move(box.x + box.width / 2, box.y + 100);
+        await page.mouse.down();
+        await page.mouse.move(box.x + box.width / 2 - 80, box.y + 100, {
+          steps: 4,
+        });
+        await page.mouse.up();
+        await expect(resize(page)).toHaveAttribute(
+          'aria-valuetext',
+          '416 pixels',
+        );
+        await page
+          .getByRole('button', { name: 'Expand media', exact: true })
+          .click();
+        await menu(page, 'Export');
+        await page
+          .getByRole('menuitemradio', { name: 'WebM', exact: true })
+          .click();
+        await closeMenu(page);
+        await page
+          .getByRole('button', { name: 'Collapse chat', exact: true })
+          .click();
+        expect(await preferences(page)).toMatchObject({
+          chatWidth: 416,
+          chatCollapsed: true,
+          mediaOpen: true,
+          exportFormat: 'webm',
+        });
+        await page.reload();
+        await expect(
+          page.getByRole('button', { name: 'Expand chat', exact: true }),
+        ).toBeVisible();
+        await expect(
+          page.getByRole('button', { name: 'Collapse media', exact: true }),
+        ).toBeVisible();
+        await page
+          .getByRole('button', { name: 'Expand chat', exact: true })
+          .click();
+        await expect(resize(page)).toHaveAttribute(
+          'aria-valuetext',
+          '416 pixels',
+        );
+        await menu(page, 'Export');
+        await expect(
+          page.getByRole('menuitemradio', { name: 'WebM', exact: true }),
+        ).toBeChecked();
+        await closeMenu(page);
+        // Responsive rendering must never rewrite the preferred desktop width.
+        await page.setViewportSize({ width: 320, height: 844 });
+        await page.reload();
+        expect((await preferences(page)).chatWidth).toBe(416);
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await expect(resize(page)).toHaveAttribute(
+          'aria-valuetext',
+          '416 pixels',
+        );
+        await resize(page).press('End');
+        await expect(resize(page)).toHaveAttribute(
+          'aria-valuetext',
+          '560 pixels',
+        );
+        await page
+          .getByRole('button', { name: 'Workspace settings', exact: true })
+          .click();
+        await page
+          .getByRole('menuitem', { name: 'Appearance', exact: true })
+          .click();
+        await page.setViewportSize({ width: 1120, height: 900 });
+        await expect
+          .poll(async () =>
+            parseInt((await resize(page).getAttribute('aria-valuetext'))!),
+          )
+          .toBeLessThan(560);
+        expect((await preferences(page)).chatWidth).toBe(560);
+        await page.getByRole('button', { name: 'Reset', exact: true }).click();
+        expect((await preferences(page)).chatWidth).toBe(560);
+        await page
+          .getByRole('button', { name: 'Close appearance', exact: true })
+          .click();
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await expect(resize(page)).toHaveAttribute(
+          'aria-valuetext',
+          '560 pixels',
+        );
+        await page.setViewportSize({ width: 901, height: 900 });
+        await page.reload();
+        await expect
+          .poll(() =>
+            page
+              .locator('.editing-area')
+              .evaluate((node) => node.getBoundingClientRect().width),
+          )
+          .toBeGreaterThanOrEqual(279);
+        expect((await preferences(page)).chatWidth).toBe(560);
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await expect(resize(page)).toHaveAttribute(
+          'aria-valuetext',
+          '560 pixels',
+        );
+        await page.screenshot({
+          path: `.artifacts/preferences-${base === '/' ? 'root' : 'pages'}.png`,
+        });
+        // Restoring preferences alone must not reopen the last editor or connect AI.
+        expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
+        await expect(
+          page
+            .getByRole('button', { name: 'Workspace settings', exact: true })
+            .first(),
+        ).toBeVisible();
+      });
+      // Restore the settings story's explicit default-format precondition through the UI.
+      await menu(page, 'Export');
+      await page
+        .getByRole('menuitemradio', { name: 'MP4', exact: true })
+        .click();
+      await closeMenu(page);
+      await settingsJourney(page, base);
+    },
+  );
 
-  test(`workspace local preferences synchronize tabs and preserve unrelated choices ${base}`, async ({
-    page,
-    context,
-  }) => {
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto(base);
-    const second = await context.newPage();
-    await second.emulateMedia({ reducedMotion: 'reduce' });
-    await second.goto(base === '/' ? '/LocalCut/' : '/');
-    await resize(page).press('ArrowLeft');
-    await expect(resize(second)).toHaveAttribute(
-      'aria-valuetext',
-      '336 pixels',
-    );
-    await menu(second, 'Export');
-    await second
-      .getByRole('menuitemradio', { name: 'WebM', exact: true })
-      .click();
-    await closeMenu(second);
-    await page
-      .getByRole('button', { name: 'Collapse chat', exact: true })
-      .click();
-    await expect(
-      second.getByRole('button', { name: 'Expand chat', exact: true }),
-    ).toBeVisible();
-    expect(await preferences(second)).toMatchObject({
-      chatWidth: 336,
-      chatCollapsed: true,
-      exportFormat: 'webm',
-    });
-    await page.evaluate(() =>
-      localStorage.setItem('other-app.preference', 'keep'),
-    );
-    await second
-      .getByRole('button', { name: 'Expand media', exact: true })
-      .click();
-    await expect(
-      page.getByRole('button', { name: 'Collapse media', exact: true }),
-    ).toBeVisible();
-    expect(
-      await page.evaluate(() => localStorage.getItem('other-app.preference')),
-    ).toBe('keep');
-    await second.evaluate((key) => localStorage.removeItem(key), key);
-    await expect(
-      page.getByRole('button', { name: 'Collapse chat', exact: true }),
-    ).toBeVisible();
-    await expect(resize(page)).toHaveAttribute('aria-valuetext', '320 pixels');
-    await expect(
-      page.getByRole('button', { name: 'Expand media', exact: true }),
-    ).toBeVisible();
-    // A field patch must merge the latest disk value even before a storage event.
-    await page
-      .getByRole('button', { name: 'Expand media', exact: true })
-      .click();
-    await page.evaluate((key) => {
-      const record = JSON.parse(localStorage.getItem(key)!);
-      record.preferences.exportFormat = 'webm';
-      localStorage.setItem(key, JSON.stringify(record));
-    }, key);
-    await resize(page).press('ArrowLeft');
-    expect(await preferences(page)).toMatchObject({
-      chatWidth: 336,
-      exportFormat: 'webm',
-      mediaOpen: true,
-    });
-    await page.evaluate(
-      (key) =>
-        window.dispatchEvent(
-          new StorageEvent('storage', {
-            key,
-            storageArea: localStorage,
-            newValue: JSON.stringify({
-              version: 1,
-              preferences: { chatWidth: 280 },
-            }),
-          }),
-        ),
-      key,
-    );
-    await expect(resize(page)).toHaveAttribute('aria-valuetext', '336 pixels');
-    await second.close();
-  });
-
-  test(`workspace local preferences keep automatic media opening temporary and share export dialog choices ${base}`, async ({
-    page,
-    context,
-  }) => {
-    await page.goto(base);
-    await page
-      .getByRole('button', { name: 'Workspace settings', exact: true })
-      .click();
-    await page.getByRole('menuitem', { name: 'Project', exact: true }).click();
-    await page
-      .getByRole('menuitem', { name: 'New project', exact: true })
-      .click();
-    await page
-      .getByLabel('Project name', { exact: true })
-      .fill('Preference import');
-    await page
-      .getByRole('button', { name: 'Create project', exact: true })
-      .click();
-    await expect(
-      page.getByRole('dialog', { name: 'New project', exact: true }),
-    ).not.toBeVisible();
-    await page.getByRole('button', { name: 'Expand media' }).click();
-    await page.getByRole('button', { name: 'Collapse media' }).click();
-    const bytes = await page.evaluate(async () => {
-      const canvas = new OffscreenCanvas(64, 64);
-      const ctx = canvas.getContext('2d')!;
-      ctx.fillStyle = 'red';
-      ctx.fillRect(0, 0, 64, 64);
-      return Array.from(
-        new Uint8Array(
-          await (
-            await canvas.convertToBlob({ type: 'image/png' })
-          ).arrayBuffer(),
-        ),
-      );
-    });
-    await page.getByLabel('Import media', { exact: true }).setInputFiles({
-      name: 'preference.png',
-      mimeType: 'image/png',
-      buffer: Buffer.from(bytes),
-    });
-    await expect(
-      page.getByRole('button', { name: 'preference.png', exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'Collapse media' }),
-    ).toBeVisible();
-    expect((await preferences(page)).mediaOpen).toBe(false);
-    const second = await context.newPage();
-    await second.goto(base);
-    await second
-      .getByRole('button', { name: 'Expand media', exact: true })
-      .click();
-    await expect
-      .poll(async () => (await preferences(page)).mediaOpen)
-      .toBe(true);
-    await second
-      .getByRole('button', { name: 'Collapse media', exact: true })
-      .click();
-    await expect(
-      page.getByRole('button', { name: 'Expand media', exact: true }),
-    ).toBeVisible();
-    await second.close();
-    await page.getByRole('button', { name: 'Export', exact: true }).click();
-    const dialog = page.getByRole('dialog', {
-      name: 'Export video',
-      exact: true,
-    });
-    await dialog.getByRole('combobox', { name: 'Format', exact: true }).click();
-    await page.getByRole('option', { name: 'WebM', exact: true }).click();
-    await dialog
-      .getByRole('button', { name: 'Close', exact: true })
-      .first()
-      .click();
-    expect((await preferences(page)).exportFormat).toBe('webm');
-    await page.reload();
-    await expect(
-      page.getByRole('button', { name: 'Expand media' }),
-    ).toBeVisible();
-    await menu(page, 'Export');
-    await expect(
-      page.getByRole('menuitemradio', { name: 'WebM', exact: true }),
-    ).toBeChecked();
-    await closeMenu(page);
-  });
+  test(
+    '@journey ' +
+      [
+        `workspace local preferences synchronize tabs and preserve unrelated choices ${base}`,
+        `workspace local preferences keep automatic media opening temporary and share export dialog choices ${base}`,
+      ].join(' | '),
+    async ({ page, context }) => {
+      await test.step(`workspace local preferences synchronize tabs and preserve unrelated choices ${base}`, async () => {
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await page.goto(base);
+        const second = await secondaryTab(context, page);
+        await second.emulateMedia({ reducedMotion: 'reduce' });
+        await second.goto(base === '/' ? '/LocalCut/' : '/');
+        await resize(page).press('ArrowLeft');
+        await expect(resize(second)).toHaveAttribute(
+          'aria-valuetext',
+          '336 pixels',
+        );
+        await menu(second, 'Export');
+        await second
+          .getByRole('menuitemradio', { name: 'WebM', exact: true })
+          .click();
+        await closeMenu(second);
+        await page
+          .getByRole('button', { name: 'Collapse chat', exact: true })
+          .click();
+        await expect(
+          second.getByRole('button', { name: 'Expand chat', exact: true }),
+        ).toBeVisible();
+        expect(await preferences(second)).toMatchObject({
+          chatWidth: 336,
+          chatCollapsed: true,
+          exportFormat: 'webm',
+        });
+        await page.evaluate(() =>
+          localStorage.setItem('other-app.preference', 'keep'),
+        );
+        await second
+          .getByRole('button', { name: 'Expand media', exact: true })
+          .click();
+        await expect(
+          page.getByRole('button', { name: 'Collapse media', exact: true }),
+        ).toBeVisible();
+        expect(
+          await page.evaluate(() =>
+            localStorage.getItem('other-app.preference'),
+          ),
+        ).toBe('keep');
+        await second.evaluate((key) => localStorage.removeItem(key), key);
+        await expect(
+          page.getByRole('button', { name: 'Collapse chat', exact: true }),
+        ).toBeVisible();
+        await expect(resize(page)).toHaveAttribute(
+          'aria-valuetext',
+          '320 pixels',
+        );
+        await expect(
+          page.getByRole('button', { name: 'Expand media', exact: true }),
+        ).toBeVisible();
+        // A field patch must merge the latest disk value even before a storage event.
+        await page
+          .getByRole('button', { name: 'Expand media', exact: true })
+          .click();
+        await page.evaluate((key) => {
+          const record = JSON.parse(localStorage.getItem(key)!);
+          record.preferences.exportFormat = 'webm';
+          localStorage.setItem(key, JSON.stringify(record));
+        }, key);
+        await resize(page).press('ArrowLeft');
+        expect(await preferences(page)).toMatchObject({
+          chatWidth: 336,
+          exportFormat: 'webm',
+          mediaOpen: true,
+        });
+        await page.evaluate(
+          (key) =>
+            window.dispatchEvent(
+              new StorageEvent('storage', {
+                key,
+                storageArea: localStorage,
+                newValue: JSON.stringify({
+                  version: 1,
+                  preferences: { chatWidth: 280 },
+                }),
+              }),
+            ),
+          key,
+        );
+        await expect(resize(page)).toHaveAttribute(
+          'aria-valuetext',
+          '336 pixels',
+        );
+        // Keep the secondary tab for the next synchronization phase.
+      });
+      await test.step('reset the journey workspace preference record', async () => {
+        const second = await secondaryTab(context, page);
+        await second.evaluate((key) => localStorage.removeItem(key), key);
+        await expect(resize(page)).toHaveAttribute(
+          'aria-valuetext',
+          '320 pixels',
+        );
+        await second.reload();
+      });
+      await test.step(`workspace local preferences keep automatic media opening temporary and share export dialog choices ${base}`, async () => {
+        // Continue in the same app after the explicit preference reset.
+        await page
+          .getByRole('button', { name: 'Workspace settings', exact: true })
+          .click();
+        await page
+          .getByRole('menuitem', { name: 'Project', exact: true })
+          .click();
+        await page
+          .getByRole('menuitem', { name: 'New project', exact: true })
+          .click();
+        await page
+          .getByLabel('Project name', { exact: true })
+          .fill('Preference import');
+        await page
+          .getByRole('button', { name: 'Create project', exact: true })
+          .click();
+        await expect(
+          page.getByRole('dialog', { name: 'New project', exact: true }),
+        ).not.toBeVisible();
+        await page.getByRole('button', { name: 'Expand media' }).click();
+        await page.getByRole('button', { name: 'Collapse media' }).click();
+        const bytes = await page.evaluate(async () => {
+          const canvas = new OffscreenCanvas(64, 64);
+          const ctx = canvas.getContext('2d')!;
+          ctx.fillStyle = 'red';
+          ctx.fillRect(0, 0, 64, 64);
+          return Array.from(
+            new Uint8Array(
+              await (
+                await canvas.convertToBlob({ type: 'image/png' })
+              ).arrayBuffer(),
+            ),
+          );
+        });
+        await page.getByLabel('Import media', { exact: true }).setInputFiles({
+          name: 'preference.png',
+          mimeType: 'image/png',
+          buffer: Buffer.from(bytes),
+        });
+        await expect(
+          page.getByRole('button', { name: 'preference.png', exact: true }),
+        ).toBeVisible();
+        await expect(
+          page.getByRole('button', { name: 'Collapse media' }),
+        ).toBeVisible();
+        expect((await preferences(page)).mediaOpen).toBe(false);
+        const second = await secondaryTab(context, page);
+        await second.goto(base);
+        await second
+          .getByRole('button', { name: 'Expand media', exact: true })
+          .click();
+        await expect
+          .poll(async () => (await preferences(page)).mediaOpen)
+          .toBe(true);
+        await second
+          .getByRole('button', { name: 'Collapse media', exact: true })
+          .click();
+        await expect(
+          page.getByRole('button', { name: 'Expand media', exact: true }),
+        ).toBeVisible();
+        await second.close();
+        await page.getByRole('button', { name: 'Export', exact: true }).click();
+        const dialog = page.getByRole('dialog', {
+          name: 'Export video',
+          exact: true,
+        });
+        await dialog
+          .getByRole('combobox', { name: 'Format', exact: true })
+          .click();
+        await page.getByRole('option', { name: 'WebM', exact: true }).click();
+        await dialog
+          .getByRole('button', { name: 'Close', exact: true })
+          .first()
+          .click();
+        expect((await preferences(page)).exportFormat).toBe('webm');
+        await page.reload();
+        await expect(
+          page.getByRole('button', { name: 'Expand media' }),
+        ).toBeVisible();
+        await menu(page, 'Export');
+        await expect(
+          page.getByRole('menuitemradio', { name: 'WebM', exact: true }),
+        ).toBeChecked();
+        await closeMenu(page);
+      });
+    },
+  );
 
   test(`workspace local preferences validate stored values and remain inert ${base}`, async ({
     page,

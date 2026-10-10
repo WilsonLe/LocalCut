@@ -1,6 +1,10 @@
 import { defineConfig } from '@playwright/test';
-import { resources } from './scripts/test-resources.ts';
-const browserWorkers = resources().browserWorkers;
+import { resources, normalBrowserEnv } from './scripts/test-resources.ts';
+const sharedBrowser = process.env.LOCALCUT_BROWSER_WS_ENDPOINT;
+// Direct Playwright invocations without our shared runner stay single-browser.
+const browserWorkers = sharedBrowser
+  ? resources(normalBrowserEnv()).browserWorkers
+  : 1;
 export default defineConfig({
   testDir: 'tests/browser',
   timeout: 120000,
@@ -11,6 +15,12 @@ export default defineConfig({
     {
       name: 'chrome',
       testIgnore: ['**/transcription.spec.ts', '**/performance.spec.ts'],
+      use: {
+        reducedMotion: 'reduce',
+        connectOptions: sharedBrowser
+          ? { wsEndpoint: sharedBrowser }
+          : undefined,
+      },
     },
     {
       name: 'acceptance',

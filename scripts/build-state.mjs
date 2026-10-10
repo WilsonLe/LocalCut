@@ -128,22 +128,52 @@ export async function buildStatus(build) {
   return { current: true, reason: 'source and every output file match' };
 }
 
-export async function runPnpm(args, env = process.env) {
+export async function runPnpm(args, env = process.env, { signal } = {}) {
   const executable = env.npm_execpath;
   const command = executable ? process.execPath : 'pnpm';
   const commandArgs = executable ? [executable, ...args] : args;
+  return runProcess(command, commandArgs, env, { signal });
+}
+
+export async function runProcess(
+  command,
+  args,
+  env = process.env,
+  { signal } = {},
+) {
   await new Promise((resolve, reject) => {
-    const child = spawn(command, commandArgs, {
+    const child = spawn(command, args, {
       cwd: root,
       env,
       stdio: 'inherit',
+      // Keep terminal signals from reaching both the wrapper and runner. The
+      // direct runner receives one forwarded signal and owns child teardown.
+      detached: Boolean(signal) && process.platform !== 'win32',
     });
-    child.on('error', reject);
-    child.on('exit', (code, signal) =>
-      code === 0
-        ? resolve()
-        : reject(new Error(`pnpm ${args.join(' ')} exited ${code ?? signal}`)),
-    );
+    // Wait for close even after cancellation: the owned runner must finish its
+    // cleanup before a caller tears down the browser or other shared resources.
+    const abort = () =>
+      child.kill(typeof signal.reason === 'string' ? signal.reason : 'SIGTERM');
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
+    let error;
+    child.on('error', (cause) => {
+      error = cause;
+    });
+    child.on('close', (code, exitSignal) => {
+      signal?.removeEventListener('abort', abort);
+      if (error) reject(error);
+      else if (code === 0) resolve();
+      else
+        reject(
+          Object.assign(
+            new Error(
+              `${command} ${args.join(' ')} exited ${code ?? exitSignal}`,
+            ),
+            { exitCode: code, signal: exitSignal },
+          ),
+        );
+    });
   });
 }
 
