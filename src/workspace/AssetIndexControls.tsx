@@ -255,7 +255,7 @@ export default function AssetIndexControls({
         </span>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent className="max-h-[calc(var(--app-viewport-height)*0.85)] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Asset index</DialogTitle>
             <DialogDescription>

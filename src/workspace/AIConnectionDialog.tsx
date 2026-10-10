@@ -78,7 +78,7 @@ export default function AIConnectionDialog({
         if (!open) setApiKey('');
       }}
     >
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
+      <DialogContent className="max-h-[calc(var(--app-viewport-height)*0.9)] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>AI connection</DialogTitle>
           <DialogDescription className="sr-only">

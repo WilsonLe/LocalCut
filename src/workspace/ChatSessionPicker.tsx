@@ -69,7 +69,7 @@ export default function ChatSessionPicker({
           <Menu.Popup
             aria-label="Chat sessions"
             ref={content}
-            className="max-h-(--available-height) w-80 max-w-[calc(100vw-2rem)] overflow-auto rounded-lg border bg-popover p-2 text-popover-foreground shadow-lg outline-none"
+            className="max-h-(--available-height) w-80 max-w-[calc(var(--app-viewport-width)-2rem)] overflow-auto rounded-lg border bg-popover p-2 text-popover-foreground shadow-lg outline-none"
           >
             <div className="mb-2 flex gap-2">
               <Input

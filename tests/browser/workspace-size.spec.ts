@@ -35,6 +35,32 @@ async function aligned(page: Page) {
   ).toBeLessThanOrEqual(page.viewportSize()!.width);
 }
 
+async function prepareProject(page: Page, base: string) {
+  await page.goto(base);
+  await page
+    .getByRole('main', { name: 'Video editor', exact: true })
+    .press('n');
+  await page.getByLabel('Project name', { exact: true }).fill('Sized project');
+  await page
+    .getByRole('button', { name: 'Create project', exact: true })
+    .click();
+  await expect(
+    page.getByRole('dialog', { name: 'New project', exact: true }),
+  ).not.toBeVisible();
+  const png = await page.evaluate(async () => {
+    const canvas = new OffscreenCanvas(128, 72);
+    canvas.getContext('2d')!.fillRect(0, 0, 128, 72);
+    return [
+      ...new Uint8Array(await (await canvas.convertToBlob()).arrayBuffer()),
+    ];
+  });
+  await page.getByLabel('Import media', { exact: true }).setInputFiles({
+    name: 'size.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(png),
+  });
+}
+
 for (const base of ['/', '/LocalCut/']) {
   test(`interface size keeps timeline anchored, popups reachable and preferences durable ${base}`, async ({
     page,
@@ -127,6 +153,65 @@ for (const base of ['/', '/LocalCut/']) {
         ).toBeInViewport();
         await page.keyboard.press('Escape');
         await expect(dialog).not.toBeVisible();
+        const navigation = page.getByRole('navigation', {
+          name: 'Workspace sections',
+        });
+        if (await navigation.isVisible())
+          await navigation
+            .getByRole('button', { name: 'Chat', exact: true })
+            .click();
+        await page
+          .getByRole('button', { name: 'Chat sessions', exact: true })
+          .click();
+        const sessions = page.getByRole('menu', {
+          name: 'Chat sessions',
+          exact: true,
+        });
+        await expect(sessions).toBeVisible();
+        const sessionBounds = (await sessions.boundingBox())!;
+        expect(sessionBounds.x).toBeGreaterThanOrEqual(-1);
+        expect(sessionBounds.x + sessionBounds.width).toBeLessThanOrEqual(
+          viewport.width + 1,
+        );
+        await expect(
+          sessions.getByRole('menuitem', {
+            name: 'New conversation',
+            exact: true,
+          }),
+        ).toBeInViewport();
+        await sessions
+          .getByRole('menuitem', { name: 'New conversation', exact: true })
+          .click();
+        await expect(sessions).not.toBeVisible();
+        await page
+          .getByRole('button', { name: 'Connect AI', exact: true })
+          .click();
+        const connection = page.getByRole('dialog', {
+          name: 'AI connection',
+          exact: true,
+        });
+        await connection
+          .getByRole('button', { name: 'Data & analytics', exact: true })
+          .click();
+        const analytics = page.locator('[data-slot="popover-content"]').filter({
+          has: page.getByText(
+            'Optional project context for configured LLM providers.',
+            { exact: true },
+          ),
+        });
+        await expect(analytics).toBeVisible();
+        const analyticsBounds = (await analytics.boundingBox())!;
+        expect(analyticsBounds.x).toBeGreaterThanOrEqual(-1);
+        expect(analyticsBounds.x + analyticsBounds.width).toBeLessThanOrEqual(
+          viewport.width + 1,
+        );
+        await page.keyboard.press('Escape');
+        await page.keyboard.press('Escape');
+        await expect(connection).not.toBeVisible();
+        if (await navigation.isVisible())
+          await navigation
+            .getByRole('button', { name: 'Edit', exact: true })
+            .click();
       }
     }
     await openAppearance(page);
@@ -146,31 +231,7 @@ for (const base of ['/', '/LocalCut/']) {
   }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(base);
-    await page
-      .getByRole('main', { name: 'Video editor', exact: true })
-      .press('n');
-    await page
-      .getByLabel('Project name', { exact: true })
-      .fill('Sized project');
-    await page
-      .getByRole('button', { name: 'Create project', exact: true })
-      .click();
-    await expect(
-      page.getByRole('dialog', { name: 'New project', exact: true }),
-    ).not.toBeVisible();
-    const png = await page.evaluate(async () => {
-      const canvas = new OffscreenCanvas(128, 72);
-      canvas.getContext('2d')!.fillRect(0, 0, 128, 72);
-      return [
-        ...new Uint8Array(await (await canvas.convertToBlob()).arrayBuffer()),
-      ];
-    });
-    await page.getByLabel('Import media', { exact: true }).setInputFiles({
-      name: 'size.png',
-      mimeType: 'image/png',
-      buffer: Buffer.from(png),
-    });
+    await prepareProject(page, base);
     const slider = page.getByRole('slider', {
       name: 'Playhead position',
       exact: true,
@@ -283,3 +344,121 @@ for (const base of ['/', '/LocalCut/']) {
     }
   });
 }
+
+test.describe('scaled touch layouts', () => {
+  test.use({ hasTouch: true });
+  for (const base of ['/', '/LocalCut/']) {
+    test(`interface size keeps playback reachable with expanded media on tablets ${base}`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await prepareProject(page, base);
+      for (const [size, label, scale] of sizes) {
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await openAppearance(page);
+        await choose(page, label);
+        await page.getByRole('button', { name: 'Close appearance' }).click();
+        for (const viewport of [
+          { width: 768, height: 1024 },
+          { width: 901, height: 700 },
+        ]) {
+          await page.setViewportSize(viewport);
+          const narrow =
+            viewport.width <= 750 * scale ||
+            (viewport.width <= 1000 * scale && viewport.height <= 500 * scale);
+          await expect(page.locator('html')).toHaveAttribute(
+            'data-workspace-narrow',
+            String(narrow),
+          );
+          const navigation = page.getByRole('navigation', {
+            name: 'Workspace sections',
+          });
+          if (narrow) {
+            await expect(navigation).toBeVisible();
+            await navigation
+              .getByRole('button', { name: 'Expand media', exact: true })
+              .click();
+            await expect(
+              page.getByRole('dialog', { name: 'Media library', exact: true }),
+            ).toBeVisible();
+            await page.keyboard.press('Escape');
+            await navigation
+              .getByRole('button', { name: 'Edit', exact: true })
+              .click();
+          } else {
+            await expect(navigation).not.toBeVisible();
+            const expand = page.getByRole('button', {
+              name: 'Expand media',
+              exact: true,
+            });
+            if (await expand.isVisible()) await expand.click();
+            await expect(page.locator('.workspace')).toHaveAttribute(
+              'data-media-open',
+              'true',
+            );
+          }
+          for (const name of [
+            'Previous frame',
+            'Play preview',
+            'Next frame',
+            'Preview settings',
+          ]) {
+            const control = page.getByRole('button', { name, exact: true });
+            await control.scrollIntoViewIfNeeded();
+            await expect
+              .poll(() =>
+                control.evaluate((element) => {
+                  const rect = element.getBoundingClientRect();
+                  const hit = document.elementFromPoint(
+                    rect.x + rect.width / 2,
+                    rect.y + rect.height / 2,
+                  );
+                  return element.contains(hit);
+                }),
+              )
+              .toBe(true);
+            const bounds = (await control.boundingBox())!;
+            const editor = (await page.locator('.editing-area').boundingBox())!;
+            expect(bounds.x).toBeGreaterThanOrEqual(editor.x);
+            expect(bounds.x + bounds.width).toBeLessThanOrEqual(
+              editor.x + editor.width + 1,
+            );
+          }
+          const play = page.getByRole('button', {
+            name: 'Play preview',
+            exact: true,
+          });
+          await play.scrollIntoViewIfNeeded();
+          const slider = page.getByRole('slider', {
+            name: 'Playhead position',
+            exact: true,
+          });
+          await slider.press('Home');
+          await expect(slider).toHaveValue('0');
+          await play.tap();
+          const pause = page.getByRole('button', {
+            name: 'Pause preview',
+            exact: true,
+          });
+          await expect(pause).toBeVisible();
+          await pause.tap();
+          await expect(play).toBeVisible();
+          await slider.press('Home');
+          const next = page.getByRole('button', {
+            name: 'Next frame',
+            exact: true,
+          });
+          await next.scrollIntoViewIfNeeded();
+          await next.tap();
+          await expect
+            .poll(async () => Number(await slider.inputValue()))
+            .toBeGreaterThan(0);
+          await page.screenshot({
+            path: `.artifacts/interface-${size}-${viewport.width}-touch-${base === '/' ? 'root' : 'pages'}.png`,
+          });
+        }
+      }
+    });
+  }
+});

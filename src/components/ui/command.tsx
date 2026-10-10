@@ -85,7 +85,7 @@ export function CommandList({
     <CommandPrimitive.List
       data-slot="command-list"
       className={cn(
-        'max-h-[min(24rem,60dvh)] scroll-py-1 overflow-x-hidden overflow-y-auto outline-none',
+        'max-h-[min(24rem,calc(var(--app-viewport-height)*0.6))] scroll-py-1 overflow-x-hidden overflow-y-auto outline-none',
         className,
       )}
       {...props}

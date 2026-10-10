@@ -459,10 +459,15 @@
 }
 .playback-controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-top: 10px;
+}
+.playback-controls > div {
+  flex-wrap: wrap;
+  max-width: 100%;
 }
 .timecode {
   font-variant-numeric: tabular-nums;
@@ -861,8 +866,8 @@
   outline: 2px solid var(--foreground);
   outline-offset: 2px;
 }
-@media (max-width: 700px), (max-width: 1000px) and (max-height: 500px) {
-  html {
+:root[data-workspace-narrow='true'] {
+  & {
     scroll-padding-top: calc(var(--workspace-header-height, 116px) + 12px);
     scroll-padding-bottom: 88px;
   }
