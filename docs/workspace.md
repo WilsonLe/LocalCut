@@ -106,3 +106,11 @@ Version browsing adds compatible fields to existing project records without an I
 ## App icons and installation metadata
 
 The favicon follows the workspace scissors identity. Base-aware links provide SVG/PNG favicons, an Apple touch icon and `manifest.webmanifest`. The manifest's relative ID/start URL/scope and standard/maskable PNG icons support root and Pages hosting. `node scripts/generate-icons.mjs` regenerates PNGs from the tracked vector using installed stable Chrome. Install metadata does not add a service worker or offline navigation; the static app still needs to be available when launched.
+
+## Timeline selections and templates
+
+Shift/Mod-click adds or removes clips from the selection. Clicking a grouped member selects its entire group; the group underline keeps membership visible. Use Group/Ungroup in the timeline or command palette, or Mod+G / Mod+Shift+G. Delete and Duplicate act on the selection. Changing a grouped member's Start in Clip properties moves the group by the same offset; duration, speed and gain remain individual property edits. Negative placement or broken transition overlap rejects the whole edit. Ungroup before moving a member independently.
+
+Select an unmuted video clip with an audio stream to reveal Separate audio. The result is a separate audio clip on an audio track referencing the original file; the video is muted to prevent doubled sound. Group the two clips if they should move together. Undo restores the combined clip.
+
+An overlap marker selects both visual endpoints. For a valid overlap on one video track, the Transition template dropdown and command palette offer Crossfade, Fade through black, Slide left/right, Zoom in/out, and Blur dissolve. Overlap length controls transition duration. No transition is added automatically when clips overlap. Templates generate editable base-attribute keyframes, which the assistant can tune after inspecting the project; applying another template builds on the current animation. Remove blend removes blending only; Undo restores the full template edit. Historical versions show groups/overlaps but hide mutation actions.

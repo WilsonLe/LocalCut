@@ -36,6 +36,8 @@ pnpm lint
 pnpm format:check
 ```
 
+For audio separation, groups and transition recipes, run `pnpm test tests/unit/timeline-features.test.ts`. The production scenario `pnpm test:ui --grep 'timeline audio|native separated'` covers selection and grouping, all template previews, native audio equivalence, MP4/WebM outputs, persistence and both static paths.
+
 For workspace changes, use `pnpm dev` for interactive work, then run the matching production UI scenario:
 
 ```sh

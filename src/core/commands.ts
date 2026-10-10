@@ -17,6 +17,9 @@ import type {
 } from './model';
 import { invariant, EditorError } from './errors';
 import { evaluateKeys } from './timing';
+import { TRANSITION_TEMPLATES } from './timeline';
+import type { TransitionTemplate } from './timeline';
+import { transitionTemplateOperations } from './transition-templates';
 export type EditOperation =
   | { type: 'addTrack'; track: TrackInput }
   | { type: 'removeTrack'; trackId: string }
@@ -45,6 +48,31 @@ export type EditOperation =
     }
   | { type: 'setSpeed'; clipId: string; speed: number }
   | { type: 'ripple'; trackId: string; fromUs: number; deltaUs: number }
+  | {
+      type: 'applyTransitionTemplate';
+      transitionId: string;
+      trackId: string;
+      fromClipId: string;
+      toClipId: string;
+      template: TransitionTemplate;
+      strength?: number;
+    }
+  | {
+      type: 'separateAudio';
+      clipId: string;
+      audioClipId: string;
+      trackId: string;
+    }
+  | { type: 'groupClips'; groupId: string; clipIds: string[] }
+  | { type: 'ungroupClips'; groupId: string }
+  | { type: 'moveGroup'; groupId: string; deltaUs: number }
+  | {
+      type: 'duplicateGroup';
+      groupId: string;
+      newGroupId: string;
+      newClipIds: Record<string, string>;
+      deltaUs: number;
+    }
   | { type: 'addTransition'; transition: Transition }
   | { type: 'removeTransition'; transitionId: string };
 export interface CommandBatch {
@@ -60,6 +88,12 @@ export interface EditReceipt {
   affectedIds: string[];
   warnings: string[];
 }
+const entityId = z.string().min(1).max(200);
+const delta = z
+  .number()
+  .int()
+  .min(-Number.MAX_SAFE_INTEGER)
+  .max(Number.MAX_SAFE_INTEGER);
 const operationSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('addTrack'), track: trackSchema }).strict(),
   z.object({ type: z.literal('removeTrack'), trackId: z.string() }).strict(),
@@ -131,6 +165,45 @@ const operationSchema = z.discriminatedUnion('type', [
       trackId: z.string(),
       fromUs: z.number().int().nonnegative(),
       deltaUs: z.number().int(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('applyTransitionTemplate'),
+      transitionId: entityId,
+      trackId: entityId,
+      fromClipId: entityId,
+      toClipId: entityId,
+      template: z.enum(TRANSITION_TEMPLATES.map((template) => template.id)),
+      strength: z.number().finite().min(0).max(1).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('separateAudio'),
+      clipId: entityId,
+      audioClipId: entityId,
+      trackId: entityId,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('groupClips'),
+      groupId: entityId,
+      clipIds: z.array(entityId).min(2).max(1000),
+    })
+    .strict(),
+  z.object({ type: z.literal('ungroupClips'), groupId: entityId }).strict(),
+  z
+    .object({ type: z.literal('moveGroup'), groupId: entityId, deltaUs: delta })
+    .strict(),
+  z
+    .object({
+      type: z.literal('duplicateGroup'),
+      groupId: entityId,
+      newGroupId: entityId,
+      newClipIds: z.record(entityId, entityId),
+      deltaUs: delta,
     })
     .strict(),
   z
@@ -236,6 +309,26 @@ export function applyOperations(
       (t) => t.fromClipId !== id && t.toClipId !== id,
     );
   };
+  const members = (groupId: string) => {
+    const clips = p.tracks
+      .flatMap((t) => t.clips)
+      .filter((c) => c.groupId === groupId);
+    invariant(clips.length >= 2, 'NOT_FOUND', `Group ${groupId} missing`);
+    affected.add(groupId);
+    for (const c of clips) affected.add(c.id);
+    return clips;
+  };
+  const duplicateClip = (c: Clip, id: string, startUs: number) => {
+    const copy = { ...structuredClone(c), id, startUs };
+    delete copy.groupId;
+    for (const keys of Object.values(copy.keyframes))
+      for (const key of keys)
+        key.id = nestedId('keyframe', id, `duplicate:${key.id}`);
+    for (const cue of copy.cues)
+      cue.id = nestedId('cue', id, `duplicate:${cue.id}`);
+    affected.add(id);
+    return copy;
+  };
   for (const op of operations) {
     switch (op.type) {
       case 'addTrack':
@@ -338,18 +431,9 @@ export function applyOperations(
       }
       case 'duplicateClip': {
         const { c } = locate(op.clipId);
-        const duplicate = {
-          ...structuredClone(c),
-          id: op.newClipId,
-          startUs: op.startUs,
-        };
-        for (const keys of Object.values(duplicate.keyframes))
-          for (const key of keys)
-            key.id = nestedId('keyframe', duplicate.id, `duplicate:${key.id}`);
-        for (const cue of duplicate.cues)
-          cue.id = nestedId('cue', duplicate.id, `duplicate:${cue.id}`);
-        track(op.trackId).clips.push(duplicate);
-        affected.add(op.newClipId);
+        track(op.trackId).clips.push(
+          duplicateClip(c, op.newClipId, op.startUs),
+        );
         break;
       }
       case 'setSpeed': {
@@ -372,6 +456,128 @@ export function applyOperations(
         }
         break;
       }
+      case 'applyTransitionTemplate': {
+        const result = applyOperations(p, transitionTemplateOperations(p, op));
+        p.tracks = result.project.tracks;
+        p.transitions = result.project.transitions;
+        for (const id of result.affectedIds) affected.add(id);
+        break;
+      }
+      case 'separateAudio': {
+        const { t, c } = locate(op.clipId);
+        invariant(
+          c.kind === 'video',
+          'INVALID_COMMAND',
+          'Audio separation requires a video clip',
+        );
+        const target = track(op.trackId);
+        invariant(
+          target.kind === 'audio',
+          'INVALID_COMMAND',
+          'Separated audio requires an audio track',
+        );
+        const audio = clipSchema.parse({
+          id: op.audioClipId,
+          kind: 'audio',
+          assetId: c.assetId,
+          startUs: c.startUs,
+          durationUs: c.durationUs,
+          sourceInUs: c.sourceInUs,
+          sourceOutUs: c.sourceOutUs,
+          speed: c.speed,
+          gain: c.gain,
+          muted: c.muted || t.muted,
+          fadeInUs: c.fadeInUs,
+          fadeOutUs: c.fadeOutUs,
+          fadeEnvelope: c.fadeEnvelope,
+          transcriptId: c.transcriptId,
+          keyframes: c.keyframes.gain
+            ? {
+                gain: c.keyframes.gain.map((k) => ({
+                  ...k,
+                  id: nestedId('keyframe', op.audioClipId, `separate:${k.id}`),
+                })),
+              }
+            : {},
+        });
+        target.clips.push(audio);
+        c.muted = true;
+        affected.add(audio.id);
+        break;
+      }
+      case 'groupClips': {
+        invariant(
+          new Set(op.clipIds).size === op.clipIds.length,
+          'INVALID_COMMAND',
+          'Group contains duplicate clips',
+        );
+        invariant(
+          !p.tracks.some((t) => t.clips.some((c) => c.groupId === op.groupId)),
+          'INVALID_COMMAND',
+          'Group ID already exists',
+        );
+        const clips = op.clipIds.map((id) => locate(id).c);
+        for (const c of clips)
+          if (c.groupId)
+            invariant(
+              members(c.groupId).every((member) =>
+                op.clipIds.includes(member.id),
+              ),
+              'INVALID_COMMAND',
+              'Select every member before regrouping',
+            );
+        for (const c of clips) c.groupId = op.groupId;
+        affected.add(op.groupId);
+        break;
+      }
+      case 'ungroupClips':
+        for (const c of members(op.groupId)) delete c.groupId;
+        break;
+      case 'moveGroup':
+        for (const c of members(op.groupId)) c.startUs += op.deltaUs;
+        break;
+      case 'duplicateGroup': {
+        const clips = members(op.groupId);
+        invariant(
+          Object.keys(op.newClipIds).length === clips.length &&
+            clips.every((c) => op.newClipIds[c.id]),
+          'INVALID_COMMAND',
+          'Provide a new ID for every group member',
+        );
+        invariant(
+          !p.tracks.some((t) =>
+            t.clips.some((c) => c.groupId === op.newGroupId),
+          ),
+          'INVALID_COMMAND',
+          'Group ID already exists',
+        );
+        for (const c of clips) {
+          const copy = duplicateClip(
+            c,
+            op.newClipIds[c.id]!,
+            c.startUs + op.deltaUs,
+          );
+          copy.groupId = op.newGroupId;
+          locate(c.id).t.clips.push(copy);
+        }
+        // Preserve transitions wholly inside the duplicated group.
+        for (const transition of [...p.transitions])
+          if (
+            op.newClipIds[transition.fromClipId] &&
+            op.newClipIds[transition.toClipId]
+          ) {
+            const id = nestedId('transition', op.newGroupId, transition.id);
+            p.transitions.push({
+              ...transition,
+              id,
+              fromClipId: op.newClipIds[transition.fromClipId]!,
+              toClipId: op.newClipIds[transition.toClipId]!,
+            });
+            affected.add(id);
+          }
+        affected.add(op.newGroupId);
+        break;
+      }
       case 'addTransition':
         p.transitions.push(op.transition);
         affected.add(op.transition.id);
@@ -387,5 +593,14 @@ export function applyOperations(
         break;
     }
   }
+  const groups = new Map<string, Clip[]>();
+  for (const c of p.tracks.flatMap((t) => t.clips))
+    if (c.groupId) groups.set(c.groupId, [...(groups.get(c.groupId) ?? []), c]);
+  for (const [groupId, clips] of groups)
+    if (clips.length < 2) {
+      delete clips[0]!.groupId;
+      affected.add(groupId);
+      affected.add(clips[0]!.id);
+    }
   return { project: validateProject(p), affectedIds: [...affected] };
 }

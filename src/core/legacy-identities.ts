@@ -33,6 +33,12 @@ export function repairLegacyIdentities(values: unknown[]): Project[] {
           for (const key of keys) add(key.id);
       }
     }
+    for (const groupId of new Set(
+      project.tracks.flatMap((t) =>
+        t.clips.flatMap((c) => (c.groupId ? [c.groupId] : [])),
+      ),
+    ))
+      add(groupId);
     for (const transition of project.transitions) add(transition.id);
     const owners = new Map<string, string>();
     for (const track of project.tracks)

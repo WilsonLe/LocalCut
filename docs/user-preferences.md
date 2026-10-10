@@ -72,11 +72,7 @@ This is the project record of the user's durable product and workflow choices. U
 - Export/import the workspace with all user settings/preferences and saved projects. Allow the user to select the preference groups, projects, versions and individual source files in either direction; originals are optional ZIP content.
 - Provide project-level export/import through the same flow, including asset checkboxes. Preserve existing projects by importing new copies and keep credentials/AI consent outside portable backups.
 
-## Delivery and validation
+## Timeline editing and transition templates — 10 October 2026
 
-- Pull and rebase onto current `main`, including the OpenRouter integration, before completing the workspace.
-- Optimize tests for fast feedback. Prefer targeted tests while iterating and bounded parallelism where isolation allows it; retain required full acceptance before delivery. Do not trade away real Chrome, codec, transcription, privacy or export evidence for speed.
-- Keep agent instructions and developer documentation useful and current. Make one development cycle fast with clear module ownership, focused checks, verified build reuse, failure recovery, and one automatic review-and-address cycle; avoid redundant full checks or repeated reviews when the relevant inputs have not changed.
-- Nest `AGENTS.md` files at directory and subdirectory ownership boundaries so instructions stay scoped to the code being changed. Keep the root brief and shared rules in parent guides; do not duplicate a full global guide in each module.
-- Disable remote CI and run quality checks, browser acceptance, transcription and performance checks locally. Keep the manually approved Pages release separate; do not re-enable hosted validation workflows.
-- Keep these preferences recorded here and preserve the user's separate merge/deployment authorization boundaries.
+- Provide audio separation from video, clip group/ungroup, and transition controls for overlapping visual clips on one video track.
+- Treat transitions as editable templates built from base attributes. A user can request a template in chat and the assistant can inspect and fine-tune its ordinary keyframes for a better result. Keep the resulting edits inspectable through the shared engine.

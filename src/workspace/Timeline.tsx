@@ -1,5 +1,8 @@
 import {
   Captions,
+  Group,
+  Ungroup,
+  AudioLines,
   Film,
   Music2,
   Redo2,
@@ -12,15 +15,28 @@ import {
 import { Button } from '../components/ui/button';
 import type { Asset, Project } from '../editor';
 import { clipName, formatTime, projectDuration } from './helpers';
+import { SettingsSelect } from './SettingsSelect';
+import { transitionPairs, TRANSITION_TEMPLATES } from '../core/timeline';
+import type { TransitionTemplate } from '../core/timeline';
 
 interface Props {
   project: Project | null;
   assets: Asset[];
-  selected?: string;
+  selected: string[];
+  canGroup: boolean;
+  canUngroup: boolean;
+  canSeparate: boolean;
+  overlap?: { fromClipId: string; toClipId: string };
+  transitionTemplate?: TransitionTemplate;
+  onGroup: () => void;
+  onUngroup: () => void;
+  onSeparate: () => void;
+  onTransition: (template?: TransitionTemplate) => void;
+  onSelectOverlap: (from: string, to: string) => void;
   timeUs: number;
   busy: boolean;
   readOnly?: boolean;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, additive?: boolean) => void;
   onTime: (timeUs: number) => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -35,7 +51,7 @@ export function Timeline(props: Props) {
   const total = projectDuration(project);
   const selectedClip = project?.tracks
     .flatMap((track) => track.clips)
-    .find((clip) => clip.id === selected);
+    .find((clip) => clip.id === selected[0]);
   return (
     <section className="timeline" aria-label="Video timeline">
       <div className="timeline-toolbar">
@@ -62,6 +78,7 @@ export function Timeline(props: Props) {
           )}
           <span className="toolbar-divider" />
           {!(
+            selected.length !== 1 ||
             !selectedClip ||
             busy ||
             timeUs <= selectedClip.startUs ||
@@ -76,7 +93,7 @@ export function Timeline(props: Props) {
               <Scissors />
             </Button>
           )}
-          {!!selected && !busy && (
+          {!!selected.length && !busy && (
             <Button
               variant="ghost"
               size="icon-sm"
@@ -86,17 +103,85 @@ export function Timeline(props: Props) {
               <Trash2 />
             </Button>
           )}
+          {props.canSeparate && !busy && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Separate audio"
+              title="Separate audio"
+              onClick={props.onSeparate}
+            >
+              <AudioLines />
+            </Button>
+          )}
+          {props.canGroup && !busy && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Group clips"
+              title="Group clips"
+              onClick={props.onGroup}
+            >
+              <Group />
+            </Button>
+          )}
+          {props.canUngroup && !busy && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Ungroup clips"
+              title="Ungroup clips"
+              onClick={props.onUngroup}
+            >
+              <Ungroup />
+            </Button>
+          )}
           <span className="selected-label">
-            {selectedClip ? clipName(selectedClip, assets) : 'Timeline'}
+            {selected.length > 1
+              ? `${selected.length} clips`
+              : selectedClip
+                ? clipName(selectedClip, assets)
+                : 'Timeline'}
           </span>
         </div>
         <div className="flex items-center gap-1">
+          {props.overlap && !busy && (
+            <div className="transition-picker">
+              <SettingsSelect
+                label="Transition template"
+                value={null}
+                placeholder={
+                  props.transitionTemplate
+                    ? TRANSITION_TEMPLATES.find(
+                        (t) => t.id === props.transitionTemplate,
+                      )?.label
+                    : 'Transition'
+                }
+                options={[
+                  ...TRANSITION_TEMPLATES.map((t) => ({
+                    value: t.id,
+                    label: t.label,
+                  })),
+                  ...(props.transitionTemplate
+                    ? [{ value: 'remove', label: 'Remove blend' }]
+                    : []),
+                ]}
+                onChange={(value) =>
+                  props.onTransition(
+                    value === 'remove'
+                      ? undefined
+                      : (value as TransitionTemplate),
+                  )
+                }
+              />
+            </div>
+          )}
           {!!project && !busy && (
             <Button variant="ghost" size="sm" onClick={props.onText}>
               <Type /> Add text
             </Button>
           )}
-          {!!selected && (
+          {!!selected.length && (
             <Button
               variant="ghost"
               size="icon-sm"
@@ -142,8 +227,14 @@ export function Timeline(props: Props) {
                       type="button"
                       className={`timeline-clip ${clip.kind}`}
                       aria-label={clipName(clip, assets)}
-                      aria-pressed={selected === clip.id}
-                      onClick={() => props.onSelect(clip.id)}
+                      aria-pressed={selected.includes(clip.id)}
+                      data-grouped={!!clip.groupId}
+                      onClick={(event) =>
+                        props.onSelect(
+                          clip.id,
+                          event.shiftKey || event.metaKey || event.ctrlKey,
+                        )
+                      }
                       style={{
                         left: `${(clip.startUs / total) * 100}%`,
                         width: `${(clip.durationUs / total) * 100}%`,
@@ -153,6 +244,49 @@ export function Timeline(props: Props) {
                       <span>{clipName(clip, assets)}</span>
                     </button>
                   ))}
+                  {project &&
+                    transitionPairs(project)
+                      .filter((pair) => pair.trackId === track.id)
+                      .map((pair) => {
+                        const transition = project.transitions.find(
+                          (t) =>
+                            t.trackId === pair.trackId &&
+                            t.fromClipId === pair.fromClipId &&
+                            t.toClipId === pair.toClipId,
+                        );
+                        const label = transition
+                          ? TRANSITION_TEMPLATES.find(
+                              (t) =>
+                                t.id ===
+                                (transition.templateId ?? transition.kind),
+                            )?.label
+                          : 'Overlap';
+                        return (
+                          <button
+                            type="button"
+                            key={pair.fromClipId + ':' + pair.toClipId}
+                            className="timeline-overlap"
+                            aria-label={`${label} transition overlap`}
+                            title={`${label} · ${formatTime(pair.endUs - pair.startUs)}`}
+                            aria-pressed={
+                              selected.includes(pair.fromClipId) &&
+                              selected.includes(pair.toClipId)
+                            }
+                            style={{
+                              left: `${(pair.startUs / total) * 100}%`,
+                              width: `${((pair.endUs - pair.startUs) / total) * 100}%`,
+                            }}
+                            onClick={() =>
+                              props.onSelectOverlap(
+                                pair.fromClipId,
+                                pair.toClipId,
+                              )
+                            }
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
                 </div>
               </div>
             ))}

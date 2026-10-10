@@ -12,6 +12,8 @@ export type EditorShortcut =
   | 'split'
   | 'delete'
   | 'duplicate'
+  | 'group'
+  | 'ungroup'
   | 'addText'
   | 'undo'
   | 'redo'
@@ -38,7 +40,15 @@ export const SHORTCUT_GROUPS = [
     title: 'Editing',
     items: [
       { keys: 'S', label: 'Split selected clip at the playhead' },
-      { keys: 'D', label: 'Duplicate selected clip' },
+      { keys: 'D', label: 'Duplicate selection' },
+      {
+        keys: 'Shift/Mod + click',
+        label: 'Add or remove clips from selection',
+      },
+      {
+        keys: 'Mod + G / Mod + Shift + G',
+        label: 'Group or ungroup selection',
+      },
       { keys: 'Delete / Backspace', label: 'Delete selected clip' },
       { keys: 'T', label: 'Add text at the playhead' },
       { keys: 'Mod + Z', label: 'Undo' },
@@ -93,6 +103,7 @@ export function resolveShortcut(
   const mod = event.ctrlKey || event.metaKey;
   if (mod) {
     if (event.repeat) return;
+    if (key === 'g') return event.shiftKey ? 'ungroup' : 'group';
     if (key === 'z') return event.shiftKey ? 'redo' : 'undo';
     if (event.shiftKey) return;
     if (key === 'y' && event.ctrlKey) return 'redo';

@@ -57,6 +57,10 @@ describe('editor keyboard commands', () => {
     expect(resolveShortcut(key('k', { metaKey: true }), outside)).toBe(
       'commands',
     );
+    expect(resolveShortcut(key('g', { metaKey: true }), editor)).toBe('group');
+    expect(
+      resolveShortcut(key('g', { ctrlKey: true, shiftKey: true }), editor),
+    ).toBe('ungroup');
     expect(resolveShortcut(key('o', { ctrlKey: true }), outside)).toBe(
       'openProject',
     );

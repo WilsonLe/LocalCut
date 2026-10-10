@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { EditorError, invariant } from './errors';
+import { transitionPairs, TRANSITION_TEMPLATES } from './timeline';
 const id = z.string().min(1).max(200);
 const time = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const finite = z.number().finite();
@@ -29,7 +30,7 @@ const keyframeInputSchema = keyframeSchema.extend({ id: id.optional() });
 
 /** Stable IDs for implicit entities, including legacy version-one keyframes. */
 export function nestedId(
-  kind: 'keyframe' | 'cue',
+  kind: 'keyframe' | 'cue' | 'transition',
   owner: string,
   identity: string,
 ) {
@@ -58,6 +59,7 @@ const clipInputSchema = z
     id,
     kind: z.enum(['video', 'audio', 'image', 'text', 'caption']),
     assetId: id.optional(),
+    groupId: id.optional(),
     startUs: time,
     durationUs: time.positive(),
     sourceInUs: time.default(0),
@@ -99,7 +101,11 @@ const clipInputSchema = z
       .default({}),
   })
   .strict();
-const clipPatchBase = clipInputSchema.omit({ id: true, kind: true });
+const clipPatchBase = clipInputSchema.omit({
+  id: true,
+  kind: true,
+  groupId: true,
+});
 // Zod's partial() retains defaults, which would reset omitted clip fields.
 // Only top-level defaults are removed: a supplied replacement text style may
 // still use its own defaults when parsed as a complete style.
@@ -146,6 +152,10 @@ export const transitionSchema = z
     fromClipId: id,
     toClipId: id,
     kind: z.enum(['crossfade', 'black']),
+    templateId: z
+      .enum(TRANSITION_TEMPLATES.map((template) => template.id))
+      .optional(),
+    strength: finite.min(0).max(1).optional(),
   })
   .strict();
 export const projectSchema = z
@@ -392,45 +402,29 @@ export function validateProject(value: unknown): Project {
         );
     }
   }
+  const groups = new Map<string, number>();
+  for (const clip of project.tracks.flatMap((track) => track.clips))
+    if (clip.groupId)
+      groups.set(clip.groupId, (groups.get(clip.groupId) ?? 0) + 1);
+  for (const [groupId, count] of groups) {
+    unique(groupId);
+    invariant(
+      count >= 2,
+      'INVALID_DOCUMENT',
+      'A group requires at least two clips',
+    );
+  }
   for (const t of project.transitions) {
     unique(t.id);
-    const track = project.tracks.find((x) => x.id === t.trackId);
-    const a = track?.clips.find((x) => x.id === t.fromClipId),
-      b = track?.clips.find((x) => x.id === t.toClipId);
     invariant(
-      track?.kind === 'video' &&
-        a &&
-        b &&
-        ['video', 'image'].includes(a.kind) &&
-        ['video', 'image'].includes(b.kind),
-      'INVALID_DOCUMENT',
-      'Transition requires two visual media clips on the same video track',
-    );
-    invariant(
-      a.startUs < b.startUs &&
-        b.startUs < a.startUs + a.durationUs &&
-        b.startUs + b.durationUs >= a.startUs + a.durationUs,
-      'INVALID_DOCUMENT',
-      'Transition requires ordered overlap',
-    );
-    const ordered = [...track.clips].sort((x, y) => x.startUs - y.startUs);
-    invariant(
-      ordered.indexOf(b) === ordered.indexOf(a) + 1,
-      'INVALID_DOCUMENT',
-      'Transition clips must be adjacent',
-    );
-    const start = b.startUs,
-      end = a.startUs + a.durationUs;
-    invariant(
-      !track.clips.some(
-        (c) =>
-          c.id !== a.id &&
-          c.id !== b.id &&
-          c.startUs < end &&
-          c.startUs + c.durationUs > start,
+      transitionPairs(project).some(
+        (pair) =>
+          pair.trackId === t.trackId &&
+          pair.fromClipId === t.fromClipId &&
+          pair.toClipId === t.toClipId,
       ),
       'INVALID_DOCUMENT',
-      'Transition intersects third clip',
+      'Transition requires adjacent ordered overlap of visual media clips on one video track without a third clip',
     );
     invariant(
       !project.transitions.some(

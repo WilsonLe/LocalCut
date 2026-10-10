@@ -41,6 +41,12 @@ import { Tooltip } from '../components/ui/tooltip';
 import { frameStep } from './shortcuts';
 import { useEditorShortcuts } from './useEditorShortcuts';
 import { Timeline } from './Timeline';
+import {
+  selectionIds,
+  transitionPairs,
+  TRANSITION_TEMPLATES,
+} from '../core/timeline';
+import type { TransitionTemplate } from '../core/timeline';
 import { useAppearance } from './appearance';
 import {
   saveWorkspacePreferences,
@@ -111,6 +117,24 @@ export function Workspace() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selected, setSelected] = useState<string>();
+  const [selection, setSelection] = useState<string[]>([]);
+  const selectedIds = selectionIds(viewProject, [
+    ...(selected ? [selected] : []),
+    ...selection,
+  ]);
+  const selectClip = (id: string, additive = false) => {
+    const members = selectionIds(viewProject, [id]);
+    const alreadySelected = members.every((member) =>
+      selectedIds.includes(member),
+    );
+    const next = additive
+      ? alreadySelected
+        ? selectedIds.filter((member) => !members.includes(member))
+        : [...new Set([...selectedIds, ...members])]
+      : members;
+    setSelection(next);
+    setSelected(next.includes(id) ? id : next[0]);
+  };
   const [timeUs, setTimeUs] = useState(0);
   const [seekRevision, setSeekRevision] = useState(0);
   const [dialog, setDialog] = useState<DialogName>(null);
@@ -191,6 +215,11 @@ export function Workspace() {
     setProject(snapshot);
     setAssets(media);
     if (!browsing.current) {
+      setSelection((previous) =>
+        previous.filter((id) =>
+          snapshot.tracks.some((t) => t.clips.some((c) => c.id === id)),
+        ),
+      );
       setSelected((previous) =>
         snapshot.tracks.some((track) =>
           track.clips.some((clip) => clip.id === previous),
@@ -236,6 +265,7 @@ export function Workspace() {
             setVersions([]);
             setAssets([]);
             setSelected(undefined);
+            setSelection([]);
             toast('This project was deleted in another window.');
           } else void refresh().catch(error);
         });
@@ -320,6 +350,7 @@ export function Workspace() {
     setVersions([]);
     projectId.current = snapshot.id;
     setSelected(undefined);
+    setSelection([]);
     setTimeUs(0);
     setDialog(null);
     await refresh();
@@ -364,7 +395,10 @@ export function Workspace() {
           (operation) => operation.type === 'insertClip',
         );
         await refresh();
-        if (insert?.type === 'insertClip') setSelected(insert.clip.id);
+        if (insert?.type === 'insertClip') {
+          setSelected(insert.clip.id);
+          setSelection([]);
+        }
       }
       setMediaOverride(true);
       toast.success(
@@ -492,6 +526,7 @@ export function Workspace() {
       setBrowsed(version);
       setVersionAssets(media);
       setSelected(undefined);
+      setSelection([]);
       seek(0);
       setDialog(null);
     });
@@ -501,6 +536,7 @@ export function Workspace() {
       browsing.current = false;
       setBrowsed(null);
       setSelected(undefined);
+      setSelection([]);
       seek(0);
     });
   const restoreVersion = () =>
@@ -517,6 +553,7 @@ export function Workspace() {
       browsing.current = false;
       setBrowsed(null);
       setSelected(undefined);
+      setSelection([]);
       seek(0);
       toast.success('Restored as a new version');
     });
@@ -571,7 +608,10 @@ export function Workspace() {
   const deleteClip = () => {
     if (!project || !selectedClip) return;
     void action(async () => {
-      await apply([{ type: 'removeClip', clipId: selected! }]);
+      await apply(
+        selectedIds.map((clipId) => ({ type: 'removeClip', clipId })),
+      );
+      setSelection([]);
       toast.success('Clip removed');
     });
   };
@@ -606,30 +646,171 @@ export function Workspace() {
         },
       ]);
       setSelected(id);
+      setSelection([]);
       setDialog('properties');
     });
   };
   const duplicate = () => {
-    const track = project?.tracks.find((track) =>
-      track.clips.some((clip) => clip.id === selected),
+    if (!project || !selectedClip) return;
+    const clips = project.tracks
+      .flatMap((track) => track.clips)
+      .filter((clip) => selectedIds.includes(clip.id));
+    const deltaUs =
+      Math.max(...clips.map((clip) => clip.startUs + clip.durationUs)) -
+      Math.min(...clips.map((clip) => clip.startUs));
+    const newClipIds = Object.fromEntries(
+      clips.map((clip) => [clip.id, crypto.randomUUID()]),
     );
-    if (!selectedClip || !track) return;
-    void action(async () => {
-      const id = crypto.randomUUID();
-      await apply([
-        {
+    const operations: EditOperation[] = [];
+    const groups = new Set<string>();
+    for (const clip of clips) {
+      if (clip.groupId) {
+        if (!groups.has(clip.groupId)) {
+          groups.add(clip.groupId);
+          const members = clips.filter((c) => c.groupId === clip.groupId);
+          operations.push({
+            type: 'duplicateGroup',
+            groupId: clip.groupId,
+            newGroupId: crypto.randomUUID(),
+            newClipIds: Object.fromEntries(
+              members.map((c) => [c.id, newClipIds[c.id]!]),
+            ),
+            deltaUs,
+          });
+        }
+      } else {
+        const track = project.tracks.find((track) =>
+          track.clips.some((c) => c.id === clip.id),
+        )!;
+        operations.push({
           type: 'duplicateClip',
-          clipId: selectedClip.id,
-          newClipId: id,
+          clipId: clip.id,
+          newClipId: newClipIds[clip.id]!,
           trackId: track.id,
-          startUs: selectedClip.startUs + selectedClip.durationUs,
-        },
-      ]);
-      setSelected(id);
-      toast.success('Clip duplicated');
+          startUs: clip.startUs + deltaUs,
+        });
+      }
+    }
+    void action(async () => {
+      await apply(operations);
+      setSelected(newClipIds[selectedClip.id]);
+      setSelection(Object.values(newClipIds));
+      toast.success('Selection duplicated');
     });
   };
+  const selectedGroups = [
+    ...new Set(
+      viewProject?.tracks.flatMap((t) =>
+        t.clips
+          .filter((c) => selectedIds.includes(c.id))
+          .flatMap((c) => (c.groupId ? [c.groupId] : [])),
+      ) ?? [],
+    ),
+  ];
+  const canGroup =
+    selectedIds.length >= 2 &&
+    !(
+      selectedGroups.length === 1 &&
+      viewProject?.tracks
+        .flatMap((t) => t.clips)
+        .filter((c) => c.groupId === selectedGroups[0]).length ===
+        selectedIds.length
+    );
+  const group = () =>
+    void action(async () => {
+      await apply([
+        {
+          type: 'groupClips',
+          groupId: crypto.randomUUID(),
+          clipIds: selectedIds,
+        },
+      ]);
+      toast.success('Clips grouped');
+    });
+  const ungroup = () =>
+    void action(async () => {
+      await apply(
+        selectedGroups.map((groupId) => ({ type: 'ungroupClips', groupId })),
+      );
+      toast.success('Clips ungrouped');
+    });
+  const canSeparate =
+    selectedIds.length === 1 &&
+    selectedClip?.kind === 'video' &&
+    !selectedClip.muted &&
+    !!assets.find((asset) => asset.id === selectedClip.assetId)?.audioCodec;
+  const separateAudio = () =>
+    void action(async () => {
+      if (!project || !selectedClip) return;
+      const track = project.tracks.find(
+        (track) => track.kind === 'audio' && !track.muted,
+      );
+      const trackId = track?.id ?? crypto.randomUUID();
+      const audioClipId = crypto.randomUUID();
+      await apply([
+        ...(!track
+          ? [
+              {
+                type: 'addTrack' as const,
+                track: { id: trackId, kind: 'audio' as const },
+              },
+            ]
+          : []),
+        {
+          type: 'separateAudio',
+          clipId: selectedClip.id,
+          audioClipId,
+          trackId,
+        },
+      ]);
+      setSelected(audioClipId);
+      setSelection([]);
+      toast.success('Audio separated');
+    });
+  const pairs = viewProject ? transitionPairs(viewProject) : [];
+  const selectedPairs = pairs.filter(
+    (pair) =>
+      selectedIds.includes(pair.fromClipId) &&
+      selectedIds.includes(pair.toClipId),
+  );
+  const overlap =
+    selectedPairs.length === 1
+      ? selectedPairs[0]
+      : selectedIds.length === 1
+        ? pairs.find(
+            (pair) =>
+              pair.fromClipId === selected || pair.toClipId === selected,
+          )
+        : undefined;
+  const activeTransition = viewProject?.transitions.find(
+    (t) =>
+      t.fromClipId === overlap?.fromClipId &&
+      t.toClipId === overlap?.toClipId &&
+      t.trackId === overlap?.trackId,
+  );
+  const setTransition = (template?: TransitionTemplate) =>
+    void action(async () => {
+      if (!overlap) return;
+      await apply(
+        template
+          ? [
+              {
+                type: 'applyTransitionTemplate',
+                transitionId: activeTransition?.id ?? crypto.randomUUID(),
+                trackId: overlap.trackId,
+                fromClipId: overlap.fromClipId,
+                toClipId: overlap.toClipId,
+                template,
+              },
+            ]
+          : [{ type: 'removeTransition', transitionId: activeTransition!.id }],
+      );
+      toast.success(
+        template ? 'Transition template applied' : 'Transition blend removed',
+      );
+    });
   const canSplit =
+    selectedIds.length === 1 &&
     !!selectedClip &&
     timeUs > selectedClip.startUs &&
     timeUs < selectedClip.startUs + selectedClip.durationUs;
@@ -658,6 +839,8 @@ export function Workspace() {
       split: canSplit && !browsed ? split : undefined,
       delete: selectedClip && !browsed ? deleteClip : undefined,
       duplicate: selectedClip && !browsed ? duplicate : undefined,
+      group: canGroup && !browsed ? group : undefined,
+      ungroup: selectedGroups.length && !browsed ? ungroup : undefined,
       addText: project && !browsed ? addText : undefined,
       undo: project && !browsed ? undo : undefined,
       redo: project && !browsed ? redo : undefined,
@@ -784,6 +967,44 @@ export function Workspace() {
       duplicate,
       'D',
     );
+    command(
+      'separate-audio',
+      'Separate audio',
+      'Editing',
+      editable && canSeparate,
+      separateAudio,
+    );
+    command(
+      'group',
+      'Group clips',
+      'Editing',
+      editable && canGroup,
+      group,
+      'Mod+G',
+    );
+    command(
+      'ungroup',
+      'Ungroup clips',
+      'Editing',
+      editable && !!selectedGroups.length,
+      ungroup,
+      'Mod+Shift+G',
+    );
+    for (const template of TRANSITION_TEMPLATES)
+      command(
+        `transition-${template.id}`,
+        `${template.label} transition template`,
+        'Transitions',
+        editable && !!overlap,
+        () => setTransition(template.id),
+      );
+    command(
+      'remove-transition',
+      'Remove transition blend',
+      'Transitions',
+      editable && !!activeTransition,
+      () => setTransition(),
+    );
     command('text', 'Add text', 'Editing', editable, addText, 'T');
     command(
       'properties',
@@ -800,7 +1021,7 @@ export function Workspace() {
           'Clips',
           !busy,
           () => {
-            setSelected(clip.id);
+            selectClip(clip.id);
             navigate(clip.startUs);
           },
         );
@@ -1180,10 +1401,25 @@ export function Workspace() {
                 project={viewProject}
                 assets={browsed ? versionAssets : assets}
                 readOnly={!!browsed}
-                selected={selected}
+                selected={selectedIds}
                 timeUs={timeUs}
                 busy={busy}
-                onSelect={setSelected}
+                onSelect={selectClip}
+                canGroup={canGroup}
+                canUngroup={!!selectedGroups.length}
+                canSeparate={canSeparate}
+                overlap={overlap}
+                transitionTemplate={
+                  activeTransition?.templateId ?? activeTransition?.kind
+                }
+                onSelectOverlap={(from, to) => {
+                  setSelected(from);
+                  setSelection(selectionIds(viewProject, [from, to]));
+                }}
+                onGroup={group}
+                onUngroup={ungroup}
+                onSeparate={separateAudio}
+                onTransition={setTransition}
                 onTime={seek}
                 onUndo={undo}
                 onRedo={redo}
