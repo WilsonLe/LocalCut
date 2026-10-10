@@ -1,6 +1,6 @@
 # Worker execution
 
-- `media.worker.ts` dispatches imports, derivatives, composition, audio windows, and exports. `transcription.worker.ts` owns local model preparation and inference.
+- `media.worker.ts` dispatches imports, derivatives, composition, audio windows, deterministic indexing, and exports. `transcription.worker.ts` owns local model preparation and inference.
 - Keep request IDs and the `progress`/`result`/`error` protocol aligned with [WorkerClient](../services/worker-client.ts). Return structured `EditorError` codes.
 - Media work is queued per worker; keep interactive and background instances independent. Check cancellation around async boundaries and release temporary stores, renderers, files, and undelivered bitmaps.
 - An import's successful atomic commit is its publication point. Export/frame cancellation before delivery still removes or closes the result; preserve the [storage contract](../../docs/storage.md).

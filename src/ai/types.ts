@@ -61,6 +61,7 @@ export interface OpenRouterModel {
   maxCompletionTokens?: number;
   supportedParameters: string[];
   supportsTools: boolean;
+  inputModalities?: string[];
   /** Provider prices as decimal USD strings, without floating-point rounding. */
   pricing?: { prompt?: string; completion?: string };
 }
@@ -112,6 +113,10 @@ export interface AuthorizationOptions {
   storage?: AuthorizationStorage;
 }
 export interface OpenRouter extends OpenRouterClient {
+  label(
+    request: IndexLabelRequest,
+    signal: AbortSignal,
+  ): Promise<IndexLabelResult>;
   beginAuthorization(
     options: AuthorizationOptions,
   ): Promise<{ authorizationUrl: string; expiresAt: number }>;
@@ -119,6 +124,18 @@ export interface OpenRouter extends OpenRouterClient {
     options: AuthorizationOptions,
     signal?: AbortSignal,
   ): Promise<ConnectionStatus & { sanitizedCallbackUrl: string }>;
+}
+export interface IndexLabelRequest {
+  model: string;
+  prompt: string;
+  media: { type: 'image/jpeg' | 'video/mp4' | 'audio/wav'; data: string }[];
+  consent: true;
+  maxOutputTokens: number;
+}
+export interface IndexLabelResult {
+  text: string;
+  model?: string;
+  usage?: Usage;
 }
 export interface OpenRouterOptions {
   fetch?: typeof fetch;

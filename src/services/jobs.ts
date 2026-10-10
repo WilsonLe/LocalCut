@@ -16,6 +16,8 @@ export interface Job<T> {
   subscribe(listener: (event: JobEvent) => void): () => void;
 }
 interface JobOptions<T> {
+  /** Optional domain-safe error normalization (e.g. provider errors). */
+  error?: (error: unknown) => Error & { code: string };
   /** Successful persisted commits are authoritative over a late cancellation. */
   acceptCommittedResult?: boolean;
   /** Release a produced resource when cancellation wins before delivery. */
@@ -86,7 +88,7 @@ export class Jobs {
       .catch((error) => {
         const e = controller.signal.aborted
           ? new EditorError('CANCELLED', 'Operation cancelled')
-          : asEditorError(error);
+          : (options.error ?? asEditorError)(error);
         emit({
           jobId: id,
           state: e.code === 'CANCELLED' ? 'cancelled' : 'failed',

@@ -93,7 +93,7 @@ Autosave appends a version one second after the last committed edit. Rapid edits
 
 Connect AI accepts a user-owned OpenRouter key or starts its PKCE login. Keys stay in memory and are cleared from the input after use; reload requires connection again. If no remembered model is available, choose a tool-capable model explicitly from the searchable single-select dropdown. Search names or IDs inside its popup; the refresh icon is at the right of the search row. The model catalog is requested only by connecting or refreshing it. Data & analytics reveals the optional text/name/transcript sharing choices; they are hidden from the initial connection view.
 
-Prompts and structural metadata are sent remotely only by Send. Separate, initially unchecked choices opt names, on-screen text and transcript content into context. Changing model, project or sharing choices starts a new conversation. Raw files and decoded audio are never included. Provider charges can apply; set spending limits in OpenRouter.
+Prompts and structural metadata are sent remotely only by Send. Separate, initially unchecked choices opt names, on-screen text and transcript content into context. Changing model, project or sharing choices starts a new conversation. Chat includes saved text only. Separately permitted indexing sends generated stills, audio excerpts and video excerpts with sound. Provider charges can apply; set spending limits in OpenRouter.
 
 Streaming text is not an applied edit. Only a successfully completed assistant turn can publish a validated proposal. Inspect its operations, then Apply or Discard. Apply retains the engine's revision check and stable receipt; stale proposals require a new request. Undo/Redo, export, transcription and model preparation have separate approval cards. Export, transcription and preparation jobs show real progress and cancellation; atomic edits and history commits cannot be cancelled after submission. Completed exports offer a local Save action. Cancelling a turn does not publish partial proposals. Committed edits survive disconnection and reload; conversations do not.
 
@@ -119,7 +119,7 @@ Version browsing adds compatible fields to existing project records without an I
 
 ## App icons and installation metadata
 
-The favicon follows the workspace scissors identity. Base-aware links provide SVG/PNG favicons, an Apple touch icon and `manifest.webmanifest`. The manifest's relative ID/start URL/scope and standard/maskable PNG icons support root and Pages hosting. `node scripts/generate-icons.mjs` regenerates PNGs from the tracked vector using installed stable Chrome. Install metadata does not add a service worker or offline navigation; the static app still needs to be available when launched.
+The favicon follows Klip's original film-cell identity. Base-aware links provide SVG/PNG favicons, an Apple touch icon and `manifest.webmanifest`. The manifest's relative ID/start URL/scope and standard/maskable PNG icons support root and Pages hosting. `node scripts/generate-icons.mjs` regenerates PNGs from the tracked vector using installed stable Chrome. Install metadata does not add a service worker or offline navigation; the static app still needs to be available when launched.
 
 ## Timeline selections and templates
 
@@ -128,3 +128,9 @@ Shift/Mod-click adds or removes clips from the selection. Clicking a grouped mem
 Select an unmuted video clip with an audio stream to reveal Separate audio. The result is a separate audio clip on an audio track referencing the original file; the video is muted to prevent doubled sound. Group the two clips if they should move together. Undo restores the combined clip.
 
 An overlap marker selects both visual endpoints. For a valid overlap on one video track, the Transition template dropdown and command palette offer Crossfade, Fade through black, Slide left/right, Zoom in/out, and Blur dissolve. Overlap length controls transition duration. No transition is added automatically when clips overlap. Templates generate editable base-attribute keyframes, which the assistant can tune after inspecting the project; applying another template builds on the current animation. Remove blend removes blending only; Undo restores the full template edit. Historical versions show groups/overlaps but hide mutation actions.
+
+## Indexing media
+
+AI settings contains an independent remembered Allow asset indexing choice explaining OpenRouter evidence/audio sharing and saved labels in chat. Eligible ready audio/video/image cards expose manual Index when allowed, with progress, Cancel, explicit Retry after interruption/failure, and Reindex after success. Connection and selected-model capability are required; unsupported routes show an error. Import never starts indexing.
+
+Index history shows retained runs, approximate owned storage bytes, scan/evidence elapsed time, scene ranges and paged local still/video/audio previews. Delete this run is explicit and frees its records/files; prior runs remain. Similar-image notices compare saved perceptual hashes and histograms. Labels and evidence survive reload independently of AI credentials. Revocation hides actions, cancels active jobs and retires label-bearing chats while preserving local outputs. Klip's original film-cell mark appears in chat and the workspace logo.

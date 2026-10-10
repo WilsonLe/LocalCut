@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import type { Editor, Project } from '../editor';
 import type { ContextPolicy, OpenRouter, OpenRouterModel } from '../ai';
+import { useIndexConsent } from './index-consent';
+import { KlipMark } from './KlipMark';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
 import { ChatResizeHandle } from './ChatResizeHandle';
@@ -28,7 +30,6 @@ const AIInfoPopover = lazy(() => import('./AIInfoPopover'));
 const ChatSessionPicker = lazy(() => import('./ChatSessionPicker'));
 const ConversationSession = lazy(() => import('./ConversationSession'));
 const SpeechDialog = lazy(() => import('./SpeechDialog'));
-import { errorText } from './conversation-errors';
 import {
   getWorkspacePreferences,
   saveWorkspacePreferences,
@@ -43,8 +44,13 @@ export interface Connection {
 export interface ConversationControls {
   commands: () => WorkspaceCommand[];
 }
+export interface IndexConnection extends Connection {
+  model: string;
+  inputModalities: string[];
+}
 export interface ConversationProps {
   controlsRef?: Ref<ConversationControls>;
+  onIndexConnection?: (connection: IndexConnection | null) => void;
   editor: Editor | null;
   project: Project | null;
   selectedClipId?: string;
@@ -82,7 +88,9 @@ export function Conversation(props: ConversationProps) {
     includeText: false,
     includeAssetNames: false,
     includeTranscripts: false,
+    includeAssetIndexes: false,
   });
+  const indexingAllowed = useIndexConsent();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [speechOpen, setSpeechOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
@@ -139,9 +147,17 @@ export function Conversation(props: ConversationProps) {
   const report = useCallback(
     (error: unknown) => {
       if (!mounted.current) return;
-      const text = errorText(error);
-      setConnectionError(text);
-      onError(error);
+      const token = attempt.current;
+      const publish = (text: string) => {
+        if (!mounted.current || token !== attempt.current) return;
+        setConnectionError(text);
+        onError(error);
+      };
+      void import('./conversation-errors').then(
+        ({ errorText }) => publish(errorText(error)),
+        () =>
+          publish('The AI request could not be completed. You can try again.'),
+      );
     },
     [onError],
   );
@@ -260,6 +276,7 @@ export function Conversation(props: ConversationProps) {
       includeText: false,
       includeAssetNames: false,
       includeTranscripts: false,
+      includeAssetIndexes: false,
     });
     setApiKey('');
     setConnecting(false);
@@ -291,7 +308,19 @@ export function Conversation(props: ConversationProps) {
   const ready = connection && selectedModel && props.editor && props.project;
   const speechReady =
     connection && props.editor && props.project && !props.readOnly;
-  const sessionKey = `${connection?.id}:${props.project?.id}:${model}:${privacy.includeText}:${privacy.includeAssetNames}:${privacy.includeTranscripts}`;
+  const onIndexConnection = props.onIndexConnection;
+  useEffect(() => {
+    onIndexConnection?.(
+      connection && selectedModel && indexingAllowed
+        ? {
+            ...connection,
+            model,
+            inputModalities: selectedModel.inputModalities ?? [],
+          }
+        : null,
+    );
+  }, [connection, selectedModel, model, indexingAllowed, onIndexConnection]);
+  const sessionKey = `${connection?.id}:${props.project?.id}:${model}:${privacy.includeText}:${privacy.includeAssetNames}:${privacy.includeTranscripts}:${indexingAllowed}`;
 
   const [sessionScope, setSessionScope] = useState(sessionKey);
   if (sessionScope !== sessionKey) {
@@ -471,6 +500,8 @@ export function Conversation(props: ConversationProps) {
         aria-hidden={props.collapsed}
       >
         <header className="conversation-heading">
+          <KlipMark className="size-7 shrink-0" />
+          <span className="sr-only">Klip</span>
           {speechReady && (
             <Button
               variant="ghost"
@@ -512,7 +543,7 @@ export function Conversation(props: ConversationProps) {
                   project={props.project!}
                   connection={connection}
                   model={model}
-                  privacy={privacy}
+                  privacy={{ ...privacy, includeAssetIndexes: indexingAllowed }}
                   registerSession={registerSession}
                   retireSession={retireSession}
                   waitForRetired={waitForRetired}

@@ -23,6 +23,7 @@ interface Payload {
   startFrame: number;
   count: number;
   relinkId?: string;
+  indexRunId?: string;
 }
 interface Request {
   id: string;
@@ -55,6 +56,18 @@ self.onmessage = ({ data }: MessageEvent<Request>) => {
       store = await Store.open(p.namespace, false);
       let transfer: Transferable[] = [];
       switch (data.operation) {
+        case 'analyzeAsset': {
+          const { analyzeAsset } = await import('../media/asset-index');
+          result = await analyzeAsset(
+            store,
+            p.assetId,
+            p.indexRunId ?? p.jobId,
+            controller.signal,
+            progress,
+            !!p.indexRunId,
+          );
+          break;
+        }
         case 'import':
           result = await importAsset(
             store,

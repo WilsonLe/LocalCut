@@ -51,7 +51,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Persist chat sidebar width as a local browser user preference; restore the preferred width across reloads and temporary responsive/layout constraints.
 - Audit all configurable UI state and use judgement to remember durable choices. Save chat collapse, deliberate media visibility, export format and preferred AI model alongside appearance. Keep authored project data in its existing storage and temporary navigation/operation state in the session.
-- Keep preferences local to the browser/origin. Remembering a model does not authorize reconnecting, paid requests or sharing content; credentials and sharing consent remain session-only.
+- Keep preferences local to the browser/origin. Remembering a model does not authorize reconnecting, paid requests or sharing content; credentials and text/name/transcript sharing consent remain session-only. The newer asset-indexing choice below is remembered separately.
 
 ## Project versions — 10 October 2026
 
@@ -100,3 +100,12 @@ This is the project record of the user's durable product and workflow choices. U
 ## Assistant skills — 10 October 2026
 
 - Start AI turns with a small tool surface. Instruct the agent to select skills by request domain and load guidance/tools incrementally as the workflow needs them. Do not expose every tool or service action up front. Preserve explicit user approval, context-sharing consent and supported-service checks when skills are loaded.
+
+## Asset indexing and Klip — 10 October 2026
+
+- Import never triggers indexing. Offer manual Index, progress, Cancel, explicit Retry, and Reindex for ready audio, video and image assets. The latest request includes audio-only indexing.
+- A separate versioned consent choice in AI connection setup authorizes generated stills, audio excerpts and video excerpts with sound, to OpenRouter and saved labels in chat. Remember this choice locally; denial hides indexing and revocation aborts work and retires conversations containing labels. Retain saved outputs until explicit deletion. This newer choice permits derived evidence sharing while original files remain local.
+- Detect every sampled shot locally without an LLM, at four samples per second using versioned pixel metrics. Cover representative visuals and motion peaks; process whole images with quality, colors and perceptual similarity. Region extraction, crop suggestions and OCR are deferred.
+- Use the selected compatible chat model, with no fallback, dropped audio or automatic paid retry. Keep deterministic discovery distinct from nondeterministic model descriptions.
+- Save all analysis, generated evidence, safe request manifests, returned text, normalized labels and previous runs on this browser/origin. Project JSON backups remain unchanged; index transfer is deferred.
+- The latest choice is Klip (replacing the proposed Clippy name); name the assistant Klip and use an original film-cell mascot and matching LocalCut logo. Saved labels are untrusted observations; existing edit approvals remain required.

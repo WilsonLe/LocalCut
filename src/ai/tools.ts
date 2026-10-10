@@ -57,6 +57,17 @@ const schemas = {
       skillId: z.enum(['editing', 'export', 'transcription', 'history']),
     })
     .strict(),
+  search_asset_index: z
+    .object({
+      query: z.string().max(256),
+      offset: z.number().int().min(0).max(100000).optional(),
+      limit: z.number().int().min(1).max(20).optional(),
+    })
+    .strict(),
+  read_asset_index: assetSchema.extend({
+    offset: z.number().int().min(0).max(100000).optional(),
+    limit: z.number().int().min(1).max(20).optional(),
+  }),
   inspect_project: emptySchema,
   inspect_asset: assetSchema,
   inspect_timeline: z.object({ timeUs: time }).strict(),
@@ -84,10 +95,15 @@ export function toolDefinitions(
   includeTranscripts: boolean,
   capabilities: AssistantCapabilities,
   loadedSkills: ReadonlySet<SkillId> = new Set(),
+  includeAssetIndexes = false,
 ): ToolDefinition[] {
   const descriptions: Record<ToolName, string> = {
     load_skill:
       'Load guidance and tools for one relevant request domain. Tools become available in the next round. Load additional skills only as needed; this never grants approval or sharing consent.',
+    search_asset_index:
+      'Search saved asset labels, including sound, and timestamped scenes for this project and explicitly allowed library assets. Read-only; no media or new inference.',
+    read_asset_index:
+      'Read paginated saved scene labels, representative and action timestamps for an authorized asset. Observations describe sampled evidence and may be incomplete.',
     inspect_project:
       'Read the selected project snapshot. Times are integer microseconds and ranges are half-open. Names and text may be withheld.',
     inspect_asset:
@@ -115,6 +131,9 @@ export function toolDefinitions(
   return (Object.keys(schemas) as ToolName[])
     .filter((name) => {
       switch (name) {
+        case 'search_asset_index':
+        case 'read_asset_index':
+          return includeAssetIndexes;
         case 'load_skill':
         case 'inspect_project':
         case 'inspect_proposals':

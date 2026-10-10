@@ -73,7 +73,9 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       dialog.getByText('Key connected', { exact: true }),
     ).toBeVisible();
-    await expect(dialog.getByRole('checkbox')).toHaveCount(0);
+    await expect(
+      dialog.getByRole('checkbox', { name: 'Allow asset indexing' }),
+    ).not.toBeChecked();
     await expect(
       dialog.getByRole('button', { name: 'Refresh models', exact: true }),
     ).toHaveCount(0);
@@ -116,6 +118,7 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await expect(dialog.getByRole('alert')).toHaveCount(0);
     await expect.poll(() => requests).toBe(3);
+    await search.focus();
     await page.keyboard.press('Escape');
     await expect(dialog).toBeVisible();
     await dialog

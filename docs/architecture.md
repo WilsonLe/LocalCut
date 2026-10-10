@@ -4,15 +4,15 @@ One application package produces three independent entry points. index.html moun
 
 The design-system configuration is shadcn Base UI, neutral Vega, CSS-first Tailwind 4, light/dark variables, and system fonts. The workspace uses shared button, dialog, input, select, checkbox, label, textarea and toast components. Its project, preview and conversation controls invoke the public engine/assistant APIs; they do not own a second project document.
 
-| Boundary     | Responsibility                                                                                                           |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| src/core     | Zod v1 documents, commands, history contracts, captions, keyframes, rational timing, sinc interpolation                  |
-| src/storage  | IndexedDB transactions, immutable originals, OPFS journals, recovery, LRU derivatives, owned namespaces                  |
-| src/media    | Explicit container imports, metadata/decode, derivative conversion, composition, streaming export, AAC priming probe     |
-| src/services | Jobs, worker transport, preview clock, pinned model configuration                                                        |
-| src/workers  | Separate interactive and background media workers; dedicated single-thread inference worker                              |
-| src/editor   | Disposable asynchronous public facade and events                                                                         |
-| src/ai       | Optional OpenRouter chat/speech transport, in-memory credentials, PKCE, validated edit proposals and local WAV rendering |
+| Boundary     | Responsibility                                                                                                                       |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| src/core     | Zod v1 documents, commands, history contracts, captions, keyframes, rational timing, sinc interpolation                              |
+| src/storage  | IndexedDB transactions, immutable originals, OPFS journals, recovery, LRU derivatives, owned namespaces                              |
+| src/media    | Explicit container imports, metadata/decode, derivative conversion, composition, streaming export, AAC priming probe                 |
+| src/services | Jobs, worker transport, preview clock, pinned model configuration                                                                    |
+| src/workers  | Separate interactive and background media workers; dedicated single-thread inference worker                                          |
+| src/editor   | Disposable asynchronous public facade and events                                                                                     |
+| src/ai       | Optional OpenRouter chat/speech/index-label transport, in-memory credentials, PKCE, validated edit proposals and local WAV rendering |
 
 The project owns ordered tracks, clips, overlays/cues, and explicit transitions. It references assets by stable ID. Browser object URLs, file handles, native samples, decoded bytes, and contexts are runtime resources and never part of project JSON.
 
@@ -27,3 +27,7 @@ Export freezes a revision, probes both codecs, schedules frames from indices, st
 Jobs have an ID, completion promise, progress subscription, and cancellation. Media work yields regularly and observes cancellation; inference cancellation terminates its dedicated worker. Terminal events are structured. Worker crashes reject pending work and subsequent jobs create a new worker.
 
 No router, service worker, cloud backend or production window global exists. Future user controls and agent panels share the editor facade. The optional OpenRouter assistant captures a project revision, offers bounded read tools and proposes commands through this same facade. It cannot apply edits on its own; explicit frontend application preserves engine receipts and Undo. See [AI contracts and privacy](ai.md).
+
+## Asset indexing owners
+
+`src/core/asset-index.ts` owns version-one metrics, selection and labels. `src/media/asset-index.ts` runs deterministic discovery and native evidence generation in the media worker; the facade uses a separate indexing worker so preview remains responsive. `src/storage/asset-index.ts` owns the namespace sidecar and retained evidence. `src/ai/asset-indexer.ts` coordinates cancellable local analysis and sequential selected-model labeling; `index-context.ts` exposes only bounded saved text to Klip. Workspace cards call these owners. No indexing operation changes project documents, revisions or undo history. See [index storage](storage.md#asset-index-sidecar) and [AI indexing](ai.md#manual-asset-indexing).

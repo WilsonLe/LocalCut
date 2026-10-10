@@ -8,6 +8,7 @@ export interface ContextPolicy {
   includeText?: boolean;
   includeAssetNames?: boolean;
   includeTranscripts?: boolean;
+  includeAssetIndexes?: boolean;
 }
 
 export function byteLength(value: unknown): number {
