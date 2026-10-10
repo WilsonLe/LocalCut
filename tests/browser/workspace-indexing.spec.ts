@@ -476,11 +476,20 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('checkbox', { name: 'Allow asset indexing' })
       .check();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-    await expect(
-      page.getByText(
-        'Choose a chat model supporting audio inputs to index this asset.',
-      ),
-    ).toBeVisible();
+    await expect(page.locator('.media-item')).not.toContainText(
+      'Choose a chat model supporting audio inputs to index this asset.',
+    );
+    await page
+      .getByRole('button', { name: 'Asset details for tone.wav' })
+      .focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('tooltip')).toContainText(
+      'Choose a chat model supporting audio inputs to index this asset.',
+    );
+    await page
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .focus();
     await expect(
       page.getByRole('button', { name: 'Index', exact: true }),
     ).toHaveCount(0);
