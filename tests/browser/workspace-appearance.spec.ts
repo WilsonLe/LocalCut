@@ -1,3 +1,4 @@
+import { openAISettings } from './workspace-settings-helper';
 import { expect, test, type Page } from '@playwright/test';
 
 const key = 'localcut.appearance.v1';
@@ -145,11 +146,13 @@ for (const base of ['/', '/LocalCut/']) {
       (await page.locator('.preview-stage').boundingBox())!.width,
     ).toBeGreaterThan(200);
     await page
-      .getByRole('button', { name: 'Connect AI', exact: true })
+      .getByRole('button', { name: 'Workspace settings', exact: true })
       .first()
       .scrollIntoViewIfNeeded();
     await expect(
-      page.getByRole('button', { name: 'Connect AI', exact: true }).first(),
+      page
+        .getByRole('button', { name: 'Workspace settings', exact: true })
+        .first(),
     ).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
@@ -216,10 +219,7 @@ for (const base of ['/', '/LocalCut/']) {
         },
       }),
     );
-    await page
-      .getByRole('button', { name: 'Connect AI', exact: true })
-      .first()
-      .click();
+    await openAISettings(page);
     const connection = page.getByRole('dialog', {
       name: 'AI connection',
       exact: true,

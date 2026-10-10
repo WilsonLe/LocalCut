@@ -12,7 +12,8 @@ import {
   History,
   LoaderCircle,
   Search,
-  PanelRightClose,
+  PanelLeftClose,
+  Scissors,
   ChevronDown,
   Files,
   Settings2,
@@ -40,7 +41,6 @@ const Conversation = lazy(() =>
 import type { ConversationControls } from './Conversation';
 import type { WorkspaceCommand } from './commands';
 import type { IndexConnection } from './Conversation';
-import { KlipMark } from './KlipMark';
 const WorkspacePanels = lazy(() =>
   import('./WorkspacePanels').then(({ WorkspacePanels }) => ({
     default: WorkspacePanels,
@@ -248,6 +248,22 @@ export function Workspace() {
     [],
   );
   const conversationControls = useRef<ConversationControls>(null);
+  const pendingAISettings = useRef(false);
+  const registerConversationControls = useCallback(
+    (controls: ConversationControls | null) => {
+      conversationControls.current = controls;
+      if (controls && pendingAISettings.current) {
+        pendingAISettings.current = false;
+        controls.openSettings();
+      }
+    },
+    [],
+  );
+  const showAISettings = () => {
+    if (conversationControls.current)
+      conversationControls.current.openSettings();
+    else pendingAISettings.current = true;
+  };
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [operationBusy, setBusy] = useState(false);
@@ -1302,7 +1318,7 @@ export function Workspace() {
           aria-controls="workspace-media-content"
           onClick={toggleMedia}
         >
-          {drawer ? <PanelRightClose /> : <Files />}
+          {drawer ? <PanelLeftClose /> : <Files />}
         </Button>
       </Tooltip>
       <div
@@ -1347,7 +1363,7 @@ export function Workspace() {
       <header ref={header} className="workspace-header">
         {busy ? (
           <span className="brand">
-            <KlipMark className="size-6" />
+            <Scissors aria-hidden="true" />
             LocalCut
           </span>
         ) : (
@@ -1357,7 +1373,7 @@ export function Workspace() {
             aria-label="LocalCut home"
             onClick={showProjects}
           >
-            <KlipMark className="size-6" />
+            <Scissors aria-hidden="true" />
             LocalCut
           </button>
         )}
@@ -1440,6 +1456,7 @@ export function Workspace() {
                 onAppearance={() => setAppearanceOpen(true)}
                 onShortcuts={() => setDialog('shortcuts')}
                 onCommands={showCommands}
+                onAISettings={showAISettings}
               />
             </Suspense>
           ) : (
@@ -1526,6 +1543,8 @@ export function Workspace() {
             inert={projectsOpen || navigation.blocked}
             chatCollapsed={chatCollapsed}
             mediaOpen={drawer}
+            onCollapseChat={toggleChat}
+            onCollapseMedia={toggleMedia}
             media={!narrow ? mediaPanel : null}
           >
             <Suspense
@@ -1533,12 +1552,12 @@ export function Workspace() {
                 <aside
                   aria-label="Editing conversation"
                   data-collapsed={chatCollapsed}
-                  className="conversation-panel min-w-0 border-b bg-background lg:border-r lg:border-b-0"
+                  className="conversation-panel min-w-0 border-b bg-background lg:border-l lg:border-b-0"
                 />
               }
             >
               <Conversation
-                controlsRef={conversationControls}
+                controlsRef={registerConversationControls}
                 onIndexConnection={setIndexConnection}
                 editor={editor}
                 project={project}

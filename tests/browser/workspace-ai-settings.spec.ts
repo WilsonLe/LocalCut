@@ -1,3 +1,4 @@
+import { openAISettings } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 import type { Locator } from '@playwright/test';
 
@@ -29,7 +30,7 @@ for (const base of ['/', '/LocalCut/']) {
   }, testInfo) => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto(base);
-    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    await openAISettings(page);
     const dialog = page.getByRole('dialog', {
       name: 'AI connection',
       exact: true,
@@ -123,7 +124,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await expect(dialog).not.toBeVisible();
     await expect(
-      page.getByRole('button', { name: 'Connect AI', exact: true }),
+      page.getByRole('button', { name: 'Workspace settings', exact: true }),
     ).toBeFocused();
     await page
       .getByRole('button', { name: 'Workspace settings', exact: true })
@@ -140,7 +141,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Close appearance', exact: true })
       .click();
-    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    await openAISettings(page);
     await expect(dialog).toBeVisible();
     const largeBounds = (await dialog.boundingBox())!;
     expect(largeBounds.y).toBeGreaterThanOrEqual(0);

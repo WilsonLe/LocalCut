@@ -17,7 +17,7 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await expect(menu).toBeVisible();
     await expect(settings).toHaveAttribute('aria-expanded', 'true');
-    await expect(menu.getByRole('menuitem')).toHaveCount(7);
+    await expect(menu.getByRole('menuitem')).toHaveCount(8);
     await expect(
       page.getByRole('menuitem', {
         name: 'Download project backup',

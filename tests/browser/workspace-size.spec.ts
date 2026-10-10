@@ -1,3 +1,4 @@
+import { openAISettings } from './workspace-settings-helper';
 import { expect, test, type Page } from '@playwright/test';
 
 const key = 'localcut.appearance.v1';
@@ -183,9 +184,7 @@ for (const base of ['/', '/LocalCut/']) {
           .getByRole('menuitem', { name: 'New conversation', exact: true })
           .click();
         await expect(sessions).not.toBeVisible();
-        await page
-          .getByRole('button', { name: 'Connect AI', exact: true })
-          .click();
+        await openAISettings(page);
         const connection = page.getByRole('dialog', {
           name: 'AI connection',
           exact: true,
@@ -277,7 +276,7 @@ for (const base of ['/', '/LocalCut/']) {
       await page.mouse.move(handle.x + handle.width / 2, handle.y + 30);
       await page.mouse.down();
       await page.mouse.move(
-        handle.x + handle.width / 2 + 80 * scale,
+        handle.x + handle.width / 2 - 80 * scale,
         handle.y + 30,
         { steps: 5 },
       );

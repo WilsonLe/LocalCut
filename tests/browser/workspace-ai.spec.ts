@@ -1,3 +1,4 @@
+import { openAISettings } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 import type { BrowserContext, Page, Route } from '@playwright/test';
 import type { Project } from '../../src/core/model';
@@ -86,14 +87,10 @@ async function chooseModel(page: Page) {
   await dialog.getByRole('button', { name: 'Done', exact: true }).click();
 }
 async function openConnectedSettings(page: Page) {
-  await page.getByRole('button', { name: 'AI settings', exact: true }).click();
-  await page.getByRole('button', { name: 'Configure AI', exact: true }).click();
+  await openAISettings(page);
 }
 async function connect(page: Page) {
-  await page
-    .getByRole('button', { name: 'Connect AI', exact: true })
-    .first()
-    .click();
+  await openAISettings(page);
   const dialog = page.getByRole('dialog', {
     name: 'AI connection',
     exact: true,
@@ -373,10 +370,7 @@ for (const base of ['/', '/LocalCut/']) {
       },
     );
     await page.goto(base + '?campaign=ui-test');
-    await page
-      .getByRole('button', { name: 'Connect AI', exact: true })
-      .first()
-      .click();
+    await openAISettings(page);
     await page
       .getByRole('button', { name: 'Connect with OpenRouter', exact: true })
       .click();
@@ -460,7 +454,7 @@ for (const base of ['/', '/LocalCut/']) {
       ),
     ).toBeNull();
     await page.reload();
-    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    await openAISettings(page);
     await expect(page.getByText('Key connected', { exact: true })).toHaveCount(
       0,
     );
@@ -557,12 +551,12 @@ for (const base of ['/', '/LocalCut/']) {
     await other
       .getByRole('button', { name: 'Disconnect', exact: true })
       .click();
-    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    await openAISettings(page);
     await expect(
       dialog.getByLabel('OpenRouter API key', { exact: true }),
     ).toBeVisible();
     await page.reload();
-    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    await openAISettings(page);
     await expect(page.getByText('Key connected', { exact: true })).toHaveCount(
       0,
     );
@@ -697,7 +691,7 @@ for (const base of ['/', '/LocalCut/']) {
       };
     });
     await page.goto(base);
-    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    await openAISettings(page);
     const dialog = page.getByRole('dialog', {
       name: 'AI connection',
       exact: true,
@@ -774,7 +768,7 @@ for (const base of ['/', '/LocalCut/']) {
       ),
     ).toBeNull();
     await page.reload();
-    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    await openAISettings(page);
     await expect(page.getByText('Key connected', { exact: true })).toHaveCount(
       0,
     );
