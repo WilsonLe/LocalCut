@@ -26,11 +26,22 @@ export default function CommandPalette({
     <CommandDialog
       open={open}
       onOpenChange={onOpenChange}
-      finalFocus={() =>
-        executed.current
-          ? false
-          : document.getElementById('workspace-command-trigger')
-      }
+      finalFocus={() => {
+        const active = document.activeElement;
+        // Preserve a workflow's own focus; immediate commands return to the editor.
+        if (
+          executed.current &&
+          active instanceof HTMLElement &&
+          active !== document.body &&
+          !active.closest('.command-dialog') &&
+          !active.closest('[hidden], [inert]')
+        )
+          return false;
+        return (
+          document.getElementById('workspace-command-trigger') ??
+          document.querySelector<HTMLElement>('[aria-label="Video editor"]')
+        );
+      }}
     >
       <Command label="Search commands">
         <CommandInput

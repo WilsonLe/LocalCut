@@ -91,6 +91,7 @@ export function Conversation(props: ConversationProps) {
   ]);
   const [sessionBusy, setSessionBusy] = useState(false);
   const [pickerLoaded, setPickerLoaded] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [infoLoaded, setInfoLoaded] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const nextSession = useRef(0);
@@ -311,6 +312,10 @@ export function Conversation(props: ConversationProps) {
     ]);
     setConversationNumber(id);
   };
+  const openSessionPicker = () => {
+    setPickerLoaded(true);
+    setPickerOpen(true);
+  };
   useImperativeHandle(props.controlsRef, () => ({
     commands: () => [
       {
@@ -328,7 +333,9 @@ export function Conversation(props: ConversationProps) {
               run: () => {
                 requestAnimationFrame(() =>
                   document
-                    .querySelector<HTMLElement>('#workspace-chat textarea')
+                    .querySelector<HTMLElement>(
+                      '#workspace-chat .conversation-session:not([hidden]) textarea',
+                    )
                     ?.focus(),
                 );
               },
@@ -347,7 +354,7 @@ export function Conversation(props: ConversationProps) {
               id: 'chat-sessions',
               label: 'Chat sessions',
               group: 'Chat',
-              run: () => setPickerLoaded(true),
+              run: openSessionPicker,
             },
             ...chatSessions.map((session) => ({
               id: `chat-session-${session.id}`,
@@ -398,7 +405,7 @@ export function Conversation(props: ConversationProps) {
       className="chat-session-trigger"
       aria-label="Chat sessions"
       disabled={sessionBusy}
-      onClick={() => setPickerLoaded(true)}
+      onClick={openSessionPicker}
     >
       <span>
         {chatSessions.find((session) => session.id === conversationNumber)
@@ -452,6 +459,8 @@ export function Conversation(props: ConversationProps) {
           {pickerLoaded ? (
             <Suspense fallback={sessionTrigger}>
               <ChatSessionPicker
+                open={pickerOpen}
+                onOpenChange={setPickerOpen}
                 sessions={chatSessions}
                 selected={conversationNumber}
                 busy={sessionBusy}

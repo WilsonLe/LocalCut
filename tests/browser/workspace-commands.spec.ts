@@ -160,6 +160,24 @@ for (const base of ['/', '/LocalCut/']) {
         .getByRole('menuitemradio'),
     ).toHaveCount(1);
     await page.keyboard.press('Escape');
+    // The lazy picker must reopen after it has already mounted and closed.
+    await run(page, 'Chat sessions');
+    await expect(
+      page.getByRole('menu', { name: 'Chat sessions', exact: true }),
+    ).toBeVisible();
+    await page.keyboard.press('Escape');
+    await run(page, 'Use WebM export format');
+    await expect(
+      header.getByRole('button', { name: 'Commands', exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press('ControlOrMeta+k');
+    dialog = page.getByRole('dialog', { name: 'Commands', exact: true });
+    await dialog.getByRole('combobox').fill('Use MP4 export format');
+    await dialog.getByRole('combobox').press('Enter');
+    await expect(dialog).not.toBeVisible();
+    await expect(
+      header.getByRole('button', { name: 'Commands', exact: true }),
+    ).toBeFocused();
     await run(page, 'Connect OpenRouter');
     await expect(
       page.getByRole('dialog', { name: 'AI connection', exact: true }),
