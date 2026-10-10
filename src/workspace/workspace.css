@@ -59,7 +59,13 @@
 }
 .workspace-columns {
   display: grid;
-  --chat-width: minmax(280px, var(--chat-preferred-width, 320px));
+  --chat-width: minmax(
+    280px,
+    min(
+      var(--chat-preferred-width, 320px),
+      calc(100% - var(--appearance-media-width) - 280px)
+    )
+  );
   --media-width: minmax(52px, 52px);
   --appearance-media-width: 52px;
   grid-template-columns: var(--chat-width) minmax(0, 1fr) var(--media-width);
@@ -74,19 +80,6 @@
 .workspace[data-media-open='true'] .workspace-columns {
   --media-width: minmax(250px, 24%);
   --appearance-media-width: max(250px, 24%);
-}
-@media (min-width: 901px) {
-  .workspace[data-chat-collapsed='false']
-    .workspace-body[data-appearance-open='true']
-    > .workspace-columns {
-    --chat-width: minmax(
-      280px,
-      min(
-        var(--chat-preferred-width, 320px),
-        calc(100% - var(--appearance-media-width) - 280px)
-      )
-    );
-  }
 }
 .workspace-columns > aside {
   min-width: 0;

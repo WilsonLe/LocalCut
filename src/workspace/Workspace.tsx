@@ -44,6 +44,10 @@ import { useEditorShortcuts } from './useEditorShortcuts';
 import { Timeline } from './Timeline';
 import { useAppearance } from './appearance';
 import {
+  saveWorkspacePreferences,
+  useWorkspacePreferences,
+} from './preferences';
+import {
   appendAsset,
   downloadFile,
   formatTime,
@@ -58,6 +62,32 @@ type Artifact = ExportResult & { dispose: () => Promise<void> };
 
 export function Workspace() {
   const { dark } = useAppearance();
+  const { preferences, saved: preferencesSaved } = useWorkspacePreferences();
+  const { chatCollapsed, chatWidth, exportFormat: format } = preferences;
+  // Imports can reveal media for this session without changing the user's layout.
+  const [mediaOverride, setMediaOverride] = useState<boolean | null>(null);
+  const [mediaPreference, setMediaPreference] = useState(preferences.mediaOpen);
+  if (mediaPreference !== preferences.mediaOpen) {
+    setMediaPreference(preferences.mediaOpen);
+    setMediaOverride(null);
+  }
+  const drawer = mediaOverride ?? preferences.mediaOpen;
+  const toggleMedia = () => {
+    saveWorkspacePreferences({ mediaOpen: !drawer });
+    setMediaOverride(null);
+  };
+  const toggleChat = () =>
+    saveWorkspacePreferences({ chatCollapsed: !chatCollapsed });
+  const setFormat = (exportFormat: 'mp4' | 'webm') =>
+    saveWorkspacePreferences({ exportFormat });
+  const setChatWidth = (chatWidth: number) =>
+    saveWorkspacePreferences({ chatWidth });
+  useEffect(() => {
+    if (!preferencesSaved)
+      toast.error(
+        'Workspace preferences could not be saved. Allow browser storage to keep them after reload.',
+      );
+  }, [preferencesSaved]);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const closeAppearance = () => {
     setAppearanceOpen(false);
@@ -77,14 +107,10 @@ export function Workspace() {
   const [timeUs, setTimeUs] = useState(0);
   const [seekRevision, setSeekRevision] = useState(0);
   const [dialog, setDialog] = useState<DialogName>(null);
-  const [drawer, setDrawer] = useState(false);
-  const [chatCollapsed, setChatCollapsed] = useState(false);
-  const [chatWidth, setChatWidth] = useState(320);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<Progress | null>(null);
-  const [format, setFormat] = useState<'mp4' | 'webm'>('mp4');
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [exportError, setExportError] = useState('');
   const previewControls = useRef<PreviewControls>(null);
@@ -326,7 +352,7 @@ export function Workspace() {
         await refresh();
         if (insert?.type === 'insertClip') setSelected(insert.clip.id);
       }
-      setDrawer(true);
+      setMediaOverride(true);
       toast.success(
         `${files.length} ${files.length === 1 ? 'file' : 'files'} added to the timeline`,
       );
@@ -607,8 +633,8 @@ export function Workspace() {
       openProject: showProjects,
       import: !browsed ? () => fileInput.current?.click() : undefined,
       export: total && !browsed ? showExport : undefined,
-      toggleChat: () => setChatCollapsed((collapsed) => !collapsed),
-      toggleMedia: () => setDrawer((open) => !open),
+      toggleChat,
+      toggleMedia,
       shortcuts: () => setDialog('shortcuts'),
     },
   });
@@ -734,8 +760,8 @@ export function Workspace() {
                 onOpen={showProjects}
                 onBackup={backupProject}
                 onImportBackup={() => backupInput.current?.click()}
-                onToggleMedia={() => setDrawer((open) => !open)}
-                onToggleChat={() => setChatCollapsed((collapsed) => !collapsed)}
+                onToggleMedia={toggleMedia}
+                onToggleChat={toggleChat}
                 onExport={showExport}
                 onFormatChange={setFormat}
                 onAppearance={() => setAppearanceOpen(true)}
@@ -759,7 +785,7 @@ export function Workspace() {
             collapsed={chatCollapsed}
             width={chatWidth}
             onResize={setChatWidth}
-            onToggle={() => setChatCollapsed((collapsed) => !collapsed)}
+            onToggle={toggleChat}
           />
           <main
             className="editing-area"
@@ -874,7 +900,7 @@ export function Workspace() {
                 aria-label={drawer ? 'Collapse media' : 'Expand media'}
                 aria-expanded={drawer}
                 aria-controls="workspace-media-content"
-                onClick={() => setDrawer((open) => !open)}
+                onClick={toggleMedia}
               >
                 {drawer ? <PanelRightClose /> : <Files />}
               </Button>

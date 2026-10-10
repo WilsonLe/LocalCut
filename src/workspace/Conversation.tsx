@@ -24,6 +24,10 @@ const AIInfoPopover = lazy(() => import('./AIInfoPopover'));
 const ChatSessionPicker = lazy(() => import('./ChatSessionPicker'));
 const ConversationSession = lazy(() => import('./ConversationSession'));
 import { errorText } from './conversation-errors';
+import {
+  getWorkspacePreferences,
+  saveWorkspacePreferences,
+} from './preferences';
 
 type AiModule = typeof import('../ai');
 export interface Connection {
@@ -170,14 +174,18 @@ export function Conversation(props: ConversationProps) {
         setModel('');
         setSettingsOpen(true);
         const catalog = await provider.listModels(controller.signal);
-        if (current())
-          setModels(
-            catalog
-              .filter(
-                (item) => item.supportsTools && item.id !== 'openrouter/auto',
-              )
-              .sort((a, b) => a.name.localeCompare(b.name)),
+        if (current()) {
+          const available = catalog
+            .filter(
+              (item) => item.supportsTools && item.id !== 'openrouter/auto',
+            )
+            .sort((a, b) => a.name.localeCompare(b.name));
+          setModels(available);
+          const preferred = getWorkspacePreferences().preferences.aiModel;
+          setModel(
+            available.some((item) => item.id === preferred) ? preferred : '',
           );
+        }
       } catch (error) {
         if (current()) report(error);
       } finally {
@@ -477,7 +485,10 @@ export function Conversation(props: ConversationProps) {
             connect={connect}
             disconnect={disconnect}
             model={model}
-            setModel={setModel}
+            setModel={(model) => {
+              setModel(model);
+              saveWorkspacePreferences({ aiModel: model });
+            }}
             models={models}
             refreshCatalog={refreshCatalog}
             privacy={privacy}

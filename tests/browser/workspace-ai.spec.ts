@@ -374,12 +374,27 @@ for (const base of ['/', '/LocalCut/']) {
     expect(new URL(page.url()).search).toBe('?campaign=ui-test');
     expect(exchanges).toBe(1);
     await chooseModel(page);
-    expect(
-      await page.evaluate(() => ({
-        local: Object.values(localStorage),
-        session: Object.values(sessionStorage),
-      })),
-    ).toEqual({ local: [], session: [] });
+    const stored = await page.evaluate(() => ({
+      local: { ...localStorage },
+      session: { ...sessionStorage },
+    }));
+    expect(stored).toEqual({
+      local: {
+        'localcut.workspace-preferences.v1': JSON.stringify({
+          version: 1,
+          preferences: {
+            chatWidth: 320,
+            chatCollapsed: false,
+            mediaOpen: false,
+            exportFormat: 'mp4',
+            aiModel: model,
+          },
+        }),
+      },
+      session: {},
+    });
+    expect(JSON.stringify(stored)).not.toContain(key);
+    expect(JSON.stringify(stored)).not.toContain('synthetic-ui-authorization');
     expect(await page.locator('body').innerText()).not.toContain(key);
     await page.reload();
     await page

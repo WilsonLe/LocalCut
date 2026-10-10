@@ -47,6 +47,12 @@ This is the project record of the user's durable product and workflow choices. U
 - Provide an appearance section inspired by shadcn Create. The actual workspace is the live preview, and appearance preferences survive reload locally in the browser.
 - Keep the existing Base UI and Lucide foundations. System font stacks provide body/heading choices without downloading fonts. Appearance changes must preserve the active editing session and conversation.
 
+## Local user preferences — 10 October 2026
+
+- Persist chat sidebar width as a local browser user preference; restore the preferred width across reloads and temporary responsive/layout constraints.
+- Audit all configurable UI state and use judgement to remember durable choices. Save chat collapse, deliberate media visibility, export format and preferred AI model alongside appearance. Keep authored project data in its existing storage and temporary navigation/operation state in the session.
+- Keep preferences local to the browser/origin. Remembering a model does not authorize reconnecting, paid requests or sharing content; credentials and sharing consent remain session-only.
+
 ## Project versions — 10 October 2026
 
 - Autosave a project version after one second without a committed edit; keep working edits immediately durable in local storage.

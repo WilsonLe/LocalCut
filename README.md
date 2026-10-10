@@ -9,7 +9,7 @@ A local video editor that builds to static files. The conversation-led workspace
 3. Optionally connect OpenRouter, choose a model, and describe an edit. Review the proposed operations, then Apply or Discard. Prompts and permitted metadata go to OpenRouter; raw media stays local. Sharing names, on-screen text and transcripts is off by default.
 4. Export MP4 or WebM after browser capability checks, then Save video. Keep a project JSON backup and copies of the original media separately.
 
-The workspace starts without opening storage or starting media/AI services. Projects remain on this origin and browser; credentials and conversation state do not survive reload. Open a saved project after reloading. See [workspace behavior](docs/workspace.md) and the maintained [user preferences](docs/user-preferences.md).
+The workspace starts without opening editing storage or starting media/AI services. Projects remain on this origin and browser; workspace/appearance preferences survive reload locally; credentials and conversation state do not. Open a saved project after reloading. See [workspace behavior](docs/workspace.md) and the maintained [user preferences](docs/user-preferences.md).
 
 ## Setup
 
