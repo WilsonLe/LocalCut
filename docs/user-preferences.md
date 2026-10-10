@@ -83,6 +83,10 @@ This is the project record of the user's durable product and workflow choices. U
 - Provide audio separation from video, clip group/ungroup, and transition controls for overlapping visual clips on one video track.
 - Treat transitions as editable templates built from base attributes. A user can request a template in chat and the assistant can inspect and fine-tune its ordinary keyframes for a better result. Keep the resulting edits inspectable through the shared engine.
 
+## Timeline tracks — 11 October 2026
+
+- Provide an Add track button in the timeline with Video track and Audio track choices. Allow additional empty tracks without importing media or connecting AI.
+
 ## Text to speech — 10 October 2026
 
 - Generate natural speech through the existing OpenRouter connection. Let users edit the script, select a voice, declare multiple languages, and set delivery directions.

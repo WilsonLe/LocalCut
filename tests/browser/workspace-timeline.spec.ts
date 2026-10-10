@@ -99,6 +99,129 @@ async function snapshot(
   );
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`timeline add tracks preserves empty lanes, history and persistence ${base}`, async ({
+    page,
+  }, testInfo) => {
+    await page.goto(base);
+    const add = page.getByRole('button', { name: 'Add track', exact: true });
+    await expect(add).toHaveCount(0);
+    const main = page.getByRole('main', { name: 'Video editor', exact: true });
+    await main.focus();
+    await page.keyboard.press('n');
+    await page
+      .getByLabel('Project name', { exact: true })
+      .fill('Track controls');
+    await page
+      .getByRole('button', { name: 'Create project', exact: true })
+      .click();
+    await expect(add).toBeVisible();
+    const p = () => snapshot(page, base, 'Track controls');
+    const lanes = page.locator('.timeline-track');
+    await add.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(
+      page.getByRole('menuitem', { name: 'Video track', exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(lanes).toHaveCount(1);
+    await expect(add).toBeFocused();
+    await expect(lanes.first()).toContainText('Video 1');
+    await expect(
+      page.getByRole('slider', { name: 'Playhead position' }),
+    ).toHaveCount(0);
+    for (const kind of ['Audio track', 'Video track']) {
+      await page.keyboard.press('ArrowDown');
+      await expect(
+        page.getByRole('menuitem', { name: 'Video track', exact: true }),
+      ).toBeFocused();
+      if (kind === 'Audio track') await page.keyboard.press('ArrowDown');
+      await expect(
+        page.getByRole('menuitem', { name: kind, exact: true }),
+      ).toBeFocused();
+      await page.keyboard.press('Enter');
+      await expect(add).toBeFocused();
+    }
+    await expect(lanes).toHaveCount(3);
+    const saved = await p();
+    expect(saved.tracks.map((track) => track.kind)).toEqual([
+      'video',
+      'audio',
+      'video',
+    ]);
+    expect(saved.tracks.every((track) => track.clips.length === 0)).toBe(true);
+    expect(new Set(saved.tracks.map((track) => track.id)).size).toBe(3);
+    expect(saved.revision).toBe(3);
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect(lanes).toHaveCount(2);
+    await page.getByRole('button', { name: 'Redo', exact: true }).click();
+    await expect(lanes).toHaveCount(3);
+    expect((await p()).tracks).toEqual(saved.tracks);
+    await page.reload();
+    await expect(lanes).toHaveCount(3);
+    expect((await p()).tracks).toEqual(saved.tracks);
+
+    const image = await page.evaluate(async () => {
+      const canvas = new OffscreenCanvas(32, 32);
+      canvas.getContext('2d')!.fillRect(0, 0, 32, 32);
+      return [
+        ...new Uint8Array(await (await canvas.convertToBlob()).arrayBuffer()),
+      ];
+    });
+    const chooser = page.waitForEvent('filechooser');
+    await main.focus();
+    await page.keyboard.press('ControlOrMeta+i');
+    await (
+      await chooser
+    ).setFiles({
+      name: 'track.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(image),
+    });
+    await expect(page.locator('.timeline-clip.image')).toHaveCount(1);
+    await expect(lanes).toHaveCount(3);
+    await expect(
+      page.getByRole('slider', { name: 'Playhead position' }),
+    ).toHaveValue('0');
+    expect((await p()).tracks.map((track) => track.clips.length)).toEqual([
+      1, 0, 0,
+    ]);
+
+    await page.getByRole('button', { name: 'Versions', exact: true }).click();
+    await page
+      .getByRole('group', { name: 'Saved versions' })
+      .getByRole('button')
+      .last()
+      .click();
+    await expect(page.getByText(/Version \d+ · Read-only/)).toBeVisible();
+    await expect(add).toHaveCount(0);
+    await page
+      .getByRole('button', { name: 'Return to current', exact: true })
+      .click();
+    await expect(add).toBeVisible();
+
+    await add.click();
+    await page.screenshot({
+      path: testInfo.outputPath('add-tracks-desktop.png'),
+    });
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await add.click();
+    const menu = page.getByRole('menu', { name: 'Add track', exact: true });
+    await expect(menu).toBeVisible();
+    const bounds = await menu.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+    await page.screenshot({
+      path: testInfo.outputPath('add-tracks-mobile.png'),
+    });
+    await page
+      .getByRole('menuitem', { name: 'Audio track', exact: true })
+      .click();
+    await expect(lanes).toHaveCount(4);
+    expect((await p()).tracks.at(-1)?.kind).toBe('audio');
+  });
+
   test(`timeline audio separation, grouping and editable overlap templates ${base}`, async ({
     page,
   }, testInfo) => {
