@@ -336,6 +336,9 @@ for (const base of ['/', '/LocalCut/']) {
       );
     });
     await page.goto(`${base}#/project/${ids.first}`);
+    // The fixture changed storage outside the app after startup. Hash-only
+    // navigation keeps that document; reload to exercise credential restoration.
+    await page.reload();
     const composer = page.getByRole('textbox', {
       name: 'Describe your edit',
       exact: true,
