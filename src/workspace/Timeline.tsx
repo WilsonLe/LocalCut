@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useViewport } from './useViewport';
 import {
   Captions,
@@ -53,6 +53,16 @@ export function Timeline(props: Props) {
   const { project, assets, selected, timeUs } = props;
   const busy = props.busy || props.readOnly;
   const [multiSelect, setMultiSelect] = useState(false);
+  useEffect(() => {
+    const touchControls = window.matchMedia(
+      '(pointer: coarse), (max-width: 700px), (max-width: 1000px) and (max-height: 500px)',
+    );
+    const update = () => {
+      if (!touchControls.matches) setMultiSelect(false);
+    };
+    touchControls.addEventListener('change', update);
+    return () => touchControls.removeEventListener('change', update);
+  }, []);
   const total = projectDuration(project);
   const {
     ref: viewport,
@@ -340,7 +350,7 @@ export function Timeline(props: Props) {
                           onClick={(event) =>
                             props.onSelect(
                               clip.id,
-                              event.shiftKey || event.metaKey || event.ctrlKey,
+                              multiSelect || event.shiftKey || event.metaKey || event.ctrlKey,
                             )
                           }
                           style={{
@@ -406,132 +416,18 @@ export function Timeline(props: Props) {
                 />
               </div>
             </div>
-=======
-        <div
-          className="timeline-scroll"
-          role="region"
-          aria-label="Timeline tracks"
-          tabIndex={0}
-        >
-          <div className="timeline-canvas">
-            <div className="timeline-ruler">
-              {[0, 1, 2, 3].map((part) => (
-                <span key={part}>{formatTime((total * part) / 3)}</span>
-              ))}
-            </div>
-            <div className="timeline-tracks">
-              {project?.tracks.map((track, index) => (
-                <div className="timeline-track" key={track.id}>
-                  <span className="track-label">
-                    {track.kind === 'audio' ? (
-                      <Music2 />
-                    ) : track.kind === 'overlay' ? (
-                      <Captions />
-                    ) : (
-                      <Film />
-                    )}
-                    <span>
-                      {track.kind === 'audio'
-                        ? 'Audio'
-                        : track.kind === 'overlay'
-                          ? 'Text'
-                          : 'Video'}{' '}
-                      {index + 1}
-                    </span>
-                  </span>
-                  <div className="track-lane">
-                    {track.clips.map((clip) => (
-                      <button
-                        key={clip.id}
-                        type="button"
-                        className={`timeline-clip ${clip.kind}`}
-                        aria-label={clipName(clip, assets)}
-                        aria-pressed={selected.includes(clip.id)}
-                        data-grouped={!!clip.groupId}
-                        onClick={(event) =>
-                          props.onSelect(
-                            clip.id,
-                            multiSelect ||
-                              event.shiftKey ||
-                              event.metaKey ||
-                              event.ctrlKey,
-                          )
-                        }
-                        style={{
-                          left: `${(clip.startUs / total) * 100}%`,
-                          width: `${(clip.durationUs / total) * 100}%`,
-                        }}
-                        title={`${clipName(clip, assets)} · ${formatTime(clip.durationUs)}`}
-                      >
-                        <span>{clipName(clip, assets)}</span>
-                      </button>
-                    ))}
-                    {project &&
-                      transitionPairs(project)
-                        .filter((pair) => pair.trackId === track.id)
-                        .map((pair) => {
-                          const transition = project.transitions.find(
-                            (t) =>
-                              t.trackId === pair.trackId &&
-                              t.fromClipId === pair.fromClipId &&
-                              t.toClipId === pair.toClipId,
-                          );
-                          const label = transition
-                            ? TRANSITION_TEMPLATES.find(
-                                (t) =>
-                                  t.id ===
-                                  (transition.templateId ?? transition.kind),
-                              )?.label
-                            : 'Overlap';
-                          return (
-                            <button
-                              type="button"
-                              key={pair.fromClipId + ':' + pair.toClipId}
-                              className="timeline-overlap"
-                              aria-label={`${label} transition overlap`}
-                              title={`${label} · ${formatTime(pair.endUs - pair.startUs)}`}
-                              aria-pressed={
-                                selected.includes(pair.fromClipId) &&
-                                selected.includes(pair.toClipId)
-                              }
-                              style={{
-                                left: `${(pair.startUs / total) * 100}%`,
-                                width: `${((pair.endUs - pair.startUs) / total) * 100}%`,
-                              }}
-                              onClick={() =>
-                                props.onSelectOverlap(
-                                  pair.fromClipId,
-                                  pair.toClipId,
-                                )
-                              }
-                            >
-                              {label}
-                            </button>
-                          );
-                        })}
-                  </div>
-                </div>
-              ))}
-              <div
-                className="timeline-playhead"
-                style={{
-                  left: `calc(76px + (100% - 76px) * ${Math.min(1, timeUs / total)})`,
-                }}
-              />
-            </div>
-            <input
-              className="timeline-scrubber"
-              aria-label="Playhead position"
-              type="range"
-              min={0}
-              max={Math.max(0, total - 1)}
-              step={1}
-              value={Math.min(timeUs, total - 1)}
-              onChange={(event) => props.onTime(Number(event.target.value))}
-            />
->>>>>>> c7d8246 (Make the workspace accessible and comfortable on mobile)
           </div>
-        </div>
+          <input
+            className="timeline-scrubber"
+            aria-label="Playhead position"
+            type="range"
+            min={0}
+            max={Math.max(0, total - 1)}
+            step={1}
+            value={Math.min(timeUs, total - 1)}
+            onChange={(event) => props.onTime(Number(event.target.value))}
+          />
+        </>
       ) : (
         <div className="empty-timeline">
           Your clips, captions and audio will appear here.

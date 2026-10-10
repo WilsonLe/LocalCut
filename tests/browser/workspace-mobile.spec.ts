@@ -369,3 +369,68 @@ test('touch tablet controls fit with media and multi-selection open', async ({
   }
   await fits(page);
 });
+
+test('media focus follows the mounted trigger across both breakpoints', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/LocalCut/');
+  await create(page);
+  await page.getByRole('button', { name: 'Expand media', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Collapse media', exact: true })
+    .focus();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.locator('#desktop-media-trigger')).toBeFocused();
+  await page.locator('#desktop-media-trigger').click();
+  const desktop = page.locator('#desktop-media-trigger');
+  await expect(desktop).toHaveAttribute('aria-expanded', 'true');
+  await desktop.focus();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('#mobile-media-trigger')).toBeFocused();
+});
+
+test.describe('fine-pointer responsive selection', () => {
+  test.use({ hasTouch: false });
+  test('touch multi-selection resets when its control disappears', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/LocalCut/');
+    await create(page);
+    for (let i = 0; i < 3; i++) {
+      await page.getByRole('button', { name: 'Add text', exact: true }).click();
+      await page
+        .getByRole('dialog', { name: 'Clip properties', exact: true })
+        .getByRole('button', { name: 'Close', exact: true })
+        .click();
+      // Keep pointer targets separate; overlapping text clips intentionally
+      // share a lane and cannot all receive a pointer click at the same time.
+      await page
+        .getByRole('slider', { name: 'Playhead position' })
+        .press('End');
+    }
+    await page.getByRole('button', { name: 'Select multiple clips' }).click();
+    await page.getByRole('combobox', { name: 'Select timeline clip' }).click();
+    await page.getByRole('option').first().click();
+    const clips = page.locator('.timeline-clip');
+    const selected = page.locator('.timeline-clip[aria-pressed="true"]');
+    await expect(selected).toHaveCount(2);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(
+      page.getByRole('button', { name: 'Select multiple clips' }),
+    ).toBeHidden();
+    await clips.nth(1).press('Enter');
+    await expect(selected).toHaveCount(1);
+    await clips.nth(0).click();
+    await expect(selected).toHaveCount(1);
+    await clips.nth(1).click({ modifiers: ['Shift'] });
+    await expect(selected).toHaveCount(2);
+    await clips.nth(2).click({ modifiers: ['ControlOrMeta'] });
+    await expect(selected).toHaveCount(3);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(
+      page.getByRole('button', { name: 'Select multiple clips' }),
+    ).toHaveAttribute('aria-pressed', 'false');
+  });
+});

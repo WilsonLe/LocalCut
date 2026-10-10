@@ -939,6 +939,17 @@
     min-height: 0;
     padding: 12px;
   }
+  .chat-composer {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .chat-composer > textarea {
+    overflow-y: auto;
+  }
+  .composer-actions {
+    flex-shrink: 0;
+  }
   .editing-area,
   .editing-content {
     overflow: visible;

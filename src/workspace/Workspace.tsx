@@ -82,6 +82,8 @@ const WorkspaceTransferDialog = lazy(() => import('./WorkspaceTransferDialog'));
 const AppearancePanel = lazy(() => import('./AppearancePanel'));
 const ProjectBrowser = lazy(() => import('./ProjectBrowser'));
 type Artifact = ExportResult & { dispose: () => Promise<void> };
+const NARROW_QUERY =
+  '(max-width: 700px), (max-width: 1000px) and (max-height: 500px)';
 
 export function Workspace() {
   const { dark } = useAppearance();
@@ -113,23 +115,27 @@ export function Workspace() {
     };
   }, []);
   const [narrow, setNarrow] = useState(
-    () =>
-      window.matchMedia(
-        '(max-width: 700px), (max-width: 1000px) and (max-height: 500px)',
-      ).matches,
+    () => window.matchMedia(NARROW_QUERY).matches,
   );
   const [mobileMediaOpen, setMobileMediaOpen] = useState(false);
+  const mediaHasFocus = useRef(false);
+  const restoreMediaFocus = useRef(false);
+  const mediaTriggerRef = useCallback((trigger: HTMLButtonElement | null) => {
+    if (trigger && restoreMediaFocus.current) {
+      requestAnimationFrame(() => {
+        if (trigger.isConnected && restoreMediaFocus.current) {
+          restoreMediaFocus.current = false;
+          trigger.focus();
+        }
+      });
+    }
+  }, []);
   useEffect(() => {
-    const query = window.matchMedia(
-      '(max-width: 700px), (max-width: 1000px) and (max-height: 500px)',
-    );
+    const query = window.matchMedia(NARROW_QUERY);
     const update = () => {
-      if (document.activeElement?.closest('.media-panel'))
-        document
-          .getElementById(
-            query.matches ? 'mobile-media-trigger' : 'desktop-media-trigger',
-          )
-          ?.focus();
+      // CSS may hide and blur the rail before this change event is delivered.
+      restoreMediaFocus.current = mediaHasFocus.current;
+      mediaHasFocus.current = false;
       setNarrow(query.matches);
       setMobileMediaOpen(false);
     };
@@ -1235,11 +1241,22 @@ export function Workspace() {
       id="workspace-media"
       aria-label="Media library"
       data-collapsed={!drawer}
+      onFocusCapture={() => {
+        mediaHasFocus.current = true;
+      }}
+      onBlurCapture={(event) => {
+        if (
+          window.matchMedia(NARROW_QUERY).matches === narrow &&
+          !event.currentTarget.contains(event.relatedTarget)
+        )
+          mediaHasFocus.current = false;
+      }}
     >
       <Tooltip content={drawer ? 'Collapse media' : 'Open media'}>
         <Button
           className="media-toggle"
           id={narrow ? undefined : 'desktop-media-trigger'}
+          ref={narrow ? undefined : mediaTriggerRef}
           variant="ghost"
           size="icon-sm"
           aria-label={drawer ? 'Collapse media' : 'Expand media'}
@@ -1645,6 +1662,7 @@ export function Workspace() {
             chatCollapsed={chatCollapsed}
             mediaOpen={drawer}
             onToggleMedia={toggleMedia}
+            mediaTriggerRef={mediaTriggerRef}
           />
         </Suspense>
       )}

@@ -1,4 +1,5 @@
 import { Film, Files, MessageSquare } from 'lucide-react';
+import type { Ref } from 'react';
 import { Button } from '../components/ui/button';
 import { saveWorkspacePreferences } from './preferences';
 
@@ -6,10 +7,12 @@ export default function MobileNavigation({
   chatCollapsed,
   mediaOpen,
   onToggleMedia,
+  mediaTriggerRef,
 }: {
   chatCollapsed: boolean;
   mediaOpen: boolean;
   onToggleMedia: () => void;
+  mediaTriggerRef: Ref<HTMLButtonElement>;
 }) {
   return (
     <nav className="mobile-navigation" aria-label="Workspace sections">
@@ -42,6 +45,7 @@ export default function MobileNavigation({
       </Button>
       <Button
         id="mobile-media-trigger"
+        ref={mediaTriggerRef}
         variant="ghost"
         aria-label="Expand media"
         aria-haspopup="dialog"

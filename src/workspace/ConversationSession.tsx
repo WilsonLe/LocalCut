@@ -367,7 +367,6 @@ export default function ConversationSession({
     if (!input) return;
     input.style.height = 'auto';
     input.style.height = `${Math.min(180, input.scrollHeight)}px`;
-    input.style.overflowY = input.scrollHeight > 180 ? 'auto' : 'hidden';
   }, [prompt]);
   return (
     <>
