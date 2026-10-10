@@ -182,10 +182,25 @@ for (const base of ['/', '/LocalCut/']) {
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth),
       ).toBeLessThanOrEqual(390);
-      await history.getByRole('button', { name: 'Close', exact: true }).click();
+      await history.getByRole('button', { name: 'Close', exact: true }).focus();
+      await page.keyboard.press('Escape');
+      await expect(history).toBeHidden();
       await expect(
         page.getByRole('dialog', { name: 'Media library', exact: true }),
       ).toBeVisible();
+      await page
+        .getByRole('button', { name: 'Asset details for red.png' })
+        .focus();
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Tab');
+      await expect(page.getByRole('tooltip')).toContainText('red.png');
+      await page.keyboard.press('Escape');
+      await expect(
+        page.getByRole('dialog', { name: 'Media library', exact: true }),
+      ).toBeHidden();
+      await expect(
+        page.getByRole('button', { name: 'Expand media', exact: true }),
+      ).toBeFocused();
     } finally {
       release();
     }
