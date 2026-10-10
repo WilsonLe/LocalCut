@@ -138,3 +138,7 @@ This is the project record of the user's durable product and workflow choices. U
 - Save pasted and OAuth-issued OpenRouter credentials locally in this browser/origin and restore the connection after refresh or navigation. This supersedes the earlier memory-only credential choices.
 - Keep credentials separate from preferences, project data and all portable backups. Disconnect removes the saved credential; ordinary cleanup preserves it. Removing or replacing it in another tab retires the old connection.
 - Restoring a connection may refresh the model catalog, but never sends chat, generates speech or indexes media automatically. Text/name/transcript sharing remains off after reload; conversations and active project selection remain session-only.
+
+## Mobile usability — 10 October 2026
+
+- Make the workspace look good and accessible on mobile, retaining the existing editor capabilities and local media ownership. Keep narrow-screen editing and conversation easy to reach with comfortable touch controls.

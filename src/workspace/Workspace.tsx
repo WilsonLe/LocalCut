@@ -14,10 +14,8 @@ import {
   Search,
   PanelRightClose,
   ChevronDown,
-  Download,
   Files,
   Settings2,
-  Upload,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
@@ -43,7 +41,6 @@ import type { ConversationControls } from './Conversation';
 import type { WorkspaceCommand } from './commands';
 import type { IndexConnection } from './Conversation';
 import { KlipMark } from './KlipMark';
-const AssetIndexControls = lazy(() => import('./AssetIndexControls'));
 import type { PreviewControls } from './Preview';
 import { Tooltip } from '../components/ui/tooltip';
 import {
@@ -65,15 +62,13 @@ import {
   saveWorkspacePreferences,
   useWorkspacePreferences,
 } from './preferences';
-import {
-  appendAsset,
-  downloadFile,
-  formatTime,
-  projectDuration,
-} from './helpers';
+import { appendAsset, downloadFile, projectDuration } from './helpers';
 
 import type { TextStyleInput } from '../core/text-library';
 import type { DialogName, Progress } from './WorkspaceDialogs';
+const MediaLibrary = lazy(() => import('./MediaLibrary'));
+const MobileNavigation = lazy(() => import('./MobileNavigation'));
+const MobileMediaDialog = lazy(() => import('./MobileMediaDialog'));
 const WorkspaceDialogs = lazy(() => import('./WorkspaceDialogs'));
 const Preview = lazy(() =>
   import('./Preview').then(({ Preview }) => ({ default: Preview })),
@@ -87,6 +82,8 @@ const WorkspaceTransferDialog = lazy(() => import('./WorkspaceTransferDialog'));
 const AppearancePanel = lazy(() => import('./AppearancePanel'));
 const ProjectBrowser = lazy(() => import('./ProjectBrowser'));
 type Artifact = ExportResult & { dispose: () => Promise<void> };
+const NARROW_QUERY =
+  '(max-width: 700px), (max-width: 1000px) and (max-height: 500px)';
 
 export function Workspace() {
   const { dark } = useAppearance();
@@ -99,8 +96,62 @@ export function Workspace() {
     setMediaPreference(preferences.mediaOpen);
     setMediaOverride(null);
   }
-  const drawer = mediaOverride ?? preferences.mediaOpen;
+  const header = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!header.current) return;
+    const measure = () =>
+      document.documentElement.style.setProperty(
+        '--workspace-header-height',
+        `${header.current!.getBoundingClientRect().height}px`,
+      );
+    const observer = new ResizeObserver(measure);
+    observer.observe(header.current);
+    measure();
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty(
+        '--workspace-header-height',
+      );
+    };
+  }, []);
+  const [narrow, setNarrow] = useState(
+    () => window.matchMedia(NARROW_QUERY).matches,
+  );
+  const [mobileMediaOpen, setMobileMediaOpen] = useState(false);
+  const mediaHasFocus = useRef(false);
+  const restoreMediaFocus = useRef(false);
+  const mediaTriggerRef = useCallback((trigger: HTMLButtonElement | null) => {
+    if (trigger && restoreMediaFocus.current) {
+      requestAnimationFrame(() => {
+        if (trigger.isConnected && restoreMediaFocus.current) {
+          restoreMediaFocus.current = false;
+          trigger.focus();
+        }
+      });
+    }
+  }, []);
+  useEffect(() => {
+    const query = window.matchMedia(NARROW_QUERY);
+    const update = () => {
+      // CSS may hide and blur the rail before this change event is delivered.
+      restoreMediaFocus.current = mediaHasFocus.current;
+      mediaHasFocus.current = false;
+      setNarrow(query.matches);
+      setMobileMediaOpen(false);
+    };
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+  const [mediaLoaded, setMediaLoaded] = useState(false);
+  const drawer = narrow
+    ? mobileMediaOpen
+    : (mediaOverride ?? preferences.mediaOpen);
+  if (drawer && !mediaLoaded) setMediaLoaded(true);
   const toggleMedia = () => {
+    if (narrow) {
+      setMobileMediaOpen(!mobileMediaOpen);
+      return;
+    }
     saveWorkspacePreferences({ mediaOpen: !drawer });
     setMediaOverride(null);
   };
@@ -258,7 +309,7 @@ export function Workspace() {
         Math.min(previous, Math.max(0, projectDuration(snapshot) - 1)),
       );
     }
-  }, []);
+  }, [setTimeUs]);
   const ensureEditor = useCallback(async () => {
     instance.current ??= import('../editor')
       .then(async ({ createEditor }) => {
@@ -1184,6 +1235,71 @@ export function Workspace() {
       <Settings2 />
     </Button>
   );
+  const mediaPanel = (
+    <aside
+      className="media-panel"
+      id="workspace-media"
+      aria-label="Media library"
+      data-collapsed={!drawer}
+      onFocusCapture={() => {
+        mediaHasFocus.current = true;
+      }}
+      onBlurCapture={(event) => {
+        if (
+          window.matchMedia(NARROW_QUERY).matches === narrow &&
+          !event.currentTarget.contains(event.relatedTarget)
+        )
+          mediaHasFocus.current = false;
+      }}
+    >
+      <Tooltip content={drawer ? 'Collapse media' : 'Open media'}>
+        <Button
+          className="media-toggle"
+          id={narrow ? undefined : 'desktop-media-trigger'}
+          ref={narrow ? undefined : mediaTriggerRef}
+          variant="ghost"
+          size="icon-sm"
+          aria-label={drawer ? 'Collapse media' : 'Expand media'}
+          aria-expanded={drawer}
+          aria-controls="workspace-media-content"
+          onClick={toggleMedia}
+        >
+          {drawer ? <PanelRightClose /> : <Files />}
+        </Button>
+      </Tooltip>
+      <div
+        id="workspace-media-content"
+        className="media-content"
+        inert={!drawer}
+        aria-hidden={!drawer}
+      >
+        {mediaLoaded && (
+          <Suspense
+            fallback={
+              <div className="media-library" role="status">
+                <LoaderCircle
+                  className="animate-spin"
+                  aria-label="Loading media"
+                />
+              </div>
+            }
+          >
+            <MediaLibrary
+              editor={editor}
+              indexConnection={indexConnection}
+              readOnly={!!browsed}
+              assets={browsed ? versionAssets : assets}
+              canEdit={!busy && !browsed}
+              hasProject={!!project}
+              onImport={() => fileInput.current?.click()}
+              onBackup={backupProject}
+              onRelink={relinkMedia}
+            />
+          </Suspense>
+        )}
+      </div>
+    </aside>
+  );
   return (
     <div
       className="workspace"
@@ -1191,7 +1307,7 @@ export function Workspace() {
       data-media-open={drawer}
       style={{ '--chat-preferred-width': `${chatWidth}px` } as CSSProperties}
     >
-      <header className="workspace-header">
+      <header ref={header} className="workspace-header">
         {busy ? (
           <span className="brand">
             <KlipMark className="size-6" />
@@ -1215,7 +1331,9 @@ export function Workspace() {
             aria-label="Open project"
             onClick={showProjects}
           >
-            {viewProject?.name ?? 'Untitled project'}
+            <span className="project-picker-name">
+              {viewProject?.name ?? 'Untitled project'}
+            </span>
             <span className="sr-only">Projects</span>
             <ChevronDown />
           </Button>
@@ -1225,15 +1343,18 @@ export function Workspace() {
             <Button
               variant="outline"
               size="sm"
+              aria-label="Versions"
               aria-expanded={versionsOpen}
               onClick={showVersions}
             >
-              <History /> Versions
+              <History />
+              <span className="header-action-label">Versions</span>
             </Button>
           )}
           {!!total && !busy && !browsed && !projectsOpen && (
-            <Button size="sm" onClick={showExport}>
-              <ArrowUpRight /> Export
+            <Button size="sm" aria-label="Export" onClick={showExport}>
+              <ArrowUpRight />
+              <span className="header-action-label">Export</span>
             </Button>
           )}
           {!busy && (
@@ -1350,6 +1471,7 @@ export function Workspace() {
             />
           </Suspense>
           <main
+            id="workspace-editor"
             className="editing-area"
             data-editor-shortcuts
             tabIndex={0}
@@ -1489,97 +1611,17 @@ export function Workspace() {
               </Suspense>
             </div>
           </main>
-          <aside
-            className="media-panel"
-            aria-label="Media library"
-            data-collapsed={!drawer}
-          >
-            <Tooltip content={drawer ? 'Collapse media' : 'Open media'}>
-              <Button
-                className="media-toggle"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={drawer ? 'Collapse media' : 'Expand media'}
-                aria-expanded={drawer}
-                aria-controls="workspace-media-content"
-                onClick={toggleMedia}
+          {!narrow && mediaPanel}
+          {narrow && (
+            <Suspense fallback={null}>
+              <MobileMediaDialog
+                open={drawer}
+                onClose={() => setMobileMediaOpen(false)}
               >
-                {drawer ? <PanelRightClose /> : <Files />}
-              </Button>
-            </Tooltip>
-            <div
-              id="workspace-media-content"
-              className="media-content"
-              inert={!drawer}
-              aria-hidden={!drawer}
-            >
-              <section className="media-library" aria-label="Project media">
-                <div className="section-heading">
-                  <h2>Media</h2>
-                  <div className="flex gap-2">
-                    {!busy && !browsed && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => fileInput.current?.click()}
-                      >
-                        <Upload /> Import media
-                      </Button>
-                    )}
-                    {!!project && !busy && !browsed && (
-                      <Button variant="ghost" size="sm" onClick={backupProject}>
-                        <Download /> Backup
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                {(browsed ? versionAssets : assets).length ? (
-                  <div className="media-grid">
-                    {(browsed ? versionAssets : assets).map((asset) => (
-                      <div className="media-item" key={asset.id}>
-                        <div className="media-symbol">
-                          {asset.kind === 'audio' ? <Files /> : <FilmIcon />}
-                        </div>
-                        <span title={asset.name}>{asset.name}</span>
-                        <small>
-                          {asset.status === 'missing'
-                            ? 'Missing · relink file'
-                            : asset.kind === 'image'
-                              ? `${asset.width} × ${asset.height}`
-                              : formatTime(asset.durationUs)}
-                        </small>
-                        {asset.status === 'missing' && !busy && !browsed && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              relinkMedia(asset.id);
-                            }}
-                          >
-                            Relink
-                          </Button>
-                        )}
-                        {editor && (
-                          <Suspense fallback={null}>
-                            <AssetIndexControls
-                              editor={editor}
-                              asset={asset}
-                              connection={indexConnection}
-                              readOnly={!!browsed}
-                            />
-                          </Suspense>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Import video, audio or images to add them to the timeline.
-                  </p>
-                )}
-              </section>
-            </div>
-          </aside>
+                {mediaPanel}
+              </MobileMediaDialog>
+            </Suspense>
+          )}
         </div>
         {transfer && (
           <Suspense
@@ -1612,8 +1654,21 @@ export function Workspace() {
           </Suspense>
         )}
       </div>
+      {narrow && !projectsOpen && (
+        <Suspense
+          fallback={<div className="mobile-navigation" aria-busy="true" />}
+        >
+          <MobileNavigation
+            chatCollapsed={chatCollapsed}
+            mediaOpen={drawer}
+            onToggleMedia={toggleMedia}
+            mediaTriggerRef={mediaTriggerRef}
+          />
+        </Suspense>
+      )}
       <input
         ref={fileInput}
+        tabIndex={-1}
         className="sr-only"
         type="file"
         multiple
@@ -1627,6 +1682,7 @@ export function Workspace() {
       />
       <input
         ref={backupInput}
+        tabIndex={-1}
         className="sr-only"
         type="file"
         accept=".json"
@@ -1697,7 +1753,4 @@ export function Workspace() {
       />
     </div>
   );
-}
-function FilmIcon() {
-  return <Files aria-hidden="true" />;
 }

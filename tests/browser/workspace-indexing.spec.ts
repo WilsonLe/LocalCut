@@ -83,6 +83,114 @@ async function image(page: Page) {
   await expect(page.locator('.media-item')).toHaveCount(1);
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`mobile media keeps indexing alive while closed ${base}`, async ({
+    page,
+    context,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await catalog(context);
+    let release = () => {};
+    const labeling = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let requested = false;
+    await context.route(
+      'https://openrouter.ai/api/v1/chat/completions',
+      async (route) => {
+        if (route.request().method() === 'OPTIONS') {
+          await route.fulfill({ headers: cors });
+          return;
+        }
+        requested = true;
+        const part = route.request().postDataJSON().messages.at(-1).content;
+        const prompt = Array.isArray(part)
+          ? String(part[0]?.text)
+          : String(part);
+        const sceneId =
+          Array.isArray(part) && part.length > 1
+            ? /"sceneId":"(scene-\d+)"/.exec(prompt)?.[1]
+            : undefined;
+        await labeling;
+        await route.fulfill({
+          headers: cors,
+          contentType: 'text/event-stream',
+          body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: JSON.stringify(sceneId ? { sceneId, label } : label) }, finish_reason: 'stop' }], model })}\n\ndata: [DONE]\n\n`,
+        });
+      },
+    );
+    try {
+      await page.goto(base);
+      await page
+        .getByRole('button', { name: 'Workspace settings', exact: true })
+        .click();
+      await page
+        .getByRole('menuitem', { name: 'Project', exact: true })
+        .click();
+      await page
+        .getByRole('menuitem', { name: 'New project', exact: true })
+        .click();
+      await page
+        .getByLabel('Project name', { exact: true })
+        .fill('Mobile indexing');
+      await page
+        .getByRole('button', { name: 'Create project', exact: true })
+        .click();
+      await page
+        .getByRole('navigation', { name: 'Workspace sections' })
+        .getByRole('button', { name: 'Chat', exact: true })
+        .click();
+      const connection = await connect(page);
+      await connection
+        .getByRole('checkbox', { name: 'Allow asset indexing' })
+        .check();
+      await connection
+        .getByRole('button', { name: 'Done', exact: true })
+        .click();
+      await page
+        .getByRole('button', { name: 'Expand media', exact: true })
+        .click();
+      await image(page);
+      await page.getByRole('button', { name: 'Index', exact: true }).click();
+      await expect.poll(() => requested).toBe(true);
+      await page
+        .getByRole('button', { name: 'Collapse media', exact: true })
+        .click();
+      await expect(
+        page.getByRole('dialog', { name: 'Media library', exact: true }),
+      ).toBeHidden();
+      release();
+      await expect(
+        page.locator('.media-item').getByRole('button', {
+          name: 'Reindex',
+          exact: true,
+          includeHidden: true,
+        }),
+      ).toBeEnabled();
+      await page
+        .getByRole('button', { name: 'Expand media', exact: true })
+        .click();
+      await page
+        .getByRole('button', { name: 'Index history for red.png' })
+        .click();
+      const history = page.getByRole('dialog', {
+        name: 'Asset index',
+        exact: true,
+      });
+      await expect(
+        history.getByText(label.summary, { exact: true }).first(),
+      ).toBeVisible();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBeLessThanOrEqual(390);
+      await history.getByRole('button', { name: 'Close', exact: true }).click();
+      await expect(
+        page.getByRole('dialog', { name: 'Media library', exact: true }),
+      ).toBeVisible();
+    } finally {
+      release();
+    }
+  });
+
   test(`workspace indexing consent, retry, retained labels and Klip context ${base}`, async ({
     page,
     context,

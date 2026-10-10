@@ -1,3 +1,4 @@
+import { hasBlockingOverlay } from './overlays';
 import { useEffect } from 'react';
 import { resolveShortcut } from './shortcuts';
 import type { EditorShortcut } from './shortcuts';
@@ -21,9 +22,7 @@ export function useEditorShortcuts({
         editable: !!target?.closest(
           'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]',
         ),
-        dialogOpen: !!document.querySelector(
-          '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]',
-        ),
+        dialogOpen: hasBlockingOverlay(),
         timelineClip: !!target?.closest('.timeline-clip'),
         activationControl: !!target?.closest(
           'button, a[href], summary, [role="button"]',

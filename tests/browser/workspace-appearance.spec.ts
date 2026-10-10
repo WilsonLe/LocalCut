@@ -18,13 +18,13 @@ async function styles(page: Page) {
   return page.evaluate(() => {
     const root = getComputedStyle(document.documentElement);
     const button = getComputedStyle(document.querySelector('button')!);
-    const heading = getComputedStyle(document.querySelector('h2')!);
+    const heading = root.getPropertyValue('--font-heading');
     const preview = getComputedStyle(document.querySelector('.preview')!);
     return {
       primary: root.getPropertyValue('--primary'),
       foreground: root.getPropertyValue('--foreground'),
       font: getComputedStyle(document.body).fontFamily,
-      heading: heading.fontFamily,
+      heading,
       radius: button.borderRadius,
       padding: preview.padding,
       popover: root.getPropertyValue('--popover'),
@@ -252,6 +252,7 @@ for (const base of ['/', '/LocalCut/']) {
     expect(after.foreground).not.toBe(before.foreground);
     expect(after.font).toContain('monospace');
     expect(after.heading).toContain('Georgia');
+    await expect(panel.locator('h2')).toHaveCSS('font-family', /Georgia/);
     expect(after.radius).toBe('0px');
     await expect(page.locator('.chat-composer')).toHaveCSS(
       'border-radius',

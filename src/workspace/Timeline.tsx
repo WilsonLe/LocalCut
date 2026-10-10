@@ -1,7 +1,8 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useViewport } from './useViewport';
 import {
   Captions,
+  ListChecks,
   Group,
   Ungroup,
   AudioLines,
@@ -51,6 +52,17 @@ interface Props {
 export function Timeline(props: Props) {
   const { project, assets, selected, timeUs } = props;
   const busy = props.busy || props.readOnly;
+  const [multiSelect, setMultiSelect] = useState(false);
+  useEffect(() => {
+    const touchControls = window.matchMedia(
+      '(pointer: coarse), (max-width: 700px), (max-width: 1000px) and (max-height: 500px)',
+    );
+    const update = () => {
+      if (!touchControls.matches) setMultiSelect(false);
+    };
+    touchControls.addEventListener('change', update);
+    return () => touchControls.removeEventListener('change', update);
+  }, []);
   const total = projectDuration(project);
   const {
     ref: viewport,
@@ -155,6 +167,18 @@ export function Timeline(props: Props) {
               <Ungroup />
             </Button>
           )}
+          {!!total && !busy && (
+            <Button
+              className="touch-selection"
+              variant={multiSelect ? 'secondary' : 'ghost'}
+              size="icon-sm"
+              aria-label="Select multiple clips"
+              aria-pressed={multiSelect}
+              onClick={() => setMultiSelect(!multiSelect)}
+            >
+              <ListChecks />
+            </Button>
+          )}
           <span className="selected-label">
             {selected.length > 1
               ? `${selected.length} clips`
@@ -212,6 +236,30 @@ export function Timeline(props: Props) {
           )}
         </div>
       </div>
+      {!!total && (
+        <div className="touch-clip-picker">
+          <SettingsSelect
+            label="Select timeline clip"
+            value={null}
+            placeholder={
+              selected.length > 1
+                ? `${selected.length} clips selected`
+                : selectedClip
+                  ? clipName(selectedClip, assets)
+                  : 'Select a clip'
+            }
+            options={
+              project?.tracks.flatMap((track, index) =>
+                track.clips.map((clip) => ({
+                  value: clip.id,
+                  label: `${clipName(clip, assets)} · ${track.kind} ${index + 1} · ${formatTime(clip.startUs)}`,
+                })),
+              ) ?? []
+            }
+            onChange={(id) => props.onSelect(id, multiSelect)}
+          />
+        </div>
+      )}
       {total > 0 ? (
         <>
           <div
@@ -223,11 +271,14 @@ export function Timeline(props: Props) {
           >
             <div
               className="timeline-content"
-              style={{
-                width: width
-                  ? 76 + Math.max(1, width - 76) * view.scale
-                  : '100%',
-              }}
+              style={
+                {
+                  width: width
+                    ? 76 + Math.max(1, width - 76) * view.scale
+                    : '100%',
+                  '--timeline-scale': view.scale,
+                } as CSSProperties
+              }
             >
               <div
                 className="timeline-ruler"
@@ -302,7 +353,10 @@ export function Timeline(props: Props) {
                           onClick={(event) =>
                             props.onSelect(
                               clip.id,
-                              event.shiftKey || event.metaKey || event.ctrlKey,
+                              multiSelect ||
+                                event.shiftKey ||
+                                event.metaKey ||
+                                event.ctrlKey,
                             )
                           }
                           style={{

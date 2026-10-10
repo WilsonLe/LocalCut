@@ -886,6 +886,10 @@ for (const base of ['/', '/LocalCut/']) {
       [1, 0.5, 'smooth'],
     ]);
     expect(saved.sourceOutUs).toBe(4000000);
+    // Mobile media starts closed independently of the desktop rail preference.
+    await page
+      .getByRole('button', { name: 'Expand media', exact: true })
+      .click();
     await page
       .getByRole('button', { name: 'Collapse media', exact: true })
       .click();

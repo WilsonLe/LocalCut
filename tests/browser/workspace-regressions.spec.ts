@@ -237,6 +237,13 @@ test('long assistant replies scroll inside the conversation and keep the compose
     });
     expect(narrow.documentWidth).toBeLessThanOrEqual(narrow.width);
     expect(narrow.editingTop).toBeLessThan(narrow.conversationTop);
+    expect(narrow.logHeight).toBeGreaterThan(0);
+    expect(narrow.logScrollHeight).toBeGreaterThan(narrow.logHeight);
+    expect(narrow.logHeight).toBeLessThan(640);
+    await page
+      .getByRole('navigation', { name: 'Workspace sections' })
+      .getByRole('button', { name: 'Chat', exact: true })
+      .click();
     await page
       .getByLabel('Describe your edit', { exact: true })
       .scrollIntoViewIfNeeded();
@@ -244,12 +251,71 @@ test('long assistant replies scroll inside the conversation and keep the compose
       page.getByRole('button', { name: 'Send edit request', exact: true }),
     ).toBeInViewport();
   }
+  await page
+    .getByLabel('Describe your edit', { exact: true })
+    .fill('Keep this mobile draft');
+  await page.screenshot({
+    path: testInfo.outputPath('mobile-long-conversation.png'),
+  });
+  await page.setViewportSize({ width: 320, height: 420 });
+  const mobileDraft = Array.from(
+    { length: 8 },
+    (_, index) => `Draft line ${index + 1}`,
+  ).join('\n');
+  await page
+    .getByLabel('Describe your edit', { exact: true })
+    .fill(mobileDraft);
+  await page
+    .getByRole('navigation', { name: 'Workspace sections' })
+    .getByRole('button', { name: 'Chat', exact: true })
+    .click();
+  await page.getByLabel('Describe your edit', { exact: true }).focus();
+  await expect(
+    page.getByRole('button', { name: 'Send edit request', exact: true }),
+  ).toBeInViewport();
+  const send = page.getByRole('button', {
+    name: 'Send edit request',
+    exact: true,
+  });
+  // Do not click/scroll Send: Playwright can otherwise rescue a clipped button
+  // by scrolling an overflow:hidden ancestor that a touch user cannot scroll.
+  await expect
+    .poll(() =>
+      send.evaluate((button) => {
+        const rect = button.getBoundingClientRect();
+        return button.contains(
+          document.elementFromPoint(
+            rect.x + rect.width / 2,
+            rect.y + rect.height / 2,
+          ),
+        );
+      }),
+    )
+    .toBe(true);
+  const sendBounds = (await send.boundingBox())!;
+  const navBounds = (await page
+    .getByRole('navigation', { name: 'Workspace sections' })
+    .boundingBox())!;
+  expect(sendBounds.y + sendBounds.height).toBeLessThanOrEqual(navBounds.y);
+  const draftSizing = await page
+    .getByLabel('Describe your edit', { exact: true })
+    .evaluate((input) => ({
+      client: input.clientHeight,
+      scroll: input.scrollHeight,
+      overflow: getComputedStyle(input).overflowY,
+    }));
+  expect(draftSizing.scroll).toBeGreaterThan(draftSizing.client);
+  expect(draftSizing.overflow).toBe('auto');
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page
     .getByRole('button', { name: 'Collapse chat', exact: true })
     .click();
   await expect(log).toBeHidden();
   await page.getByRole('button', { name: 'Expand chat', exact: true }).click();
+  await expect(
+    page.getByLabel('Describe your edit', { exact: true }),
+  ).toHaveValue(mobileDraft);
   await expect
     .poll(() =>
       log.evaluate(

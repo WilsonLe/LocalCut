@@ -408,7 +408,7 @@ function Properties({
       className="flex min-h-0 flex-col gap-4 overflow-hidden"
     >
       <div className="grid min-h-0 gap-4 overflow-y-auto px-1 -mx-1">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2">
           {[
             {
               name: 'start',

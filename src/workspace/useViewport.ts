@@ -1,3 +1,4 @@
+import { hasBlockingOverlay } from './overlays';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 export type ViewCommand = 'zoomIn' | 'zoomOut' | 'zoomFit';
@@ -56,11 +57,7 @@ export function useViewport(
     setView(state.current);
     element.scrollLeft = 0;
     let drag: { id: number; x: number; y: number } | undefined;
-    const allowed = () =>
-      enabled &&
-      !document.querySelector(
-        '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]',
-      );
+    const allowed = () => enabled && !hasBlockingOverlay();
     const zoom = (factor: number, x: number, y: number, fit = false) => {
       const previous = state.current;
       const scale = fit
