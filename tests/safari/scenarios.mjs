@@ -65,6 +65,9 @@ export async function mediaRoundTrip(base, namespace) {
           clip: {
             id: 'v1',
             kind: video.kind === 'image' ? 'image' : 'video',
+            ...(video.kind === 'image'
+              ? {}
+              : { sourceInUs: 0, sourceOutUs: 1000000 }),
             assetId: video.id,
             startUs: 0,
             durationUs: 1000000,
