@@ -121,7 +121,7 @@ export default function WorkspaceDialogs({
           if (!open && !busy) onDialogChange(null);
         }}
       >
-        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-hidden">
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>Clip properties</DialogTitle>
             <DialogDescription>
@@ -380,9 +380,9 @@ function Properties({
           );
         onSave([...operations, { type: 'updateClip', clipId: clip.id, patch }]);
       }}
-      className="grid gap-4"
+      className="flex min-h-0 flex-col gap-4 overflow-hidden"
     >
-      <div className="grid max-h-[calc(100dvh-14rem)] gap-4 overflow-y-auto px-1 -mx-1">
+      <div className="grid min-h-0 gap-4 overflow-y-auto px-1 -mx-1">
         <div className="grid grid-cols-2 gap-4">
           {[
             {
@@ -462,7 +462,7 @@ function Properties({
           </div>
         )}
       </div>
-      <DialogFooter>
+      <DialogFooter className="shrink-0">
         {!readOnly && (
           <Button type="submit" disabled={busy}>
             Apply properties

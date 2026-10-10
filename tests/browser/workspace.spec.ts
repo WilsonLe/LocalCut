@@ -834,6 +834,7 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await page.getByLabel('Point 2 (%)', { exact: true }).fill('20');
     await page.getByLabel('Point 2 speed', { exact: true }).fill('1');
+    await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
     await page.screenshot({
       path: testInfo.outputPath('speed-ramp-desktop.png'),
     });
@@ -850,6 +851,21 @@ for (const base of ['/', '/LocalCut/']) {
         (element) => element.scrollWidth <= element.clientWidth,
       ),
     ).toBe(true);
+    await expect
+      .poll(() =>
+        dialog.evaluate((element) => {
+          const dialog = element.getBoundingClientRect();
+          const button = element
+            .querySelector('button[type="submit"]')!
+            .getBoundingClientRect();
+          return (
+            button.top >= dialog.top &&
+            button.bottom <= dialog.bottom &&
+            button.bottom <= innerHeight - 16
+          );
+        }),
+      )
+      .toBe(true);
     await page
       .getByRole('button', { name: 'Apply properties', exact: true })
       .click();
