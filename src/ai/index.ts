@@ -2,6 +2,8 @@
 export { createOpenRouter } from './openrouter';
 export { createAssistant } from './assistant';
 export { AiError } from './errors';
+export { renderSpeech, validateSpeechTiming } from './speech-audio';
+export type { SpeechTiming, RenderedSpeech } from './speech-audio';
 export type { AiErrorCode } from './errors';
 export type * from './types';
 export type * from './assistant';

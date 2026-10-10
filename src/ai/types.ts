@@ -67,11 +67,34 @@ export interface OpenRouterModel {
 export interface ConnectionStatus {
   connected: boolean;
 }
+export interface SpeechModel {
+  id: string;
+  name: string;
+  voices: string[];
+}
+export interface SpeechRequest {
+  model: string;
+  script: string;
+  voice: string;
+  /** Languages present in the original script; synthesis never translates it. */
+  languages: string[];
+  instructions?: string;
+}
+export interface SpeechAudio {
+  /** Gemini speech output: signed 16-bit little-endian, 24 kHz mono. */
+  samples: Float32Array;
+  sampleRate: 24000;
+}
 export interface OpenRouterClient {
   status(): ConnectionStatus;
   setKey(key: string): void;
   disconnect(): void;
   listModels(signal?: AbortSignal): Promise<OpenRouterModel[]>;
+  listSpeechModels(signal?: AbortSignal): Promise<SpeechModel[]>;
+  synthesizeSpeech(
+    request: SpeechRequest,
+    signal: AbortSignal,
+  ): Promise<SpeechAudio>;
   stream(
     request: ChatRequest,
     signal: AbortSignal,

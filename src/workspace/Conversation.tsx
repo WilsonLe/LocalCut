@@ -15,6 +15,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Info,
+  AudioLines,
 } from 'lucide-react';
 import type { Editor, Project } from '../editor';
 import type { ContextPolicy, OpenRouter, OpenRouterModel } from '../ai';
@@ -26,6 +27,7 @@ const AIConnectionDialog = lazy(() => import('./AIConnectionDialog'));
 const AIInfoPopover = lazy(() => import('./AIInfoPopover'));
 const ChatSessionPicker = lazy(() => import('./ChatSessionPicker'));
 const ConversationSession = lazy(() => import('./ConversationSession'));
+const SpeechDialog = lazy(() => import('./SpeechDialog'));
 import { errorText } from './conversation-errors';
 import {
   getWorkspacePreferences,
@@ -82,6 +84,7 @@ export function Conversation(props: ConversationProps) {
     includeTranscripts: false,
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [speechOpen, setSpeechOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -286,6 +289,8 @@ export function Conversation(props: ConversationProps) {
   };
   const selectedModel = models.find((item) => item.id === model);
   const ready = connection && selectedModel && props.editor && props.project;
+  const speechReady =
+    connection && props.editor && props.project && !props.readOnly;
   const sessionKey = `${connection?.id}:${props.project?.id}:${model}:${privacy.includeText}:${privacy.includeAssetNames}:${privacy.includeTranscripts}`;
 
   const [sessionScope, setSessionScope] = useState(sessionKey);
@@ -318,6 +323,16 @@ export function Conversation(props: ConversationProps) {
   };
   useImperativeHandle(props.controlsRef, () => ({
     commands: () => [
+      ...(speechReady
+        ? [
+            {
+              id: 'text-to-speech',
+              label: 'Text to speech',
+              group: 'Audio',
+              run: () => setSpeechOpen(true),
+            },
+          ]
+        : []),
       {
         id: 'ai-settings',
         label: connection ? 'OpenRouter settings' : 'Connect OpenRouter',
@@ -456,6 +471,17 @@ export function Conversation(props: ConversationProps) {
         aria-hidden={props.collapsed}
       >
         <header className="conversation-heading">
+          {speechReady && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Text to speech"
+              title="Text to speech"
+              onClick={() => setSpeechOpen(true)}
+            >
+              <AudioLines />
+            </Button>
+          )}
           {pickerLoaded ? (
             <Suspense fallback={sessionTrigger}>
               <ChatSessionPicker
@@ -558,6 +584,19 @@ export function Conversation(props: ConversationProps) {
             privacy={privacy}
             setPrivacy={setPrivacy}
             connectionError={connectionError}
+          />
+        </Suspense>
+      )}
+      {speechOpen && speechReady && (
+        <Suspense fallback={null}>
+          <SpeechDialog
+            key={`${connection.id}:${props.project!.id}`}
+            connection={connection}
+            editor={props.editor!}
+            project={props.project!}
+            onClose={() => setSpeechOpen(false)}
+            onApplied={props.onApplied}
+            registerSession={registerSession}
           />
         </Suspense>
       )}

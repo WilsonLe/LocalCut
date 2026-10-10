@@ -91,6 +91,14 @@ Prompts and structural metadata are sent remotely only by Send. Separate, initia
 
 Streaming text is not an applied edit. Only a successfully completed assistant turn can publish a validated proposal. Inspect its operations, then Apply or Discard. Apply retains the engine's revision check and stable receipt; stale proposals require a new request. Undo/Redo, export, transcription and model preparation have separate approval cards. Export, transcription and preparation jobs show real progress and cancellation; atomic edits and history commits cannot be cancelled after submission. Completed exports offer a local Save action. Cancelling a turn does not publish partial proposals. Committed edits survive disconnection and reload; conversations do not.
 
+## Text to speech
+
+After creating/opening a current project and connecting OpenRouter, use Text to speech in the chat header or Commands → Text to speech. Speech has its own model/voice choice and does not require selecting a chat model. Choose a currently available Gemini speech model and voice, write the script, and select every language it contains. Search also accepts a custom language or regional variant. Delivery directions let you ask for warmth, expression or an accent; natural conversational delivery is the default.
+
+Generate explicitly sends the script and speech choices to the connected account; provider charges can apply. The resulting audio has a local playback preview. Speaking speed accepts 0.5–2×. Total length uses seconds and fits the complete audio to the nearest sample while preserving pitch. Once generated, changing timing reveals Adjust timing; this is local and does not generate another provider request. Impossible lengths show the permitted range. Changes to script, model, voice, languages or delivery discard the old preview so it cannot be added with outdated settings.
+
+Add to timeline imports the adjusted WAV and appends it to the first audio track, creating one if necessary. It uses the same canonical history, persistence, preview and export as imported audio. Undo removes the insertion; Redo restores it. Cancellation or dismissal discards unfinished generation/adjustment; a committed timeline edit remains durable. Speech controls are unavailable in historical versions. See [speech transport and privacy](ai.md#text-to-speech) for limits and verification boundaries, and the [desktop](images/workspace-speech.png) and [narrow](images/workspace-speech-narrow.png) dialog examples.
+
 ## Export
 
 Export checks the exact requested MP4/H.264/AAC or WebM/VP9/Opus configuration. Unsupported codecs show an actionable error without changing formats or dropping audio. The engine captures the project revision, streams to local temporary storage and reports real progress. Cancel stops unfinished work; a completed artifact provides Save video. Closing the dialog disposes its temporary artifact without altering the project or an already saved download.

@@ -1,6 +1,6 @@
 # OpenRouter integration
 
-The optional `ai.js` entry provides authentication, a text-only OpenRouter transport, and a headless editing assistant. Importing it does not start work. The workspace loads it only for explicit AI connection or an OAuth return; initial navigation imports neither the editor nor the AI entry. Both entries and their declarations are produced at `/` and `/LocalCut/`; no backend, callback rewrite, runtime environment variable, or bundled key is required.
+The optional `ai.js` entry provides authentication, a text-only chat transport, speech synthesis, and a headless editing assistant. Importing it does not start work. The workspace loads it only for explicit AI connection or an OAuth return; initial navigation imports neither the editor nor the AI entry. Both entries and their declarations are produced at `/` and `/LocalCut/`; no backend, callback rewrite, runtime environment variable, or bundled key is required.
 
 ## Frontend wiring
 
@@ -54,6 +54,44 @@ await editor.dispose();
 These examples show application integration points such as `renderAssistantEvent`; the workspace provides those controls through this same API. Generated public declarations are in `dist/types/ai/index.d.ts` and `dist/types/editor/index.d.ts`. The source import is `src/ai/index.ts`. A frontend may dynamically import it; keep it out of the application's initial import graph until needed.
 
 One assistant is bound to one project, model and immutable context policy. Create another session to change these. `assetIds` is a copied allowlist of up to 1,000 additional imported library assets; selected media are inspected on demand and must be ready before a proposal can reference them. Multiple assistants may share a provider; disposing an assistant cancels its own turn and does not dispose the provider or editor. Disconnecting/disposing the provider cancels its in-flight requests. Await `assistant.dispose()` before disposing the editor; this waits for any already-started apply to settle. A browser reload loses API credentials and conversation state; project edits already committed through the editor remain.
+
+## Text to speech
+
+The same connected provider exposes `listSpeechModels(signal)` and `synthesizeSpeech(request, signal)`. Speech discovery calls the [OpenRouter speech catalog](https://openrouter.ai/docs/guides/overview/multimodal/tts) only when the speech dialog opens or Refresh is clicked. It offers instruction-capable Gemini TTS models with advertised voices and a known 24 kHz, signed 16-bit little-endian mono PCM contract. Speech models need neither chat tools nor a chat context window; the chat catalog excludes non-text output models.
+
+```ts
+const speechModels = await provider.listSpeechModels();
+// The user chooses an explicit current model and one of its advertised voices.
+const audio = await provider.synthesizeSpeech(
+  {
+    model: selectedSpeechModel,
+    voice: selectedVoice,
+    script: 'Hello! Xin chào!',
+    languages: ['English', 'Vietnamese'],
+    instructions: 'Warm and friendly.',
+  },
+  controller.signal,
+);
+const { renderSpeech } = await import('/LocalCut/ai.js');
+const result = await renderSpeech(
+  audio,
+  {
+    mode: 'duration',
+    durationSeconds: (audio.samples.length / audio.sampleRate) * 1.1,
+  },
+  controller.signal,
+);
+// Or { mode: 'speed', speed: 1.2 }. Preview result.file locally.
+// Explicit Add imports this normal WAV through editor.assets.import.
+```
+
+Generate sends only the authored script, voice, selected languages and delivery instructions to `/audio/speech`, using the existing in-memory bearer key and `provider.data_collection: 'deny'`. It does not read project context, media, names, transcripts or chat sharing opt-ins. The input remains verbatim; natural conversational phrasing and pronunciation across declared languages are supplied as separate instructions. Scripts are bounded to 5,000 characters, delivery instructions to 1,500, languages to eight and audio responses to 24 MB. Missing or invalid catalog voices, non-PCM/error responses, cancellation, timeouts and stale credentials fail without publishing audio. No automatic retry or paid request occurs on dialog opening, changing controls, adjusting timing or adding a generated asset.
+
+`renderSpeech` converts the bounded PCM into a normal WAV. Speed and target duration use local waveform-aligned overlap-add (WSOLA), preserving pitch rather than altering sample playback rate. Speed is bounded to 0.5–2×; a target must lie between half and twice the measured original duration. Impossible targets show the feasible range instead of trimming words, padding silence or making another paid request. Duration is exact to the nearest 24 kHz sample. Extreme stretching can still affect phrasing; audition before importing. Provider inference determines pronunciation and delivery quality, so a real connected-account listening check is required to judge naturalness.
+
+Closing the dialog, disconnecting or switching projects cancels outstanding work and releases preview URLs. Explicit Add captures the current project revision before import and appends through the existing editor commands. Concurrent revisions reject the insertion and permit an explicit retry; already committed imports/edits remain durable. Imported WAV files follow normal project persistence, history, preview and export without a schema migration. The assistant cannot initiate or approve speech requests.
+
+Deterministic tests use synthetic provider PCM and real stable Chrome imports/decoding/export at both static base paths. They prove transport, cancellation, multilingual settings, pitch and sample duration; they do not prove live paid inference or natural speech quality. No live key is bundled or required for `pnpm check`.
 
 ## Connect with OpenRouter PKCE
 
