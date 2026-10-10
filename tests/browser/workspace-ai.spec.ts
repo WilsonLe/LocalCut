@@ -249,6 +249,9 @@ test('manual edits make an earlier proposal stale without committing it', async 
   });
   await expect(apply).toBeEnabled();
   await page.getByRole('button', { name: 'Add text', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Insert Plain text', exact: true })
+    .click();
   await expect(
     page.getByRole('dialog', { name: 'Clip properties', exact: true }),
   ).toBeVisible();

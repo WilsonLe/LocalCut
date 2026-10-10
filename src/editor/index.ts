@@ -24,6 +24,12 @@ import type { FrameResult, PreviewSession } from '../services/preview';
 export * from '../core/model';
 export { rampPreset, averageSpeed, sourceDurationUs } from '../core/speed';
 export type { SpeedPoint, SpeedRamp } from '../core/speed';
+export { TEXT_FONTS, TEXT_TEMPLATES } from '../core/text-library';
+export type {
+  FontId,
+  TextTemplate,
+  TextStyleInput,
+} from '../core/text-library';
 export type {
   CommandBatch,
   EditOperation,

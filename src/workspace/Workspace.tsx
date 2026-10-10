@@ -66,6 +66,7 @@ import {
   projectDuration,
 } from './helpers';
 
+import type { TextStyleInput } from '../core/text-library';
 import type { DialogName, Progress } from './WorkspaceDialogs';
 const WorkspaceDialogs = lazy(() => import('./WorkspaceDialogs'));
 const Preview = lazy(() =>
@@ -683,7 +684,10 @@ export function Workspace() {
     });
   };
   const addText = () => {
-    if (!project) return;
+    if (project && !browsed) setDialog('text');
+  };
+  const insertText = (style: TextStyleInput) => {
+    if (!project || browsed) return;
     void action(async () => {
       const track = project!.tracks.find((track) => track.kind === 'overlay');
       const trackId = track?.id ?? crypto.randomUUID();
@@ -706,9 +710,31 @@ export function Workspace() {
             startUs: Math.round(timeUs),
             durationUs: 3_000_000,
             width: project!.width,
-            height: project!.height,
+            height: project!.height * 0.5,
             y: project!.height * 0.3,
-            text: { text: 'Your story starts here', fontSize: 64 },
+            text: {
+              ...style,
+              fontSize: ((style.fontSize ?? 64) * project!.width) / 1920,
+              ...(style.letterSpacing !== undefined
+                ? {
+                    letterSpacing:
+                      (style.letterSpacing * project!.width) / 1920,
+                  }
+                : {}),
+              ...(style.outlineWidth !== undefined
+                ? { outlineWidth: (style.outlineWidth * project!.width) / 1920 }
+                : {}),
+              ...(style.shadow
+                ? {
+                    shadow: {
+                      color: style.shadow.color,
+                      blur: (style.shadow.blur * project!.width) / 1920,
+                      offsetX: (style.shadow.offsetX * project!.width) / 1920,
+                      offsetY: (style.shadow.offsetY * project!.width) / 1920,
+                    },
+                  }
+                : {}),
+            },
           },
         },
       ]);
@@ -1628,6 +1654,7 @@ export function Workspace() {
                 toast.success('Project created');
               })
             }
+            onInsertText={insertText}
             onSaveProperties={(operations) =>
               void action(async () => {
                 await apply(operations);

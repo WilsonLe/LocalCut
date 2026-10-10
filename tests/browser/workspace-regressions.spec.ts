@@ -286,6 +286,9 @@ test('stale property forms reject before overwriting a concurrent engine edit an
   const name = 'Property revision conflict';
   await createProject(page, name);
   await page.getByRole('button', { name: 'Add text', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Insert Plain text', exact: true })
+    .click();
   const form = page.getByRole('dialog', {
     name: 'Clip properties',
     exact: true,

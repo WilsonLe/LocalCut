@@ -3,6 +3,7 @@ import { averageSpeed, nominalSourceBounds } from './speed';
 import { speedRampSchema } from './speed-schema';
 import { EditorError, invariant } from './errors';
 import { transitionPairs, TRANSITION_TEMPLATES } from './timeline';
+import { FONT_IDS } from './text-library';
 const id = z.string().min(1).max(200);
 const time = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const finite = z.number().finite();
@@ -51,6 +52,22 @@ export const textStyleSchema = z
     color: z.string().default('#ffffff'),
     background: z.string().default('transparent'),
     align: z.enum(['left', 'center', 'right']).default('center'),
+    fontFamily: z.enum(FONT_IDS).optional(),
+    fontWeight: z.enum(['normal', 'bold']).optional(),
+    italic: z.boolean().optional(),
+    letterSpacing: finite.min(-10).max(100).optional(),
+    curve: finite.min(-180).max(180).optional(),
+    outlineColor: z.string().optional(),
+    outlineWidth: finite.min(0).max(20).optional(),
+    shadow: z
+      .object({
+        color: z.string(),
+        blur: finite.min(0).max(100),
+        offsetX: finite.min(-100).max(100),
+        offsetY: finite.min(-100).max(100),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export const cueSchema = z

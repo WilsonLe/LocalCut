@@ -15,6 +15,9 @@ for (const base of ['/', '/LocalCut/']) {
     await page.getByRole('button', { name: 'Create project' }).click();
     await expect(page.getByRole('dialog')).not.toBeVisible();
     await page.getByRole('button', { name: 'Add text', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Insert Plain text', exact: true })
+      .click();
     await page.getByLabel('Text', { exact: true }).fill('First state');
     await page.getByRole('button', { name: 'Apply properties' }).click();
     await expect(page.getByRole('dialog')).not.toBeVisible();
