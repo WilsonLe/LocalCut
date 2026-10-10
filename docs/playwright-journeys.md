@@ -1,6 +1,6 @@
 # Playwright journeys that reuse the open app
 
-Compatible stories now run as named-step journeys; incompatible fixtures retain their isolation. Nine combinations at both hosting bases move 38 original cases into 18 journeys, reducing normal discovery from 225 to 205 cases on the integrated workspace-layout base. The other 187 cases retain their existing owners, including workflows that already covered several stories. It records the [user's preference](user-preferences.md#delivery-and-validation) to reuse the app and existing tabs, minimize browser instances, and use parallel tabs when their work is independent.
+Compatible stories now run as named-step journeys; incompatible fixtures retain their isolation. Nine combinations at both hosting bases move 38 original cases into 18 journeys, reducing normal discovery from 227 to 207 cases on the integrated mobile-sheet base. The other 189 cases retain their existing owners, including workflows that already covered several stories. It records the [user's preference](user-preferences.md#delivery-and-validation) to reuse the app and existing tabs, minimize browser instances, and use parallel tabs when their work is independent.
 
 ## What already gets reused
 
