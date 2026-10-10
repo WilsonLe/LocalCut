@@ -257,6 +257,9 @@ for (const base of ['/', '/LocalCut/']) {
       .poll(async () => (await p()).tracks.flatMap((t) => t.clips).length)
       .toBe(3);
     const separated = await p();
+    await expect(
+      page.locator('.timeline-clip.audio .timeline-waveform'),
+    ).toBeAttached();
     expect(separated.tracks[0]!.clips[0]!.muted).toBe(true);
     expect(
       separated.tracks.find((t) => t.kind === 'audio')!.clips[0]!.assetId,

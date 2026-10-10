@@ -1684,6 +1684,7 @@ export function Workspace() {
                 </Suspense>
                 <Suspense fallback={<TimelineSkeleton />}>
                   <Timeline
+                    editor={editor}
                     project={viewProject}
                     assets={browsed ? versionAssets : assets}
                     versionId={browsed?.id}

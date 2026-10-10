@@ -66,7 +66,7 @@ async function redPng(page: Page) {
   return { name: 'red.png', mimeType: 'image/png', buffer: Buffer.from(bytes) };
 }
 
-function toneWav(frames = 24000) {
+function toneWav(frames = 24000, silentFrames = 0, amplitude = 3000) {
   const sampleRate = 48000;
   const bytes = Buffer.alloc(44 + frames * 4);
   bytes.write('RIFF', 0);
@@ -83,7 +83,9 @@ function toneWav(frames = 24000) {
   bytes.writeUInt32LE(frames * 4, 40);
   for (let frame = 0; frame < frames; frame++) {
     const value = Math.round(
-      Math.sin((frame * 2 * Math.PI * 440) / sampleRate) * 3000,
+      frame < silentFrames
+        ? 0
+        : Math.sin((frame * 2 * Math.PI * 440) / sampleRate) * amplitude,
     );
     bytes.writeInt16LE(value, 44 + frame * 4);
     bytes.writeInt16LE(value, 46 + frame * 4);
@@ -200,6 +202,135 @@ async function downloadedVideo(page: Page, data: Buffer, type: string) {
 }
 
 for (const base of ['/', '/LocalCut/']) {
+  test(`timeline media previews, waveform trimming and mobile selection ${base}`, async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    const remote: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    page.on('request', (request) => {
+      if (
+        !request.url().startsWith('http://127.0.0.1:') &&
+        !request.url().startsWith('blob:') &&
+        !request.url().startsWith('data:')
+      )
+        remote.push(request.url());
+    });
+    await page.goto(base);
+    await createProject(page, 'Timeline previews');
+    await page
+      .getByLabel('Import media', { exact: true })
+      .setInputFiles([
+        await redPng(page),
+        toneWav(96000, 48000, 12000),
+        await greenVideo(page),
+      ]);
+    const timeline = page.getByRole('region', { name: 'Video timeline' });
+    const image = timeline.getByRole('button', {
+      name: 'red.png',
+      exact: true,
+    });
+    const video = timeline.getByRole('button', {
+      name: 'green.webm',
+      exact: true,
+    });
+    const audio = timeline.getByRole('button', {
+      name: 'tone.wav',
+      exact: true,
+    });
+    for (const [clip, expected] of [
+      [image, [255, 0, 0]],
+      [video, [0, 255, 0]],
+    ] as const) {
+      await expect(clip.locator('.timeline-thumbnail')).toBeAttached();
+      const pixel = await clip
+        .locator('.timeline-thumbnail')
+        .evaluate(async (element) => {
+          const url = getComputedStyle(element).backgroundImage.slice(5, -2);
+          const image = new Image();
+          image.src = url;
+          await image.decode();
+          const canvas = document.createElement('canvas');
+          canvas.width = canvas.height = 1;
+          const ctx = canvas.getContext('2d')!;
+          ctx.drawImage(image, 0, 0, 1, 1);
+          return [...ctx.getImageData(0, 0, 1, 1).data];
+        });
+      expected.forEach((value, i) =>
+        expect(Math.abs(pixel[i]! - value)).toBeLessThan(8),
+      );
+    }
+    const heights = () =>
+      audio
+        .locator('.timeline-waveform path')
+        .evaluate((path) =>
+          [...path.getAttribute('d')!.matchAll(/v([\d.]+)/g)].map((m) =>
+            Number(m[1]),
+          ),
+        );
+    await expect(audio.locator('.timeline-waveform')).toBeAttached();
+    expect((await heights()).slice(0, 60)).toEqual(Array(60).fill(1));
+    expect(Math.min(...(await heights()).slice(65))).toBeGreaterThan(8);
+    await audio.click();
+    await expect(audio).toHaveAttribute('aria-pressed', 'true');
+    await audio.focus();
+    await page.keyboard.press('Space');
+    await expect(audio).toBeFocused();
+    await page.screenshot({
+      path: `.artifacts/timeline-previews-desktop-${base === '/' ? 'root' : 'pages'}.png`,
+    });
+    await page.reload();
+    await expect(image.locator('.timeline-thumbnail')).toBeAttached();
+    await expect(audio.locator('.timeline-waveform')).toBeAttached();
+    await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const p = (await editor.projects.list()).find(
+          (p) => p.name === 'Timeline previews',
+        )!;
+        const project = await editor.projects.snapshot(p.id);
+        const clip = project.tracks
+          .flatMap((t) => t.clips)
+          .find((c) => c.kind === 'audio')!;
+        await editor.commands.apply({
+          projectId: p.id,
+          expectedRevision: project.revision,
+          requestId: 'trim-waveform',
+          operations: [
+            {
+              type: 'updateClip',
+              clipId: clip.id,
+              patch: {
+                sourceInUs: 1000000,
+                sourceOutUs: 2000000,
+                durationUs: 500000,
+                speed: 2,
+              },
+            },
+          ],
+        });
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    await expect
+      .poll(async () => Math.min(...(await heights())))
+      .toBeGreaterThan(8);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await image.click();
+    await expect(image).toHaveAttribute('aria-pressed', 'true');
+    await expect(image.locator('.timeline-clip-name')).toBeVisible();
+    await expect(image.locator('.timeline-thumbnail')).toBeAttached();
+    await page.screenshot({
+      path: `.artifacts/timeline-previews-mobile-${base === '/' ? 'root' : 'pages'}.png`,
+    });
+    expect(remote).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
   test(`workspace media thumbnails and asset tooltips ${base}`, async ({
     page,
   }) => {
