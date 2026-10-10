@@ -199,6 +199,105 @@ async function downloadedVideo(page: Page, data: Buffer, type: string) {
 }
 
 for (const base of ['/', '/LocalCut/']) {
+  test(`workspace media thumbnails and asset tooltips ${base}`, async ({
+    page,
+  }) => {
+    await page.goto(base);
+    await createProject(page, 'Media previews');
+    const fixtures = [await redPng(page), toneWav(), await greenVideo(page)];
+    for (const fixture of fixtures) {
+      await page
+        .getByLabel('Import media', { exact: true })
+        .setInputFiles(fixture);
+      await expect(
+        page.getByRole('button', { name: fixture.name, exact: true }),
+      ).toBeVisible();
+    }
+    const cards = page.locator('.media-item');
+    await expect(cards).toHaveCount(3);
+    await expect(cards).not.toContainText(['128 × 72', 'Connect AI', '0.50']);
+    for (const [name, expected] of [
+      ['red.png', [255, 0, 0]],
+      ['green.webm', [0, 255, 0]],
+    ] as const) {
+      const image = page.getByRole('img', { name: `Thumbnail for ${name}` });
+      await expect
+        .poll(() =>
+          image.evaluate((element) => {
+            const image = element as HTMLImageElement;
+            return image.complete && image.naturalWidth > 0;
+          }),
+        )
+        .toBe(true);
+      const pixel = await image.evaluate((element) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 1;
+        const context = canvas.getContext('2d')!;
+        context.drawImage(element as HTMLImageElement, 0, 0, 1, 1);
+        return [...context.getImageData(0, 0, 1, 1).data];
+      });
+      expected.forEach((channel, index) =>
+        expect(Math.abs(pixel[index]! - channel)).toBeLessThan(8),
+      );
+    }
+    const audio = page.getByRole('button', {
+      name: 'Asset details for tone.wav',
+    });
+    await expect(audio.locator('svg')).toBeVisible();
+    await expect(audio.locator('img')).toHaveCount(0);
+    const imageDetails = page.getByRole('button', {
+      name: 'Asset details for red.png',
+    });
+    await imageDetails.hover();
+    await expect(page.getByRole('tooltip')).toContainText('128 × 72');
+    await expect(page.getByRole('tooltip')).toContainText('image/png');
+    await page.mouse.move(0, 0);
+    await expect(page.getByRole('tooltip')).not.toBeVisible();
+    await audio.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('tooltip', { name: /tone.wav/ })).toContainText(
+      'audio',
+    );
+    await expect(
+      page.getByRole('tooltip', { name: /tone.wav/ }),
+    ).not.toContainText('0 × 0');
+    await page.evaluate(() =>
+      localStorage.setItem(
+        'localcut.asset-index-consent.v1',
+        JSON.stringify({ version: 1, provider: 'openrouter', allowed: true }),
+      ),
+    );
+    await page.reload();
+    await page
+      .getByRole('button', { name: 'Expand media', exact: true })
+      .click();
+    await expect(
+      page.getByRole('img', { name: 'Thumbnail for red.png' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('img', { name: 'Thumbnail for green.webm' }),
+    ).toBeVisible();
+    await expect(cards).not.toContainText([
+      'Connect AI and choose a compatible model to index this asset.',
+      '128 × 72',
+    ]);
+    await page
+      .getByRole('button', { name: 'Asset details for red.png' })
+      .focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('tooltip')).toContainText(
+      'Connect AI and choose a compatible model to index this asset.',
+    );
+    await page
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .focus();
+    await page.screenshot({
+      path: `.artifacts/media-thumbnails-${base === '/' ? 'root' : 'pages'}.png`,
+    });
+  });
+
   test(`workspace edits, restores and saves real exports ${base}`, async ({
     page,
   }, testInfo) => {

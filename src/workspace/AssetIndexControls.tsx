@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { LoaderCircle, Scan, History, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Asset, AssetIndexRun, Editor, Job, JobEvent } from '../editor';
 import type { IndexConnection } from './Conversation';
 import { getIndexConsent, useIndexConsent } from './index-consent';
 import { Button } from '../components/ui/button';
+import { Tooltip } from '../components/ui/tooltip';
 import {
   Dialog,
   DialogContent,
@@ -35,11 +37,15 @@ export default function AssetIndexControls({
   asset,
   connection,
   readOnly,
+  children,
+  details,
 }: {
-  editor: Editor;
+  editor: Editor | null;
   asset: Asset;
   connection: IndexConnection | null;
   readOnly: boolean;
+  children: ReactElement;
+  details: ReactNode;
 }) {
   const allowed = useIndexConsent();
   const [runs, setRuns] = useState<AssetIndexRun[]>([]),
@@ -55,6 +61,7 @@ export default function AssetIndexControls({
   } | null>(null);
   const mounted = useRef(false);
   const refresh = async () => {
+    if (!editor) return;
     const all = await editor.assets.indexes.list();
     if (!mounted.current) return;
     const local = all.filter((r) => r.assetId === asset.id);
@@ -97,7 +104,15 @@ export default function AssetIndexControls({
     };
   }, [allowed, connection, readOnly]);
   const start = async (runId?: string) => {
-    if (!connection || current.current || busy || !allowed || readOnly) return;
+    if (
+      !editor ||
+      !connection ||
+      current.current ||
+      busy ||
+      !allowed ||
+      readOnly
+    )
+      return;
     const indexer = connection.api.createAssetIndexer({
       editor,
       provider: connection.provider,
@@ -149,7 +164,6 @@ export default function AssetIndexControls({
           r.status === 'analyzed'),
     );
   const viewing = runs.find((r) => r.id === selected) ?? runs[0];
-  if (!allowed) return null;
   const compatible =
     !!connection &&
     connection.provider.status().connected &&
@@ -159,227 +173,238 @@ export default function AssetIndexControls({
         (asset.kind === 'image' ||
           connection.inputModalities.includes('video')));
   return (
-    <div className="mt-2 w-full space-y-2">
-      <div className="flex flex-wrap gap-1">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={!compatible || busy || readOnly || asset.status !== 'ready'}
-          title={
-            !compatible
-              ? 'Connect a chat model with the required audio/image/video inputs to index this asset'
-              : undefined
-          }
-          onClick={() => void start()}
-        >
-          {busy ? (
-            <LoaderCircle className="motion-safe:animate-spin" />
-          ) : (
-            <Scan />
-          )}
-          {latest ? 'Reindex' : 'Index'}
-        </Button>
-        {busy && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => current.current?.job.cancel()}
-          >
-            Cancel indexing
-          </Button>
-        )}
-        {!busy && retry && (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={!compatible || readOnly || asset.status !== 'ready'}
-            onClick={() => void start(retry.id)}
-          >
-            Retry indexing
-          </Button>
-        )}
-        {!!runs.length && (
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            aria-label={`Index history for ${asset.name}`}
-            onClick={() => {
-              setOpen(true);
-              setOffset(0);
-            }}
-          >
-            <History />
-          </Button>
-        )}
-      </div>
-      {!compatible && !readOnly && (
-        <p className="text-xs text-muted-foreground">
-          {connection
-            ? `Choose a chat model supporting ${asset.kind === 'video' ? 'image and video' : asset.kind} inputs to index this asset.`
-            : 'Connect AI and choose a compatible model to index this asset.'}
-        </p>
-      )}
-      {busy && (
-        <div
-          role="progressbar"
-          aria-label="Asset indexing"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          {...(progress?.progress === undefined
-            ? {}
-            : { 'aria-valuenow': Math.round(progress.progress * 100) })}
-          className="h-1 overflow-hidden rounded bg-muted"
-        >
-          <div
-            className="h-full bg-primary"
-            style={{
-              width:
-                progress?.progress === undefined
-                  ? '25%'
-                  : `${progress.progress * 100}%`,
-            }}
-          />
-        </div>
-      )}
-      {latest?.label && (
-        <span
-          className="block text-xs text-muted-foreground"
-          title={latest.label.summary}
-        >
-          {latest.label.tags.slice(0, 4).join(' · ')}
-        </span>
-      )}
-      {duplicate && (
-        <span className="text-xs text-muted-foreground">
-          Visually similar image indexed
-        </span>
-      )}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[calc(var(--app-viewport-height)*0.85)] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Asset index</DialogTitle>
-            <DialogDescription>
-              {asset.name} ·{' '}
-              {Math.ceil(
-                runs.reduce(
-                  (n, r) =>
-                    n +
-                    new Blob([JSON.stringify(r)]).size +
-                    r.analysis.scenes.reduce(
-                      (s, c) => s + c.artifacts.reduce((a, f) => a + f.size, 0),
-                      0,
-                    ),
-                  0,
-                ) / 1024,
-              )}{' '}
-              KiB retained
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-wrap gap-2">
-            {runs.map((run, i) => (
+    <>
+      <Tooltip
+        content={
+          <>
+            {details}
+            {allowed && !compatible && !readOnly && (
+              <div>
+                {connection
+                  ? `Choose a chat model supporting ${asset.kind === 'video' ? 'image and video' : asset.kind} inputs to index this asset.`
+                  : 'Connect AI and choose a compatible model to index this asset.'}
+              </div>
+            )}
+            {allowed && latest?.label && (
+              <>
+                <div>{latest.label.summary}</div>
+                <div>{latest.label.tags.slice(0, 4).join(' · ')}</div>
+              </>
+            )}
+            {allowed && duplicate && <div>Visually similar image indexed</div>}
+          </>
+        }
+      >
+        {children}
+      </Tooltip>
+      {allowed && editor && (
+        <div className="mt-2 w-full space-y-2">
+          <div className="flex flex-wrap gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={
+                !compatible || busy || readOnly || asset.status !== 'ready'
+              }
+              title={
+                !compatible
+                  ? 'Connect a chat model with the required audio/image/video inputs to index this asset'
+                  : undefined
+              }
+              onClick={() => void start()}
+            >
+              {busy ? (
+                <LoaderCircle className="motion-safe:animate-spin" />
+              ) : (
+                <Scan />
+              )}
+              {latest ? 'Reindex' : 'Index'}
+            </Button>
+            {busy && (
               <Button
-                key={run.id}
                 size="sm"
-                variant={viewing?.id === run.id ? 'secondary' : 'outline'}
+                variant="ghost"
+                onClick={() => current.current?.job.cancel()}
+              >
+                Cancel indexing
+              </Button>
+            )}
+            {!busy && retry && (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={!compatible || readOnly || asset.status !== 'ready'}
+                onClick={() => void start(retry.id)}
+              >
+                Retry indexing
+              </Button>
+            )}
+            {!!runs.length && (
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label={`Index history for ${asset.name}`}
                 onClick={() => {
-                  setSelected(run.id);
+                  setOpen(true);
                   setOffset(0);
                 }}
               >
-                Run {runs.length - i} ·{' '}
-                {run.invalidated ? 'Source changed' : run.status}
+                <History />
               </Button>
-            ))}
+            )}
           </div>
-          {viewing && (
-            <>
-              {viewing.label && (
-                <p className="text-sm">{viewing.label.summary}</p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                {viewing.analysis.scenes.length} detected{' '}
-                {asset.kind === 'image'
-                  ? 'image'
-                  : asset.kind === 'audio'
-                    ? 'audio segments'
-                    : 'scenes'}{' '}
-                · scan {(viewing.analysis.scanMs / 1000).toFixed(2)}s · evidence{' '}
-                {(viewing.analysis.generationMs / 1000).toFixed(2)}s
-              </p>
-              {viewing.analysis.scenes
-                .slice(offset, offset + 5)
-                .map((scene) => (
-                  <div
-                    className="space-y-2 rounded-lg border p-3"
-                    key={`${viewing.id}:${scene.id}`}
-                  >
-                    <p className="text-sm font-medium">
-                      {scene.id}
-                      {asset.kind !== 'image'
-                        ? ` · ${formatTime(scene.startUs)}–${formatTime(scene.endUs)}`
-                        : ''}
-                    </p>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {scene.artifacts.map((artifact) => (
-                        <Evidence
-                          key={artifact.id}
-                          editor={editor}
-                          runId={viewing.id}
-                          artifactId={artifact.id}
-                          kind={artifact.kind}
-                        />
-                      ))}
-                    </div>
-                    {scene.label && (
-                      <p className="text-sm">{scene.label.summary}</p>
-                    )}
-                    {scene.label?.sound && (
-                      <p className="text-xs text-muted-foreground">
-                        {scene.label.sound}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              <div className="flex justify-between gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!offset}
-                  onClick={() => setOffset((v) => Math.max(0, v - 5))}
-                >
-                  Previous scenes
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={offset + 5 >= viewing.analysis.scenes.length}
-                  onClick={() => setOffset((v) => v + 5)}
-                >
-                  Next scenes
-                </Button>
-              </div>
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={busy || readOnly}
-                onClick={() =>
-                  void editor.assets.indexes
-                    .remove(viewing.id)
-                    .then(() => {
-                      setSelected(undefined);
-                      return refresh();
-                    })
-                    .catch((e) => toast.error(indexError(e)))
-                }
-              >
-                <Trash2 />
-                Delete this run
-              </Button>
-            </>
+          {busy && (
+            <div
+              role="progressbar"
+              aria-label="Asset indexing"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              {...(progress?.progress === undefined
+                ? {}
+                : { 'aria-valuenow': Math.round(progress.progress * 100) })}
+              className="h-1 overflow-hidden rounded bg-muted"
+            >
+              <div
+                className="h-full bg-primary"
+                style={{
+                  width:
+                    progress?.progress === undefined
+                      ? '25%'
+                      : `${progress.progress * 100}%`,
+                }}
+              />
+            </div>
           )}
-        </DialogContent>
-      </Dialog>
-    </div>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogContent className="max-h-[calc(var(--app-viewport-height)*0.85)] overflow-y-auto sm:max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Asset index</DialogTitle>
+                <DialogDescription>
+                  {asset.name} ·{' '}
+                  {Math.ceil(
+                    runs.reduce(
+                      (n, r) =>
+                        n +
+                        new Blob([JSON.stringify(r)]).size +
+                        r.analysis.scenes.reduce(
+                          (s, c) =>
+                            s + c.artifacts.reduce((a, f) => a + f.size, 0),
+                          0,
+                        ),
+                      0,
+                    ) / 1024,
+                  )}{' '}
+                  KiB retained
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-wrap gap-2">
+                {runs.map((run, i) => (
+                  <Button
+                    key={run.id}
+                    size="sm"
+                    variant={viewing?.id === run.id ? 'secondary' : 'outline'}
+                    onClick={() => {
+                      setSelected(run.id);
+                      setOffset(0);
+                    }}
+                  >
+                    Run {runs.length - i} ·{' '}
+                    {run.invalidated ? 'Source changed' : run.status}
+                  </Button>
+                ))}
+              </div>
+              {viewing && (
+                <>
+                  {viewing.label && (
+                    <p className="text-sm">{viewing.label.summary}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {viewing.analysis.scenes.length} detected{' '}
+                    {asset.kind === 'image'
+                      ? 'image'
+                      : asset.kind === 'audio'
+                        ? 'audio segments'
+                        : 'scenes'}{' '}
+                    · scan {(viewing.analysis.scanMs / 1000).toFixed(2)}s ·
+                    evidence {(viewing.analysis.generationMs / 1000).toFixed(2)}
+                    s
+                  </p>
+                  {viewing.analysis.scenes
+                    .slice(offset, offset + 5)
+                    .map((scene) => (
+                      <div
+                        className="space-y-2 rounded-lg border p-3"
+                        key={`${viewing.id}:${scene.id}`}
+                      >
+                        <p className="text-sm font-medium">
+                          {scene.id}
+                          {asset.kind !== 'image'
+                            ? ` · ${formatTime(scene.startUs)}–${formatTime(scene.endUs)}`
+                            : ''}
+                        </p>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {scene.artifacts.map((artifact) => (
+                            <Evidence
+                              key={artifact.id}
+                              editor={editor}
+                              runId={viewing.id}
+                              artifactId={artifact.id}
+                              kind={artifact.kind}
+                            />
+                          ))}
+                        </div>
+                        {scene.label && (
+                          <p className="text-sm">{scene.label.summary}</p>
+                        )}
+                        {scene.label?.sound && (
+                          <p className="text-xs text-muted-foreground">
+                            {scene.label.sound}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  <div className="flex justify-between gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!offset}
+                      onClick={() => setOffset((v) => Math.max(0, v - 5))}
+                    >
+                      Previous scenes
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={offset + 5 >= viewing.analysis.scenes.length}
+                      onClick={() => setOffset((v) => v + 5)}
+                    >
+                      Next scenes
+                    </Button>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={busy || readOnly}
+                    onClick={() =>
+                      void editor.assets.indexes
+                        .remove(viewing.id)
+                        .then(() => {
+                          setSelected(undefined);
+                          return refresh();
+                        })
+                        .catch((e) => toast.error(indexError(e)))
+                    }
+                  >
+                    <Trash2 />
+                    Delete this run
+                  </Button>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
+        </div>
+      )}
+    </>
   );
 }
 function Evidence({

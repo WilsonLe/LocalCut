@@ -109,6 +109,10 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Open the mobile Media tab as a full-screen page or sheet, with a clear close control, rather than a small floating dialog.
 
+## Media cards — 11 October 2026
+
+- Show local thumbnails for uploaded images and videos. Keep asset names and actions visible; disclose dimensions, duration and other metadata, including AI indexing guidance and labels, through accessible asset tooltips instead of inline text.
+
 ## Delivery and validation
 
 - Pull and rebase onto current `main`, including the OpenRouter integration, before completing the workspace.

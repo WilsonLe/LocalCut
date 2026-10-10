@@ -182,10 +182,25 @@ for (const base of ['/', '/LocalCut/']) {
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth),
       ).toBeLessThanOrEqual(390);
-      await history.getByRole('button', { name: 'Close', exact: true }).click();
+      await history.getByRole('button', { name: 'Close', exact: true }).focus();
+      await page.keyboard.press('Escape');
+      await expect(history).toBeHidden();
       await expect(
         page.getByRole('dialog', { name: 'Media library', exact: true }),
       ).toBeVisible();
+      await page
+        .getByRole('button', { name: 'Asset details for red.png' })
+        .focus();
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Tab');
+      await expect(page.getByRole('tooltip')).toContainText('red.png');
+      await page.keyboard.press('Escape');
+      await expect(
+        page.getByRole('dialog', { name: 'Media library', exact: true }),
+      ).toBeHidden();
+      await expect(
+        page.getByRole('button', { name: 'Expand media', exact: true }),
+      ).toBeFocused();
     } finally {
       release();
     }
@@ -476,11 +491,20 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('checkbox', { name: 'Allow asset indexing' })
       .check();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-    await expect(
-      page.getByText(
-        'Choose a chat model supporting audio inputs to index this asset.',
-      ),
-    ).toBeVisible();
+    await expect(page.locator('.media-item')).not.toContainText(
+      'Choose a chat model supporting audio inputs to index this asset.',
+    );
+    await page
+      .getByRole('button', { name: 'Asset details for tone.wav' })
+      .focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('tooltip')).toContainText(
+      'Choose a chat model supporting audio inputs to index this asset.',
+    );
+    await page
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .focus();
     await expect(
       page.getByRole('button', { name: 'Index', exact: true }),
     ).toHaveCount(0);

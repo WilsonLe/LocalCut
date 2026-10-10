@@ -171,6 +171,8 @@ An overlap marker selects both visual endpoints. For a valid overlap on one vide
 
 ## Indexing media
 
+Media cards show locally generated image/video thumbnails and an audio icon. Hover or focus the thumbnail/name to reveal the full name, media type, size, dimensions or duration, missing-file status, and permitted indexing guidance/labels in a tooltip. Card actions and real indexing progress remain visible; Relink stays available for missing files. Thumbnail jobs are cancelled and their object URLs released when their card is replaced or unmounted; previews never upload source media or start indexing.
+
 AI settings contains an independent remembered Allow asset indexing choice explaining OpenRouter evidence/audio sharing and saved labels in chat. Eligible ready audio/video/image cards expose manual Index when allowed, with progress, Cancel, explicit Retry after interruption/failure, and Reindex after success. Connection and selected-model capability are required; unsupported routes show an error. Import never starts indexing.
 
 Index history shows retained runs, approximate owned storage bytes, scan/evidence elapsed time, scene ranges and paged local still/video/audio previews. Delete this run is explicit and frees its records/files; prior runs remain. Similar-image notices compare saved perceptual hashes and histograms. Labels and evidence survive reload independently of AI credentials. Revocation hides actions, cancels active jobs and retires label-bearing chats while preserving local outputs. Klip's four-point star appears in chat; LocalCut uses the scissors mark in the header and app icons.
