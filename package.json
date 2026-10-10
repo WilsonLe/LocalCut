@@ -23,7 +23,9 @@
     "test:performance": "playwright test --project=acceptance --grep @performance",
     "test:ai:live": "playwright test --config playwright.ai-live.config.ts",
     "check:bundle": "node scripts/check-bundle.mjs",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm build:root && pnpm check:bundle && pnpm test:browser"
+    "check": "node scripts/check.mjs",
+    "test:tooling": "node --test tests/tooling/*.test.mjs",
+    "test:safari": "node scripts/test-safari.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.8.0",

@@ -38,6 +38,8 @@ Validation runs locally with `pnpm check` and the applicable real transcription/
 | `pnpm build`              | App + `editor.js` + `ai.js` + worker assets + declarations    |
 | `pnpm build:root`         | Equivalent build at `/` in `dist-root`                        |
 | `pnpm test:browser`       | Production integration in Google Chrome                       |
+| `pnpm test:safari`        | Native Safari storage and H.264/AAC regressions (macOS)       |
+| `pnpm test:tooling`       | Resource scheduling and verified-build cache regressions      |
 | `pnpm test:ui`            | Focused workspace tests; rebuild only stale production assets |
 | `pnpm test:transcription` | Real pinned Whisper preparation and cached replay             |
 | `pnpm test:performance`   | Warmup, two- and five-minute 1080p exports                    |
@@ -45,10 +47,12 @@ Validation runs locally with `pnpm check` and the applicable real transcription/
 | `pnpm check:bundle`       | Actual entry graph and static artifact budgets                |
 | `pnpm check`              | Normal formatting/lint/type/unit/build/bundle/browser gates   |
 
-Browser commands require both production builds first, except `test:ui`, which verifies or builds them automatically. The harness server is test-only and never enters `dist`. Normal browser tests use two independent Chrome workers; set `LOCALCUT_BROWSER_WORKERS=1` for a serial run, or an integer up to 4 on a suitable machine. Transcription, performance, and live-provider tests remain serial, explicit additional gates; none is included in ordinary `check`.
+Browser commands require both production builds first, except `test:ui` and `test:safari`, which verify or build them automatically. The harness server is test-only and never enters `dist`. Unit and normal Chrome concurrency adapt to CPU availability, current load, available memory (including reclaimable OS cache), and cgroup limits. `LOCALCUT_TEST_SLOTS=1` makes the check pipeline serial; `LOCALCUT_UNIT_WORKERS=1` or `LOCALCUT_BROWSER_WORKERS=1` narrows a worker pool. Overrides are bounded to 8 slots/unit workers and 4 Chrome workers and capped by capacity. Transcription, performance, and live-provider tests remain serial, explicit additional gates; none is included in ordinary `check`.
 
-For UI iteration, run `pnpm test:ui`, or narrow it with `pnpm test:ui --grep 'speed rounding'`. It runs workspace tests at both static base paths. Content hashes verify build inputs and every output file before reuse; changed source, build configuration, dependencies, or missing/tampered output triggers a rebuild. Documentation and test-only edits do not. The stamps live in ignored `.cache/build-state/`, outside deployed assets. `pnpm check` still performs clean production builds and the complete normal suite.
+For UI iteration, run `pnpm test:ui`, or narrow it with `pnpm test:ui --grep 'speed rounding'`. It runs workspace tests at both static base paths. Content hashes verify build inputs and every output file before reuse; changed source, build configuration, dependencies, or missing/tampered output triggers a rebuild. Documentation and test-only edits do not. The stamps live in ignored `.cache/build-state/`, outside deployed assets. `pnpm check` uses the same verified-build reuse and retains all static, unit, artifact and Chrome gates. It overlaps independent checks within a shared resource budget, runs both builds in sequence, and starts browser consumers only after outputs pass the bundle gate.
 
 TypeScript 7.0.2 supplies `tsc` through the `@typescript/native` alias. The `typescript` alias supplies Microsoft's pinned v6 compatibility API for typescript-eslint; it does not replace the production compiler. Dependencies and the lockfile are exact.
 
 See [architecture](docs/architecture.md), [API](docs/api.md), [OpenRouter integration and privacy](docs/ai.md), [storage](docs/storage.md), [local transcription](docs/transcription.md), [verification](docs/validation.md), and [deployment](DEPLOY.md).
+
+Native Safari: enable **Allow remote automation** in Safari’s Develop → Developer Settings once, then run `pnpm test:safari`. The suite uses installed Safari through `safaridriver`, verifies/reuses both builds, and runs serially with its own loopback ports. It checks storage reload and three MP4 round trips at each base path, including stereo WAV input, reimported AAC and silence. Unavailable native capabilities fail. Results and failure screenshots are saved in `test-results/safari/`. Playwright WebKit is not native Safari evidence. Safari is an explicit additional gate, with Chrome remaining the complete acceptance target.

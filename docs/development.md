@@ -60,11 +60,11 @@ For documentation-only edits, check formatting and the referenced files/commands
 
 ## Expand verification at the boundary
 
-Run `pnpm check` locally before handing off code changes and after changes to shared contracts, dependencies, build configuration, or the test pipeline. It always runs formatting, lint, types, units, both production builds, bundle budgets, and the complete normal Chrome suite. Focused checks make the iteration fast; they do not replace this integration gate. Hosted CI is disabled; local results are the acceptance evidence.
+Run `pnpm check` locally before handing off code changes and after changes to shared contracts, dependencies, build configuration, or the test pipeline. It runs formatting, lint, types, tooling regressions, units, both verified production builds, bundle budgets, and the complete normal Chrome suite. Independent static checks overlap, then unit tests can overlap with the sequential build stage; browser consumers wait for verified outputs and bundle validation. Focused checks make the iteration fast; they do not replace this integration gate. Hosted CI is disabled; local results are the acceptance evidence.
 
 Follow [validation](validation.md) for real transcription/cached replay and the five-minute export gate before implementation handoff, and whenever changes affect those capabilities. They are explicit `pnpm test:transcription` and `pnpm test:performance` commands, outside normal `check`. Real-provider testing is separately opt-in; read [AI privacy and live-test requirements](ai.md) before `pnpm test:ai:live`. Report missing capabilities or failed gates directly.
 
-Normal Chrome tests use two workers. Set `LOCALCUT_BROWSER_WORKERS=1` for serial diagnosis; the supported override is 1–4. Heavy transcription/performance and live-provider tests remain serial. Keep those resource measurements separate from other browser workloads.
+A shared CPU/memory policy selects up to eight slots/unit workers and four Chrome workers at command startup. It accounts for CPU affinity, host load, available memory including reclaimable file cache, and cgroup quotas. Each Chrome worker reserves two slots. `LOCALCUT_TEST_SLOTS=1` serializes the entire check pipeline; `LOCALCUT_UNIT_WORKERS` (1–8) and `LOCALCUT_BROWSER_WORKERS` (1–4) narrow worker pools. Capacity caps still apply. Allocation and per-gate timings are printed. Native Safari runs separately with `pnpm test:safari` on macOS; follow [Safari prerequisites and scope](../tests/safari/AGENTS.md). Heavy transcription/performance and live-provider tests remain serial. Keep those resource measurements separate from other browser workloads.
 
 ## Isolate runs and resume from evidence
 
