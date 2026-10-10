@@ -254,11 +254,32 @@ test('CYOBot chat structure keeps local sessions, markdown, drafts and keyboard 
   await page
     .getByRole('button', { name: 'Chat sessions', exact: true })
     .click();
-  await page
-    .getByRole('menuitemradio', { name: 'First chat', exact: true })
-    .click();
+  const search = page.getByRole('textbox', {
+    name: 'Search sessions by title',
+    exact: true,
+  });
+  await expect(search).toBeFocused();
+  await search.fill('missing session');
+  await expect(
+    page.getByText('No matching sessions.', { exact: true }),
+  ).toBeVisible();
+  await search.fill('First');
+  await expect(
+    page.getByRole('menuitemradio', { name: 'New chat', exact: true }),
+  ).toHaveCount(0);
+  await search.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await expect(
+    page.getByRole('menuitemradio', { name: 'First chat', exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press('Enter');
   await expect(composer).toHaveValue('Draft to retain');
   await expect(log).toContainText('First chat');
+  await page.getByRole('button', { name: 'AI settings', exact: true }).click();
+  await expect(
+    page.getByRole('dialog', { name: 'OpenRouter', exact: true }),
+  ).toHaveCount(1);
+  await page.keyboard.press('Escape');
   const resize = page.getByRole('separator', { name: 'Resize workspace chat' });
   await resize.focus();
   const before = Number(await resize.getAttribute('aria-valuenow'));

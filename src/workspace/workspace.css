@@ -121,9 +121,12 @@
   text-align: left;
 }
 .chat-session-trigger > span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .chat-session-trigger > svg {
   width: 12px;
@@ -191,14 +194,13 @@
 .composer-actions button {
   border-radius: 50%;
 }
-.composer-actions .composer-connection {
-  min-width: 0;
-  border-radius: calc(var(--radius) * 1.2);
-  font-size: 11px;
+.composer-ai-control {
+  display: flex;
+  align-items: center;
   color: var(--muted-foreground);
 }
-.composer-connection svg {
-  width: 14px;
+.composer-ai-control svg {
+  width: 16px;
 }
 .media-panel {
   position: relative;

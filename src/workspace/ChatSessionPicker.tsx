@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Menu } from '@base-ui/react/menu';
 import { ChevronDown, Plus } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -25,6 +25,10 @@ export default function ChatSessionPicker({
 }) {
   const [open, setOpen] = useState(true);
   const [search, setSearch] = useState('');
+  const content = useRef<HTMLDivElement>(null);
+  const matches = sessions.filter((session) =>
+    session.title.toLowerCase().includes(search.trim().toLowerCase()),
+  );
   return (
     <Menu.Root
       open={open}
@@ -59,17 +63,27 @@ export default function ChatSessionPicker({
         >
           <Menu.Popup
             aria-label="Chat sessions"
-            className="max-h-(--available-height) w-72 max-w-[calc(100vw-2rem)] overflow-auto rounded-lg border bg-popover p-2 text-popover-foreground shadow-lg outline-none"
+            ref={content}
+            className="max-h-(--available-height) w-80 max-w-[calc(100vw-2rem)] overflow-auto rounded-lg border bg-popover p-2 text-popover-foreground shadow-lg outline-none"
           >
             <div className="mb-2 flex gap-2">
               <Input
-                aria-label="Search chats"
+                autoFocus
+                aria-label="Search sessions by title"
                 placeholder="Search by title"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key !== 'Escape' && event.key !== 'Tab')
-                    event.stopPropagation();
+                  if (event.key === 'Escape' || event.key === 'Tab') return;
+                  event.stopPropagation();
+                  if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    content.current
+                      ?.querySelector<HTMLElement>(
+                        '[role="menuitem"], [role="menuitemradio"]',
+                      )
+                      ?.focus();
+                  }
                 }}
               />
               <Menu.Item
@@ -84,18 +98,15 @@ export default function ChatSessionPicker({
               </Menu.Item>
             </div>
             <Menu.Separator className="my-1 h-px bg-border" />
-            <Menu.RadioGroup
-              value={selected}
-              onValueChange={(id) => {
-                onSelect(Number(id));
-                setOpen(false);
-              }}
-            >
-              {sessions
-                .filter((session) =>
-                  session.title.toLowerCase().includes(search.toLowerCase()),
-                )
-                .map((session) => (
+            <div className="max-h-64 overflow-y-auto overscroll-contain">
+              <Menu.RadioGroup
+                value={selected}
+                onValueChange={(id) => {
+                  onSelect(Number(id));
+                  setOpen(false);
+                }}
+              >
+                {matches.map((session) => (
                   <Menu.RadioItem
                     className="flex min-h-11 w-full cursor-default items-center rounded-md px-3 py-2 text-sm outline-none data-checked:bg-muted data-highlighted:bg-accent"
                     key={session.id}
@@ -106,7 +117,13 @@ export default function ChatSessionPicker({
                     </span>
                   </Menu.RadioItem>
                 ))}
-            </Menu.RadioGroup>
+              </Menu.RadioGroup>
+              {!matches.length && (
+                <p role="status" className="p-2 text-sm text-muted-foreground">
+                  No matching sessions.
+                </p>
+              )}
+            </div>
           </Menu.Popup>
         </Menu.Positioner>
       </Menu.Portal>
