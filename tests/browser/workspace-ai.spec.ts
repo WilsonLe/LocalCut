@@ -9,9 +9,13 @@ const cors = {
   'access-control-allow-headers': 'authorization,content-type',
   'access-control-allow-methods': 'GET,POST,OPTIONS',
 };
-async function catalog(context: BrowserContext) {
-  await context.route('https://openrouter.ai/api/v1/models', (route) =>
-    route.fulfill({
+async function catalog(context: BrowserContext, expectedKey?: string) {
+  await context.route('https://openrouter.ai/api/v1/models', (route) => {
+    if (expectedKey)
+      expect(route.request().headers().authorization).toBe(
+        `Bearer ${expectedKey}`,
+      );
+    return route.fulfill({
       headers: cors,
       json: {
         data: [
@@ -23,8 +27,8 @@ async function catalog(context: BrowserContext) {
           },
         ],
       },
-    }),
-  );
+    });
+  });
 }
 async function createProject(page: Page, name: string) {
   await page
@@ -80,6 +84,10 @@ async function chooseModel(page: Page) {
     })
     .click();
   await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+}
+async function openConnectedSettings(page: Page) {
+  await page.getByRole('button', { name: 'AI settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Configure AI', exact: true }).click();
 }
 async function connect(page: Page) {
   await page
@@ -325,11 +333,11 @@ test('rate-limit errors remain visible and retry requires a fresh send', async (
 });
 
 for (const base of ['/', '/LocalCut/']) {
-  test(`OAuth UI navigates back, strips secrets before exchange, and forgets credentials on reload ${base}`, async ({
+  test(`OAuth UI navigates back, strips secrets before exchange, and restores saved credentials on reload ${base}`, async ({
     page,
     context,
   }) => {
-    await catalog(context);
+    await catalog(context, key);
     let authorization: URL | undefined;
     let exchanges = 0;
     await context.route('https://openrouter.ai/auth?*', async (route) => {
@@ -398,6 +406,10 @@ for (const base of ['/', '/LocalCut/']) {
     }));
     expect(stored).toEqual({
       local: {
+        'localcut.openrouter-credential.v1': JSON.stringify({
+          version: 1,
+          key,
+        }),
         'localcut.workspace-preferences.v1': JSON.stringify({
           version: 1,
           preferences: {
@@ -421,20 +433,375 @@ for (const base of ['/', '/LocalCut/']) {
       },
       session: {},
     });
-    expect(JSON.stringify(stored)).not.toContain(key);
+    expect(JSON.stringify(stored.session)).not.toContain(key);
+    expect(stored.local['localcut.workspace-preferences.v1']).not.toContain(
+      key,
+    );
     expect(JSON.stringify(stored)).not.toContain('synthetic-ui-authorization');
     expect(await page.locator('body').innerText()).not.toContain(key);
     await page.reload();
-    await page
-      .getByRole('button', { name: 'Connect AI', exact: true })
-      .first()
-      .click();
+    await openConnectedSettings(page);
+    await expect(
+      page.getByText('Key connected', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByLabel('OpenRouter API key', { exact: true }),
+    ).toHaveCount(0);
+    expect(exchanges).toBe(1);
+    await page.getByRole('button', { name: 'Disconnect', exact: true }).click();
     await expect(
       page.getByLabel('OpenRouter API key', { exact: true }),
     ).toHaveValue('');
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem('localcut.openrouter-credential.v1'),
+      ),
+    ).toBeNull();
+    await page.reload();
+    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
     await expect(page.getByText('Key connected', { exact: true })).toHaveCount(
       0,
     );
     expect(exchanges).toBe(1);
+  });
+}
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`saved API key restores speech access, resets sharing and disconnects other tabs ${base}`, async ({
+    page,
+    context,
+  }) => {
+    await catalog(context, key);
+    let paid = 0;
+    await context.route(
+      'https://openrouter.ai/api/v1/chat/completions',
+      (route) => {
+        paid++;
+        return route.abort();
+      },
+    );
+    await context.route(
+      'https://openrouter.ai/api/v1/audio/speech',
+      (route) => {
+        paid++;
+        return route.abort();
+      },
+    );
+    await page.goto(base);
+    const name = 'Persistent speech ' + crypto.randomUUID();
+    await createProject(page, name);
+    await connect(page);
+    await openConnectedSettings(page);
+    const dialog = page.getByRole('dialog', {
+      name: 'AI connection',
+      exact: true,
+    });
+    await expect(
+      dialog.getByText('Saved on this device', { exact: true }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: `.artifacts/persist-openrouter/connection-${base === '/' ? 'root' : 'pages'}.png`,
+    });
+    await dialog
+      .getByRole('button', { name: 'Data & analytics', exact: true })
+      .click();
+    await page
+      .getByRole('checkbox', {
+        name: 'Share overlay and caption text',
+        exact: true,
+      })
+      .check();
+    await page.keyboard.press('Escape');
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await page.reload();
+    await openConnectedSettings(page);
+    await expect(
+      dialog.getByText('Key connected', { exact: true }),
+    ).toBeVisible();
+    await dialog
+      .getByRole('button', { name: 'Data & analytics', exact: true })
+      .click();
+    await expect(
+      page.getByRole('checkbox', {
+        name: 'Share overlay and caption text',
+        exact: true,
+      }),
+    ).not.toBeChecked();
+    await page.keyboard.press('Escape');
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Open project', exact: true })
+      .click();
+    await page.getByRole('button', { name: new RegExp(name) }).click();
+    await expect(
+      page.getByRole('button', { name: 'Open project', exact: true }),
+    ).toContainText(name);
+    await page.getByRole('button', { name: 'Commands', exact: true }).click();
+    const commands = page.getByRole('dialog', {
+      name: 'Commands',
+      exact: true,
+    });
+    await commands.getByRole('combobox').fill('Speech');
+    await expect(
+      commands.getByRole('option', { name: /Text to speech/ }),
+    ).toBeVisible();
+    await page.keyboard.press('Escape');
+    const other = await context.newPage();
+    await other.goto(base);
+    await openConnectedSettings(other);
+    await expect(
+      other.getByText('Key connected', { exact: true }),
+    ).toBeVisible();
+    await other
+      .getByRole('button', { name: 'Disconnect', exact: true })
+      .click();
+    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    await expect(
+      dialog.getByLabel('OpenRouter API key', { exact: true }),
+    ).toBeVisible();
+    await page.reload();
+    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    await expect(page.getByText('Key connected', { exact: true })).toHaveCount(
+      0,
+    );
+    expect(paid).toBe(0);
+    await other.close();
+  });
+  test(`saved connection preserves disabled services and cross-tab removal preserves another provider ${base}`, async ({
+    page,
+    context,
+  }) => {
+    await catalog(context, key);
+    const paid: string[] = [];
+    page.on('request', (request) => {
+      if (
+        /chat\/completions|audio\/speech|audio\/transcriptions/.test(
+          request.url(),
+        )
+      )
+        paid.push(request.url());
+    });
+    await page.goto(base);
+    const routes = {
+      llm: [
+        { providerId: 'backup', model: 'backup' },
+        { providerId: 'openrouter', model },
+      ],
+      tts: [],
+      stt: [{ providerId: 'local', model: 'whisper' }],
+    };
+    await page.evaluate(
+      ({ routes, key }) => {
+        localStorage.setItem(
+          'localcut.openrouter-credential.v1',
+          JSON.stringify({ version: 1, key }),
+        );
+        localStorage.setItem(
+          'localcut.workspace-preferences.v1',
+          JSON.stringify({
+            version: 1,
+            preferences: {
+              aiProviders: JSON.stringify({
+                profiles: [
+                  { id: 'openrouter', name: 'OpenRouter', kind: 'openrouter' },
+                  {
+                    id: 'backup',
+                    name: 'Local backup',
+                    kind: 'compatible',
+                    baseUrl: 'http://localhost:1234/v1',
+                    model: 'backup',
+                  },
+                ],
+                routes,
+              }),
+            },
+          }),
+        );
+      },
+      { routes, key },
+    );
+    await page.reload();
+    await openConnectedSettings(page);
+    const dialog = page.getByRole('dialog', {
+      name: 'AI connection',
+      exact: true,
+    });
+    await expect(
+      dialog.getByText('Key connected', { exact: true }),
+    ).toBeVisible();
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await createProject(page, 'Multi-provider credential isolation');
+    await expect(
+      page.getByRole('button', { name: 'Text to speech', exact: true }),
+    ).toHaveCount(0);
+    await openConnectedSettings(page);
+    await dialog.getByText('Providers & services', { exact: true }).click();
+    await dialog.getByRole('button', { name: 'Connect', exact: true }).click();
+    await dialog
+      .getByRole('button', { name: 'Connect endpoint', exact: true })
+      .click();
+    await expect(
+      dialog.getByRole('combobox', { name: 'AI model', exact: true }),
+    ).toBeEnabled();
+    await dialog
+      .getByRole('combobox', { name: 'AI model', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'backup · backup', exact: true })
+      .click();
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await expect(
+      page.getByLabel('Describe your edit', { exact: true }),
+    ).toBeEnabled();
+    const other = await context.newPage();
+    await other.goto(base);
+    await openConnectedSettings(other);
+    await other.evaluate(() =>
+      localStorage.removeItem('localcut.openrouter-credential.v1'),
+    );
+    await openConnectedSettings(page);
+    await expect(
+      dialog.getByText('Key connected', { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      dialog.getByRole('combobox', { name: 'AI model', exact: true }),
+    ).toBeEnabled();
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await expect(
+      page.getByLabel('Describe your edit', { exact: true }),
+    ).toBeEnabled();
+    const savedRoutes = await page.evaluate(
+      () =>
+        JSON.parse(
+          JSON.parse(localStorage.getItem('localcut.workspace-preferences.v1')!)
+            .preferences.aiProviders,
+        ).routes,
+    );
+    expect(savedRoutes).toEqual(routes);
+    expect(paid).toEqual([]);
+    await other.close();
+  });
+  test(`saved credential storage failures are actionable and never connect ${base}`, async ({
+    page,
+    context,
+  }) => {
+    await catalog(context, key);
+    await page.addInitScript(() => {
+      const original = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === 'localcut.openrouter-credential.v1')
+          throw new Error('PRIVATE-storage-error');
+        return original.call(this, key, value);
+      };
+    });
+    await page.goto(base);
+    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    const dialog = page.getByRole('dialog', {
+      name: 'AI connection',
+      exact: true,
+    });
+    await dialog.getByLabel('OpenRouter API key', { exact: true }).fill(key);
+    await dialog
+      .getByRole('button', { name: 'Use API key', exact: true })
+      .click();
+    await expect(dialog.getByRole('alert')).toContainText(
+      'Allow local browser storage',
+    );
+    await expect(page.getByText('Key connected', { exact: true })).toHaveCount(
+      0,
+    );
+    expect(await page.locator('body').innerText()).not.toContain(
+      'PRIVATE-storage-error',
+    );
+  });
+  test(`saved credential removal failure retires the connection and allows retry ${base}`, async ({
+    page,
+    context,
+  }) => {
+    await catalog(context, key);
+    await page.goto(base);
+    await connect(page);
+    await openConnectedSettings(page);
+    await page.evaluate(() => {
+      const original = Storage.prototype.removeItem;
+      Storage.prototype.removeItem = function (key) {
+        if (key === 'localcut.openrouter-credential.v1')
+          throw new Error('PRIVATE-removal-error');
+        return original.call(this, key);
+      };
+      Object.assign(window, {
+        allowCredentialRemoval: () => {
+          Storage.prototype.removeItem = original;
+        },
+      });
+    });
+    const dialog = page.getByRole('dialog', {
+      name: 'AI connection',
+      exact: true,
+    });
+    await dialog
+      .getByRole('button', { name: 'Disconnect', exact: true })
+      .click();
+    await expect(dialog.getByRole('alert')).toContainText(
+      'Allow local browser storage',
+    );
+    await expect(page.getByText('Key connected', { exact: true })).toHaveCount(
+      0,
+    );
+    expect(await page.locator('body').innerText()).not.toContain(
+      'PRIVATE-removal-error',
+    );
+    expect(
+      await page.evaluate(
+        () =>
+          localStorage.getItem('localcut.openrouter-credential.v1') !== null,
+      ),
+    ).toBe(true);
+    await page.evaluate(() => {
+      (
+        window as unknown as { allowCredentialRemoval(): void }
+      ).allowCredentialRemoval();
+    });
+    await dialog
+      .getByRole('button', { name: 'Disconnect', exact: true })
+      .click();
+    await expect(dialog.getByRole('alert')).toHaveCount(0);
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem('localcut.openrouter-credential.v1'),
+      ),
+    ).toBeNull();
+    await page.reload();
+    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    await expect(page.getByText('Key connected', { exact: true })).toHaveCount(
+      0,
+    );
+  });
+  test(`malformed saved credential does not restore or start provider requests ${base}`, async ({
+    page,
+    context,
+  }) => {
+    let requests = 0;
+    await context.route('https://openrouter.ai/**', (route) => {
+      requests++;
+      return route.abort();
+    });
+    await page.goto(base);
+    await page.evaluate(() =>
+      localStorage.setItem('localcut.openrouter-credential.v1', '{bad'),
+    );
+    await page.reload();
+    await expect(
+      page.getByRole('dialog', { name: 'AI connection', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole('dialog', { name: 'AI connection', exact: true })
+        .getByRole('alert'),
+    ).toContainText('Check credentials and reconnect');
+    await expect(page.getByText('Key connected', { exact: true })).toHaveCount(
+      0,
+    );
+    expect(requests).toBe(0);
   });
 }

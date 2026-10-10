@@ -431,7 +431,7 @@ for (const base of ['/', '/LocalCut/']) {
     expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
   });
 
-  test(`workspace local preferences remember validated AI model without persisting consent or credentials ${base}`, async ({
+  test(`workspace local preferences remember validated AI model with separate saved credentials and session-only consent ${base}`, async ({
     page,
     context,
   }) => {
@@ -486,14 +486,23 @@ for (const base of ['/', '/LocalCut/']) {
       '~deepseek/deepseek-pro-latest',
     );
     const storage = await page.evaluate(() => ({ ...localStorage }));
+    const credential = storage['localcut.openrouter-credential.v1'];
+    expect(JSON.parse(credential!)).toEqual({
+      version: 1,
+      key: 'synthetic-preference-key',
+    });
+    delete storage['localcut.openrouter-credential.v1'];
     expect(JSON.stringify(storage)).not.toContain('synthetic-preference-key');
     expect(JSON.stringify(storage)).not.toContain('includeText');
     await page.reload();
-    await expect(
-      page.getByRole('button', { name: 'Connect AI', exact: true }).first(),
-    ).toBeVisible();
-    expect(requests).toBe(1);
-    dialog = await connect(page);
+    await page
+      .getByRole('button', { name: 'AI settings', exact: true })
+      .click();
+    await page
+      .getByRole('button', { name: 'Configure AI', exact: true })
+      .click();
+    await expect.poll(() => requests).toBe(2);
+    dialog = page.getByRole('dialog', { name: 'AI connection', exact: true });
     await expect(
       dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toContainText('Preference model');

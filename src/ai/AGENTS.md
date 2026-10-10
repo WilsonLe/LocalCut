@@ -1,7 +1,7 @@
 # Optional AI integration
 
 - Own provider adapters, service routing, authentication, context policy, stream parsers, and assistant. Keep imports and construction inert; consumers initiate connection and requests.
-- Keep API keys in memory. ChatGPT OAuth tokens use their dedicated origin-local credential record, excluded from preferences and backups; explicitly restore after reload and remove on Disconnect. Only expiring PKCE state/verifier/nonce data belongs in tab-scoped OAuth storage; callback secrets and provider error bodies must not leak through logs or public errors.
+- Keep runtime keys private. Compatible-endpoint keys remain session-only. ChatGPT OAuth tokens use their dedicated origin-local record, explicitly restored and removed on Disconnect. The workspace opts into a separate persistent credential record; headless clients remain memory-only unless supplied credential storage. Restore is explicit and network-free; Disconnect deletes the record, while disposal preserves it. Only expiring PKCE state/verifier data belongs in tab-scoped OAuth storage; callback secrets and provider error bodies must not leak through logs or public errors.
 - Credential replacement, disconnect, and disposal invalidate old generations and abort their work. Late responses cannot restore credentials or publish proposals for a retired session.
 - Require an explicit tool-capable model. Only user-configured ordered LLM/TTS/STT routes permit fallback; stop after visible chat output, cancellation, refusal or invalid requests. Indexing retains no automatic model/provider fallback. Capture the project's identity, revision, selected asset allowlist, and context policy for each assistant session.
 - Names, overlay/caption text, and transcripts are separate opt-ins. Build remote context through `context.ts`; never expand the allowlist or send raw media through chat. The separately consented indexer sends generated local stills, audio excerpts and video excerpts with sound; preserve dedicated selected-model validation, safe manifests and explicit retries.
@@ -15,7 +15,7 @@
 Check the relevant protocol/authentication/assistant cases without a paid provider:
 
 ```sh
-pnpm test tests/unit/openrouter-auth.test.ts tests/unit/openrouter-protocol.test.ts tests/unit/assistant.test.ts
+pnpm test tests/unit/openrouter-credentials.test.ts tests/unit/openrouter-auth.test.ts tests/unit/openrouter-protocol.test.ts tests/unit/assistant.test.ts
 ```
 
 Use `pnpm test:browser tests/browser/ai.spec.ts` for production-entry integration after current builds. [AI contracts/privacy](../../docs/ai.md) own live-provider prerequisites; [development](../../docs/development.md) owns the wider validation loop.

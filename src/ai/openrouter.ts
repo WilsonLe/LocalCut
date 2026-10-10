@@ -1,4 +1,10 @@
 import { transcriptionBody, transcriptionSegments } from './transcription';
+import {
+  credentialKey,
+  readCredential,
+  writeCredential,
+  clearCredential,
+} from './credentials';
 import { AuthorizationFlow } from './auth.ts';
 import { speechModelsFrom, speechBody, readSpeechAudio } from './speech';
 import { AiError, aiInvariant, httpError } from './errors.ts';
@@ -47,20 +53,6 @@ export const OPENROUTER_LIMITS = Object.freeze({
 });
 const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
-function keyValue(value: unknown): string {
-  aiInvariant(
-    typeof value === 'string',
-    'AUTH_INVALID',
-    'An OpenRouter API key is required.',
-  );
-  const key = value.trim();
-  aiInvariant(
-    /^[\x21-\x7e]{8,4096}$/.test(key),
-    'AUTH_INVALID',
-    'OpenRouter API key format is invalid.',
-  );
-  return key;
-}
 function modelsFrom(value: unknown): OpenRouterModel[] {
   aiInvariant(
     object(value) &&
@@ -378,7 +370,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
       },
     };
   }
-  function disconnect() {
+  function retire() {
     key = undefined;
     catalog = undefined;
     speechCatalog = undefined;
@@ -388,8 +380,9 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
   }
   function setKey(value: string) {
     assertActive();
-    const next = compatible && value.trim() === '' ? '' : keyValue(value);
-    disconnect();
+    const next = compatible && value.trim() === '' ? '' : credentialKey(value);
+    if (!compatible) writeCredential(options.credentialStorage, next);
+    retire();
     key = next;
   }
   const auth = new AuthorizationFlow({
@@ -416,7 +409,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
           'INVALID_RESPONSE',
           'OpenRouter returned an invalid authorization response.',
         );
-        return keyValue(value.key);
+        return credentialKey(value.key);
       } catch (error) {
         return op.error(error);
       } finally {
@@ -427,7 +420,23 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
   const client: OpenRouter = {
     status: () => ({ connected: !disposed && key !== undefined }),
     setKey,
-    disconnect,
+    disconnect() {
+      if (disposed) return;
+      retire();
+      if (!compatible) clearCredential(options.credentialStorage);
+    },
+    restoreCredential() {
+      assertActive();
+      aiInvariant(
+        !compatible,
+        'MODEL_UNSUPPORTED',
+        'This endpoint uses an API key.',
+      );
+      const saved = readCredential(options.credentialStorage);
+      retire();
+      key = saved ?? undefined;
+      return client.status();
+    },
     beginAuthorization: (args) => {
       aiInvariant(
         !compatible,
@@ -801,7 +810,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
     },
     dispose() {
       if (!disposed) {
-        disconnect();
+        retire();
         disposed = true;
       }
     },

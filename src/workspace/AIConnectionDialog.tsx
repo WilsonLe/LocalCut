@@ -171,6 +171,9 @@ export default function AIConnectionDialog({
                   <p role="status" className="text-xs text-muted-foreground">
                     Key connected
                   </p>
+                  <p className="text-xs text-muted-foreground">
+                    Saved on this device
+                  </p>
                 </div>
               </div>
               <Button variant="outline" size="sm" onClick={disconnect}>
@@ -193,9 +196,16 @@ export default function AIConnectionDialog({
           </div>
         )}
         {connectionError && (
-          <p role="alert" className="text-sm text-destructive">
-            {connectionError}
-          </p>
+          <div className="space-y-2">
+            <p role="alert" className="text-sm text-destructive">
+              {connectionError}
+            </p>
+            {!connection && (
+              <Button variant="outline" onClick={disconnect}>
+                Disconnect
+              </Button>
+            )}
+          </div>
         )}
         <div className="flex items-center justify-between">
           <Popover>

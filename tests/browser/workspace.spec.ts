@@ -614,9 +614,12 @@ for (const base of ['/', '/LocalCut/']) {
     expect(JSON.stringify(requests)).not.toContain('red.png');
     expect(
       await page.evaluate(() =>
-        [...Object.values(localStorage), ...Object.values(sessionStorage)].join(
-          '\n',
-        ),
+        [
+          ...Object.entries(localStorage)
+            .filter(([name]) => name !== 'localcut.openrouter-credential.v1')
+            .map(([, value]) => value),
+          ...Object.values(sessionStorage),
+        ].join('\n'),
       ),
     ).not.toContain(key);
   });

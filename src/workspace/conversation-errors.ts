@@ -14,6 +14,8 @@ export function errorText(error: unknown): string {
     AUTH_REQUIRED: 'Connect a provider for this service to continue.',
     AUTH_INVALID:
       'Authorization was rejected. Check credentials and reconnect.',
+    AUTH_STORAGE_UNAVAILABLE:
+      'OpenRouter credentials could not be saved, read or removed. Allow local browser storage, then reconnect or Disconnect again.',
     AUTH_FLOW_INVALID:
       'This connection link is invalid. Start a new connection.',
     AUTH_EXPIRED: 'The connection link expired. Start a new connection.',

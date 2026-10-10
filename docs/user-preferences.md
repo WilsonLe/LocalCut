@@ -15,7 +15,7 @@ This is the project record of the user's durable product and workflow choices. U
 ## Workspace refinements — 10 October 2026
 
 - Put less-frequent header settings in a dropdown. Organize them into named groups that progressively unfold, rather than showing every setting at once.
-- Keep OpenRouter connection and model controls in the chat interface. The selected provider remains visible there. Connection requires the user's credentials/consent; keep keys in memory and do not initiate paid requests automatically.
+- Keep OpenRouter connection and model controls in the chat interface. The selected provider remains visible there. Connection requires the user's credentials/consent; save credentials locally as specified below and do not initiate paid requests automatically.
 - Make chat narrower and collapsible. Animate the chat moving out/in and the main editing area expanding/contracting together. Preserve the conversation when collapsed, support keyboard control, and respect reduced-motion preferences.
 - Keep a usable stacked layout on narrow screens, with the editing area before the conversation.
 - Use real editing, progress and export results in production. Illustrative clips and simulated replies belong only in explicitly labelled prototypes.
@@ -34,7 +34,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Keep the AI connection dialog compact. Show a clear connected status and disconnect action; remove explanatory filler from the default view.
 - Use one shadcn searchable single-select model dropdown. Search names and IDs inside its popup; place refresh as an icon at the far right of the search row.
-- Reveal optional OpenRouter sharing through a Data & analytics popover, with all choices off initially. Keep credentials in memory and source media local.
+- Reveal optional OpenRouter sharing through a Data & analytics popover, with all choices off initially. Keep credentials in their separate local record and source media local.
 - Put the model/provider information behind a small icon in the composer footer, revealing configuration progressively. Use the CYOBot instructor chat's searchable session switcher, transcript, and rounded composer structure.
 
 ## Chat controls — 10 October 2026
@@ -51,7 +51,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Persist chat sidebar width as a local browser user preference; restore the preferred width across reloads and temporary responsive/layout constraints.
 - Audit all configurable UI state and use judgement to remember durable choices. Save chat collapse, deliberate media visibility, export format and preferred AI model alongside appearance. Keep authored project data in its existing storage and temporary navigation/operation state in the session.
-- Keep preferences local to the browser/origin. Remembering a model does not authorize reconnecting, paid requests or sharing content; credentials and text/name/transcript sharing consent remain session-only. The newer asset-indexing choice below is remembered separately.
+- Keep preferences local to the browser/origin. Remembering a model does not authorize reconnecting, paid requests or sharing content; credentials use their separate persistent local record; text/name/transcript sharing consent remains session-only. The newer asset-indexing choice below is remembered separately.
 
 ## Project versions — 10 October 2026
 
@@ -87,7 +87,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Generate natural speech through the existing OpenRouter connection. Let users edit the script, select a voice, declare multiple languages, and set delivery directions.
 - Provide both a speaking-speed control and a total-length control. Preserve voice pitch when adjusting generated audio, and preview the result before adding it to the timeline.
-- Explicit Generate shares the authored script and speech choices only. Retain in-memory credentials and local ownership of the resulting audio; never upload source media.
+- Explicit Generate shares the authored script and speech choices only. Reuse the saved OpenRouter connection and retain local ownership of the resulting audio; never upload source media.
 
 ## Project navigation — 10 October 2026
 
@@ -129,6 +129,12 @@ This is the project record of the user's durable product and workflow choices. U
 ## Service providers — 10 October 2026
 
 - Support named OpenAI-compatible endpoints alongside OpenRouter, with independent ordered provider/model routes for LLM, TTS and STT. Configured fallbacks authorize forwarding the same request to the listed providers in order; stop chat fallback after any visible output, and preserve edit approval.
-- Offer Continue with ChatGPT, then ask the user to copy the full loopback redirect URL and paste it into LocalCut. Exchange the one-use authorization code for tokens; save tokens separately from portable preferences and use them for LLM calls. Disconnect removes the saved tokens. API keys retain their existing session-only behavior pending the separate credential-persistence change.
+- Offer Continue with ChatGPT, then ask the user to copy the full loopback redirect URL and paste it into LocalCut. Exchange the one-use authorization code for tokens; save tokens separately from portable preferences and use them for LLM calls. Disconnect removes the saved tokens. Compatible-endpoint API keys retain session-only behavior; OpenRouter keys follow the persistent credential choice below.
 - Remember non-secret endpoints, capabilities, models, voices and routing choices locally and include them in the workspace preference backup group. Sharing consent and credentials stay outside backups. Indexing retains its dedicated OpenRouter evidence consent and no fallback.
 - Local Whisper remains the default STT provider. Configured OpenAI-compatible STT endpoints join the ordered route; each transcription proposal discloses possible source-audio recipients before approval. Transcript-text sharing stays a separate opt-in.
+
+## Persistent OpenRouter credentials — 10 October 2026
+
+- Save pasted and OAuth-issued OpenRouter credentials locally in this browser/origin and restore the connection after refresh or navigation. This supersedes the earlier memory-only credential choices.
+- Keep credentials separate from preferences, project data and all portable backups. Disconnect removes the saved credential; ordinary cleanup preserves it. Removing or replacing it in another tab retires the old connection.
+- Restoring a connection may refresh the model catalog, but never sends chat, generates speech or indexes media automatically. Text/name/transcript sharing remains off after reload; conversations and active project selection remain session-only.

@@ -1,18 +1,18 @@
 # Architecture
 
-One application package produces three independent entry points. index.html mounts the approved React conversation-led workspace with semantic Tailwind/shadcn tokens. editor.js exports the explicitly opened headless engine. ai.js exports optional OpenRouter authentication, streaming and the headless assistant. Workers are loaded on demand. The initial workspace imports neither engine nor AI runtime; explicit project actions and AI connection load them dynamically. Vite emits ESM workers and paths suitable for both /LocalCut/ and /.
+One application package produces three independent entry points. index.html mounts the approved React conversation-led workspace with semantic Tailwind/shadcn tokens. editor.js exports the explicitly opened headless engine. ai.js exports optional OpenRouter authentication, streaming and the headless assistant. Workers are loaded on demand. Without a saved credential, the initial workspace imports neither engine nor AI runtime; explicit project actions and AI connection load them dynamically. Saved credentials may restore the AI connection and model catalog, while editing storage and paid requests still wait for an explicit action. Vite emits ESM workers and paths suitable for both /LocalCut/ and /.
 
 The design-system configuration is shadcn Base UI, neutral Vega, CSS-first Tailwind 4, light/dark variables, and system fonts. The workspace uses shared button, dialog, input, select, checkbox, label, textarea and toast components. Its project, preview and conversation controls invoke the public engine/assistant APIs; they do not own a second project document.
 
-| Boundary     | Responsibility                                                                                                                       |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| src/core     | Zod v1 documents, commands, history contracts, captions, keyframes, rational timing, sinc interpolation                              |
-| src/storage  | IndexedDB transactions, immutable originals, OPFS journals, recovery, LRU derivatives, owned namespaces                              |
-| src/media    | Explicit container imports, metadata/decode, derivative conversion, composition, streaming export, AAC priming probe                 |
-| src/services | Jobs, worker transport, preview clock, pinned model configuration                                                                    |
-| src/workers  | Separate interactive and background media workers; dedicated single-thread inference worker                                          |
-| src/editor   | Disposable asynchronous public facade and events                                                                                     |
-| src/ai       | Optional OpenRouter chat/speech/index-label transport, in-memory credentials, PKCE, validated edit proposals and local WAV rendering |
+| Boundary     | Responsibility                                                                                                                                                           |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| src/core     | Zod v1 documents, commands, history contracts, captions, keyframes, rational timing, sinc interpolation                                                                  |
+| src/storage  | IndexedDB transactions, immutable originals, OPFS journals, recovery, LRU derivatives, owned namespaces                                                                  |
+| src/media    | Explicit container imports, metadata/decode, derivative conversion, composition, streaming export, AAC priming probe                                                     |
+| src/services | Jobs, worker transport, preview clock, pinned model configuration                                                                                                        |
+| src/workers  | Separate interactive and background media workers; dedicated single-thread inference worker                                                                              |
+| src/editor   | Disposable asynchronous public facade and events                                                                                                                         |
+| src/ai       | Optional OpenRouter chat/speech/index-label transport, private runtime credentials with opt-in local persistence, PKCE, validated edit proposals and local WAV rendering |
 
 The project owns ordered tracks, clips, overlays/cues, and explicit transitions. It references assets by stable ID. Browser object URLs, file handles, native samples, decoded bytes, and contexts are runtime resources and never part of project JSON.
 

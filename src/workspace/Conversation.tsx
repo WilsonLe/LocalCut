@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react';
 import type { Ref } from 'react';
+import { CREDENTIAL_STORAGE_KEY } from '../ai/credential-storage-key';
 import type { WorkspaceCommand } from './commands';
 import {
   ArrowUp,
@@ -74,6 +75,14 @@ export interface ConversationProps {
   onResize: (width: number) => void;
   onToggle: () => void;
 }
+
+const storageError = () =>
+  Object.assign(
+    new Error(
+      'Allow local browser storage to manage saved OpenRouter credentials.',
+    ),
+    { code: 'AUTH_STORAGE_UNAVAILABLE' },
+  );
 
 /** Conversation UI is optional; the editor continues to own every saved edit. */
 export function Conversation(props: ConversationProps) {
@@ -178,7 +187,12 @@ export function Conversation(props: ConversationProps) {
   }, [cleanup]);
 
   const publishConnection = useCallback(
-    async (api: AiModule, token: number, controller: AbortController) => {
+    async (
+      api: AiModule,
+      token: number,
+      controller: AbortController,
+      showSettings = true,
+    ) => {
       providerRef.current?.dispose();
       setConnectedProviders(
         [...providers.current.values()]
@@ -201,7 +215,7 @@ export function Conversation(props: ConversationProps) {
       });
       setModels([]);
       setModel('');
-      setSettingsOpen(true);
+      if (showSettings) setSettingsOpen(true);
       if (!configuration.current.routes.llm.length) return;
       const catalog = await provider.listModels(controller.signal);
       if (mounted.current && token === attempt.current) {
@@ -413,41 +427,76 @@ export function Conversation(props: ConversationProps) {
     }
     return result.authorizationUrl;
   };
-  const removeProvider = (id: string) => {
-    const client = providers.current.get(id)?.client;
-    client?.disconnect();
-    client?.dispose();
-    providers.current.delete(id);
-    const next = structuredClone(configuration.current);
-    if (id !== 'openrouter')
-      next.profiles = next.profiles.filter((p) => p.id !== id);
-    next.routes.llm = next.routes.llm.filter((r) => r.providerId !== id);
-    next.routes.tts = next.routes.tts.filter((r) => r.providerId !== id);
-    next.routes.stt = next.routes.stt.filter((r) => r.providerId !== id);
-    updateConfiguration(next);
-    setConnectedProviders(
-      [...providers.current.values()]
-        .filter((p) => p.client.status().connected)
-        .map((p) => p.id),
-    );
-    if (
-      ![...providers.current.values()].some((p) => p.client.status().connected)
-    ) {
-      providerRef.current?.dispose();
-      providerRef.current = null;
-      setConnection(null);
+  const removeProvider = useCallback(
+    (id: string, forget = true) => {
+      const token = ++attempt.current;
+      request.current?.abort();
+      const controller = new AbortController();
+      request.current = controller;
+      setConnecting(false);
+      setConnectionError(null);
+      setApiKey('');
+      setSpeechOpen(false);
+      const client = providers.current.get(id)?.client;
+      try {
+        if (forget) {
+          if (client) client.disconnect();
+          else if (id === 'openrouter')
+            window.localStorage.removeItem(CREDENTIAL_STORAGE_KEY);
+        }
+      } catch (error) {
+        report(id === 'openrouter' ? storageError() : error);
+      }
+      client?.dispose();
+      providers.current.delete(id);
+      const next = structuredClone(configuration.current);
+      if (forget) {
+        if (id !== 'openrouter')
+          next.profiles = next.profiles.filter((p) => p.id !== id);
+        next.routes.llm = next.routes.llm.filter((r) => r.providerId !== id);
+        next.routes.tts = next.routes.tts.filter((r) => r.providerId !== id);
+        next.routes.stt = next.routes.stt.filter((r) => r.providerId !== id);
+        configuration.current = next;
+        setProviderConfiguration(next);
+        saveWorkspacePreferences({ aiProviders: JSON.stringify(next) });
+      }
       setPrivacy({
         includeText: false,
         includeAssetNames: false,
         includeTranscripts: false,
         includeAssetIndexes: false,
       });
-      setModels([]);
-      setModel('');
-    }
-  };
+      setConnectedProviders(
+        [...providers.current.values()]
+          .filter((p) => p.client.status().connected)
+          .map((p) => p.id),
+      );
+      if (
+        [...providers.current.values()].some(
+          (p) => p.client.status().connected,
+        ) &&
+        moduleRef.current
+      ) {
+        void publishConnection(
+          moduleRef.current,
+          token,
+          controller,
+          false,
+        ).catch((error) => {
+          if (mounted.current && token === attempt.current) report(error);
+        });
+      } else {
+        providerRef.current?.dispose();
+        providerRef.current = null;
+        setConnection(null);
+        setModels([]);
+        setModel('');
+      }
+    },
+    [report, publishConnection],
+  );
   const connect = useCallback(
-    async (kind: 'key' | 'callback', credential: string) => {
+    async (kind: 'key' | 'callback' | 'saved', credential: string) => {
       const token = ++attempt.current;
       request.current?.abort();
       const controller = new AbortController();
@@ -461,9 +510,13 @@ export function Conversation(props: ConversationProps) {
         const api = moduleRef.current ?? (await import('../ai'));
         moduleRef.current = api;
         if (!current()) return;
-        provider = api.createOpenRouter();
+        provider = api.createOpenRouter({
+          credentialStorage: () => window.localStorage,
+        });
         if (kind === 'key') provider.setKey(credential);
-        else
+        else if (kind === 'saved') {
+          if (!provider.restoreCredential().connected) return;
+        } else
           await provider.completeAuthorization(
             { callbackUrl: credential },
             controller.signal,
@@ -477,16 +530,33 @@ export function Conversation(props: ConversationProps) {
         });
         accepted = true;
         const next = structuredClone(configuration.current);
-        if (!next.routes.llm.some((r) => r.providerId === 'openrouter'))
+        if (
+          kind !== 'saved' &&
+          !next.routes.llm.some((r) => r.providerId === 'openrouter')
+        )
           next.routes.llm.push({ providerId: 'openrouter', model: '' });
-        if (!next.routes.tts.some((r) => r.providerId === 'openrouter'))
+        if (
+          kind !== 'saved' &&
+          !next.routes.tts.some((r) => r.providerId === 'openrouter')
+        )
           next.routes.tts.push({ providerId: 'openrouter', model: '' });
         configuration.current = next;
         setProviderConfiguration(next);
         saveWorkspacePreferences({ aiProviders: JSON.stringify(next) });
-        await publishConnection(api, token, controller);
+        await publishConnection(api, token, controller, kind !== 'saved');
       } catch (error) {
-        if (current()) report(error);
+        if (current()) {
+          // Speech-only connections need no tool-capable chat catalog. Background
+          // restoration must not interrupt project navigation with a chat dialog.
+          if (
+            kind === 'saved' &&
+            accepted &&
+            (error as { code?: string })?.code === 'MODEL_UNSUPPORTED'
+          )
+            return;
+          if (kind === 'saved' && !accepted) setSettingsOpen(true);
+          report(error);
+        }
       } finally {
         if (!accepted) provider?.dispose();
         if (current()) setConnecting(false);
@@ -501,11 +571,20 @@ export function Conversation(props: ConversationProps) {
       if (!active) return;
       const callback = takePendingCallback();
       if (callback) void connect('callback', callback);
+      else {
+        try {
+          if (window.localStorage.getItem(CREDENTIAL_STORAGE_KEY) !== null)
+            void connect('saved', '');
+        } catch {
+          setSettingsOpen(true);
+          report(storageError());
+        }
+      }
     });
     return () => {
       active = false;
     };
-  }, [connect]);
+  }, [connect, report]);
 
   const authorize = async () => {
     const token = ++attempt.current;
@@ -535,6 +614,14 @@ export function Conversation(props: ConversationProps) {
       }
     }
   };
+  useEffect(() => {
+    const changed = (event: StorageEvent) => {
+      if (event.key === CREDENTIAL_STORAGE_KEY || event.key === null)
+        removeProvider('openrouter', false);
+    };
+    window.addEventListener('storage', changed);
+    return () => window.removeEventListener('storage', changed);
+  }, [removeProvider]);
   const refreshCatalog = async () => {
     if (!connection || connecting) return;
     const token = ++attempt.current;

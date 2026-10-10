@@ -235,7 +235,7 @@ for (const base of ['/', '/LocalCut/']) {
     expect(JSON.stringify(bodies.at(-1))).not.toContain('assetIndex');
     expect(JSON.stringify(bodies.at(-1))).not.toContain('search_asset_index');
     await page.reload();
-    dialog = await connect(page);
+    dialog = await settings(page);
     await expect(
       dialog.getByRole('checkbox', { name: 'Allow asset indexing' }),
     ).not.toBeChecked();
@@ -244,7 +244,7 @@ for (const base of ['/', '/LocalCut/']) {
       .check();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await page.reload();
-    await page.getByRole('button', { name: 'Connect AI', exact: true }).click();
+    await settings(page);
     await expect(
       page.getByRole('checkbox', { name: 'Allow asset indexing' }),
     ).toBeChecked();
