@@ -76,7 +76,7 @@ export function Conversation(props: ConversationProps) {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [conversationNumber, setConversationNumber] = useState(0);
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([
-    { id: 0, title: 'New chat' },
+    { id: 0, title: 'New chat', hasMessages: false, hasDraft: false },
   ]);
   const [sessionBusy, setSessionBusy] = useState(false);
   const [pickerLoaded, setPickerLoaded] = useState(false);
@@ -275,13 +275,25 @@ export function Conversation(props: ConversationProps) {
   const [sessionScope, setSessionScope] = useState(sessionKey);
   if (sessionScope !== sessionKey) {
     setSessionScope(sessionKey);
-    setChatSessions([{ id: 0, title: 'New chat' }]);
+    setChatSessions([
+      { id: 0, title: 'New chat', hasMessages: false, hasDraft: false },
+    ]);
     setConversationNumber(0);
     setSessionBusy(false);
   }
   const newConversation = () => {
+    const empty = chatSessions.find(
+      (session) => !session.hasMessages && !session.hasDraft,
+    );
+    if (empty) {
+      setConversationNumber(empty.id);
+      return;
+    }
     const id = ++nextSession.current;
-    setChatSessions((sessions) => [...sessions, { id, title: 'New chat' }]);
+    setChatSessions((sessions) => [
+      ...sessions,
+      { id, title: 'New chat', hasMessages: false, hasDraft: false },
+    ]);
     setConversationNumber(id);
   };
   const infoTrigger = (
@@ -410,11 +422,20 @@ export function Conversation(props: ConversationProps) {
                     session.id === conversationNumber ? connectionControl : null
                   }
                   onBusy={setSessionBusy}
+                  onDraftChange={(hasDraft) =>
+                    setChatSessions((sessions) =>
+                      sessions.map((item) =>
+                        item.id === session.id && item.hasDraft !== hasDraft
+                          ? { ...item, hasDraft }
+                          : item,
+                      ),
+                    )
+                  }
                   onTitle={(title) =>
                     setChatSessions((sessions) =>
                       sessions.map((item) =>
-                        item.id === session.id && item.title === 'New chat'
-                          ? { ...item, title }
+                        item.id === session.id && !item.hasMessages
+                          ? { ...item, title, hasMessages: true }
                           : item,
                       ),
                     )

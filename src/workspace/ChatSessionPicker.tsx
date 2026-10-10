@@ -7,6 +7,8 @@ import { Input } from '../components/ui/input';
 export interface ChatSession {
   id: number;
   title: string;
+  hasMessages: boolean;
+  hasDraft: boolean;
 }
 
 /** The instructor dashboard session-picker pattern, scoped to local chat state. */
@@ -92,7 +94,7 @@ export default function ChatSessionPicker({
                   onNew();
                   setOpen(false);
                 }}
-                render={<Button size="icon-sm" />}
+                render={<Button size="icon" />}
               >
                 <Plus />
               </Menu.Item>
