@@ -11,8 +11,11 @@ async function positions(page: Page) {
   return page.evaluate(() => ({
     page: window.scrollY,
     workspace: document.querySelector('.workspace-body')!.scrollTop,
-    header: document.querySelector('.workspace-header')!.getBoundingClientRect()
-      .top,
+    header: document
+      .querySelector(
+        '.workspace-header, .mobile-edit-heading, .conversation-heading',
+      )!
+      .getBoundingClientRect().top,
   }));
 }
 
@@ -38,7 +41,7 @@ for (const base of ['/', '/LocalCut/']) {
             data: Array.from({ length: 80 }, (_, i) => ({
               id: `test/model-${i}`,
               name: `Scroll model ${String(i).padStart(2, '0')}`,
-              context_length: 32000,
+              context_length: 512000,
               supported_parameters: ['tools', 'tool_choice'],
             })),
           },

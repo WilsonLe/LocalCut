@@ -122,7 +122,14 @@ async function connect(page: Page, context: BrowserContext, base: string) {
   ).toBeVisible();
   // Speech does not require choosing a tool-capable chat model.
   await connection.getByRole('button', { name: 'Done', exact: true }).click();
-  await page.getByRole('button', { name: 'Expand media', exact: true }).click();
+  if (
+    !(await page.locator('#workspace-media').isVisible()) ||
+    (await page.locator('#workspace-media').getAttribute('data-collapsed')) ===
+      'true'
+  )
+    await page
+      .getByRole('button', { name: 'Expand media', exact: true })
+      .click();
   await page
     .getByRole('button', { name: 'Text to speech', exact: true })
     .click();

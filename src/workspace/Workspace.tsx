@@ -80,6 +80,7 @@ import { selectionIds, transitionPairs } from '../core/timeline';
 import type { TransitionTemplate } from '../core/timeline';
 import { interfaceScale, useAppearance } from './appearance';
 import { usePageZoomGuard } from './usePageZoomGuard';
+import { useChatViewport } from './useChatViewport';
 import { hasBlockingOverlay } from './overlays';
 import {
   saveWorkspacePreferences,
@@ -132,27 +133,14 @@ export function Workspace() {
     setMediaOverride(null);
   }
   const header = useRef<HTMLElement>(null);
-  useEffect(() => {
-    if (!header.current) return;
-    const measure = () =>
-      document.documentElement.style.setProperty(
-        '--workspace-header-height',
-        `${header.current!.offsetHeight}px`,
-      );
-    const observer = new ResizeObserver(measure);
-    observer.observe(header.current);
-    measure();
-    return () => {
-      observer.disconnect();
-      document.documentElement.style.removeProperty(
-        '--workspace-header-height',
-      );
-    };
-  }, []);
   const [narrow, setNarrow] = useState(
     () => window.matchMedia(narrowQuery).matches,
   );
   const [mobileTab, setMobileTab] = useState<MobileTab>('edit');
+  const composerFocused = useChatViewport(
+    narrow && mobileTab === 'chat',
+    scale,
+  );
   const previousMobileTab = useRef<MobileTab>('edit');
   const selectMobileTab = (tab: MobileTab) => {
     if (tab === mobileTab) return;
@@ -309,6 +297,30 @@ export function Workspace() {
   } = useWorkspaceProject(editorRef);
   const { route, routeKey, go } = useWorkspaceRoute();
   const projectsOpen = route.screen === 'projects';
+  useEffect(() => {
+    if (!header.current) {
+      document.documentElement.style.setProperty(
+        '--workspace-header-height',
+        '0px',
+      );
+      return;
+    }
+    const measure = () =>
+      document.documentElement.style.setProperty(
+        '--workspace-header-height',
+        `${header.current!.offsetHeight}px`,
+      );
+    const observer = new ResizeObserver(measure);
+    observer.observe(header.current);
+    measure();
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty(
+        '--workspace-header-height',
+      );
+    };
+  }, [narrow, projectsOpen]);
+
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [versions, setVersions] = useState<ProjectVersionInfo[]>([]);
   const [browsed, setBrowsed] = useState<ProjectVersion | null>(null);
@@ -1520,6 +1532,64 @@ export function Workspace() {
       {drawer ? narrow ? <X /> : <PanelLeftClose /> : <Files />}
     </Button>
   );
+  const headerActions = (
+    <div className="header-actions">
+      {!busy && (
+        <Button
+          id="workspace-command-trigger"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Commands"
+          aria-haspopup="dialog"
+          onClick={showCommands}
+        >
+          <Search />
+        </Button>
+      )}
+      {settingsLoaded ? (
+        <Suspense fallback={settingsTrigger}>
+          <WorkspaceMenu
+            open={settingsOpen}
+            onOpenChange={setSettingsOpen}
+            busy={busy || !!browsed}
+            hasProject={!!project && !projectsOpen}
+            canExport={!!total && !projectsOpen}
+            canBrowseVersions={!!project && !busy && !projectsOpen}
+            mediaOpen={drawer}
+            chatCollapsed={narrow ? mobileTab !== 'chat' : chatCollapsed}
+            format={format}
+            onNew={() => setDialog('new')}
+            onOpen={showProjects}
+            onBackup={backupProject}
+            onImportBackup={() => backupInput.current?.click()}
+            onToggleMedia={toggleMedia}
+            onToggleChat={toggleChat}
+            onExport={showExport}
+            onVersions={showVersions}
+            onFormatChange={setFormat}
+            onProjectExport={() =>
+              setTransfer({
+                mode: 'export',
+                projectOnly: true,
+                projectId: project?.id,
+              })
+            }
+            onProjectImport={() =>
+              setTransfer({ mode: 'import', projectOnly: true })
+            }
+            onWorkspaceExport={() => setTransfer({ mode: 'export' })}
+            onWorkspaceImport={() => setTransfer({ mode: 'import' })}
+            onAppearance={() => setAppearanceOpen(true)}
+            onShortcuts={() => setDialog('shortcuts')}
+            onCommands={showCommands}
+            onAISettings={showAISettings}
+          />
+        </Suspense>
+      ) : (
+        settingsTrigger
+      )}
+    </div>
+  );
   const mediaPanel = (
     <aside
       className="media-panel"
@@ -1577,6 +1647,9 @@ export function Workspace() {
                   ? () => conversationControls.current?.openSpeech()
                   : undefined
               }
+              headerActions={
+                narrow && mobileTab === 'media' ? headerActions : null
+              }
               onRecord={() => {
                 previewControls.current?.pause();
                 setRecordingRoute(recordingRouteKey);
@@ -1632,95 +1705,45 @@ export function Workspace() {
       className="workspace"
       data-chat-collapsed={visibleChatCollapsed}
       data-media-open={drawer}
+      data-mobile-tab={mobileTab}
+      data-mobile-editor={narrow && !projectsOpen}
+      data-composer-focused={composerFocused}
     >
-      <header ref={header} className="workspace-header">
-        {busy ? (
-          <span className="brand">
-            <Scissors aria-hidden="true" />
-            <span className="brand-name">LocalCut</span>
-          </span>
-        ) : (
-          <button
-            className="brand"
-            type="button"
-            aria-label="LocalCut home"
-            onClick={showProjects}
-          >
-            <Scissors aria-hidden="true" />
-            <span className="brand-name">LocalCut</span>
-          </button>
-        )}
-        {!busy && !projectsOpen && (
-          <Button
-            variant="ghost"
-            className="project-picker"
-            aria-label="Open project"
-            onClick={showProjects}
-          >
-            <span className="project-picker-name">
-              {viewProject?.name ?? 'Untitled project'}
+      {(!narrow || projectsOpen) && (
+        <header ref={header} className="workspace-header">
+          {busy ? (
+            <span className="brand">
+              <Scissors aria-hidden="true" />
+              <span className="brand-name">LocalCut</span>
             </span>
-            <span className="sr-only">Projects</span>
-            <ChevronDown />
-          </Button>
-        )}
-        <div className="header-actions">
-          {!busy && (
-            <Button
-              id="workspace-command-trigger"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Commands"
-              aria-haspopup="dialog"
-              onClick={showCommands}
+          ) : (
+            <button
+              className="brand"
+              type="button"
+              aria-label="LocalCut home"
+              onClick={showProjects}
             >
-              <Search />
+              <Scissors aria-hidden="true" />
+              <span className="brand-name">LocalCut</span>
+            </button>
+          )}
+          {!busy && !projectsOpen && (
+            <Button
+              variant="ghost"
+              className="project-picker"
+              aria-label="Open project"
+              onClick={showProjects}
+            >
+              <span className="project-picker-name">
+                {viewProject?.name ?? 'Untitled project'}
+              </span>
+              <span className="sr-only">Projects</span>
+              <ChevronDown />
             </Button>
           )}
-          {settingsLoaded ? (
-            <Suspense fallback={settingsTrigger}>
-              <WorkspaceMenu
-                open={settingsOpen}
-                onOpenChange={setSettingsOpen}
-                busy={busy || !!browsed}
-                hasProject={!!project && !projectsOpen}
-                canExport={!!total && !projectsOpen}
-                canBrowseVersions={!!project && !busy && !projectsOpen}
-                mediaOpen={drawer}
-                chatCollapsed={narrow ? mobileTab !== 'chat' : chatCollapsed}
-                format={format}
-                onNew={() => setDialog('new')}
-                onOpen={showProjects}
-                onBackup={backupProject}
-                onImportBackup={() => backupInput.current?.click()}
-                onToggleMedia={toggleMedia}
-                onToggleChat={toggleChat}
-                onExport={showExport}
-                onVersions={showVersions}
-                onFormatChange={setFormat}
-                onProjectExport={() =>
-                  setTransfer({
-                    mode: 'export',
-                    projectOnly: true,
-                    projectId: project?.id,
-                  })
-                }
-                onProjectImport={() =>
-                  setTransfer({ mode: 'import', projectOnly: true })
-                }
-                onWorkspaceExport={() => setTransfer({ mode: 'export' })}
-                onWorkspaceImport={() => setTransfer({ mode: 'import' })}
-                onAppearance={() => setAppearanceOpen(true)}
-                onShortcuts={() => setDialog('shortcuts')}
-                onCommands={showCommands}
-                onAISettings={showAISettings}
-              />
-            </Suspense>
-          ) : (
-            settingsTrigger
-          )}
-        </div>
-      </header>
+          {headerActions}
+        </header>
+      )}
       <div
         className="workspace-body"
         data-appearance-open={appearanceOpen}
@@ -1802,6 +1825,9 @@ export function Workspace() {
               }
             >
               <Conversation
+                headerActions={
+                  narrow && mobileTab === 'chat' ? headerActions : null
+                }
                 controlsRef={registerConversationControls}
                 onIndexConnection={setIndexConnection}
                 onSpeechAvailability={setSpeechAvailable}
@@ -1825,6 +1851,22 @@ export function Workspace() {
               tabIndex={0}
               aria-label="Video editor"
             >
+              {narrow && (
+                <header className="mobile-edit-heading">
+                  <Button
+                    variant="ghost"
+                    className="project-picker"
+                    aria-label="Open project"
+                    onClick={showProjects}
+                  >
+                    <span className="project-picker-name">
+                      {viewProject?.name ?? 'Edit'}
+                    </span>
+                    <ChevronDown />
+                  </Button>
+                  {mobileTab === 'edit' ? headerActions : null}
+                </header>
+              )}
               {versionsOpen && (
                 <section
                   className="version-browser"
@@ -1994,7 +2036,7 @@ export function Workspace() {
           </Suspense>
         )}
       </div>
-      {narrow && !projectsOpen && (
+      {narrow && !projectsOpen && !composerFocused && (
         <Suspense
           fallback={<div className="mobile-navigation" aria-busy="true" />}
         >

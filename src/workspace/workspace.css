@@ -2084,3 +2084,60 @@
 .playback-controls > div {
   flex-wrap: nowrap;
 }
+
+/* Mobile tabs own their headings; the shared desktop brand row is absent. */
+:root[data-workspace-narrow='true'] .workspace[data-mobile-editor='true'] {
+  --workspace-header-height: 0px;
+  .mobile-edit-heading {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    min-height: 60px;
+    border-bottom: 1px solid var(--border);
+    padding: env(safe-area-inset-top) 12px 0;
+    .project-picker {
+      flex: 1;
+      width: 0;
+      grid-column: auto;
+      background: transparent;
+    }
+    .header-actions {
+      flex-shrink: 0;
+      flex-wrap: nowrap;
+    }
+  }
+  .conversation-heading,
+  .media-library > .section-heading {
+    padding-top: calc(4px + env(safe-area-inset-top));
+  }
+  .media-library > .section-heading {
+    flex-wrap: wrap;
+  }
+  .conversation-heading .header-actions,
+  .media-library .header-actions {
+    flex-wrap: nowrap;
+  }
+  &[data-composer-focused='true'] {
+    position: fixed;
+    top: var(--chat-viewport-top, 0px);
+    width: var(--app-viewport-width);
+    padding-bottom: 0;
+    .mobile-navigation {
+      display: none;
+    }
+    .workspace-body {
+      overflow: hidden;
+    }
+    .workspace-columns[data-mobile-tab='chat'] > #chat-panel {
+      height: var(
+        --chat-viewport-height,
+        var(--app-viewport-height)
+      ) !important;
+      animation: none;
+    }
+  }
+}
+
+.composer-actions > div:last-child {
+  margin-left: auto;
+}

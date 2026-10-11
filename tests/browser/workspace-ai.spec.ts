@@ -24,7 +24,7 @@ async function catalog(context: BrowserContext, expectedKey?: string) {
           {
             id: model,
             name: 'Resilience test model',
-            context_length: 32000,
+            context_length: 512000,
             supported_parameters: ['tools', 'tool_choice'],
           },
         ],

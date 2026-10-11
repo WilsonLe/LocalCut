@@ -28,7 +28,7 @@ async function mockCatalog(context: BrowserContext) {
           {
             id: model,
             name: 'Test model',
-            context_length: 32000,
+            context_length: 512000,
             supported_parameters: ['tools', 'tool_choice'],
             architecture: {
               input_modalities: ['text'],

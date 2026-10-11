@@ -21,6 +21,7 @@ import {
   Terminal,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Tooltip } from '../components/ui/tooltip';
 import type { Editor, Project } from '../editor';
 import type {
   Assistant,
@@ -33,7 +34,6 @@ import type {
 import type { Connection, ConversationProps } from './Conversation';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
-import { Tooltip } from '../components/ui/tooltip';
 import { AccordionDisclosure } from '../components/ui/accordion';
 import { downloadFile, MEDIA_DRAG_EVENT } from './helpers';
 import type { MediaDragDetail } from './helpers';
@@ -255,7 +255,7 @@ export default function ConversationSession({
       nearBottom.current = true;
       setFollowing(true);
       setMessages((current) => [
-        ...current.slice(-14),
+        ...current,
         {
           id: crypto.randomUUID(),
           role: 'user',
@@ -908,7 +908,15 @@ export default function ConversationSession({
               }
             }}
           />
-          <div className="composer-actions">
+          <div
+            className="composer-actions"
+            onPointerDown={(event) => {
+              // Preserve textarea focus/keyboard geometry through a Send or Cancel tap.
+              // Keyboard activation retains native button focus.
+              if ((event.target as HTMLElement).closest('button'))
+                event.preventDefault();
+            }}
+          >
             <div className="flex items-center gap-1">
               {composerControl}
               <DictationButton

@@ -520,7 +520,7 @@ for (const base of ['/', '/LocalCut/']) {
             {
               id: available ? '~deepseek/deepseek-pro-latest' : 'test/other',
               name: 'Preference model',
-              context_length: 32000,
+              context_length: 512000,
               supported_parameters: ['tools', 'tool_choice'],
             },
           ],

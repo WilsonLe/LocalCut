@@ -1,3 +1,4 @@
+import { CHAT_CONTEXT_TOKENS, contextTokens } from './chat-context';
 import { transcriptionBody, transcriptionSegments } from './transcription';
 import {
   credentialKey,
@@ -789,6 +790,12 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
       let body = validateRequest(request, !!compatible);
       const requestedModel = request.model;
       const requestedTokens = request.maxOutputTokens;
+      aiInvariant(
+        contextTokens(request.messages, request.tools, requestedTokens) <=
+          CHAT_CONTEXT_TOKENS,
+        'CONTEXT_LIMIT',
+        'Chat context exceeds 256,000 tokens.',
+      );
       const epoch = generation;
       const models = catalog ?? (await client.listModels(signal));
       assertActive();
@@ -798,6 +805,11 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         model?.supportsTools,
         'MODEL_UNSUPPORTED',
         'Selected model does not support LocalCut tool calling.',
+      );
+      aiInvariant(
+        compatible || model.contextLength > CHAT_CONTEXT_TOKENS,
+        'MODEL_UNSUPPORTED',
+        'Select an OpenRouter model with more than 256,000 context tokens.',
       );
       aiInvariant(
         !model.maxCompletionTokens ||
