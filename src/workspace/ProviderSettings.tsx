@@ -238,8 +238,14 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                     ),
                   )}
                   <Popover open={showForm} onOpenChange={setShowForm}>
-                    {config.profiles.length === 0 ? (
-                      <Empty className="border py-8">
+                    <Empty
+                      className={
+                        config.profiles.length === 0
+                          ? 'border py-8'
+                          : 'contents'
+                      }
+                    >
+                      {config.profiles.length === 0 && (
                         <EmptyHeader>
                           <EmptyMedia variant="icon">
                             <PlugZap aria-hidden="true" />
@@ -248,40 +254,29 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                             No AI providers added
                           </EmptyTitle>
                         </EmptyHeader>
-                        <EmptyContent>
-                          <PopoverTrigger
-                            render={
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={props.connecting}
-                              />
-                            }
-                          >
-                            <Plus />
-                            Add provider
-                          </PopoverTrigger>
-                        </EmptyContent>
-                      </Empty>
-                    ) : (
-                      <PopoverTrigger
-                        render={
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={props.connecting}
-                          />
+                      )}
+                      <EmptyContent
+                        className={
+                          config.profiles.length === 0 ? undefined : 'contents'
                         }
-                        onClick={() => {
-                          if (!showForm && editing) {
-                            resetDraft();
-                          }
-                        }}
                       >
-                        <Plus />
-                        Add provider
-                      </PopoverTrigger>
-                    )}
+                        <PopoverTrigger
+                          render={
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={props.connecting}
+                            />
+                          }
+                          onClick={() => {
+                            if (!showForm && editing) resetDraft();
+                          }}
+                        >
+                          <Plus />
+                          Add provider
+                        </PopoverTrigger>
+                      </EmptyContent>
+                    </Empty>
                     <PopoverContent
                       className="w-[min(32rem,calc(var(--app-viewport-width)-2rem))] space-y-5"
                       aria-label="Add provider connection"

@@ -40,6 +40,17 @@ for (const base of ['/', '/LocalCut/']) {
         path: info.outputPath(`providers-empty-${width}.png`),
       });
       await addOpenRouter(page);
+      await expect
+        .poll(() =>
+          dialog.evaluate((el) => el.contains(document.activeElement)),
+        )
+        .toBe(true);
+      await page.keyboard.press('Tab');
+      await expect
+        .poll(() =>
+          dialog.evaluate((el) => el.contains(document.activeElement)),
+        )
+        .toBe(true);
       await expect(
         dialog.getByText('Do you already have an API key?', { exact: true }),
       ).toBeVisible();
@@ -79,6 +90,93 @@ for (const base of ['/', '/LocalCut/']) {
       await dialog.getByRole('button', { name: 'Done', exact: true }).click();
       await page.reload();
     }
+    expect(requests).toBe(0);
+  });
+  test(`provider empty state clears a removed saved account reconnect draft ${base}`, async ({
+    page,
+    context,
+  }) => {
+    let requests = 0;
+    await context.route('https://endpoint.example.test/**', (route) => {
+      requests++;
+      return route.abort();
+    });
+    await page.goto(base);
+    await page.evaluate(() =>
+      localStorage.setItem(
+        'localcut.workspace-preferences.v1',
+        JSON.stringify({
+          version: 1,
+          preferences: {
+            aiProviders: JSON.stringify({
+              profiles: [
+                {
+                  id: 'removed-endpoint',
+                  name: 'Saved endpoint',
+                  kind: 'compatible',
+                  baseUrl: 'https://endpoint.example.test/v1',
+                },
+              ],
+              routes: {
+                llm: [{ providerId: 'removed-endpoint', model: 'probe-model' }],
+                tts: [],
+                stt: [{ providerId: 'local', model: 'whisper' }],
+              },
+            }),
+          },
+        }),
+      ),
+    );
+    await page.reload();
+    await openAISettings(page);
+    const dialog = page.getByRole('dialog', {
+      name: 'AI connection',
+      exact: true,
+    });
+    await dialog.getByRole('button', { name: 'Connect', exact: true }).click();
+    const form = page.getByRole('dialog', {
+      name: 'Add provider connection',
+      exact: true,
+    });
+    await expect(page.getByLabel('Name', { exact: true })).toHaveValue(
+      'Saved endpoint',
+    );
+    await page
+      .getByLabel('API key (optional for local servers)', { exact: true })
+      .fill('synthetic-stale-key');
+    await dialog.getByText('Saved endpoint', { exact: true }).first().click();
+    await expect(form).toBeHidden();
+    await dialog
+      .getByRole('button', { name: 'Disconnect Saved endpoint', exact: true })
+      .click();
+    await expect(
+      dialog.getByText('No AI providers added', { exact: true }),
+    ).toBeVisible();
+    await dialog
+      .getByRole('button', { name: 'Add provider', exact: true })
+      .click();
+    await expect(
+      page.getByRole('heading', { name: 'Add provider', exact: true }),
+    ).toBeVisible();
+    await expect(page.getByLabel('Name', { exact: true })).toHaveValue('');
+    await expect(page.getByLabel('API base URL', { exact: true })).toHaveValue(
+      '',
+    );
+    await expect(
+      page.getByLabel('API key (optional for local servers)', { exact: true }),
+    ).toHaveValue('');
+    await page.keyboard.press('Escape');
+    await addOpenRouter(page);
+    const config = await page.evaluate(() =>
+      JSON.parse(
+        JSON.parse(localStorage.getItem('localcut.workspace-preferences.v1')!)
+          .preferences.aiProviders,
+      ),
+    );
+    expect(config.profiles).toEqual([
+      { id: 'openrouter', name: 'OpenRouter', kind: 'openrouter' },
+    ]);
+    expect(JSON.stringify(config)).not.toContain('removed-endpoint');
     expect(requests).toBe(0);
   });
   test(`OpenRouter connector removes and re-adds with compact connected management ${base}`, async ({
