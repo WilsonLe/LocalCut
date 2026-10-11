@@ -7,6 +7,12 @@ export interface ProjectSummary {
   name: string;
   clipCount: number;
   durationUs: number;
+  archived?: boolean;
+  revision?: number;
+  catalogRevision?: number;
+  thumbnail?: Blob;
+  thumbnailPosition?: { x: number; y: number };
+  thumbnailSource?: { assetId: string; timeUs: number };
 }
 export const projectCatalogCacheKey = 'localcut.project-catalog.v1';
 const maxEntries = 1000;
@@ -52,7 +58,8 @@ export function readProjectCatalogCache(): ProjectSummary[] | null {
         !Number.isSafeInteger(item.clipCount) ||
         item.clipCount! < 0 ||
         !Number.isSafeInteger(item.durationUs) ||
-        item.durationUs! < 0
+        item.durationUs! < 0 ||
+        (item.archived !== undefined && typeof item.archived !== 'boolean')
       )
         return null;
       ids.add(item.id);
@@ -61,6 +68,7 @@ export function readProjectCatalogCache(): ProjectSummary[] | null {
         name: item.name,
         clipCount: item.clipCount!,
         durationUs: item.durationUs!,
+        ...(item.archived !== undefined ? { archived: item.archived } : {}),
       });
     }
     return projects;
@@ -71,7 +79,16 @@ export function readProjectCatalogCache(): ProjectSummary[] | null {
 
 export function writeProjectCatalogCache(projects: ProjectSummary[]) {
   try {
-    const text = JSON.stringify({ version: 1, projects });
+    const summaries = projects.map(
+      ({ id, name, clipCount, durationUs, archived }) => ({
+        id,
+        name,
+        clipCount,
+        durationUs,
+        ...(archived !== undefined ? { archived } : {}),
+      }),
+    );
+    const text = JSON.stringify({ version: 1, projects: summaries });
     if (projects.length <= maxEntries && text.length <= maxLength) {
       localStorage.setItem(projectCatalogCacheKey, text);
     } else {

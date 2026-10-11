@@ -143,3 +143,11 @@ Keep pitch uses bounded, stereo-coherent WSOLA in shared preview/export PCM comp
 ### Text animation
 
 `text.animation` optionally accepts `{ kind: 'typewriter' | 'handmade', stepMs: 40..2000, loop: boolean, frames?: 3..5, variations?: string[] }`. Variations contain three to five non-empty strings and override the handmade frame count and main text, including when the main text is empty. Typewriter reveals Unicode graphemes at each step; a looping reveal holds the completed text for eight steps. Handmade text uses deterministic discrete poses and optionally cycles the variations. Timing is relative to the clip start, identical on seeking, samples, preview and export. Static styles remain unchanged. History and backups retain animation without a storage migration; old parsers cannot read animation fields.
+
+### Project catalog management
+
+`projects.catalog()` returns entries with `project`, catalog `revision`, `archived`, optional local `thumbnail` Blob, and `thumbnailPosition: { x, y }` (0–100). Existing records default to active, revision zero and centered automatic previews. `projects.list()` still returns every document, including archived projects.
+
+`projects.updateCatalog(id, expectedRevision, patch)` atomically patches `archived`, `thumbnail` (PNG/JPEG/WebP Blob up to 2 MiB, or `null` to reset), and/or `thumbnailPosition`. A stale catalog revision fails with `REVISION_CONFLICT`; successful commits increment only the catalog revision and emit a project notification. Catalog changes do not alter editing history or immutable versions.
+
+The normal command `{ type: 'renameProject', name }` trims a nonempty name (maximum 1,000 characters), uses the editing revision/receipt contract, and supports undo, redo, autosave, and backups. Catalog forms keep their authored revision and require explicitly reloading details after conflict.

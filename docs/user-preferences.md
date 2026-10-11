@@ -99,6 +99,11 @@ This is the project record of the user's durable product and workflow choices. U
 - Keep the current project in the URL so reload, direct project links and browser Back/Forward restore the intended local project. Use a pinned router package where useful; routes must work on root and GitHub Pages hosting.
 - Keep route, project loading and catalog state in focused React hooks consumed by components. The engine remains the canonical project owner. Explicit project URLs may reopen local editing on startup; the bare app URL remains inert. This supersedes the earlier session-only active-project navigation choice.
 
+## Project cards — 11 October 2026
+
+- Present saved projects as a responsive card list with thumbnails and accessible contextual actions for rename, thumbnail adjustment, archive/restore and backup export.
+- Archive reversibly, retaining edits, versions and originals. Keep custom thumbnails local and support framing adjustments.
+
 ## Keyboard and mouse editing — 10 October 2026
 
 - Audit common keyboard and mouse combinations across supported video-editing workflows. Ctrl/Command+wheel and trackpad pinch zoom the editing surface under the cursor with its content anchored there; timeline and preview views stay independent.

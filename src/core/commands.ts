@@ -23,6 +23,7 @@ import { TRANSITION_TEMPLATES } from './timeline';
 import type { TransitionTemplate } from './timeline';
 import { transitionTemplateOperations } from './transition-templates';
 export type EditOperation =
+  | { type: 'renameProject'; name: string }
   | { type: 'addTrack'; track: TrackInput }
   | { type: 'removeTrack'; trackId: string }
   | { type: 'reorderTrack'; trackId: string; index: number }
@@ -108,6 +109,12 @@ const delta = z
   .min(-Number.MAX_SAFE_INTEGER)
   .max(Number.MAX_SAFE_INTEGER);
 const operationSchema = z.discriminatedUnion('type', [
+  z
+    .object({
+      type: z.literal('renameProject'),
+      name: z.string().trim().min(1).max(1000),
+    })
+    .strict(),
   z.object({ type: z.literal('addTrack'), track: trackSchema }).strict(),
   z.object({ type: z.literal('removeTrack'), trackId: z.string() }).strict(),
   z
@@ -389,6 +396,10 @@ export function applyOperations(
   for (let index = 0; index < pending.length; index++) {
     const op = pending[index]!;
     switch (op.type) {
+      case 'renameProject':
+        p.name = op.name;
+        affected.add(p.id);
+        break;
       case 'addTrack':
         p.tracks.push(trackSchema.parse(op.track));
         affected.add(op.track.id);
