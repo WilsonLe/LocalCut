@@ -113,6 +113,7 @@ const WorkspaceMenu = lazy(() => import('./WorkspaceMenu'));
 const WorkspaceTransferDialog = lazy(() => import('./WorkspaceTransferDialog'));
 const AppearancePanel = lazy(() => import('./AppearancePanel'));
 import ProjectBrowser from './ProjectBrowser';
+const ProjectSwitcherDialog = lazy(() => import('./ProjectSwitcherDialog'));
 import {
   WorkspaceSkeleton,
   PreviewSkeleton,
@@ -299,6 +300,8 @@ export function Workspace() {
   } = useWorkspaceProject(editorRef);
   const { route, routeKey, go } = useWorkspaceRoute();
   const projectsOpen = route.screen === 'projects';
+  const [projectSwitcherOpen, setProjectSwitcherOpen] = useState(false);
+  const projectSwitcherTrigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!header.current) {
       document.documentElement.style.setProperty(
@@ -523,7 +526,12 @@ export function Workspace() {
       });
     return instance.current;
   }, [refresh, error, clearProject, getProjectId]);
-  const catalog = useProjectCatalog(projectsOpen, editor, ensureEditor, error);
+  const catalog = useProjectCatalog(
+    projectsOpen || projectSwitcherOpen,
+    editor,
+    ensureEditor,
+    error,
+  );
   useEffect(
     () => () => {
       alive.current = false;
@@ -640,6 +648,7 @@ export function Workspace() {
     async (id: string | undefined, signal: AbortSignal) => {
       previewControls.current?.pause();
       setRecordingRoute(null);
+      setProjectSwitcherOpen(false);
       setDialog(null);
       setTransfer(null);
       setCommandsOpen(false);
@@ -857,11 +866,19 @@ export function Workspace() {
     setTimeUs(value);
     setSeekRevision((value) => value + 1);
   };
+  const showProjectSwitcher = () => {
+    if (lock.current) return;
+    previewControls.current?.pause();
+    setDialog(null);
+    setAppearanceOpen(false);
+    setProjectSwitcherOpen(true);
+  };
   const showProjects = () => {
     if (lock.current) return;
     previewControls.current?.pause();
     setDialog(null);
     setAppearanceOpen(false);
+    setProjectSwitcherOpen(false);
     go('projects', getProjectId() ?? undefined);
     if (projectsOpen) void catalog.refresh();
   };
@@ -1707,6 +1724,40 @@ export function Workspace() {
       </div>
     </aside>
   );
+  const projectBrowser = (
+    <ProjectBrowser
+      embedded={projectSwitcherOpen}
+      projects={catalog.projects}
+      editor={editor}
+      onRename={catalog.rename}
+      onDetails={catalog.updateDetails}
+      onExport={(id) => {
+        setProjectSwitcherOpen(false);
+        setTransfer({ mode: 'export', projectOnly: true, projectId: id });
+      }}
+      currentProjectId={project?.id}
+      busy={busy}
+      navigationBusy={operationBusy}
+      refreshing={catalog.pending}
+      loaded={catalog.loaded}
+      failed={catalog.failed}
+      onOpen={(id) => {
+        setProjectSwitcherOpen(false);
+        if (id !== getProjectId()) go('editor', id);
+        else if (projectsOpen) returnToEditor();
+      }}
+      onBack={returnToEditor}
+      onRefresh={() => void catalog.refresh()}
+      onNew={() => {
+        setProjectSwitcherOpen(false);
+        setDialog('new');
+      }}
+      onImport={() => {
+        setProjectSwitcherOpen(false);
+        backupInput.current?.click();
+      }}
+    />
+  );
   return (
     <div
       className="workspace"
@@ -1738,8 +1789,11 @@ export function Workspace() {
             <Button
               variant="ghost"
               className="project-picker"
+              ref={projectSwitcherTrigger}
               aria-label="Open project"
-              onClick={showProjects}
+              aria-haspopup="dialog"
+              aria-expanded={projectSwitcherOpen}
+              onClick={showProjectSwitcher}
             >
               <span className="project-picker-name">
                 {viewProject?.name ?? 'Untitled project'}
@@ -1750,6 +1804,16 @@ export function Workspace() {
           )}
           {headerActions}
         </header>
+      )}
+      {projectSwitcherOpen && (
+        <Suspense fallback={null}>
+          <ProjectSwitcherDialog
+            trigger={projectSwitcherTrigger}
+            onOpenChange={setProjectSwitcherOpen}
+          >
+            {projectBrowser}
+          </ProjectSwitcherDialog>
+        </Suspense>
       )}
       <div
         className="workspace-body"
@@ -1781,30 +1845,7 @@ export function Workspace() {
             </div>
           </section>
         )}
-        {projectsOpen && !navigation.error && (
-          <ProjectBrowser
-            projects={catalog.projects}
-            editor={editor}
-            onRename={catalog.rename}
-            onDetails={catalog.updateDetails}
-            onExport={(id) =>
-              setTransfer({ mode: 'export', projectOnly: true, projectId: id })
-            }
-            currentProjectId={project?.id}
-            busy={busy}
-            navigationBusy={operationBusy}
-            refreshing={catalog.pending}
-            loaded={catalog.loaded}
-            failed={catalog.failed}
-            onOpen={(id) =>
-              id === getProjectId() ? returnToEditor() : go('editor', id)
-            }
-            onBack={returnToEditor}
-            onRefresh={showProjects}
-            onNew={() => setDialog('new')}
-            onImport={() => backupInput.current?.click()}
-          />
-        )}
+        {projectsOpen && !navigation.error && projectBrowser}
         <Suspense
           fallback={
             <div className="workspace-columns">
@@ -1864,8 +1905,11 @@ export function Workspace() {
                   <Button
                     variant="ghost"
                     className="project-picker"
+                    ref={projectSwitcherTrigger}
                     aria-label="Open project"
-                    onClick={showProjects}
+                    aria-haspopup="dialog"
+                    aria-expanded={projectSwitcherOpen}
+                    onClick={showProjectSwitcher}
                   >
                     <span className="project-picker-name">
                       {viewProject?.name ?? 'Edit'}

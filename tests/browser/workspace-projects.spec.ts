@@ -350,7 +350,7 @@ for (const base of ['/', '/LocalCut/']) {
       }
     }, base);
     await expect(
-      browser.getByRole('button', { name: /External project/ }),
+      browser.getByRole('button', { name: /^External project/ }),
     ).toBeVisible();
     await page.evaluate(
       async ({ base, id }) => {
@@ -371,9 +371,12 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       browser.getByText('No saved projects yet', { exact: true }),
     ).toBeVisible();
-    await browser.getByRole('button', { name: 'Back to editor' }).click();
+    await page
+      .getByRole('dialog', { name: 'Projects', exact: true })
+      .getByRole('button', { name: 'Close', exact: true })
+      .click();
     await expect(
-      page.getByRole('main', { name: 'Video editor' }),
+      page.getByRole('button', { name: 'Open project', exact: true }),
     ).toBeFocused();
   });
 }

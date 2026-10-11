@@ -571,7 +571,7 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await page
       .getByRole('main', { name: 'Projects', exact: true })
-      .getByRole('button', { name: /Audio indexing/ })
+      .getByRole('button', { name: /^Audio indexing/ })
       .click();
     await page
       .getByRole('button', { name: 'Expand media', exact: true })

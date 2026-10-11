@@ -55,6 +55,9 @@ for (const base of ['/', '/LocalCut/']) {
       await route.continue();
     });
     await page.reload({ waitUntil: 'domcontentloaded' });
+    await page
+      .getByRole('button', { name: 'Open project', exact: true })
+      .click();
     await expect(
       browser.getByRole('button', { name: /^Removed film/ }),
     ).toBeEnabled();

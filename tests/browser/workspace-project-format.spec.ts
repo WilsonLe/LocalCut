@@ -165,6 +165,9 @@ for (const base of ['/', '/LocalCut/']) {
       await expect(dialog.getByLabel('Height (px)')).toHaveValue('720');
       await dialog.getByRole('button', { name: 'Close', exact: true }).click();
       await page
+        .getByRole('button', { name: 'Open project', exact: true })
+        .click();
+      await page
         .getByRole('main', { name: 'Projects', exact: true })
         .getByRole('button', { name: 'New project', exact: true })
         .click();

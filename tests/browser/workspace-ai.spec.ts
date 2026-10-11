@@ -579,7 +579,11 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Open project', exact: true })
       .click();
-    await page.getByRole('button', { name: new RegExp(name) }).click();
+    await page
+      .getByRole('main', { name: 'Projects', exact: true })
+      .getByRole('button')
+      .filter({ has: page.getByText(name, { exact: true }) })
+      .click();
     await expect(
       page.getByRole('button', { name: 'Open project', exact: true }),
     ).toContainText(name);
