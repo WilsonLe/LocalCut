@@ -1,5 +1,15 @@
 # Validation
 
+## Object keyframes and complete assistant access — authorized merge checks, 11 October 2026
+
+Runtime candidate `0d353d2b27db386eb8f4d8a8d9c33e9b66ba80bd`, against main `0b9ed0a3249799f2b1cb2495032e6dac4131fd97`, passed the complete local `pnpm check`: **319/319 production stable Chrome scenarios** at both hosting bases (138.3 seconds), **618 units**, **22 tooling tests**, formatting, lint, types, both verified production builds and bundle budgets. The first integration check was deliberately interrupted when provider-account PR #139 advanced main; it is superseded by this complete passing run. No required case or assertion was removed.
+
+Separate serial gates passed real pinned Whisper preparation/inference, measured generated PCM timing and fresh-worker blocked-network cached replay (11.9 seconds), plus isolated disk-backed native 1080p30 H.264/AAC exports with animated source/text, preview seeking and indexing. Two/five-minute exports took 14.07/34.15 seconds. Steady browser/worker RSS grew **77.70 MiB**, below the unchanged 128 MiB limit. Indexing scanned 1,200 frames in 10.50 seconds and generated 252,042 bytes of scene evidence. The browser was installed stable Chrome 155.0.8059.40 on macOS 26.7.1, with Node 24.19.0 and pinned pnpm 11.25.0.
+
+Coverage retains independent repeated source placements, unchanged original SHA-256, native preview and reopened MP4/WebM pixels, revision/history/reload, locked/mobile/cancel paths, invalid numeric drafts across property switches, and engine retiming when keyframes and speed ramps are edited together. Assistant regressions enumerate all 26 canonical operations, complete patch schemas, all 12 keyframe parameters, every shared font/template entry and discovery through explicit approval to persisted animation. Deterministic providers establish tool/engine access, not paid inference or live model quality; viewport checks do not establish physical-phone behavior.
+
+The single independent review covered `dc113505cd36e4b854cb98387835f429dd214e18` against `0c3e8661b0c1efa073f8b4bf6bcd6ff5a9c6189d`. Its numeric-draft P2 was fixed at `07f7fef5f81ab4b2242acb8119c333fd7eefb847`. Subsequent assistant additions and main integrations are author-validated without another independent review. This record is a documentation-only follow-up to the tested runtime. The user authorized merging [PR #136](https://github.com/WilsonLe/LocalCut/pull/136), which closes [issue #132](https://github.com/WilsonLe/LocalCut/issues/132); exact final head, merge/deployment identities and live readback are recorded on the PR after execution. No paid request or remote CI was initiated.
+
 ## Mobile media fixes — 11 October 2026
 
 Runtime candidate `04c232a52dd57871c744f2aaebe6de6e5e6daccd`, based on `0c3e8661b0c1efa073f8b4bf6bcd6ff5a9c6189d`, passed `pnpm check`: 559 unit tests, 22 tooling regressions, all 288 production stable-Chrome scenarios at `/` and `/LocalCut/`, formatting, lint, types, both verified builds and bundle budgets, without skips or retries. Initial JavaScript is 140,415–140,420 bytes gzip and CSS is 16,905 bytes, within unchanged budgets.
