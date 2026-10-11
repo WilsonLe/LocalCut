@@ -195,6 +195,9 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       browser.getByText('No archived projects', { exact: true }),
     ).toBeVisible();
+    await expect(
+      browser.getByRole('button', { name: 'Archived', exact: true }),
+    ).toBeFocused();
     await browser.getByRole('button', { name: 'Active', exact: true }).click();
     await expect(actions).toBeVisible();
     await actions.click();
@@ -300,6 +303,37 @@ for (const base of ['/', '/LocalCut/']) {
     await page.screenshot({
       path: testInfo.outputPath('project-cards-narrow.png'),
     });
+    await actions.focus();
+    await page.keyboard.press('Enter');
+    await page
+      .getByRole('menuitem', { name: 'Archive project', exact: true })
+      .focus();
+    await page.keyboard.press('Enter');
+    await expect(browser.getByRole('listitem')).toHaveCount(2);
+    await expect(
+      browser.getByRole('button', { name: 'Active', exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(
+      browser.getByRole('button', { name: 'Archived', exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(browser.getByRole('listitem')).toHaveCount(1);
+    await actions.focus();
+    await page.keyboard.press('Enter');
+    await page
+      .getByRole('menuitem', { name: 'Restore project', exact: true })
+      .focus();
+    await page.keyboard.press('Enter');
+    await expect(
+      browser.getByRole('button', { name: 'Archived', exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(
+      browser.getByRole('button', { name: 'Active', exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(browser.getByRole('listitem')).toHaveCount(3);
     await browser
       .locator('.project-browser-row')
       .filter({ hasText: 'Road trip' })

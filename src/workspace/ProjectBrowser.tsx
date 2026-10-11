@@ -77,6 +77,7 @@ export default function ProjectBrowser({
   const [actionError, setActionError] = useState('');
   const visible = projects.filter((project) => !!project.archived === archived);
   const heading = useRef<HTMLHeadingElement>(null);
+  const viewControls = useRef<HTMLDivElement>(null);
   useEffect(() => {
     heading.current?.focus();
   }, []);
@@ -144,6 +145,7 @@ export default function ProjectBrowser({
         </div>
         <div
           className="project-browser-views"
+          ref={viewControls}
           role="group"
           aria-label="Project view"
         >
@@ -229,6 +231,13 @@ export default function ProjectBrowser({
                             void onDetails(project, {
                               archived: !project.archived,
                             })
+                              .then(() => {
+                                viewControls.current
+                                  ?.querySelector<HTMLButtonElement>(
+                                    '[aria-pressed="true"]',
+                                  )
+                                  ?.focus();
+                              })
                               .catch((error: unknown) =>
                                 setActionError(
                                   error instanceof Error
