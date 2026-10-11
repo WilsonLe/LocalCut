@@ -1,3 +1,8 @@
+import {
+  accountStorage,
+  accountCredentialKey,
+} from '../../src/workspace/provider-account-storage';
+import type { ProviderProfile } from '../../src/workspace/provider-preferences';
 import { describe, expect, it, vi } from 'vitest';
 import {
   ChatGPTAuthorization,
@@ -19,9 +24,17 @@ const memory = (): AuthorizationStorage => {
   };
 };
 const b64 = (value: Uint8Array) => Buffer.from(value).toString('base64url');
-async function setup() {
-  const persistent = memory(),
-    temporary = memory();
+async function setup(
+  profile?: Pick<ProviderProfile, 'id' | 'kind'>,
+  persistentRoot = memory(),
+  temporaryRoot = memory(),
+) {
+  const persistent = profile
+      ? accountStorage(profile, () => persistentRoot)
+      : persistentRoot,
+    temporary = profile
+      ? accountStorage(profile, () => temporaryRoot)
+      : temporaryRoot;
   let time = 1000000;
   const keys = await crypto.subtle.generateKey(
     {
@@ -104,6 +117,33 @@ async function setup() {
   };
 }
 describe('ChatGPT OAuth', () => {
+  it('isolates multiple accounts pending state, signed tokens, restore and disconnect authority', async () => {
+    const persistent = memory(),
+      temporary = memory();
+    const primary = { id: 'chatgpt', kind: 'chatgpt' as const };
+    const secondary = { id: 'chatgpt-work', kind: 'chatgpt' as const };
+    const a = await setup(primary, persistent, temporary);
+    const b = await setup(secondary, persistent, temporary);
+    expect(a.params.get('state')).not.toBe(b.params.get('state'));
+    await a.auth.complete(a.callback.href);
+    await b.auth.complete(b.callback.href);
+    expect(persistent.getItem(accountCredentialKey(primary))).not.toBeNull();
+    const secondTokens = persistent.getItem(accountCredentialKey(secondary));
+    expect(secondTokens).not.toBeNull();
+    a.auth.invalidate(true);
+    expect(persistent.getItem(accountCredentialKey(primary))).toBeNull();
+    expect(persistent.getItem(accountCredentialKey(secondary))).toBe(
+      secondTokens,
+    );
+    expect(b.auth.connected()).toBe(true);
+    expect(b.auth.restore()).toBe(true);
+    expect(await b.auth.accessToken(new AbortController().signal)).toBe(
+      'synthetic-access-token',
+    );
+    b.auth.invalidate(true);
+    expect(persistent.getItem(accountCredentialKey(secondary))).toBeNull();
+  });
+
   it('is inert and generates independent PKCE, state and nonce with the public dynamic registration flow', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>();
     const c = createChatGPT({ fetch });

@@ -71,7 +71,7 @@ async function chooseModel(page: Page) {
     exact: true,
   });
   await expect(
-    dialog.getByText('Key connected', { exact: true }),
+    dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
   ).toBeVisible();
   const choice = dialog.getByRole('combobox', {
     name: 'AI model',
@@ -413,7 +413,7 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
     await expect(
       page
         .getByRole('dialog', { name: 'AI connection', exact: true })
-        .getByText('Key connected', { exact: true }),
+        .getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toBeVisible();
     expect(new URL(page.url()).search).toBe('?campaign=ui-test');
     expect(exchanges).toBe(1);
@@ -473,7 +473,7 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
       ).toBeEnabled();
     await openConnectedSettings(page);
     await expect(
-      page.getByText('Key connected', { exact: true }),
+      page.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toBeVisible();
     await expect(
       page.getByLabel('OpenRouter API key', { exact: true }),
@@ -495,9 +495,9 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
     ).toBeNull();
     await page.reload();
     await openAISettings(page);
-    await expect(page.getByText('Key connected', { exact: true })).toHaveCount(
-      0,
-    );
+    await expect(
+      page.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
+    ).toHaveCount(0);
     expect(exchanges).toBe(1);
     expect(staleEntryRequests).toBe(0);
   });
@@ -534,7 +534,7 @@ for (const base of ['/', '/LocalCut/']) {
       exact: true,
     });
     await expect(
-      dialog.getByRole('button', { name: 'Reconnect OpenRouter', exact: true }),
+      dialog.getByRole('button', { name: 'Remove OpenRouter', exact: true }),
     ).toBeVisible();
     await page.screenshot({
       path: `.artifacts/persist-openrouter/connection-${base === '/' ? 'root' : 'pages'}.png`,
@@ -553,7 +553,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page.reload();
     await openConnectedSettings(page);
     await expect(
-      dialog.getByText('Key connected', { exact: true }),
+      dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toBeVisible();
     await dialog
       .getByRole('button', { name: 'Data & analytics', exact: true })
@@ -587,7 +587,7 @@ for (const base of ['/', '/LocalCut/']) {
     await other.goto(base);
     await openConnectedSettings(other);
     await expect(
-      other.getByText('Key connected', { exact: true }),
+      other.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toBeVisible();
     await other
       .getByRole('button', { name: 'Remove OpenRouter', exact: true })
@@ -598,9 +598,9 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
     await page.reload();
     await openAISettings(page);
-    await expect(page.getByText('Key connected', { exact: true })).toHaveCount(
-      0,
-    );
+    await expect(
+      page.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
+    ).toHaveCount(0);
     expect(paid).toBe(0);
     await other.close();
   });
@@ -664,7 +664,7 @@ for (const base of ['/', '/LocalCut/']) {
       exact: true,
     });
     await expect(
-      dialog.getByText('Key connected', { exact: true }),
+      dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toBeVisible();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await createProject(page, 'Multi-provider credential isolation');
@@ -678,14 +678,8 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Connect endpoint', exact: true })
       .click();
     await expect(
-      dialog.getByRole('combobox', { name: 'AI model', exact: true }),
+      dialog.getByLabel('Local backup llm route model', { exact: true }),
     ).toBeEnabled();
-    await dialog
-      .getByRole('combobox', { name: 'AI model', exact: true })
-      .click();
-    await page
-      .getByRole('option', { name: 'backup · backup', exact: true })
-      .click();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await expect(
       page.getByLabel('Describe your edit', { exact: true }),
@@ -698,10 +692,10 @@ for (const base of ['/', '/LocalCut/']) {
     );
     await openConnectedSettings(page);
     await expect(
-      dialog.getByText('Key connected', { exact: true }),
+      dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toHaveCount(0);
     await expect(
-      dialog.getByRole('combobox', { name: 'AI model', exact: true }),
+      dialog.getByLabel('Local backup llm route model', { exact: true }),
     ).toBeEnabled();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await expect(
@@ -744,9 +738,9 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(dialog.getByRole('alert')).toContainText(
       'Allow local browser storage',
     );
-    await expect(page.getByText('Key connected', { exact: true })).toHaveCount(
-      0,
-    );
+    await expect(
+      page.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
+    ).toHaveCount(0);
     expect(await page.locator('body').innerText()).not.toContain(
       'PRIVATE-storage-error',
     );
@@ -782,9 +776,9 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(dialog.getByRole('alert')).toContainText(
       'Allow local browser storage',
     );
-    await expect(page.getByText('Key connected', { exact: true })).toHaveCount(
-      0,
-    );
+    await expect(
+      page.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
+    ).toHaveCount(0);
     expect(await page.locator('body').innerText()).not.toContain(
       'PRIVATE-removal-error',
     );
@@ -810,9 +804,9 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeNull();
     await page.reload();
     await openAISettings(page);
-    await expect(page.getByText('Key connected', { exact: true })).toHaveCount(
-      0,
-    );
+    await expect(
+      page.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
+    ).toHaveCount(0);
   });
   test(`malformed saved credential does not restore or start provider requests ${base}`, async ({
     page,
@@ -836,9 +830,9 @@ for (const base of ['/', '/LocalCut/']) {
         .getByRole('dialog', { name: 'AI connection', exact: true })
         .getByRole('alert'),
     ).toContainText('Check credentials and reconnect');
-    await expect(page.getByText('Key connected', { exact: true })).toHaveCount(
-      0,
-    );
+    await expect(
+      page.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
+    ).toHaveCount(0);
     expect(requests).toBe(0);
   });
 }

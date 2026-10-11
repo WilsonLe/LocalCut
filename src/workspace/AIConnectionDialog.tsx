@@ -1,10 +1,11 @@
-import type { Dispatch, FormEvent, SetStateAction } from 'react';
+import { useState } from 'react';
+import type { Dispatch, FormEvent, SetStateAction, ReactNode } from 'react';
+import type { ProviderProfile } from './provider-preferences';
 import {
   ChartNoAxesColumn,
   KeyRound,
   LoaderCircle,
   Trash2,
-  RefreshCw,
 } from 'lucide-react';
 import type { ContextPolicy, OpenRouterModel } from '../ai';
 import { Button } from '../components/ui/button';
@@ -26,26 +27,25 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from '../components/ui/popover';
-import { ModelPicker } from './ModelPicker';
 import { useIndexConsent, saveIndexConsent } from './index-consent';
 import { toast } from 'sonner';
 import { ProviderSettings } from './ProviderSettings';
 import type { ProviderSettingsProps } from './ProviderSettings';
 interface Props extends Omit<
   ProviderSettingsProps,
-  'connecting' | 'openRouterControls' | 'modelControls'
+  | 'connecting'
+  | 'openRouterControls'
+  | 'models'
+  | 'model'
+  | 'setModel'
+  | 'refreshCatalog'
 > {
-  providerName?: string;
   returnFocus?: () => HTMLElement | null;
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
-  connection: boolean;
   connecting: boolean;
-  apiKey: string;
-  setApiKey: (key: string) => void;
-  authorize: () => Promise<void>;
-  connect: (kind: 'key', credential: string) => Promise<void>;
-  disconnect: () => void;
+  authorize: (id: string) => Promise<void>;
+  connect: (kind: 'key', credential: string, id: string) => Promise<void>;
   model: string;
   setModel: (value: string) => void;
   models: OpenRouterModel[];
@@ -58,13 +58,9 @@ export default function AIConnectionDialog({
   returnFocus,
   settingsOpen,
   setSettingsOpen,
-  connection,
   connecting,
-  apiKey,
-  setApiKey,
   authorize,
   connect,
-  disconnect,
   model,
   setModel,
   models,
@@ -72,7 +68,6 @@ export default function AIConnectionDialog({
   privacy,
   setPrivacy,
   connectionError,
-  providerName,
   ...providerProps
 }: Props) {
   const indexingAllowed = useIndexConsent();
@@ -81,7 +76,6 @@ export default function AIConnectionDialog({
       open={settingsOpen}
       onOpenChange={(open) => {
         setSettingsOpen(open);
-        if (!open) setApiKey('');
       }}
     >
       <DialogContent
@@ -117,92 +111,26 @@ export default function AIConnectionDialog({
           <ProviderSettings
             {...providerProps}
             connecting={connecting}
-            modelControls={
-              (connection || providerProps.connectedProviders.length > 0) && (
-                <div className="space-y-2">
-                  <Label title={providerName}>AI model</Label>
-                  <ModelPicker
-                    models={models}
-                    model={model}
-                    onChange={setModel}
-                    loading={connecting}
-                    refresh={refreshCatalog}
-                  />
-                </div>
-              )
-            }
-            openRouterControls={
-              <div className="space-y-4 rounded-lg border p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium">OpenRouter</p>
-                    <p role="status" className="text-xs text-muted-foreground">
-                      {connection ? 'Key connected' : 'Disconnected'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      disabled={connecting}
-                      variant={connection ? 'outline' : 'default'}
-                      onClick={() => void authorize()}
-                    >
-                      {connection && <RefreshCw aria-hidden="true" />}
-                      {connection
-                        ? 'Reconnect OpenRouter'
-                        : 'Connect with OpenRouter'}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      disabled={connecting}
-                      aria-label="Remove OpenRouter"
-                      title="Remove OpenRouter"
-                      onClick={disconnect}
-                    >
-                      <Trash2 aria-hidden="true" />
-                    </Button>
-                  </div>
-                </div>
-                <CollapsibleDisclosure
-                  key={connection ? 'connected' : 'disconnected'}
-                  summary={
-                    connection ? 'Replace API key' : 'Use an API key instead'
-                  }
-                  defaultOpen={!connection}
-                >
-                  <form
-                    onSubmit={(event: FormEvent) => {
-                      event.preventDefault();
-                      const key = apiKey;
-                      setApiKey('');
-                      void connect('key', key);
-                    }}
-                    className="space-y-3 pt-3"
-                  >
-                    <Label htmlFor="openrouter-key">OpenRouter API key</Label>
-                    <Input
-                      id="openrouter-key"
-                      type="password"
-                      autoComplete="off"
-                      spellCheck={false}
-                      value={apiKey}
-                      onChange={(event) => setApiKey(event.target.value)}
-                      disabled={connecting}
-                    />
-                    <Button
-                      type="submit"
-                      variant="outline"
-                      disabled={connecting || !apiKey.trim()}
-                    >
-                      <KeyRound aria-hidden="true" />
-                      Use API key
-                    </Button>
-                  </form>
-                </CollapsibleDisclosure>
-              </div>
-            }
+            models={models}
+            model={model}
+            setModel={setModel}
+            refreshCatalog={refreshCatalog}
+            openRouterControls={(profile, management) => (
+              <OpenRouterConnection
+                key={profile.id}
+                profile={profile}
+                management={management}
+                connected={providerProps.connectedProviders.includes(
+                  profile.id,
+                )}
+                connecting={connecting}
+                authorize={authorize}
+                connect={connect}
+                remove={providerProps.removeProvider}
+              />
+            )}
           />
-          <div className="space-y-2 rounded-lg border p-3">
+          <div className="space-y-2 border-t pt-6">
             <div className="flex items-center gap-2">
               <Checkbox
                 id="asset-index-consent"
@@ -284,7 +212,6 @@ export default function AIConnectionDialog({
           <Button
             variant="outline"
             onClick={() => {
-              setApiKey('');
               setSettingsOpen(false);
             }}
           >
@@ -293,5 +220,91 @@ export default function AIConnectionDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function OpenRouterConnection({
+  profile,
+  management,
+  connected,
+  connecting,
+  authorize,
+  connect,
+  remove,
+}: {
+  profile: ProviderProfile;
+  management: ReactNode;
+  connected: boolean;
+  connecting: boolean;
+  authorize: Props['authorize'];
+  connect: Props['connect'];
+  remove: (id: string) => void;
+}) {
+  const [apiKey, setApiKey] = useState('');
+  return (
+    <div className="space-y-4 rounded-lg border p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="min-w-0 truncate text-sm font-medium">{profile.name}</p>
+        <div className="flex items-center gap-2">
+          {!connected && (
+            <Button
+              disabled={connecting}
+              onClick={() => {
+                setApiKey('');
+                void authorize(profile.id);
+              }}
+            >
+              Connect with OpenRouter
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            disabled={connecting}
+            aria-label={`Remove ${profile.name}`}
+            title={`Remove ${profile.name}`}
+            onClick={() => {
+              setApiKey('');
+              remove(profile.id);
+            }}
+          >
+            <Trash2 aria-hidden="true" />
+          </Button>
+        </div>
+      </div>
+      {management}
+      {!connected && (
+        <CollapsibleDisclosure summary="Use an API key instead" defaultOpen>
+          <form
+            className="space-y-3 pt-3"
+            onSubmit={(event: FormEvent) => {
+              event.preventDefault();
+              const key = apiKey;
+              setApiKey('');
+              void connect('key', key, profile.id);
+            }}
+          >
+            <Label htmlFor={`key-${profile.id}`}>{profile.name} API key</Label>
+            <Input
+              id={`key-${profile.id}`}
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              value={apiKey}
+              disabled={connecting}
+              onChange={(event) => setApiKey(event.target.value)}
+            />
+            <Button
+              type="submit"
+              variant="outline"
+              disabled={connecting || !apiKey.trim()}
+            >
+              <KeyRound aria-hidden="true" />
+              Use API key
+            </Button>
+          </form>
+        </CollapsibleDisclosure>
+      )}
+    </div>
   );
 }

@@ -27,9 +27,6 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByLabel('API base URL', { exact: true })
       .fill('http://localhost:1234/v1');
-    await dialog
-      .getByLabel('LLM model (must support tools)', { exact: true })
-      .fill('test-model');
     await dialog.getByText('Speech to text', { exact: true }).click();
     await dialog
       .getByLabel('Transcription model', { exact: true })
@@ -38,14 +35,11 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Connect endpoint', exact: true })
       .click();
     await expect(
-      dialog.getByRole('combobox', { name: 'AI model', exact: true }),
-    ).toBeVisible();
-    await dialog
-      .getByRole('combobox', { name: 'AI model', exact: true })
-      .click();
-    await page
-      .getByRole('option', { name: 'test-model · test-model', exact: true })
-      .click();
+      dialog.getByLabel('Local server llm route model'),
+    ).toBeEnabled();
+    await dialog.getByLabel('Local server llm route model').fill('test-model');
+    await dialog.getByLabel('Local server llm route model').press('Tab');
+    await expect(dialog.getByRole('alert')).toHaveCount(0);
     await expect(dialog).toContainText('Local server → OpenRouter');
     await expect(dialog).toContainText('STT · Transcription');
     await expect(dialog).toContainText('Local Whisper');
@@ -205,15 +199,10 @@ for (const base of ['/', '/LocalCut/']) {
       await dialog
         .getByRole('button', { name: 'Connect endpoint', exact: true })
         .click();
-      await expect(
-        dialog.getByRole('combobox', { name: 'AI model', exact: true }),
-      ).toBeVisible();
-      await dialog
-        .getByRole('combobox', { name: 'AI model', exact: true })
-        .click();
-      await page
-        .getByRole('option', { name: 'backup · backup', exact: true })
-        .click();
+      await expect(dialog.getByLabel('Backup llm route model')).toHaveValue(
+        'backup',
+      );
+      await expect(dialog.getByLabel('Backup llm route model')).toBeEnabled();
       await dialog.getByRole('button', { name: 'Done', exact: true }).click();
       await page
         .getByRole('button', { name: 'Workspace settings', exact: true })
@@ -498,6 +487,16 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('option', { name: 'ChatGPT plan', exact: true })
       .click();
+    const help = dialog.getByRole('button', {
+      name: 'ChatGPT connection help',
+      exact: true,
+    });
+    await expect(dialog).not.toContainText('After signing in, copy the full');
+    await help.click();
+    await expect(page.getByRole('tooltip')).toContainText(
+      'After signing in, copy the full 127.0.0.1 callback URL',
+    );
+    await page.keyboard.press('Escape');
     const popupPromise = context.waitForEvent('page');
     await dialog
       .getByRole('button', { name: 'Continue with ChatGPT', exact: true })
@@ -555,17 +554,31 @@ for (const base of ['/', '/LocalCut/']) {
       path: testInfo.outputPath('chatgpt-connection.png'),
     });
     await popup.close();
-    await page.reload();
-    await openAISettings(page);
-    await dialog.getByText('Providers & services', { exact: true }).click();
-    await dialog.getByRole('button', { name: 'Connect', exact: true }).click();
     await dialog
-      .getByRole('button', { name: 'Restore saved ChatGPT', exact: true })
+      .getByRole('button', { name: 'Add provider', exact: true })
+      .click();
+    await dialog
+      .getByLabel('Account name', { exact: true })
+      .fill('ChatGPT work');
+    const secondPopupPromise = context.waitForEvent('page');
+    await dialog
+      .getByRole('button', { name: 'Continue with ChatGPT', exact: true })
+      .click();
+    const secondPopup = await secondPopupPromise;
+    await expect(
+      secondPopup.getByText('Synthetic sign-in complete'),
+    ).toBeVisible();
+    callback.searchParams.set('state', authParams.get('state')!);
+    await dialog
+      .getByLabel('Callback URL', { exact: true })
+      .fill(callback.href);
+    await dialog
+      .getByRole('button', { name: 'Complete sign-in', exact: true })
       .click();
     await expect(
-      dialog.getByRole('combobox', { name: 'AI model', exact: true }),
+      dialog.getByRole('button', { name: 'Verify ChatGPT work', exact: true }),
     ).toBeVisible();
-    expect(exchanges).toBe(1);
+    await secondPopup.close();
     await dialog
       .getByRole('button', { name: 'Remove ChatGPT', exact: true })
       .click();
@@ -574,6 +587,37 @@ for (const base of ['/', '/LocalCut/']) {
         localStorage.getItem('localcut.chatgpt-credentials.v1'),
       ),
     ).toBeNull();
+    expect(
+      await page.evaluate(
+        () =>
+          Object.keys(localStorage).filter((key) =>
+            key.startsWith('localcut.chatgpt-credentials.v1:'),
+          ).length,
+      ),
+    ).toBe(1);
+    await page.reload();
+    await openAISettings(page);
+    await dialog.getByText('Providers & services', { exact: true }).click();
+    await dialog.getByRole('button', { name: 'Connect', exact: true }).click();
+    await dialog
+      .getByRole('button', { name: 'Connect', exact: true })
+      .last()
+      .click();
+    await expect(
+      dialog.getByRole('combobox', { name: 'AI model', exact: true }),
+    ).toBeVisible();
+    expect(exchanges).toBe(2);
+    await dialog
+      .getByRole('button', { name: 'Remove ChatGPT work', exact: true })
+      .click();
+    expect(
+      await page.evaluate(
+        () =>
+          Object.keys(localStorage).filter((key) =>
+            key.startsWith('localcut.chatgpt-credentials.v1'),
+          ).length,
+      ),
+    ).toBe(0);
   });
 }
 

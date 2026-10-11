@@ -1,3 +1,7 @@
+import {
+  accountStorage,
+  accountCredentialKey,
+} from '../../src/workspace/provider-account-storage';
 import { createOpenRouter } from '../../src/ai/openrouter';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -62,6 +66,120 @@ function routed(a: OpenRouter, b: OpenRouter) {
   );
 }
 describe('service providers', () => {
+  it('verifies independently stored OpenRouter keys without inference and disconnects only one account', async () => {
+    const records = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => records.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        records.set(key, value);
+      },
+      removeItem: (key: string) => {
+        records.delete(key);
+      },
+    };
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({ data: { is_free_tier: true } }),
+    );
+    const profileA = { id: 'openrouter', kind: 'openrouter' as const };
+    const profileB = { id: 'openrouter-work', kind: 'openrouter' as const };
+    const a = createOpenRouter({
+      fetch,
+      credentialStorage: () => accountStorage(profileA, () => storage),
+    });
+    const b = createOpenRouter({
+      fetch,
+      credentialStorage: () => accountStorage(profileB, () => storage),
+    });
+    a.setKey('synthetic-account-a');
+    b.setKey('synthetic-account-b');
+    await expect(a.verifyConnection!()).resolves.toBe('credentials');
+    await expect(b.verifyConnection!()).resolves.toBe('credentials');
+    expect(fetch.mock.calls.map((call) => call[0])).toEqual([
+      'https://openrouter.ai/api/v1/key',
+      'https://openrouter.ai/api/v1/key',
+    ]);
+    expect(fetch.mock.calls.map((call) => call[1]?.headers)).toEqual([
+      { Authorization: 'Bearer synthetic-account-a' },
+      { Authorization: 'Bearer synthetic-account-b' },
+    ]);
+    a.disconnect();
+    expect(records.has(accountCredentialKey(profileA))).toBe(false);
+    expect(records.has(accountCredentialKey(profileB))).toBe(true);
+    expect(b.status().connected).toBe(true);
+    const restored = createOpenRouter({
+      credentialStorage: () => accountStorage(profileB, () => storage),
+    });
+    expect(restored.restoreCredential().connected).toBe(true);
+    a.dispose();
+    b.dispose();
+    restored.dispose();
+  });
+  it('does not expose provider bodies or claim successful verification for rejected credentials', async () => {
+    const p = createOpenRouter({
+      fetch: async () =>
+        new Response('secret echoed by provider', { status: 401 }),
+    });
+    p.setKey('synthetic-account');
+    await expect(p.verifyConnection!()).rejects.toMatchObject({
+      code: 'AUTH_INVALID',
+    });
+    await expect(p.verifyConnection!()).rejects.not.toThrow(
+      'secret echoed by provider',
+    );
+    p.dispose();
+  });
+
+  it('uses service route models without a duplicate compatible connection model and refreshes model identity', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(
+      async () =>
+        new Response(
+          'data: {"choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+          { headers: { 'Content-Type': 'text/event-stream' } },
+        ),
+    );
+    const p = createOpenAICompatible(
+      { baseUrl: 'http://localhost:1234/v1' },
+      { fetch },
+    );
+    p.setKey('');
+    const c = defaultProviderConfiguration();
+    c.profiles.push({
+      id: 'custom',
+      kind: 'compatible',
+      name: 'Custom',
+      baseUrl: 'http://localhost:1234/v1',
+    });
+    c.routes.llm = [{ providerId: 'custom', model: '' }];
+    expect(parseProviderConfiguration(JSON.stringify(c))).toEqual(c);
+    expect(await p.listModels()).toEqual([]);
+    c.routes.llm[0]!.model = 'first-model';
+    const router = createServiceRouter(
+      [{ id: 'custom', name: 'Custom', client: p }],
+      c.routes,
+    );
+    expect((await router.listModels())[0]?.id).toBe('first-model');
+    expect(fetch).not.toHaveBeenCalled();
+    await collect(router.stream({ ...chat, model: 'first-model' }, signal()));
+    router.dispose();
+    const next = createServiceRouter(
+      [{ id: 'custom', name: 'Custom', client: p }],
+      {
+        ...c.routes,
+        llm: [{ providerId: 'custom', model: 'second-model' }],
+      },
+    );
+    expect((await next.listModels())[0]?.id).toBe('second-model');
+    await collect(next.stream({ ...chat, model: 'second-model' }, signal()));
+    expect(
+      fetch.mock.calls.map((call) => JSON.parse(String(call[1]?.body)).model),
+    ).toEqual(['first-model', 'second-model']);
+    await expect(
+      p.listModels(signal(), 'https://invalid.test'),
+    ).rejects.toHaveProperty('code', 'INVALID_REQUEST');
+    next.dispose();
+    p.dispose();
+  });
+
   it('sends bounded compatible requests to only the explicit endpoint without OpenRouter extensions or key headers for local servers', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>(
       async () =>

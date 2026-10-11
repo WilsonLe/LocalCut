@@ -164,7 +164,7 @@ export function createServiceRouter(
       try {
         const catalog =
           service === 'llm'
-            ? await client.listModels(signal)
+            ? await client.listModels(signal, route.model || undefined)
             : await client.listSpeechModels(signal);
         if (signal.aborted)
           throw new AiError('CANCELLED', 'Catalog request cancelled.');
