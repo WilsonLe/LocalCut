@@ -329,6 +329,38 @@ test('long assistant replies scroll inside the conversation and keep the compose
     }));
   expect(draftSizing.scroll).toBeGreaterThan(draftSizing.client);
   expect(draftSizing.overflow).toBe('auto');
+  await page.setViewportSize({ width: 600, height: 300 });
+  await page
+    .getByRole('navigation', { name: 'Workspace sections' })
+    .getByRole('button', { name: 'Chat', exact: true })
+    .click();
+  // Keep the connected draft and test the actual touch target, without a
+  // click/focus/scroll operation that could rescue clipped composer actions.
+  await expect
+    .poll(() =>
+      send.evaluate((button) => {
+        const rect = button.getBoundingClientRect();
+        return button.contains(
+          document.elementFromPoint(
+            rect.x + rect.width / 2,
+            rect.y + rect.height / 2,
+          ),
+        );
+      }),
+    )
+    .toBe(true);
+  const landscapeSend = (await send.boundingBox())!;
+  const landscapeNav = (await page
+    .getByRole('navigation', { name: 'Workspace sections' })
+    .boundingBox())!;
+  expect(landscapeSend.y + landscapeSend.height).toBeLessThanOrEqual(
+    landscapeNav.y,
+  );
+  await expect(page.locator('#editor-panel')).toBeHidden();
+  await expect(page.locator('#media-panel')).toBeHidden();
+  await page.screenshot({
+    path: testInfo.outputPath('mobile-landscape-connected-chat.png'),
+  });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page
