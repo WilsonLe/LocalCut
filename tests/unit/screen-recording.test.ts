@@ -105,7 +105,7 @@ it('rejects missing shared audio before recording, releases capture and permits 
   recording.stop();
   expect((await recording.completion).file.type).toContain('opus');
 });
-it('rejects an ended audio track and fails if required audio ends while recording', async () => {
+it('rejects an initially ended audio track and preserves a take when audio ends first', async () => {
   const ended = setup(true);
   ended.sound.stop();
   await expect(startScreenRecording(true, ended.abort.signal)).rejects.toThrow(
@@ -114,10 +114,25 @@ it('rejects an ended audio track and fails if required audio ends while recordin
   expect(ended.video.readyState).toBe('ended');
   const live = setup(true);
   const recording = await startScreenRecording(true, live.abort.signal);
+  Recorder.instances[0]!.ondataavailable?.({ data: new Blob(['usable take']) });
   live.sound.stop();
   live.sound.dispatchEvent(new Event('ended'));
-  await expect(recording.completion).rejects.toThrow('Shared audio ended');
+  live.video.dispatchEvent(new Event('ended'));
+  const result = await recording.completion;
+  expect(await result.file.text()).toBe('usable takefinal bytes');
+  expect(result.audioEnded).toBe(true);
   expect(live.video.readyState).toBe('ended');
+});
+it('preserves an audiovisual take when video ends before audio', async () => {
+  const { abort, video, sound } = setup(true);
+  const recording = await startScreenRecording(true, abort.signal);
+  video.stop();
+  video.dispatchEvent(new Event('ended'));
+  sound.dispatchEvent(new Event('ended'));
+  const result = await recording.completion;
+  expect(await result.file.text()).toBe('final bytes');
+  expect(result.audioEnded).toBe(false);
+  expect(sound.readyState).toBe('ended');
 });
 it('explicit video-only capture excludes system and window audio', async () => {
   const { getDisplayMedia, abort } = setup();

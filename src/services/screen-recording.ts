@@ -5,7 +5,7 @@ export const RECORDING_MAX_MS = 30 * 60 * 1000;
 export interface ScreenRecording {
   stream: MediaStream;
   startedAt: number;
-  completion: Promise<{ file: File; limited: boolean }>;
+  completion: Promise<{ file: File; limited: boolean; audioEnded: boolean }>;
   stop(): void;
   dispose(): void;
 }
@@ -79,14 +79,20 @@ export async function startScreenRecording(
     release();
     throw error;
   }
-  let resolve!: (result: { file: File; limited: boolean }) => void;
+  let resolve!: (result: {
+    file: File;
+    limited: boolean;
+    audioEnded: boolean;
+  }) => void;
   let reject!: (error: unknown) => void;
-  const completion = new Promise<{ file: File; limited: boolean }>(
-    (done, fail) => {
-      resolve = done;
-      reject = fail;
-    },
-  );
+  const completion = new Promise<{
+    file: File;
+    limited: boolean;
+    audioEnded: boolean;
+  }>((done, fail) => {
+    resolve = done;
+    reject = fail;
+  });
   // Also handle disposal before the caller can subscribe.
   void completion.catch(() => {});
   let chunks: Blob[] = [];
@@ -94,6 +100,7 @@ export async function startScreenRecording(
   let settled = false;
   let stopping = false;
   let limited = false;
+  let audioLost = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const cleanup = () => {
     clearTimeout(timer);
@@ -128,12 +135,12 @@ export async function startScreenRecording(
     fail(new DOMException('Recording discarded', 'AbortError'));
   }
   function audioEnded() {
-    if (audio && !stopping)
-      fail(
-        new Error(
-          'Shared audio ended. Choose the source again to record with sound.',
-        ),
-      );
+    if (audio && !stopping) {
+      // Whole-source stop can deliver audio-ended before video-ended. Retain
+      // the usable take, and stop now rather than continuing without sound.
+      audioLost = true;
+      stop();
+    }
   }
   recorder.ondataavailable = (event) => {
     if (settled || !event.data.size) return;
@@ -167,7 +174,7 @@ export async function startScreenRecording(
       type,
     });
     cleanup();
-    resolve({ file, limited });
+    resolve({ file, limited, audioEnded: audioLost });
   };
   stream
     .getVideoTracks()

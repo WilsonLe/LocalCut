@@ -323,6 +323,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(dialog.getByRole('status')).toContainText(
       'Shared audio included',
     );
+    await expect(dialog.getByRole('status')).toContainText('0:01');
     await page.evaluate(() => {
       const stream = (
         window as unknown as { recordingFixture: { stream: MediaStream } }
@@ -330,8 +331,16 @@ for (const base of ['/', '/LocalCut/']) {
       stream.getAudioTracks()[0]!.stop();
       stream.getAudioTracks()[0]!.dispatchEvent(new Event('ended'));
     });
-    await expect(dialog.getByRole('alert')).toContainText('Shared audio ended');
+    await expect(dialog.getByRole('status')).toContainText(
+      'shared audio ended',
+    );
+    await expect(
+      dialog.getByRole('button', { name: 'Add to media' }),
+    ).toBeEnabled();
+    await page.screenshot({ path: info.outputPath('audio-ended-ready.png') });
     expect((await fixture(page, '')).ended).toBe(true);
+    await dialog.getByRole('button', { name: 'Discard', exact: true }).click();
+    await open(page);
     await audio.uncheck();
     await fixture(page, 'no-audio');
     await dialog
@@ -491,7 +500,10 @@ test('screen recording native tab capture at both static bases', async ({
           ),
         ).toBe('browser');
         await expect(dialog.getByRole('status')).toContainText('0:01');
-        await dialog.getByRole('button', { name: 'Stop recording' }).click();
+        // Cover real browser whole-source cessation as well as LocalCut stop.
+        if (base === '/LocalCut/') await target.close();
+        else
+          await dialog.getByRole('button', { name: 'Stop recording' }).click();
         await expect(
           dialog.getByRole('button', { name: 'Add to media' }),
         ).toBeEnabled();

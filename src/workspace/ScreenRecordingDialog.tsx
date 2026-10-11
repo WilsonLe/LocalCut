@@ -35,6 +35,7 @@ export default function ScreenRecordingDialog({
   const [file, setFile] = useState<File>();
   const [url, setUrl] = useState('');
   const [limited, setLimited] = useState(false);
+  const [audioEnded, setAudioEnded] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
   const session = useRef<ScreenRecording | null>(null);
   const controller = useRef<AbortController | null>(null);
@@ -85,6 +86,7 @@ export default function ScreenRecordingDialog({
       if (!active.current || abort.signal.aborted) return;
       setFile(result.file);
       setLimited(result.limited);
+      setAudioEnded(result.audioEnded);
       previewUrl.current = URL.createObjectURL(result.file);
       setUrl(previewUrl.current);
       setPhase('ready');
@@ -195,6 +197,12 @@ export default function ScreenRecordingDialog({
           <p role="status">
             Recording stopped at the size or 30-minute limit. You can add this
             recording or start another.
+          </p>
+        )}
+        {audioEnded && (
+          <p role="status">
+            Recording stopped because shared audio ended. The recorded portion
+            is ready to review.
           </p>
         )}
         {error && (
