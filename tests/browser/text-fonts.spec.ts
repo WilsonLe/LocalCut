@@ -89,7 +89,7 @@ for (const base of ['/', '/LocalCut/']) {
                 width: 640,
                 height: 360,
                 text: {
-                  text: 'Handmade',
+                  text: '',
                   fontFamily: 'font-inter',
                   animation: {
                     kind: 'handmade',

@@ -164,7 +164,12 @@ export class Renderer {
           .map((c) => c.text)
           .join('\n');
       }
-      if (text) {
+      if (
+        text ||
+        (clip.kind === 'text' &&
+          clip.text?.animation?.kind === 'handmade' &&
+          clip.text.animation.variations?.length)
+      ) {
         const style = clip.text ?? {
           text,
           fontSize: 48,

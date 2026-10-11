@@ -1,4 +1,5 @@
 import { openAISettings } from './workspace-settings-helper';
+import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test } from '@playwright/test';
 
 const cors = {
@@ -116,6 +117,8 @@ for (const base of ['/', '/LocalCut/']) {
       'synthetic-connection-key',
     );
     expect(requests).toBe(2);
+    // A hovered error toast can pause its expiry and cover the mobile Send button.
+    await dismissNotifications(page);
     reject = false;
     await composer.fill('Try again');
     await send.click();

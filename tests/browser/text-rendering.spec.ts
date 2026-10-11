@@ -59,7 +59,7 @@ for (const base of ['/', '/LocalCut/']) {
           animation: { kind: 'handmade', stepMs: 50, loop: true, frames },
         })),
         {
-          text: 'one',
+          text: '',
           fontSize: 52,
           fontFamily: 'font-patrick-hand',
           animation: {
@@ -212,6 +212,7 @@ for (const base of ['/', '/LocalCut/']) {
       animation: { kind: 'typewriter', stepMs: 40 },
     });
     expect(result.restored[12]).toMatchObject({
+      text: '',
       animation: { variations: ['one', 'two', 'three'] },
     });
   });

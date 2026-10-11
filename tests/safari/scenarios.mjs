@@ -14,7 +14,7 @@ export async function textFonts(base, namespace) {
       animation: { kind: 'typewriter', stepMs: 40, loop: false },
     },
     {
-      text: 'Handmade',
+      text: '',
       fontSize: 52,
       fontFamily: 'font-patrick-hand',
       animation: {

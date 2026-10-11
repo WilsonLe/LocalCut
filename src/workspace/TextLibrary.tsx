@@ -14,6 +14,7 @@ import {
 } from '../core/text-library';
 import type { TextStyleInput } from '../core/text-library';
 import { paintText } from '../media/text';
+import { textStyleSchema } from '../core/model';
 import {
   Combobox,
   ComboboxContent,
@@ -36,6 +37,12 @@ export function TextSample({
   const [error, setError] = useState('');
 
   useEffect(() => {
+    // Fields are drafts until the form is submitted. Paint a stable sample while
+    // an animation draft is incomplete instead of sending it to the evaluator.
+    const sample = textStyleSchema.shape.animation.safeParse(style.animation)
+      .success
+      ? style
+      : { ...style, animation: undefined };
     const element = canvas.current!;
     const ctx = element.getContext('2d')!;
     let disposed = false,
@@ -46,30 +53,33 @@ export function TextSample({
     const draw = (timeUs: number) => {
       ctx.clearRect(0, 0, 600, 240);
       ctx.save();
-      ctx.scale(0.5, 0.5);
-      ctx.translate(0, 160);
-      paintText(
-        ctx,
-        motion.matches && style.animation?.kind === 'typewriter'
-          ? { ...style, animation: undefined }
-          : style,
-        1200,
-        320,
-        timeUs,
-      );
-      ctx.restore();
+      try {
+        ctx.scale(0.5, 0.5);
+        ctx.translate(0, 160);
+        paintText(
+          ctx,
+          motion.matches && sample.animation?.kind === 'typewriter'
+            ? { ...sample, animation: undefined }
+            : sample,
+          1200,
+          320,
+          timeUs,
+        );
+      } finally {
+        ctx.restore();
+      }
     };
     const start = performance.now();
     const tick = (now: number) => {
       if (disposed || !visible || !ready) return;
       draw(
         motion.matches
-          ? style.animation?.kind === 'typewriter'
+          ? sample.animation?.kind === 'typewriter'
             ? 1e12
             : 0
           : (now - start) * 1000,
       );
-      if (style.animation && !motion.matches)
+      if (sample.animation && !motion.matches)
         frame = requestAnimationFrame(tick);
     };
     const observer = new IntersectionObserver(([entry]) => {
@@ -77,7 +87,7 @@ export function TextSample({
       cancelAnimationFrame(frame);
       if (visible && !ready) {
         setError('');
-        void ensureTextFont(style)
+        void ensureTextFont(sample)
           .then(() => {
             if (disposed) return;
             ready = true;
@@ -303,7 +313,7 @@ export function TextLibrary({
       )}
       <div
         ref={gallery}
-        className="grid grid-cols-2 gap-3 max-h-[calc(var(--app-viewport-height)*0.55)] overflow-y-auto"
+        className="grid auto-rows-max grid-cols-2 gap-3 max-h-[calc(var(--app-viewport-height)*0.55)] overflow-y-auto"
         aria-label={mode === 'templates' ? 'Text templates' : 'Font library'}
       >
         {shown.map((item) => (

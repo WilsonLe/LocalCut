@@ -27,6 +27,9 @@ for (const base of ['/', '/LocalCut/']) {
   test(`bundled font pages and editable animated templates ${base}`, async ({
     page,
   }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto(base);
     const id = await page.evaluate(async (base) => {
       const { createEditor } = await import(base + 'editor.js');
@@ -82,6 +85,42 @@ for (const base of ['/', '/LocalCut/']) {
     await properties
       .getByRole('button', { name: 'Animation settings', exact: true })
       .click();
+    const sample = properties.locator('canvas');
+    const samplePixels = () =>
+      sample.evaluate((node: HTMLCanvasElement) => {
+        const pixels = node
+          .getContext('2d')!
+          .getImageData(0, 0, node.width, node.height).data;
+        let lit = 0;
+        for (let i = 0; i < pixels.length; i += 4)
+          if (pixels[i]! + pixels[i + 1]! + pixels[i + 2]! > 60) lit++;
+        return lit;
+      });
+    await properties.getByLabel('Milliseconds per frame').fill('');
+    await expect.poll(samplePixels).toBeGreaterThan(100);
+    expect(
+      await properties
+        .getByLabel('Milliseconds per frame')
+        .evaluate((node: HTMLInputElement) => node.checkValidity()),
+    ).toBe(false);
+    await properties.getByLabel('Milliseconds per frame').fill('100');
+    await properties
+      .getByLabel('Text variations (optional, one per frame)')
+      .fill('one\ntwo\nthree\nfour\nfive\nsix');
+    await expect.poll(samplePixels).toBeGreaterThan(100);
+    // Let a full-motion six-frame draft reach its formerly crashing sixth step.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          const start = performance.now();
+          const tick = () => {
+            if (performance.now() - start >= 700) resolve();
+            else requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        }),
+    );
+    expect(errors).toEqual([]);
     await properties.getByLabel('Milliseconds per frame').fill('240');
     await properties
       .getByLabel('Text variations (optional, one per frame)')
@@ -103,6 +142,8 @@ for (const base of ['/', '/LocalCut/']) {
     await properties
       .getByLabel('Text variations (optional, one per frame)')
       .fill('hello\nhey\nhi');
+    await properties.getByLabel('Text', { exact: true }).fill('');
+    await expect.poll(samplePixels).toBeGreaterThan(100);
     await properties
       .getByRole('button', { name: 'Apply properties', exact: true })
       .click();
@@ -117,6 +158,11 @@ for (const base of ['/', '/LocalCut/']) {
       loop: true,
       variations: ['hello', 'hey', 'hi'],
     });
+    expect(
+      (await snapshot(page, base, 'Animated library')).tracks[0]!.clips.find(
+        (clip) => clip.text?.animation,
+      )!.text!.text,
+    ).toBe('');
     await page.reload();
     expect(
       (await snapshot(page, base, 'Animated library')).tracks[0]!.clips.find(
@@ -270,6 +316,14 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(library).toBeVisible();
     await expect(
       library.getByRole('button', { name: 'Insert Plain text', exact: true }),
+    ).toBeVisible();
+    await expect(
+      library.getByText('Typewriter', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      library.getByText('animated · typing · typewriter · minimal', {
+        exact: true,
+      }),
     ).toBeVisible();
     if (base === '/')
       await page.screenshot({

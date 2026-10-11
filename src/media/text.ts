@@ -10,8 +10,8 @@ export function paintText(
   height: number,
   timeUs = 0,
 ) {
-  ctx.save();
   const frame = textAnimationFrame(style, timeUs);
+  ctx.save();
   ctx.translate(width / 2 + frame.x, height / 2 + frame.y);
   ctx.rotate(frame.rotation);
   ctx.translate(-width / 2, -height / 2);
