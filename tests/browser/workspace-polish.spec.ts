@@ -1,4 +1,7 @@
-import { openAISettings } from './workspace-settings-helper';
+import {
+  prepareOpenRouterKey,
+  openAISettings,
+} from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 
 test('chat resize controls match responsive layout and report actual desktop width', async ({
@@ -229,6 +232,7 @@ test('CYOBot chat structure keeps local sessions, markdown, drafts and keyboard 
     name: 'AI connection',
     exact: true,
   });
+  await prepareOpenRouterKey(page);
   await settings
     .getByLabel('OpenRouter API key')
     .fill('synthetic-structure-key');

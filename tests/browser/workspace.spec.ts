@@ -1,7 +1,11 @@
 import { mediaVideo } from './workspace-video-fixture';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { dragPlayhead } from './workspace-playhead-helper';
-import { openAISettings, openVideoExport } from './workspace-settings-helper';
+import {
+  prepareOpenRouterKey,
+  openAISettings,
+  openVideoExport,
+} from './workspace-settings-helper';
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -1062,6 +1066,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
+    await prepareOpenRouterKey(page);
     await settings.getByLabel('OpenRouter API key', { exact: true }).fill(key);
     await settings
       .getByRole('button', { name: 'Use API key', exact: true })

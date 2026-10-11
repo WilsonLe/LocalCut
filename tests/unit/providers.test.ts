@@ -405,11 +405,12 @@ describe('service providers', () => {
     expect(a.synthesizeSpeech).not.toHaveBeenCalled();
     router.dispose();
   });
-  it('keeps removed OpenRouter absent and accepts its explicit timestamped STT route', () => {
+  it('keeps fresh and removed OpenRouter absent and accepts its explicit timestamped STT route', () => {
     const c = defaultProviderConfiguration();
-    c.profiles = [];
-    c.routes.llm = [];
-    c.routes.tts = [];
+    expect(c.profiles).toEqual([]);
+    expect(c.routes.llm).toEqual([]);
+    expect(c.routes.tts).toEqual([]);
+    expect(c.routes.stt).toEqual([{ providerId: 'local', model: 'whisper' }]);
     expect(parseProviderConfiguration(JSON.stringify(c))).toEqual(c);
     c.profiles.push({
       id: 'openrouter',
@@ -441,7 +442,7 @@ describe('service providers', () => {
     expect(JSON.stringify(parseProviderConfiguration(raw))).not.toContain(
       'secret',
     );
-    expect(parseProviderConfiguration(raw).routes.llm).toHaveLength(2);
+    expect(parseProviderConfiguration(raw).routes.llm).toHaveLength(1);
     c.routes.tts.push({ providerId: 'custom', model: 'm' });
     expect(parseProviderConfiguration(JSON.stringify(c))).toEqual(
       defaultProviderConfiguration(),

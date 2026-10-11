@@ -15,9 +15,17 @@ import {
   Unplug,
   Check,
   LoaderCircle,
+  PlugZap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyContent,
+} from '../components/ui/empty';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import {
@@ -229,51 +237,51 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                       </div>
                     ),
                   )}
-                  {!config.profiles.some((p) => p.kind === 'openrouter') && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={props.connecting}
-                      onClick={() =>
-                        patch((next) => {
-                          next.profiles.push({
-                            id: 'openrouter',
-                            name: 'OpenRouter',
-                            kind: 'openrouter',
-                          });
-                          next.routes.llm.push({
-                            providerId: 'openrouter',
-                            model: '',
-                          });
-                          next.routes.tts.push({
-                            providerId: 'openrouter',
-                            model: '',
-                          });
-                        })
-                      }
-                    >
-                      <Plus />
-                      Add OpenRouter
-                    </Button>
-                  )}
                   <Popover open={showForm} onOpenChange={setShowForm}>
-                    <PopoverTrigger
-                      render={
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={props.connecting}
-                        />
-                      }
-                      onClick={() => {
-                        if (!showForm && editing) {
-                          resetDraft();
+                    {config.profiles.length === 0 ? (
+                      <Empty className="border py-8">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon">
+                            <PlugZap aria-hidden="true" />
+                          </EmptyMedia>
+                          <EmptyTitle className="text-sm">
+                            No AI providers added
+                          </EmptyTitle>
+                        </EmptyHeader>
+                        <EmptyContent>
+                          <PopoverTrigger
+                            render={
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={props.connecting}
+                              />
+                            }
+                          >
+                            <Plus />
+                            Add provider
+                          </PopoverTrigger>
+                        </EmptyContent>
+                      </Empty>
+                    ) : (
+                      <PopoverTrigger
+                        render={
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={props.connecting}
+                          />
                         }
-                      }}
-                    >
-                      <Plus />
-                      Add provider
-                    </PopoverTrigger>
+                        onClick={() => {
+                          if (!showForm && editing) {
+                            resetDraft();
+                          }
+                        }}
+                      >
+                        <Plus />
+                        Add provider
+                      </PopoverTrigger>
+                    )}
                     <PopoverContent
                       className="w-[min(32rem,calc(var(--app-viewport-width)-2rem))] space-y-5"
                       aria-label="Add provider connection"
@@ -328,14 +336,38 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                           disabled={props.connecting}
                           onClick={() => {
                             patch((next) => {
-                              const id = editing ?? newId;
+                              const id =
+                                editing ??
+                                (config.profiles.some(
+                                  (p) => p.id === 'openrouter',
+                                )
+                                  ? newId
+                                  : 'openrouter');
                               next.profiles.push({
                                 id,
                                 name:
                                   name.trim() ||
-                                  `OpenRouter ${config.profiles.filter((p) => p.kind === 'openrouter').length + 1}`,
+                                  (config.profiles.some(
+                                    (p) => p.kind === 'openrouter',
+                                  )
+                                    ? `OpenRouter ${config.profiles.filter((p) => p.kind === 'openrouter').length + 1}`
+                                    : 'OpenRouter'),
                                 kind: 'openrouter',
                               });
+                              if (
+                                !config.profiles.some(
+                                  (p) => p.kind === 'openrouter',
+                                )
+                              ) {
+                                next.routes.llm.push({
+                                  providerId: id,
+                                  model: '',
+                                });
+                                next.routes.tts.push({
+                                  providerId: id,
+                                  model: '',
+                                });
+                              }
                             });
                             finishConnection();
                           }}

@@ -1,11 +1,86 @@
 import { expect, test } from '@playwright/test';
-import { openAISettings } from './workspace-settings-helper';
+import {
+  addOpenRouter,
+  prepareOpenRouterKey,
+  openAISettings,
+} from './workspace-settings-helper';
 const cors = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'authorization,content-type',
   'access-control-allow-methods': 'GET,POST,OPTIONS',
 };
 for (const base of ['/', '/LocalCut/']) {
+  test(`provider empty state reveals OpenRouter key or login choices on desktop and phone ${base}`, async ({
+    page,
+    context,
+  }, info) => {
+    let requests = 0;
+    await context.route('https://openrouter.ai/**', (route) => {
+      requests++;
+      return route.abort();
+    });
+    await page.goto(base);
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      await openAISettings(page);
+      const dialog = page.getByRole('dialog', {
+        name: 'AI connection',
+        exact: true,
+      });
+      await expect(
+        dialog.getByText('No AI providers added', { exact: true }),
+      ).toBeVisible();
+      await expect(dialog.getByText('OpenRouter', { exact: true })).toHaveCount(
+        0,
+      );
+      await expect(
+        dialog.getByLabel('OpenRouter API key', { exact: true }),
+      ).toHaveCount(0);
+      await page.screenshot({
+        path: info.outputPath(`providers-empty-${width}.png`),
+      });
+      await addOpenRouter(page);
+      await expect(
+        dialog.getByText('Do you already have an API key?', { exact: true }),
+      ).toBeVisible();
+      await expect(
+        dialog.getByRole('button', {
+          name: 'Log in and generate a key',
+          exact: true,
+        }),
+      ).toBeVisible();
+      const choice = dialog.getByRole('button', {
+        name: 'I have an API key',
+        exact: true,
+      });
+      const input = dialog.getByLabel('OpenRouter API key', { exact: true });
+      await expect(input).toHaveCount(0);
+      await page.screenshot({
+        path: info.outputPath(`openrouter-choice-${width}.png`),
+      });
+      await choice.focus();
+      await choice.press('Enter');
+      await expect(input).toBeFocused();
+      await input.fill('synthetic-draft');
+      await dialog.getByRole('button', { name: 'Back', exact: true }).click();
+      await expect(input).toHaveCount(0);
+      await expect(choice).toBeFocused();
+      await choice.click();
+      await expect(input).toHaveValue('');
+      await expect
+        .poll(() => dialog.evaluate((el) => el.scrollWidth <= el.clientWidth))
+        .toBe(true);
+      await dialog
+        .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
+        .click();
+      await expect(
+        dialog.getByText('No AI providers added', { exact: true }),
+      ).toBeVisible();
+      await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+      await page.reload();
+    }
+    expect(requests).toBe(0);
+  });
   test(`OpenRouter connector removes and re-adds with compact connected management ${base}`, async ({
     page,
     context,
@@ -53,8 +128,9 @@ for (const base of ['/', '/LocalCut/']) {
     const config = () =>
       page.evaluate(() =>
         JSON.parse(
-          JSON.parse(localStorage.getItem('localcut.workspace-preferences.v1')!)
-            .preferences.aiProviders,
+          JSON.parse(
+            localStorage.getItem('localcut.workspace-preferences.v1') ?? '{}',
+          ).preferences?.aiProviders ?? 'null',
         ),
       );
     const credential = () =>
@@ -63,24 +139,22 @@ for (const base of ['/', '/LocalCut/']) {
       );
     await page.goto(base);
     await openAISettings(page);
-    await dialog
-      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
-      .click();
     await expect(
-      dialog.getByRole('button', { name: 'Add OpenRouter', exact: true }),
+      dialog.getByText('No AI providers added', { exact: true }),
     ).toBeVisible();
-    expect((await config()).profiles).toEqual([]);
+    await expect(
+      dialog.getByRole('button', { name: 'Add provider', exact: true }),
+    ).toBeVisible();
+    expect(await config()).toBeNull();
     await page.reload();
     await openAISettings(page);
     await expect(
       dialog.getByRole('button', {
-        name: 'Connect with OpenRouter',
+        name: 'Log in and generate a key',
         exact: true,
       }),
     ).toHaveCount(0);
-    await dialog
-      .getByRole('button', { name: 'Add OpenRouter', exact: true })
-      .click();
+    await prepareOpenRouterKey(page);
     await dialog
       .getByLabel('OpenRouter API key', { exact: true })
       .fill('synthetic-original');

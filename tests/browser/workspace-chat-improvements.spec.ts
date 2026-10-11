@@ -1,6 +1,9 @@
 import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test } from '@playwright/test';
-import { openAISettings } from './workspace-settings-helper';
+import {
+  prepareOpenRouterKey,
+  openAISettings,
+} from './workspace-settings-helper';
 import type { BrowserContext, Page } from '@playwright/test';
 const model = 'test/chat-improvements';
 const cors = {
@@ -46,6 +49,7 @@ async function setup(page: Page, context: BrowserContext, base: string) {
     name: 'AI connection',
     exact: true,
   });
+  await prepareOpenRouterKey(page);
   await settings
     .getByLabel('OpenRouter API key', { exact: true })
     .fill('synthetic-chat-key');

@@ -1,4 +1,7 @@
-import { openAISettings } from './workspace-settings-helper';
+import {
+  prepareOpenRouterKey,
+  openAISettings,
+} from './workspace-settings-helper';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test } from '@playwright/test';
 
@@ -168,6 +171,7 @@ for (const base of ['/', '/LocalCut/']) {
         name: 'AI connection',
         exact: true,
       });
+      await prepareOpenRouterKey(page);
       await dialog
         .getByLabel('OpenRouter API key', { exact: true })
         .fill('synthetic-connection-key');
@@ -306,6 +310,7 @@ for (const base of ['/', '/LocalCut/']) {
       'Your prompt and selected project metadata',
     );
     await expect(dialog).not.toContainText('Provider charges may apply');
+    await prepareOpenRouterKey(page);
     await dialog
       .getByLabel('OpenRouter API key', { exact: true })
       .fill('synthetic-connection-key');
@@ -401,7 +406,7 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
     await expect(
-      dialog.getByLabel('OpenRouter API key', { exact: true }),
+      dialog.getByRole('button', { name: 'I have an API key', exact: true }),
     ).toBeVisible();
     // Forget the disconnected profile through its replacement account control.
     await dialog
@@ -411,14 +416,12 @@ for (const base of ['/', '/LocalCut/']) {
       dialog.getByLabel('OpenRouter API key', { exact: true }),
     ).toHaveCount(0);
     await expect(
-      dialog.getByRole('button', { name: 'Add OpenRouter', exact: true }),
+      dialog.getByRole('button', { name: 'Add provider', exact: true }),
     ).toBeVisible();
     await expect(
       dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toHaveCount(0);
-    await dialog
-      .getByRole('button', { name: 'Add OpenRouter', exact: true })
-      .click();
+    await prepareOpenRouterKey(page);
     await dialog
       .getByLabel('OpenRouter API key', { exact: true })
       .fill('synthetic-second-key');
@@ -463,6 +466,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
+    await prepareOpenRouterKey(page);
     await dialog
       .getByLabel('OpenRouter API key', { exact: true })
       .fill('synthetic-empty-key');
