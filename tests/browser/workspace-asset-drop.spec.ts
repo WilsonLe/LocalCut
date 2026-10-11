@@ -343,43 +343,45 @@ for (const base of ['/', '/LocalCut/']) {
       let destinationId: string | undefined;
       try {
         await other.goto(base);
+        // A full engine can claim queued jobs. Keep this observer alive until
+        // readback finishes so disposal cannot interrupt an import it claimed.
+        await other.evaluate(async (base) => {
+          const { createEditor } = (await import(
+            base + 'editor.js'
+          )) as typeof import('../../src/editor');
+          Object.assign(window, { importObserver: await createEditor() });
+        }, base);
         // Read the durable queue while native inspection is held. Both file
         // tasks must already exist, including the one that has not started.
         await expect
           .poll(() =>
-            other.evaluate(async (base) => {
-              const { createEditor } = (await import(
-                base + 'editor.js'
-              )) as typeof import('../../src/editor');
-              const engine = await createEditor();
-              try {
-                return (await engine.tasks.list())
-                  .filter((task) => task.kind === 'media.import')
-                  .map((task) => task.state)
-                  .sort();
-              } finally {
-                await engine.dispose();
-              }
-            }, base),
+            other.evaluate(async () => {
+              const engine = (
+                window as unknown as {
+                  importObserver: import('../../src/editor').Editor;
+                }
+              ).importObserver;
+              return (await engine.tasks.list())
+                .filter((task) => task.kind === 'media.import')
+                .map((task) => task.state)
+                .sort();
+            }),
           )
           .toEqual(['queued', 'running']);
         if (dismissWith === 'task cancellation') {
-          await other.evaluate(async (base) => {
-            const { createEditor } = (await import(
-              base + 'editor.js'
-            )) as typeof import('../../src/editor');
-            const engine = await createEditor();
-            try {
-              const task = (await engine.tasks.list()).find(
-                (task) =>
-                  task.kind === 'media.import' && task.state === 'running',
-              );
-              if (!task) throw new Error('No active media import');
-              await engine.tasks.cancel(task.id);
-            } finally {
-              await engine.dispose();
-            }
-          }, base);
+          await other.evaluate(async () => {
+            const engine = (
+              window as unknown as {
+                importObserver: import('../../src/editor').Editor;
+              }
+            ).importObserver;
+            const task = (await engine.tasks.list()).find(
+              (task) =>
+                task.kind === 'media.import' && task.state === 'running',
+            );
+            if (!task) throw new Error('No active media import');
+            await engine.tasks.cancel(task.id);
+          });
           await expect
             .poll(() =>
               page.evaluate(
@@ -422,17 +424,14 @@ for (const base of ['/', '/LocalCut/']) {
           await page
             .getByRole('button', { name: 'Close', exact: true })
             .click();
-          destinationId = await other.evaluate(async (base) => {
-            const { createEditor } = (await import(
-              base + 'editor.js'
-            )) as typeof import('../../src/editor');
-            const engine = await createEditor();
-            try {
-              return (await engine.projects.create('Other project')).id;
-            } finally {
-              await engine.dispose();
-            }
-          }, base);
+          destinationId = await other.evaluate(async () => {
+            const engine = (
+              window as unknown as {
+                importObserver: import('../../src/editor').Editor;
+              }
+            ).importObserver;
+            return (await engine.projects.create('Other project')).id;
+          });
           await page.goto(base + '#/project/' + destinationId);
           await page.getByRole('button', { name: 'Edit', exact: true }).click();
           await expect(
@@ -477,42 +476,30 @@ for (const base of ['/', '/LocalCut/']) {
         }
         await expect
           .poll(() =>
-            other.evaluate(
-              async ({ base, sourceId }) => {
-                const { createEditor } = (await import(
-                  base + 'editor.js'
-                )) as typeof import('../../src/editor');
-                const engine = await createEditor();
-                try {
-                  return (await engine.projects.snapshot(sourceId)).tracks
-                    .flatMap((track) => track.clips)
-                    .filter((clip) => clip.kind === 'image').length;
-                } finally {
-                  await engine.dispose();
+            other.evaluate(async (sourceId) => {
+              const engine = (
+                window as unknown as {
+                  importObserver: import('../../src/editor').Editor;
                 }
-              },
-              { base, sourceId },
-            ),
+              ).importObserver;
+              return (await engine.projects.snapshot(sourceId)).tracks
+                .flatMap((track) => track.clips)
+                .filter((clip) => clip.kind === 'image').length;
+            }, sourceId),
           )
           .toBe(dismissWith === 'task cancellation' ? 1 : 2);
         if (destinationId) {
           expect(
-            await page.evaluate(
-              async ({ base, destinationId }) => {
-                const { createEditor } = (await import(
-                  base + 'editor.js'
-                )) as typeof import('../../src/editor');
-                const engine = await createEditor();
-                try {
-                  return (
-                    await engine.projects.snapshot(destinationId!)
-                  ).tracks.flatMap((track) => track.clips).length;
-                } finally {
-                  await engine.dispose();
+            await other.evaluate(async (destinationId) => {
+              const engine = (
+                window as unknown as {
+                  importObserver: import('../../src/editor').Editor;
                 }
-              },
-              { base, destinationId },
-            ),
+              ).importObserver;
+              return (
+                await engine.projects.snapshot(destinationId)
+              ).tracks.flatMap((track) => track.clips).length;
+            }, destinationId),
           ).toBe(dismissWith === 'X' ? 1 : 0);
           await page.goto(base + '#/project/' + sourceId);
           await page.getByRole('button', { name: 'Edit', exact: true }).click();
@@ -523,6 +510,22 @@ for (const base of ['/', '/LocalCut/']) {
           await expect(dialog).not.toBeVisible();
         }
       } finally {
+        await page
+          .evaluate(() =>
+            (
+              window as unknown as { releaseImport?: () => void }
+            ).releaseImport?.(),
+          )
+          .catch(() => {});
+        await other
+          .evaluate(async () => {
+            await (
+              window as unknown as {
+                importObserver?: import('../../src/editor').Editor;
+              }
+            ).importObserver?.dispose();
+          })
+          .catch(() => {});
         await other.close();
       }
       await data.dispose();
