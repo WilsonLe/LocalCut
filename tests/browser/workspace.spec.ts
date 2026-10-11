@@ -1,6 +1,6 @@
 import { dismissNotifications } from './workspace-notifications-helper';
 import { dragPlayhead } from './workspace-playhead-helper';
-import { openAISettings } from './workspace-settings-helper';
+import { openAISettings, openVideoExport } from './workspace-settings-helper';
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -387,10 +387,16 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'Asset details for red.png',
     });
     await imageDetails.hover();
-    await expect(page.getByRole('tooltip')).toContainText('128 × 72');
-    await expect(page.getByRole('tooltip')).toContainText('image/png');
+    await expect(page.getByRole('tooltip', { name: /red.png/ })).toContainText(
+      '128 × 72',
+    );
+    await expect(page.getByRole('tooltip', { name: /red.png/ })).toContainText(
+      'image/png',
+    );
     await page.mouse.move(0, 0);
-    await expect(page.getByRole('tooltip')).not.toBeVisible();
+    await expect(
+      page.getByRole('tooltip', { name: /red.png/ }),
+    ).not.toBeVisible();
     await audio.focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
@@ -425,7 +431,7 @@ for (const base of ['/', '/LocalCut/']) {
       .focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
-    await expect(page.getByRole('tooltip')).toContainText(
+    await expect(page.getByRole('tooltip', { name: /red.png/ })).toContainText(
       'Connect AI and choose a compatible model to index this asset.',
     );
     await page
@@ -531,7 +537,7 @@ for (const base of ['/', '/LocalCut/']) {
       durationUs: 500000,
     });
     for (const format of ['mp4', 'webm']) {
-      await page.getByRole('button', { name: 'Export', exact: true }).click();
+      await openVideoExport(page);
       const dialog = page.getByRole('dialog', {
         name: 'Export video',
         exact: true,
@@ -920,7 +926,7 @@ test('workspace imports image, audio and video, handles invalid input and cancel
   await page
     .getByRole('button', { name: 'Apply properties', exact: true })
     .click();
-  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  await openVideoExport(page);
   const dialog = page.getByRole('dialog', {
     name: 'Export video',
     exact: true,

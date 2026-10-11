@@ -50,7 +50,10 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'Send edit request',
       exact: true,
     });
-    await expect(composer).toBeDisabled();
+    await expect(composer).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Connect provider', exact: true }),
+    ).toBeVisible();
     await openAISettings(page);
     const settings = page.getByRole('dialog', {
       name: 'AI connection',
@@ -69,7 +72,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByText('Choose an AI model to start chatting.', { exact: true }),
     ).toBeVisible();
-    await expect(composer).toBeDisabled();
+    await expect(composer).toHaveCount(0);
     await page
       .getByRole('button', { name: 'Choose AI model', exact: true })
       .click();
@@ -115,7 +118,7 @@ for (const base of ['/', '/LocalCut/']) {
       }),
     ).toBeVisible();
     await expect(settings).not.toBeVisible();
-    await expect(composer).toBeDisabled();
+    await expect(composer).toHaveCount(0);
     expect(completions).toBe(1);
     await page
       .getByRole('button', { name: 'Open project for chat', exact: true })

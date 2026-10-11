@@ -85,7 +85,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 ## Timeline tracks — 11 October 2026
 
-- Provide an Add track button in the timeline with Video track and Audio track choices. Allow additional empty tracks without importing media or connecting AI.
+- Put an icon-only plus control beneath the last timeline track. Clicking it reveals side-by-side plus-and-audio and plus-and-video buttons. Allow additional empty tracks without media or AI, and let users drag tracks vertically to reorganize layers.
 
 ## Text to speech — 10 October 2026
 
@@ -214,3 +214,9 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Allow removing OpenRouter from configured providers, remember that removal, and offer an explicit way to add it again.
 - Let users reconnect OpenRouter or replace its key while connected; retain deliberately configured service routes and models. Keep provider identity, status and connection actions together, with optional details revealed progressively.
+
+## Compact editor controls — 11 October 2026
+
+- Reserve space for the editing workspace: compact the header and use an icon-only Add text control with accessible labels/tooltips. Move Versions into Settings → Project and video export into Settings → Export; remove their separate header buttons.
+- Remove the media import helper sentence and the separate import/backup button row. Use the shadcn Empty component for the outlined, icon-only import card in the media grid, including its empty state. Give upload a distinct raised icon tile, tinted surface and stronger dashed border; keep the whole card clickable. Keep backup under the grouped settings menu. Arrange media left-to-right, top-to-bottom, with the import card last. Place screen recording alongside the Media title and add a horizontal divider beneath the header.
+- When no configured chat provider is available, use the shadcn Empty component with a centered provider icon, a framed surface and a Connect provider button instead of the composer and unavailable send/media controls. Remove the “Connect provider first” sentence. Apply this to all supported providers, including OpenRouter and compatible endpoints.

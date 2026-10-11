@@ -36,6 +36,7 @@ interface Props extends Omit<
   'connecting' | 'openRouterControls' | 'modelControls'
 > {
   providerName?: string;
+  returnFocus?: () => HTMLElement | null;
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
   connection: boolean;
@@ -54,6 +55,7 @@ interface Props extends Omit<
   connectionError: string | null;
 }
 export default function AIConnectionDialog({
+  returnFocus,
   settingsOpen,
   setSettingsOpen,
   connection,
@@ -83,7 +85,10 @@ export default function AIConnectionDialog({
       }}
     >
       <DialogContent
-        finalFocus={() => document.getElementById('workspace-settings-trigger')}
+        finalFocus={
+          returnFocus ??
+          (() => document.getElementById('workspace-settings-trigger'))
+        }
         className="ai-settings-dialog flex max-h-[calc(var(--app-viewport-height)*0.9)] flex-col gap-6 overflow-hidden p-6 sm:max-w-3xl sm:p-8"
       >
         <DialogHeader>
