@@ -625,8 +625,44 @@
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
-.timeline-track[data-drop-target='true'] .track-lane {
-  outline: 2px solid var(--ring);
+.timeline-tracks[data-reordering='true'] .timeline-track {
+  transition: transform 160ms ease;
+}
+.timeline-tracks .timeline-track[data-dragging='true'] {
+  position: relative;
+  z-index: 4;
+  transition: none;
+  background: var(--background);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 16px color-mix(in oklch, var(--foreground) 18%, transparent);
+  outline: 1px solid var(--ring);
+}
+.timeline-track-placeholder {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 36px;
+  border: 2px dashed var(--ring);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklch, var(--primary) 8%, transparent);
+  pointer-events: none;
+  transition: transform 160ms ease;
+}
+.timeline-media-placeholder {
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0.8;
+  border: 2px dashed var(--ring);
+  box-shadow: 0 0 0 1px var(--background);
+}
+.media-asset-preview[data-draggable='true'] {
+  cursor: grab;
+  touch-action: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .timeline-tracks[data-reordering='true'] .timeline-track,
+  .timeline-track-placeholder {
+    transition: none;
+  }
 }
 .timeline-add-track {
   display: flex;
@@ -1464,6 +1500,9 @@
   padding-top: 8px;
   overflow: clip;
 }
+.timeline-content[data-preview-overflow='true'] {
+  overflow: visible;
+}
 .timeline-ruler {
   cursor: ew-resize;
   touch-action: none;
@@ -1755,4 +1794,66 @@
   .workspace-columns > [data-panel] {
     animation: none !important;
   }
+}
+
+.timeline-clip-container {
+  position: absolute;
+  height: 100%;
+  min-width: 3px;
+}
+.timeline-resize-handle {
+  position: absolute;
+  right: -4px;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  z-index: 5;
+  cursor: ew-resize;
+  touch-action: none;
+  border-radius: var(--radius-sm);
+}
+.timeline-resize-handle:hover,
+.timeline-resize-handle:focus-visible {
+  background: var(--ring);
+  outline: 2px solid var(--background);
+}
+.timeline-loop-boundaries {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  border-left: 2px dashed var(--foreground);
+  background: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc(var(--loop-width) - 1px),
+    var(--foreground) calc(var(--loop-width) - 1px),
+    var(--foreground) var(--loop-width)
+  );
+  opacity: 0.7;
+  pointer-events: none;
+}
+.timeline-loop-badge {
+  position: absolute;
+  right: 10px;
+  top: 2px;
+  z-index: 2;
+  background: var(--background);
+  border-radius: 2px;
+}
+.timeline-loop-badge svg {
+  width: 13px;
+  height: 13px;
+}
+.timeline-resize-time {
+  position: absolute;
+  right: 0;
+  top: -23px;
+  z-index: 6;
+  background: var(--foreground);
+  color: var(--background);
+  padding: 2px 5px;
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
 }

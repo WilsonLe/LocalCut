@@ -92,6 +92,14 @@ Preview uses the same engine compositor as export. Playback creates its audio co
 
 Seek by dragging the top marker of the playhead with a mouse or touch. Its padded target sits above the tracks so clip selection remains available. The timeline has no separate bottom scrub bar. Focus the marker to use the shared playback shortcuts, including frame steps and Home/End. See the [mobile](images/timeline-playhead-mobile.png) and [desktop](images/timeline-playhead-desktop.png) layouts.
 
+Drag a ready media card onto an audio track for audio, or a video track for images/video. A dashed clip placeholder shows the name, start time and full duration before release; moving off a compatible lane or canceling clears it. Dropping inserts another clip from the same local source through the shared engine, preserving existing clips and Undo/Redo. Images use the same five-second default as import. The timeline retains its time scale while hovering; long placeholders extend into horizontal scrolling. Missing sources, busy operations and historical versions cannot be dropped.
+
+Drag a track label to reorder the whole row. Its label and clips follow the pointer while neighboring tracks animate around the dashed destination placeholder. Release commits the order; Escape or pointer cancellation restores it. Reduced motion removes the rearrangement animation. Alt+Up/Down retains keyboard reordering.
+
+Drag the right edge of a clip to shorten or extend its duration. The temporary edge and duration label preview the edit; release saves it and Escape cancels. Images and text keep their authored content for the new duration. Audio/video retain their selected source range and repeat from its beginning when extended beyond that range; dashed boundaries and a repeat icon identify loop-backs. The same loops play in preview and exports. Focus the edge to adjust by one frame with Left/Right, or ten frames with Shift. Undo/Redo, splitting, speed changes and local project reloads retain looping.
+
+See the [media drop preview](images/timeline-media-drag.png), [track reorder preview](images/timeline-track-reorder.png) and [clip loop markers](images/timeline-clip-loop.png).
+
 ## Keyboard editing
 
 Focus the preview or timeline to use single-key shortcuts. `Space` toggles playback; `K` pauses and `L` plays forward. Left/right arrows step one frame, Shift+left/right step ten frames, up/down visit previous/next edit boundaries, and Home/End seek to the first/last frame.
