@@ -34,6 +34,23 @@ const project = () => ({
   ],
 });
 describe('project contracts', () => {
+  it('renames a clone and validates the authored name', () => {
+    const original = project();
+    const batch = parseBatch({
+      projectId: original.id,
+      requestId: 'rename',
+      expectedRevision: 0,
+      operations: [{ type: 'renameProject', name: '  New film  ' }],
+    });
+    expect(applyOperations(original, batch.operations).project.name).toBe(
+      'New film',
+    );
+    expect(original.name).toBe('test');
+    for (const name of ['  ', 'a'.repeat(1001)])
+      expect(() =>
+        parseBatch({ ...batch, operations: [{ type: 'renameProject', name }] }),
+      ).toThrow();
+  });
   it('rejects future versions, duplicate IDs and unsafe/source mismatched timing', () => {
     expect(() => validateProject({ ...project(), schemaVersion: 2 })).toThrow();
     expect(() =>

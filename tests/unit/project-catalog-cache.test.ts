@@ -42,6 +42,21 @@ describe('display-only project catalog cache', () => {
     );
     expect(readProjectCatalogCache()).toEqual([summary]);
   });
+  it('retains archive state but excludes covers and mutation authority', () => {
+    writeProjectCatalogCache([
+      {
+        ...summary,
+        archived: true,
+        revision: 3,
+        catalogRevision: 2,
+        thumbnail: new Blob(['image']),
+        thumbnailSource: { assetId: 'private-source', timeUs: 0 },
+      },
+    ]);
+    expect(readProjectCatalogCache()).toEqual([{ ...summary, archived: true }]);
+    expect(records.get(projectCatalogCacheKey)).not.toContain('private-source');
+    expect(records.get(projectCatalogCacheKey)).not.toContain('thumbnail');
+  });
   it('rejects malformed, unknown, ambiguous and oversized records', () => {
     for (const value of [
       'broken',

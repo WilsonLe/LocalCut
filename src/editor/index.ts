@@ -276,6 +276,24 @@ export async function createEditor(options: EditorOptions = {}) {
         notify({ projectId: p.id, revision: p.revision, type: 'changed' });
         return p;
       },
+      async catalog() {
+        active();
+        return store.catalog();
+      },
+      async updateCatalog(
+        id: string,
+        expectedRevision: number,
+        patch: import('../storage/store').ProjectCatalogPatch,
+      ) {
+        active();
+        const entry = await store.updateCatalog(id, expectedRevision, patch);
+        notify({
+          projectId: id,
+          revision: entry.project.revision,
+          type: 'changed',
+        });
+        return entry;
+      },
       async list() {
         active();
         return store.list();

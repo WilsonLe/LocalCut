@@ -46,7 +46,25 @@ function appendVersion(
   versions.push(version);
   return version;
 }
+export interface ProjectCatalogDetails {
+  revision: number;
+  archived: boolean;
+  thumbnail?: Blob;
+  thumbnailPosition: { x: number; y: number };
+}
+export type ProjectCatalogPatch = Partial<
+  Pick<ProjectCatalogDetails, 'archived' | 'thumbnailPosition'>
+> & { thumbnail?: Blob | null };
+export interface ProjectCatalogEntry extends ProjectCatalogDetails {
+  project: Project;
+}
+const defaultCatalog = (): ProjectCatalogDetails => ({
+  revision: 0,
+  archived: false,
+  thumbnailPosition: { x: 50, y: 50 },
+});
 interface RecordState {
+  catalog?: ProjectCatalogDetails;
   identityVersion?: 1;
   versions?: ProjectVersion[];
   project: Project;
@@ -320,15 +338,97 @@ export class Store {
     }
   }
   async list(): Promise<Project[]> {
+    return (await this.catalog()).map((entry) => entry.project);
+  }
+  async updateCatalog(
+    id: string,
+    expectedRevision: number,
+    patch: ProjectCatalogPatch,
+  ) {
+    invariant(
+      Number.isSafeInteger(expectedRevision) && expectedRevision >= 0,
+      'INVALID_COMMAND',
+      'Invalid catalog revision',
+    );
+    invariant(
+      patch &&
+        typeof patch === 'object' &&
+        !Array.isArray(patch) &&
+        Object.keys(patch).every((key) =>
+          ['archived', 'thumbnail', 'thumbnailPosition'].includes(key),
+        ),
+      'INVALID_COMMAND',
+      'Invalid catalog patch',
+    );
+    if (patch.archived !== undefined)
+      invariant(
+        typeof patch.archived === 'boolean',
+        'INVALID_COMMAND',
+        'Invalid archive flag',
+      );
+    if (patch.thumbnail !== undefined && patch.thumbnail !== null)
+      invariant(
+        patch.thumbnail instanceof Blob &&
+          ['image/jpeg', 'image/png', 'image/webp'].includes(
+            patch.thumbnail.type,
+          ) &&
+          patch.thumbnail.size > 0 &&
+          patch.thumbnail.size <= 2 * 1024 * 1024,
+        'INVALID_COMMAND',
+        'Thumbnail must be a PNG, JPEG or WebP under 2 MiB',
+      );
+    if (patch.thumbnailPosition !== undefined)
+      invariant(
+        patch.thumbnailPosition !== null &&
+          ['x', 'y'].every((axis) => {
+            const value = patch.thumbnailPosition![axis as 'x' | 'y'];
+            return Number.isFinite(value) && value >= 0 && value <= 100;
+          }),
+        'INVALID_COMMAND',
+        'Invalid thumbnail position',
+      );
+    const tx = this.db.transaction('projects', 'readwrite');
+    return commitWithSignal(tx, undefined, async () => {
+      const record = (await tx.store.get(id)) as RecordState | undefined;
+      invariant(record, 'NOT_FOUND', 'Project missing');
+      const state = normalizeState(record);
+      const catalog = state.catalog ?? defaultCatalog();
+      invariant(
+        catalog.revision === expectedRevision,
+        'REVISION_CONFLICT',
+        'Project details changed. Refresh and try again.',
+      );
+      const next: ProjectCatalogDetails = {
+        ...catalog,
+        revision: catalog.revision + 1,
+      };
+      invariant(
+        Number.isSafeInteger(next.revision),
+        'INVALID_COMMAND',
+        'Catalog revision limit reached',
+      );
+      if (patch.archived !== undefined) next.archived = patch.archived;
+      if (patch.thumbnailPosition !== undefined)
+        next.thumbnailPosition = { ...patch.thumbnailPosition };
+      if (patch.thumbnail === null) delete next.thumbnail;
+      else if (patch.thumbnail !== undefined) next.thumbnail = patch.thumbnail;
+      await tx.store.put({ ...state, id, catalog: next });
+      return { ...next, project: state.project };
+    });
+  }
+  async catalog(): Promise<ProjectCatalogEntry[]> {
     const tx = this.db.transaction('projects', 'readwrite');
     return commitWithSignal(tx, undefined, async () => {
       const records = (await tx.store.getAll()) as RecordState[];
-      const projects: Project[] = [];
+      const projects: ProjectCatalogEntry[] = [];
       for (const record of records) {
         const state = normalizeState(record);
         if (record.identityVersion === undefined || !record.versions?.length)
           await tx.store.put({ ...state, id: state.project.id });
-        projects.push(state.project);
+        projects.push({
+          ...(state.catalog ?? defaultCatalog()),
+          project: state.project,
+        });
       }
       return projects;
     });

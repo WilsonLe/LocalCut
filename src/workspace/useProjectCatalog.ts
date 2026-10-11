@@ -41,7 +41,31 @@ export function useProjectCatalog(
     update({ pending: true, failed: false });
     try {
       const engine = await getEditor();
-      const projects = summarizeProjects(await engine.projects.list());
+      const entries = await engine.projects.catalog();
+      const projects = entries.map((entry) => {
+        const clip = entry.project.tracks
+          .flatMap((track) => track.clips)
+          .find(
+            (clip) =>
+              clip.assetId && (clip.kind === 'video' || clip.kind === 'image'),
+          );
+        return {
+          ...summarizeProjects([entry.project])[0]!,
+          archived: entry.archived,
+          revision: entry.project.revision,
+          catalogRevision: entry.revision,
+          thumbnail: entry.thumbnail,
+          thumbnailPosition: entry.thumbnailPosition,
+          ...(clip?.assetId
+            ? {
+                thumbnailSource: {
+                  assetId: clip.assetId,
+                  timeUs: clip.sourceInUs,
+                },
+              }
+            : {}),
+        };
+      });
       if (token === generation.current) {
         writeProjectCatalogCache(projects);
         update({ projects, loaded: true });
@@ -78,5 +102,47 @@ export function useProjectCatalog(
     },
     [],
   );
-  return { ...state, refresh };
+  const rename = useCallback(
+    async (project: ProjectSummary, name: string) => {
+      try {
+        const engine = await getEditor();
+        if (project.revision === undefined)
+          throw new Error('Project details are loading. Try again.');
+        await engine.commands.apply({
+          projectId: project.id,
+          requestId: crypto.randomUUID(),
+          expectedRevision: project.revision,
+          operations: [{ type: 'renameProject', name }],
+        });
+        await refresh();
+      } catch (error) {
+        await refresh();
+        throw error;
+      }
+    },
+    [getEditor, refresh],
+  );
+  const updateDetails = useCallback(
+    async (
+      project: ProjectSummary,
+      patch: import('../storage/store').ProjectCatalogPatch,
+    ) => {
+      try {
+        const engine = await getEditor();
+        if (project.catalogRevision === undefined)
+          throw new Error('Project details are loading. Try again.');
+        await engine.projects.updateCatalog(
+          project.id,
+          project.catalogRevision,
+          patch,
+        );
+        await refresh();
+      } catch (error) {
+        await refresh();
+        throw error;
+      }
+    },
+    [getEditor, refresh],
+  );
+  return { ...state, refresh, rename, updateDetails };
 }

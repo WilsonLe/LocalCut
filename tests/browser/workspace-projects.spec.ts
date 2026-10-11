@@ -62,7 +62,9 @@ for (const base of ['/', '/LocalCut/']) {
     await page.keyboard.press('ControlOrMeta+o');
     await page.setViewportSize({ width: 320, height: 800 });
     await expect(
-      browser.getByRole('button', { name: /Imported film/ }),
+      browser
+        .locator('.project-browser-row')
+        .filter({ hasText: /Imported film/ }),
     ).toContainText('Current');
     expect(
       await page.evaluate(
@@ -73,7 +75,10 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('textbox', { name: 'Search projects' })
       .fill('LONG PROJECT NAME');
     await expect(browser.getByRole('listitem')).toHaveCount(1);
-    await browser.getByRole('button', { name: /Imported film/ }).focus();
+    await browser
+      .locator('.project-browser-row')
+      .filter({ hasText: /Imported film/ })
+      .focus();
     await page.keyboard.press('Enter');
     await expect(browser).not.toBeVisible();
     await expect(
@@ -181,10 +186,14 @@ for (const base of ['/', '/LocalCut/']) {
           page.getByRole('main', { name: 'Video editor' }),
         ).not.toBeVisible();
         await expect(
-          browser.getByRole('button', { name: /Zebra film/ }),
+          browser
+            .locator('.project-browser-row')
+            .filter({ hasText: /Zebra film/ }),
         ).toContainText('1 clip');
         await expect(
-          browser.getByRole('button', { name: /Zebra film/ }),
+          browser
+            .locator('.project-browser-row')
+            .filter({ hasText: /Zebra film/ }),
         ).toContainText('Current');
         await browser
           .getByRole('button', { name: 'Back to editor', exact: true })
@@ -214,7 +223,10 @@ for (const base of ['/', '/LocalCut/']) {
         await page
           .getByRole('button', { name: 'Open project', exact: true })
           .click();
-        await browser.getByRole('button', { name: /Zebra film/ }).click();
+        await browser
+          .locator('.project-browser-row')
+          .filter({ hasText: /Zebra film/ })
+          .click();
         await expect(playhead).toHaveAttribute('aria-valuenow', scrubbed!);
         await expect(page.getByLabel('Describe your edit')).toHaveValue(
           'Preserve this draft',
@@ -227,7 +239,7 @@ for (const base of ['/', '/LocalCut/']) {
         await page.keyboard.press('ControlOrMeta+o');
         const rows = browser
           .getByRole('list', { name: 'Saved projects' })
-          .getByRole('button');
+          .locator('.project-browser-row');
         await expect(rows).toHaveCount(2);
         await expect(rows.first()).toContainText('Alpha film');
         const search = browser.getByRole('textbox', {
@@ -262,7 +274,10 @@ for (const base of ['/', '/LocalCut/']) {
           fullPage: true,
           animations: 'disabled',
         });
-        await browser.getByRole('button', { name: /Zebra film/ }).click();
+        await browser
+          .locator('.project-browser-row')
+          .filter({ hasText: /Zebra film/ })
+          .click();
         await expect(
           page.getByRole('button', { name: 'Open project', exact: true }),
         ).toContainText('Zebra film');
@@ -277,9 +292,14 @@ for (const base of ['/', '/LocalCut/']) {
           .getByRole('button', { name: 'Open project', exact: true })
           .click();
         await expect(
-          browser.getByRole('button', { name: /Zebra film/ }),
+          browser
+            .locator('.project-browser-row')
+            .filter({ hasText: /Zebra film/ }),
         ).toContainText('1 clip');
-        await browser.getByRole('button', { name: /Zebra film/ }).click();
+        await browser
+          .locator('.project-browser-row')
+          .filter({ hasText: /Zebra film/ })
+          .click();
         await expect(
           page.getByRole('button', {
             name: 'Your story starts here',
