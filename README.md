@@ -19,11 +19,9 @@ The application builds to static files. Headless consumers discover content-hash
 
 ## Browser support and data
 
-Current stable desktop **Google Chrome** is the complete acceptance target. Native Safari has a separate macOS regression suite; that coverage does not establish full Chrome parity. Mobile layouts are available, but storage, capture and codec support depend on the browser/device. Export formats are capability-checked at runtime.
+Use current stable desktop **Google Chrome** for the complete supported experience; Safari has focused macOS regression coverage. Export and capture capabilities vary by browser/device. See [browser support](docs/browser-support.md).
 
-Projects and originals live in IndexedDB/OPFS on this browser and origin. There is no cloud sync. Browser data clearing, eviction, changing browser profiles, or moving to a different host can make projects unavailable. Export backups with originals before relying on long-term retention. No service worker is installed, so full offline navigation is not supported; local inference can reuse explicitly downloaded model/runtime caches while the application is available.
-
-Local editing and default Whisper transcription process media on the device. Optional AI actions can send prompts and permitted metadata, indexing excerpts, authored speech scripts, or approved transcription audio to configured providers. Saved browser credentials are readable by scripts on the same origin. Read [privacy and data flows](docs/privacy.md) before connecting a provider.
+Projects stay in this browser with no cloud sync; export backups with originals. Read [privacy and data flows](docs/privacy.md) before connecting optional AI providers.
 
 ## Your first edit
 
@@ -37,51 +35,9 @@ See the [first-edit guide](docs/getting-started.md) for versions, provider setup
 
 ## Setup
 
-Install Node 24 LTS, then the pinned pnpm 11.25.0. Check `node --version` reports `v24.x` before installing dependencies:
+Use **Node 24 LTS** and **pnpm 11.25.0**. Follow the [setup guide](docs/setup.md) to clone, install and start LocalCut locally.
 
-```sh
-npm install --global pnpm@11.25.0
-git clone https://github.com/WilsonLe/LocalCut.git
-cd LocalCut
-pnpm install --frozen-lockfile
-pnpm dev
-```
-
-Current desktop Google Chrome is required for native codec, OPFS, Web Locks, and production integration tests. Local editing requires no runtime environment variables, accounts, servers, or secrets. Optional remote AI needs an explicitly connected provider key or ChatGPT OAuth sign-in. Custom endpoints must allow browser CORS. HTTPS or localhost is required for browser storage.
-
-Contributors: start with [CONTRIBUTING.md](CONTRIBUTING.md). Coding agents must also read [AGENTS.md](AGENTS.md). Use the [development guide](docs/development.md) for module ownership, fast check selection, build reuse, and the single review-and-address cycle.
-
-Validation runs locally with `pnpm check` and the applicable real transcription/performance acceptance commands. Hosted CI is disabled. GitHub Pages builds and publishes automatically on every push to `main`; release packaging remains separate from local validation. Confirmed manual redeployment is also available. See [deployment and rollback](DEPLOY.md).
-
-| Command                               | Purpose                                                       |
-| ------------------------------------- | ------------------------------------------------------------- |
-| `pnpm dev`                            | Local editor workspace at the root path                       |
-| `pnpm typecheck`                      | Strict browser, worker, Node/test/config checks               |
-| `pnpm lint`                           | ESLint and pure-core import boundaries                        |
-| `pnpm format:check`                   | Prettier                                                      |
-| `pnpm test`                           | Domain and service unit tests                                 |
-| `pnpm build`                          | App + `editor.js` + `ai.js` + worker assets + declarations    |
-| `pnpm build:root`                     | Equivalent build at `/` in `dist-root`                        |
-| `pnpm test:browser`                   | Production integration in Google Chrome                       |
-| `pnpm test:safari`                    | Native Safari storage and H.264/AAC regressions (macOS)       |
-| `pnpm test:profile <label> <command>` | Wall time, descendant CPU/RSS and host utilization profile    |
-| `pnpm test:tooling`                   | Resource scheduling and verified-build cache regressions      |
-| `pnpm test:ui`                        | Focused workspace tests; rebuild only stale production assets |
-| `pnpm test:transcription`             | Real pinned Whisper preparation and cached replay             |
-| `pnpm test:performance`               | Warmup, two- and five-minute 1080p exports                    |
-| `pnpm test:ai:live`                   | Opt-in real OpenRouter test; private key and model required   |
-| `pnpm check:bundle`                   | Actual entry graph and static artifact budgets                |
-| `pnpm check`                          | Normal formatting/lint/type/unit/build/bundle/browser gates   |
-
-Browser commands require both production builds first, except `test:ui` and `test:safari`, which verify or build them automatically. The harness server is test-only and never enters `dist`. Unit concurrency adapts to CPU availability, current load, available memory (including reclaimable OS cache), and cgroup limits. Normal Chrome runs concurrent isolated contexts in one shared stable-Chrome process. `LOCALCUT_BROWSER_WORKERS` bounds the parallel context workers within the live capacity budget. `LOCALCUT_TEST_SLOTS=1` makes the check pipeline serial; `LOCALCUT_UNIT_WORKERS=1` narrows the unit pool; `LOCALCUT_BROWSER_WORKERS=1` keeps browser runs serial. Overrides accept positive safe integers and only narrow available capacity; there are no fixed machine-size ceilings. Each shared-browser worker reserves one slot (0.75 GiB); independently launched browser workers retain two slots. Functional UI checks prefer reduced motion; dedicated animation and keyboard-focus checks retain full motion. Transcription, performance, and live-provider tests remain serial, explicit additional gates; none is included in ordinary `check`.
-
-For UI iteration, run `pnpm test:ui`, or narrow it with `pnpm test:ui --grep 'speed rounding'`. It runs workspace tests at both static base paths. Content hashes verify build inputs and every output file before reuse; changed source, build configuration, dependencies, or missing/tampered output triggers a rebuild. Documentation and test-only edits do not. The stamps live in ignored `.cache/build-state/`, outside deployed assets. `pnpm check` uses the same verified-build reuse and retains all static, unit, artifact and Chrome gates. It refreshes its shared resource budget at gate boundaries and every second while waiting, overlaps independent checks, runs both builds in sequence, and starts browser consumers only after outputs pass the bundle gate.
-
-TypeScript 7.0.2 supplies `tsc` through the `@typescript/native` alias. The `typescript` alias supplies Microsoft's pinned v6 compatibility API for typescript-eslint; it does not replace the production compiler. Dependencies and the lockfile are exact.
-
-See [architecture](docs/architecture.md), [API](docs/api.md), [OpenRouter integration and privacy](docs/ai.md), [storage](docs/storage.md), [local transcription](docs/transcription.md), [verification](docs/validation.md), and [deployment](DEPLOY.md).
-
-Native Safari: enable **Allow remote automation** in Safari’s Develop → Developer Settings once, then run `pnpm test:safari`. The suite uses installed Safari through `safaridriver`, verifies/reuses both builds, and runs serially with its own loopback ports. It checks storage reload and three MP4 round trips at each base path, including stereo WAV input, reimported AAC and silence. Unavailable native capabilities fail. Results and failure screenshots are saved in `test-results/safari/`. Playwright WebKit is not native Safari evidence. Safari is an explicit additional gate, with Chrome remaining the complete acceptance target.
+Contributors: read [CONTRIBUTING.md](CONTRIBUTING.md), then the [development guide](docs/development.md) for commands and focused checks. Coding agents also follow [AGENTS.md](AGENTS.md).
 
 ## Versioning
 

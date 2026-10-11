@@ -263,6 +263,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 ## Open-source documentation — 11 October 2026
 
+- Keep README sections short, including setup and browser support. Link to longer setup instructions and the relevant detailed guides instead of embedding command tables or extended compatibility notes.
 - Maintain newcomer-facing README, contributor, deployment, support, security, community and maintainer guidance so LocalCut is approachable as an open-source project. Keep the technical contracts accurate and connected through a documentation index.
 - License LocalCut's original code and documentation under MIT. Preserve separate third-party, font, model and fixture licenses/notices.
 
