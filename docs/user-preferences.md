@@ -321,3 +321,11 @@ This is the project record of the user's durable product and workflow choices. U
 - Keep provider Verify and Disconnect as icons at the right of each connection row; use a green check beside Verify for success and omit the removal icon and success prose. Open the Add provider form in a popover.
 - Offer searchable provider-specific STT and TTS model choices instead of route model text fields; omit redundant STT provider/transport metadata from settings.
 - Put dictation directly before Send at the right of the composer; an empty composer shows dictation in Send's position. Center useful initial guidance in an empty chat.
+
+## Chat output policy — 11 October 2026
+
+- Do not cap editing-chat output responses in LocalCut. Leave output token limits to each provider/model instead of imposing a fixed 4k, 16k or 32k allowance, and accept long response text and hidden reasoning. Keep context compaction, explicit proposal approval, privacy, terminal validation and explicit retry behavior.
+
+## Chat interruptions — 11 October 2026
+
+- Pause unfinished assistant responses gracefully when navigating away from chat. Expected navigation interruption must not display an error; show Resume as the primary composer action on return while the draft is empty. Typing changes it to Send, and clearing the draft restores Resume. Resume explicitly restarts the paused request without requiring a follow-up message.

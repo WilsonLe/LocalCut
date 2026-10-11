@@ -66,6 +66,65 @@ function routed(a: OpenRouter, b: OpenRouter) {
   );
 }
 describe('service providers', () => {
+  it.each([undefined, 16384, 128000])(
+    'uses provider output policy by default and respects explicit fallback limits (%s)',
+    async (maxOutputTokens) => {
+      const model = (id: string, max: number) => ({
+        id,
+        name: id,
+        context_length: 300000,
+        supported_parameters: ['tools', 'tool_choice', 'reasoning'],
+        top_provider: { max_completion_tokens: max },
+      });
+      const primaryFetch = vi.fn<typeof globalThis.fetch>(async (url) =>
+        String(url).endsWith('/models')
+          ? Response.json({ data: [model('primary-model', 256000)] })
+          : new Response(null, { status: 429 }),
+      );
+      const backupFetch = vi.fn<typeof globalThis.fetch>(async (url) =>
+        String(url).endsWith('/models')
+          ? Response.json({ data: [model('backup-model', 8192)] })
+          : new Response(
+              'data: {"choices":[{"index":0,"delta":{"content":"Backup completed"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+              { headers: { 'Content-Type': 'text/event-stream' } },
+            ),
+      );
+      const a = createOpenRouter({ fetch: primaryFetch });
+      const b = createOpenRouter({ fetch: backupFetch });
+      a.setKey('synthetic-primary');
+      b.setKey('synthetic-backup');
+      const router = routed(a, b);
+      try {
+        const events = await collect(
+          router.stream({ ...chat, maxOutputTokens }, signal()),
+        );
+        expect(events.at(-1)).toMatchObject({
+          type: 'complete',
+          message: { content: 'Backup completed' },
+        });
+        const primary = primaryFetch.mock.calls.find(([url]) =>
+          String(url).endsWith('/chat/completions'),
+        )!;
+        const backup = backupFetch.mock.calls.find(([url]) =>
+          String(url).endsWith('/chat/completions'),
+        )!;
+        expect(JSON.parse(String(primary[1]?.body)).max_tokens).toBe(
+          maxOutputTokens ?? 256000,
+        );
+        expect(JSON.parse(String(backup[1]?.body)).max_tokens).toBe(8192);
+        expect(
+          backupFetch.mock.calls.filter(([url]) =>
+            String(url).endsWith('/chat/completions'),
+          ),
+        ).toHaveLength(1);
+      } finally {
+        router.dispose();
+        a.dispose();
+        b.dispose();
+      }
+    },
+  );
+
   it('verifies independently stored OpenRouter keys without inference and disconnects only one account', async () => {
     const records = new Map<string, string>();
     const storage = {
@@ -445,6 +504,42 @@ describe('Responses protocol', () => {
     expect(output[1]).toMatchObject({
       type: 'complete',
       message: { tool_calls: [{ id: 'c1' }] },
+    });
+  });
+  it('omits the default output cap and accepts long completed Responses text', async () => {
+    expect(
+      JSON.parse(responsesBody({ ...chat, maxOutputTokens: undefined })),
+    ).not.toHaveProperty('max_output_tokens');
+    const text = 'x'.repeat(1024 * 1024 + 1);
+    const events = await collect(
+      parseResponses(
+        response([
+          { type: 'response.output_text.delta', delta: text },
+          {
+            type: 'response.completed',
+            response: {
+              status: 'completed',
+              output: [
+                {
+                  type: 'message',
+                  role: 'assistant',
+                  content: [{ type: 'output_text', text }],
+                },
+              ],
+              usage: {
+                input_tokens: 1,
+                output_tokens: 300000,
+                total_tokens: 300001,
+              },
+            },
+          },
+        ]),
+        signal(),
+      ),
+    );
+    expect(events.at(-1)).toMatchObject({
+      type: 'complete',
+      message: { content: text },
     });
   });
   it('rejects failed/truncated/duplicate terminal frames and malformed calls', async () => {

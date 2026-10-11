@@ -1846,6 +1846,7 @@ export function Workspace() {
                 onError={error}
                 registerCleanup={registerCleanup}
                 collapsed={visibleChatCollapsed}
+                active={!narrow || mobileTab === 'chat'}
                 onToggle={toggleChat}
               />
             </Suspense>

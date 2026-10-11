@@ -91,6 +91,7 @@ export interface ConversationProps {
   onError: (error: unknown) => void;
   registerCleanup?: (cleanup: () => Promise<void>) => void;
   collapsed: boolean;
+  active?: boolean;
   onToggle: () => void;
 }
 
@@ -1081,7 +1082,11 @@ export function Conversation(props: ConversationProps) {
                   privacy={{ ...privacy, includeAssetIndexes: indexingAllowed }}
                   registerSession={registerSession}
                   composerControl={null}
-                  active={session.id === conversationNumber && !props.collapsed}
+                  active={
+                    session.id === conversationNumber &&
+                    !props.collapsed &&
+                    props.active !== false
+                  }
                   initialBranch={chatBranches[session.id]}
                   onBranch={(branch) => {
                     const id = ++nextSession.current;

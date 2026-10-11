@@ -95,6 +95,40 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 describe('durable task queue', () => {
+  it('cancels a navigation-interrupted request without retaining its network error', async () => {
+    const q = queue();
+    let started = false;
+    q.register('chat', {
+      lane: 'chat',
+      recovery: 'manual',
+      execute: async (_input, task) => {
+        started = true;
+        return new Promise((_resolve, reject) => {
+          task.signal.addEventListener(
+            'abort',
+            () => {
+              reject(
+                Object.assign(new Error('connection lost'), {
+                  code: 'NETWORK_ERROR',
+                }),
+              );
+            },
+            { once: true },
+          );
+        });
+      },
+    });
+    const job = q.enqueue('chat', {}, { label: 'Assistant response' });
+    await wait(async () => started);
+    job.cancel();
+    await expect(job.completion).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(await q.get(job.id)).toMatchObject({
+      state: 'cancelled',
+      error: undefined,
+    });
+    await q.poll();
+    expect((await q.list())[0]?.error).toBeUndefined();
+  });
   it('cancels while encoding a saved artifact and discards its native output', async () => {
     const q = queue();
     let release!: () => void;
@@ -374,3 +408,35 @@ it('retains safe HTTP metadata for actionable endpoint errors and removes privat
     /secret-token|private provider echo/,
   );
 });
+
+it.each([
+  ['RESPONSE_INCOMPLETE', 'output_limit', { reason: 'output_limit' }],
+  ['RESPONSE_INCOMPLETE', 'secret-token', undefined],
+  ['INVALID_REQUEST', 'output_limit', undefined],
+])(
+  'retains only the incomplete-response output-limit diagnostic for %s/%s',
+  async (code, reason, expected) => {
+    const q = queue();
+    q.register('remote', {
+      lane: 'remote',
+      recovery: 'manual',
+      execute: async () => {
+        throw Object.assign(new Error('private provider echo'), {
+          code,
+          details: { reason, body: 'secret-token' },
+        });
+      },
+    });
+    const job = q.enqueue('remote', {}, { label: 'Response error' });
+    await expect(job.completion).rejects.toMatchObject({
+      code,
+      details: expected,
+    });
+    const task = await q.get(job.id);
+    expect(task?.error?.details).toEqual(expected);
+    expect(task?.attempts).toBe(1);
+    expect(JSON.stringify(task)).not.toMatch(
+      /secret-token|private provider echo/,
+    );
+  },
+);

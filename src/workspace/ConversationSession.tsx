@@ -18,6 +18,7 @@ import {
   Info,
   X,
   Square,
+  Play,
   Terminal,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -53,7 +54,7 @@ export interface Message {
   id: string;
   role: 'user' | 'assistant';
   text: string;
-  status: 'complete' | 'streaming' | 'interrupted' | 'failed';
+  status: 'complete' | 'streaming' | 'interrupted' | 'paused' | 'failed';
   proposalIds: string[];
   usage?: Usage;
   tools?: AssistantToolCall[];
@@ -93,6 +94,11 @@ function ToolDetails({ tool }: { tool: AssistantToolCall }) {
       )}
     </div>
   );
+}
+interface PausedRequest {
+  turnId: string;
+  prompt: string;
+  assetIds: string[];
 }
 export interface ChatBranch {
   checkpoint: AssistantBranch;
@@ -156,6 +162,9 @@ export default function ConversationSession({
   const [cancelling, setCancelling] = useState(false);
   const [activity, setActivity] = useState('Thinking…');
   const [failure, setFailure] = useState<string | null>(null);
+  const [pausedRequest, setPausedRequest] = useState<PausedRequest | null>(
+    null,
+  );
   const [following, setFollowing] = useState(true);
   const composer = useRef<HTMLTextAreaElement>(null);
   const assistant = useRef<Assistant | null>(null);
@@ -165,6 +174,7 @@ export default function ConversationSession({
   const list = useRef<HTMLDivElement>(null);
   const nearBottom = useRef(true);
   const cancelBeforeRun = useRef(false);
+  const pausedByNavigation = useRef(false);
   const runningRef = useRef(false);
   const applyingRef = useRef(false);
   const selected = project.tracks
@@ -174,9 +184,31 @@ export default function ConversationSession({
     (proposal) => proposal.status === 'applying',
   );
 
+  const pauseResponse = useCallback(() => {
+    if (!runningRef.current) return;
+    pausedByNavigation.current = true;
+    cancelBeforeRun.current = true;
+    turn.current?.cancel();
+  }, []);
+  useLayoutEffect(() => {
+    if (!active) pauseResponse();
+  }, [active, pauseResponse]);
+  useEffect(() => {
+    const visibility = () => {
+      if (document.visibilityState === 'hidden') pauseResponse();
+    };
+    document.addEventListener('visibilitychange', visibility);
+    window.addEventListener('pagehide', pauseResponse);
+    return () => {
+      document.removeEventListener('visibilitychange', visibility);
+      window.removeEventListener('pagehide', pauseResponse);
+    };
+  }, [pauseResponse]);
+
   useEffect(() => {
     mounted.current = true;
     const cleanup = async () => {
+      pauseResponse();
       turn.current?.cancel();
       unsubscribe.current?.();
       await assistant.current?.dispose();
@@ -187,7 +219,7 @@ export default function ConversationSession({
       retireSession(cleanup);
       unregister();
     };
-  }, [registerSession, retireSession]);
+  }, [registerSession, retireSession, pauseResponse]);
   useLayoutEffect(() => {
     if (nearBottom.current && list.current)
       list.current.scrollTop = list.current.scrollHeight;
@@ -230,53 +262,76 @@ export default function ConversationSession({
   };
   const send = async (event: FormEvent) => {
     event.preventDefault();
-    if (readOnly) return;
+    if (readOnly || !active || document.visibilityState === 'hidden') return;
+    const resuming = prompt.length === 0 ? pausedRequest : null;
     const text = prompt.trim();
-    if (!text || attaching || runningRef.current || applyingRef.current) return;
+    if (
+      (!text && !resuming) ||
+      attaching ||
+      runningRef.current ||
+      applyingRef.current
+    )
+      return;
     runningRef.current = true;
     setFailure(null);
     setActivity('Thinking…');
     setCancelling(false);
     setRunning(true);
     onBusy(true);
-    onTitle(text.slice(0, 80));
+    if (!resuming) onTitle(text.slice(0, 80));
     cancelBeforeRun.current = false;
+    pausedByNavigation.current = false;
     let activeTurn: AssistantTurn | undefined;
+    let submitted: PausedRequest | undefined;
     let stop: (() => void) | undefined;
     try {
       await waitForRetired();
       if (!mounted.current || cancelBeforeRun.current) return;
       const session = ensureAssistant();
-      session.includeAssets(attachments.map((asset) => asset.id));
+      const assetIds =
+        resuming?.assetIds ?? attachments.map((asset) => asset.id);
+      session.includeAssets(assetIds);
       const context =
         (selected ? `Selected clip ID: ${selected.id}.\n\n` : '') +
         (attachments.length
           ? `Attached local image asset IDs: ${attachments.map((asset) => asset.id).join(', ')}. Inspect these assets with the declared tools; their pixels remain local.\n\n`
           : '');
-      activeTurn = session.run(context + text);
+      const requestPrompt = resuming?.prompt ?? context + text;
+      activeTurn = session.run(requestPrompt);
+      submitted = { turnId: activeTurn.id, prompt: requestPrompt, assetIds };
       turn.current = activeTurn;
-      setPrompt('');
-      setAttachments([]);
-      onDraftChange(false);
+      setPausedRequest(null);
+      if (!resuming) {
+        setPrompt('');
+        setAttachments([]);
+        onDraftChange(false);
+      }
       nearBottom.current = true;
       setFollowing(true);
-      setMessages((current) => [
-        ...current,
-        {
-          id: crypto.randomUUID(),
-          role: 'user',
-          text,
-          status: 'complete',
-          proposalIds: [],
-        },
-        {
-          id: activeTurn!.id,
-          role: 'assistant',
-          text: '',
-          status: 'streaming',
-          proposalIds: [],
-        },
-      ]);
+      const response: Message = {
+        id: activeTurn.id,
+        role: 'assistant',
+        text: '',
+        status: 'streaming',
+        proposalIds: [],
+      };
+      setMessages((current) =>
+        resuming
+          ? current.map((message) =>
+              message.id === resuming.turnId ? response : message,
+            )
+          : [
+              ...current,
+              {
+                id: crypto.randomUUID(),
+                role: 'user',
+                text,
+                status: 'complete',
+                proposalIds: [],
+              },
+              response,
+            ],
+      );
       stop = activeTurn.subscribe((event) => {
         if (!mounted.current) return;
         if (event.type === 'text')
@@ -330,18 +385,24 @@ export default function ConversationSession({
         );
     } catch (error) {
       if (!mounted.current) return;
-      const cancelled = errorCode(error) === 'CANCELLED';
+      const paused = pausedByNavigation.current;
+      const cancelled = paused || errorCode(error) === 'CANCELLED';
       const text = cancelled
         ? 'Response stopped. No unfinished proposal was saved.'
         : errorText(error);
-      setFailure(text);
+      setFailure(paused ? null : text);
+      if (paused && submitted) setPausedRequest(submitted);
       if (activeTurn)
         setMessages((current) =>
           current.map((message) =>
             message.id === activeTurn!.id
               ? {
                   ...message,
-                  status: cancelled ? 'interrupted' : 'failed',
+                  status: paused
+                    ? 'paused'
+                    : cancelled
+                      ? 'interrupted'
+                      : 'failed',
                   proposalIds: [],
                 }
               : message,
@@ -584,11 +645,14 @@ export default function ConversationSession({
                 </p>
               )}
               {(message.status === 'interrupted' ||
+                message.status === 'paused' ||
                 message.status === 'failed') && (
                 <p className="text-xs text-muted-foreground">
-                  {message.status === 'interrupted'
-                    ? 'Stopped'
-                    : 'Incomplete response'}{' '}
+                  {message.status === 'paused'
+                    ? 'Paused'
+                    : message.status === 'interrupted'
+                      ? 'Stopped'
+                      : 'Incomplete response'}{' '}
                   · No pending changes
                 </p>
               )}
@@ -962,14 +1026,30 @@ export default function ConversationSession({
                 >
                   <Square className="size-3" aria-hidden="true" />
                 </Button>
-              ) : prompt.trim() || attachments.length ? (
+              ) : prompt.trim() ||
+                attachments.length ||
+                (pausedRequest && prompt.length === 0) ? (
                 <Button
                   type="submit"
                   size="icon-sm"
-                  aria-label="Send edit request"
-                  disabled={readOnly || !prompt.trim() || applying || attaching}
+                  aria-label={
+                    pausedRequest && prompt.length === 0
+                      ? 'Resume response'
+                      : 'Send edit request'
+                  }
+                  disabled={
+                    readOnly ||
+                    (!prompt.trim() &&
+                      !(pausedRequest && prompt.length === 0)) ||
+                    applying ||
+                    attaching
+                  }
                 >
-                  <ArrowUp aria-hidden="true" />
+                  {pausedRequest && prompt.length === 0 ? (
+                    <Play aria-hidden="true" />
+                  ) : (
+                    <ArrowUp aria-hidden="true" />
+                  )}
                 </Button>
               ) : null}
             </div>

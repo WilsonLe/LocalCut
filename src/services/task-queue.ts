@@ -31,7 +31,7 @@ export interface TaskRecord {
     code: string;
     message: string;
     action: string;
-    details?: { status: number };
+    details?: { status?: number; reason?: 'output_limit' };
   };
 }
 export interface TaskContext {
@@ -131,23 +131,32 @@ const taskError = (error: unknown): TaskQueueError => {
           : code === 'INTERRUPTED'
             ? 'The outcome is unknown. Review before retrying; provider charges may apply.'
             : 'Review the request and retry, or dismiss this task.';
-  const status =
+  const metadata =
     error &&
     typeof error === 'object' &&
     'details' in error &&
     error.details &&
-    typeof error.details === 'object' &&
-    'status' in error.details
-      ? error.details.status
-      : undefined;
-  // Preserve only bounded HTTP metadata; bodies and arbitrary details can contain secrets.
+    typeof error.details === 'object'
+      ? error.details
+      : {};
+  const details: NonNullable<TaskQueueError['details']> = {};
+  if (
+    'status' in metadata &&
+    typeof metadata.status === 'number' &&
+    Number.isInteger(metadata.status) &&
+    metadata.status >= 400 &&
+    metadata.status <= 599
+  )
+    details.status = metadata.status;
+  if (
+    code === 'RESPONSE_INCOMPLETE' &&
+    'reason' in metadata &&
+    metadata.reason === 'output_limit'
+  )
+    details.reason = 'output_limit';
+  // Retain only bounded HTTP metadata and the local enum; discard provider bodies.
   return {
-    ...(typeof status === 'number' &&
-    Number.isInteger(status) &&
-    status >= 400 &&
-    status <= 599
-      ? { details: { status } }
-      : {}),
+    ...(Object.keys(details).length ? { details } : {}),
     code,
     message:
       code === 'INTERRUPTED'
@@ -701,7 +710,11 @@ export class TaskQueue {
             : cancelled
               ? 'Cancelled'
               : 'Needs attention',
-          error: this.disposed ? taskError({ code: 'INTERRUPTED' }) : failure,
+          error: cancelled
+            ? undefined
+            : this.disposed
+              ? taskError({ code: 'INTERRUPTED' })
+              : failure,
           nextAttemptAt: retry
             ? Date.now() +
               Math.max(

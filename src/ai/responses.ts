@@ -61,7 +61,6 @@ export async function* parseResponses(
   signal: AbortSignal,
 ): AsyncGenerator<ProviderEvent> {
   let complete: ProviderEvent | undefined;
-  let textSize = 0;
   for await (const data of dataEvents(response, signal)) {
     if (data === '[DONE]') continue;
     let event: unknown;
@@ -80,12 +79,6 @@ export async function* parseResponses(
         typeof event.delta === 'string',
         'INVALID_RESPONSE',
         'Invalid ChatGPT text.',
-      );
-      textSize += event.delta.length;
-      aiInvariant(
-        textSize <= PROTOCOL_LIMITS.textCharacters,
-        'RESPONSE_LIMIT',
-        'ChatGPT text exceeded the limit.',
       );
       yield { type: 'text', text: event.delta };
     } else if (event.type === 'response.refusal.delta')
@@ -167,11 +160,6 @@ export async function* parseResponses(
             'Unsupported ChatGPT output.',
           );
       }
-      aiInvariant(
-        content.length <= PROTOCOL_LIMITS.textCharacters,
-        'RESPONSE_LIMIT',
-        'ChatGPT text exceeded the limit.',
-      );
       const message: AssistantMessage = {
         role: 'assistant',
         content: content || null,

@@ -11,7 +11,7 @@ const memoryBytes = 12_000;
 export function contextTokens(
   messages: ChatMessage[],
   tools: ToolDefinition[],
-  output: number,
+  output = 0,
 ) {
   return byteLength({ messages, tools }) + output;
 }
@@ -24,7 +24,7 @@ export function compactHistory(
   prefix: ChatMessage[],
   current: ChatMessage[],
   tools: ToolDefinition[],
-  output: number,
+  output = 0,
 ) {
   const memoryMessage = (): ChatMessage[] =>
     memory

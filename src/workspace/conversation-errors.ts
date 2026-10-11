@@ -29,6 +29,17 @@ export function errorText(error: unknown): string {
     )
       return `The provider rejected this request (HTTP ${status}). Check the selected model and request settings.`;
   }
+  if (
+    errorCode(error) === 'RESPONSE_INCOMPLETE' &&
+    error &&
+    typeof error === 'object' &&
+    'details' in error &&
+    error.details &&
+    typeof error.details === 'object' &&
+    'reason' in error.details &&
+    error.details.reason === 'output_limit'
+  )
+    return 'The model reached its response limit before finishing. No proposal was published. Try a smaller edit or another model.';
   const messages: Record<string, string> = {
     INVALID_REQUEST: 'Check the selected model, endpoint and request settings.',
     AUTH_STORAGE:
@@ -46,7 +57,8 @@ export function errorText(error: unknown): string {
     RATE_LIMITED: 'The provider is rate limiting requests. Try again later.',
     MODEL_UNSUPPORTED: 'Choose a model that supports editing tools.',
     REVISION_CONFLICT: 'The project changed. Ask for a new proposal.',
-    RESPONSE_INCOMPLETE: 'The response ended early. No proposal was published.',
+    RESPONSE_INCOMPLETE:
+      'The response ended early. No proposal was published. You can retry the request.',
     NETWORK_ERROR: 'The provider could not be reached. Check your connection.',
     TIMEOUT: 'The provider took too long. You can send the request again.',
     PROVIDER_UNAVAILABLE:

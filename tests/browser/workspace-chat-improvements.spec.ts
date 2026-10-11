@@ -62,6 +62,218 @@ async function setup(page: Page, context: BrowserContext, base: string) {
   await page.getByRole('button', { name: 'Expand media', exact: true }).click();
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`chat navigation pauses quietly with Resume and Send composer actions ${base}`, async ({
+    page,
+    context,
+  }) => {
+    const requests: { messages: { role: string; content: string | null }[] }[] =
+      [];
+    const pending: (() => void)[] = [];
+    const pausedAttempts = new Map<string, number>();
+    await context.route(
+      'https://openrouter.ai/api/v1/chat/completions',
+      async (route) => {
+        const body = route
+          .request()
+          .postDataJSON() as (typeof requests)[number];
+        requests.push(body);
+        const prompt = body.messages
+          .filter((message) => message.role === 'user')
+          .at(-1)?.content;
+        const attempt = pausedAttempts.get(prompt ?? '') ?? 0;
+        if (
+          prompt?.startsWith('Pause') &&
+          attempt < (prompt.endsWith('collapse') ? 2 : 1)
+        ) {
+          pausedAttempts.set(prompt, attempt + 1);
+          await new Promise<void>((resolve) => pending.push(resolve));
+          await route.abort('failed').catch(() => {});
+        } else if (prompt === 'Fail in foreground') {
+          await route.abort('failed');
+        } else {
+          await route.fulfill({
+            headers: cors,
+            contentType: 'text/event-stream',
+            body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'Ready to continue.' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+          });
+        }
+      },
+    );
+    await setup(page, context, base);
+    const input = page.getByRole('textbox', {
+      name: 'Describe your edit',
+      exact: true,
+    });
+    const send = page.getByRole('button', {
+      name: 'Send edit request',
+      exact: true,
+    });
+    const responses = page.getByRole('article', { name: 'Assistant response' });
+    await input.fill('Completed context');
+    await send.click();
+    await expect(responses.last()).toContainText('Ready to continue.');
+
+    for (const navigation of [
+      'collapse',
+      'mobile tab',
+      'hidden tab',
+      'pagehide',
+    ]) {
+      await test.step(navigation, async () => {
+        const count = requests.length;
+        if (navigation === 'mobile tab') {
+          await page.setViewportSize({ width: 390, height: 844 });
+          await page
+            .getByRole('navigation', { name: 'Workspace sections' })
+            .getByRole('button', { name: 'Chat', exact: true })
+            .click();
+        }
+        await input.fill(`Pause for ${navigation}`);
+        await send.click();
+        await expect.poll(() => pending.length).toBe(1);
+        if (navigation === 'collapse') {
+          await page
+            .getByRole('button', { name: 'Collapse chat', exact: true })
+            .click();
+          pending.shift()!();
+          await page
+            .getByRole('button', { name: 'Expand chat', exact: true })
+            .click();
+        } else if (navigation === 'mobile tab') {
+          await input.blur();
+          await page
+            .getByRole('navigation', { name: 'Workspace sections' })
+            .getByRole('button', { name: 'Expand media', exact: true })
+            .click();
+          pending.shift()!();
+          await page
+            .getByRole('navigation', { name: 'Workspace sections' })
+            .getByRole('button', { name: 'Chat', exact: true })
+            .click();
+        } else {
+          await page.evaluate((navigation) => {
+            if (navigation === 'hidden tab') {
+              Object.defineProperty(document, 'visibilityState', {
+                configurable: true,
+                value: 'hidden',
+              });
+              document.dispatchEvent(new Event('visibilitychange'));
+            } else
+              window.dispatchEvent(
+                new PageTransitionEvent('pagehide', { persisted: true }),
+              );
+          }, navigation);
+          pending.shift()!();
+          await page.evaluate(() => {
+            delete (document as unknown as { visibilityState?: string })
+              .visibilityState;
+            document.dispatchEvent(new Event('visibilitychange'));
+            window.dispatchEvent(
+              new PageTransitionEvent('pageshow', { persisted: true }),
+            );
+          });
+        }
+        await expect(responses.last()).toContainText('Paused');
+        await expect(
+          page.getByRole('button', { name: 'Cancel response', exact: true }),
+        ).toHaveCount(0);
+        await expect(page.getByRole('alert')).toHaveCount(0);
+        await expect(
+          page.locator('[data-sonner-toast][data-type="error"]'),
+        ).toHaveCount(0);
+        expect(requests).toHaveLength(count + 1);
+        const originalRequest = requests.at(-1)!;
+        const messageCount = await page
+          .getByRole('article', { name: 'Your message' })
+          .count();
+        const responseCount = await responses.count();
+        const resume = page.getByRole('button', {
+          name: 'Resume response',
+          exact: true,
+        });
+        await expect(resume).toBeEnabled();
+        await expect(input).toHaveValue('');
+        await input.fill('New direction');
+        await expect(send).toBeEnabled();
+        await expect(resume).toHaveCount(0);
+        await input.fill(' ');
+        await expect(send).toHaveCount(0);
+        await input.press('Enter');
+        expect(requests).toHaveLength(count + 1);
+        await expect(resume).toHaveCount(0);
+        await input.fill('');
+        await expect(resume).toBeEnabled();
+        if (navigation === 'hidden tab') await input.press('Enter');
+        else await resume.click();
+        if (navigation === 'collapse') {
+          await expect.poll(() => pending.length).toBe(1);
+          await page
+            .getByRole('button', { name: 'Collapse chat', exact: true })
+            .click();
+          pending.shift()!();
+          await page
+            .getByRole('button', { name: 'Expand chat', exact: true })
+            .click();
+          await expect(responses.last()).toContainText('Paused');
+          await expect(resume).toBeEnabled();
+          await resume.click();
+        }
+        await expect(responses.last()).toContainText('Ready to continue.');
+        await expect(resume).toHaveCount(0);
+        await expect(
+          page.getByRole('article', { name: 'Your message' }),
+        ).toHaveCount(messageCount);
+        await expect(responses).toHaveCount(responseCount);
+        expect(requests.at(-1)?.messages).toEqual(originalRequest.messages);
+        expect(JSON.stringify(requests.at(-1)?.messages)).toContain(
+          'Completed context',
+        );
+        // Typing a new request after a pause must send that request, not resume the old one.
+        await input.fill(`New request after ${navigation}`);
+        await expect(send).toBeEnabled();
+        await send.click();
+        await expect(responses.last()).toContainText('Ready to continue.');
+        expect(requests.at(-1)?.messages.at(-1)?.content).toBe(
+          `New request after ${navigation}`,
+        );
+        await page.setViewportSize({ width: 1440, height: 900 });
+      });
+    }
+    await test.step('typed draft sends a new request instead of resuming', async () => {
+      await input.fill('Pause for a different request');
+      await send.click();
+      await expect.poll(() => pending.length).toBe(1);
+      await input.fill('Changed direction');
+      await page
+        .getByRole('button', { name: 'Collapse chat', exact: true })
+        .click();
+      pending.shift()!();
+      await page
+        .getByRole('button', { name: 'Expand chat', exact: true })
+        .click();
+      await expect(responses.last()).toContainText('Paused');
+      await expect(input).toHaveValue('Changed direction');
+      await expect(
+        page.getByRole('button', { name: 'Resume response', exact: true }),
+      ).toHaveCount(0);
+      const count = requests.length;
+      await send.click();
+      await expect(responses.last()).toContainText('Ready to continue.');
+      expect(requests).toHaveLength(count + 1);
+      expect(requests.at(-1)?.messages.at(-1)?.content).toBe(
+        'Changed direction',
+      );
+    });
+    await input.fill('Fail in foreground');
+    await send.click();
+    await expect(responses.last()).toContainText('Incomplete response');
+    await expect(page.getByRole('alert')).toContainText('could not be reached');
+    await expect(
+      page.locator('[data-sonner-toast][data-type="error"]').filter({
+        hasText: 'Assistant response: Task could not complete (NETWORK_ERROR)',
+      }),
+    ).toBeVisible();
+  });
   test(`chat response actions, branch isolation, dictation and image dragging ${base}`, async ({
     page,
     context,
