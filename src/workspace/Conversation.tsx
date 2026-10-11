@@ -14,7 +14,6 @@ import {
   ChevronDown,
   PanelRightClose,
   PanelRightOpen,
-  AudioLines,
   PlugZap,
 } from 'lucide-react';
 import type { Editor, Project } from '../editor';
@@ -39,10 +38,12 @@ import {
   EmptyDescription,
 } from '../components/ui/empty';
 import type { ChatSession } from './ChatSessionPicker';
+import type { ChatBranch } from './ConversationSession';
 const AIConnectionDialog = lazy(() => import('./AIConnectionDialog'));
 const ChatSessionPicker = lazy(() => import('./ChatSessionPicker'));
 const ConversationSession = lazy(() => import('./ConversationSession'));
 const SpeechDialog = lazy(() => import('./SpeechDialog'));
+const SpeechTasks = lazy(() => import('./SpeechTasks'));
 import {
   getWorkspacePreferences,
   saveWorkspacePreferences,
@@ -53,6 +54,7 @@ export interface Connection {
   provider: ReturnType<AiModule['createServiceRouter']>;
   api: AiModule;
   id: number;
+  speechRoute?: string;
   transcription?: {
     execute: import('../editor').TranscriptionExecutor;
     disclosure: string;
@@ -61,6 +63,7 @@ export interface Connection {
 export interface ConversationControls {
   commands: () => WorkspaceCommand[];
   openSettings: () => void;
+  openSpeech: () => void;
 }
 export interface IndexConnection extends Connection {
   model: string;
@@ -68,6 +71,7 @@ export interface IndexConnection extends Connection {
 }
 export interface ConversationProps {
   controlsRef?: Ref<ConversationControls>;
+  onSpeechAvailability?: (ready: boolean) => void;
   onIndexConnection?: (connection: IndexConnection | null) => void;
   editor: Editor | null;
   project: Project | null;
@@ -119,6 +123,11 @@ export function Conversation(props: ConversationProps) {
   const settingsReturnFocus = useRef<HTMLButtonElement | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [speechOpen, setSpeechOpen] = useState(false);
+  const [speechLoaded, setSpeechLoaded] = useState(false);
+  const openSpeech = () => {
+    setSpeechLoaded(true);
+    setSpeechOpen(true);
+  };
   const [apiKey, setApiKey] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -127,6 +136,9 @@ export function Conversation(props: ConversationProps) {
     { id: 0, title: 'New chat', hasMessages: false, hasDraft: false },
   ]);
   const [sessionBusy, setSessionBusy] = useState(false);
+  const [chatBranches, setChatBranches] = useState<Record<number, ChatBranch>>(
+    {},
+  );
   const [pickerLoaded, setPickerLoaded] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const nextSession = useRef(0);
@@ -218,6 +230,17 @@ export function Conversation(props: ConversationProps) {
         provider,
         api,
         id: token,
+        speechRoute: JSON.stringify({
+          routes: configuration.current.routes.tts.map((route, i) => ({
+            providerId: route.providerId,
+            ...(i ? { model: route.model, voice: route.voice } : {}),
+          })),
+          profiles: configuration.current.profiles.filter((profile) =>
+            configuration.current.routes.tts.some(
+              (route) => route.providerId === profile.id,
+            ),
+          ),
+        }),
         transcription: {
           execute: provider.transcribe,
           disclosure: provider.transcriptionDisclosure,
@@ -723,6 +746,10 @@ export function Conversation(props: ConversationProps) {
     props.editor &&
     props.project &&
     !props.readOnly;
+  const onSpeechAvailability = props.onSpeechAvailability;
+  useEffect(() => {
+    onSpeechAvailability?.(!!speechReady);
+  }, [speechReady, onSpeechAvailability]);
   const onIndexConnection = props.onIndexConnection;
   useEffect(() => {
     onIndexConnection?.(
@@ -751,6 +778,7 @@ export function Conversation(props: ConversationProps) {
   const [sessionScope, setSessionScope] = useState(sessionKey);
   if (sessionScope !== sessionKey) {
     setSessionScope(sessionKey);
+    setChatBranches({});
     setChatSessions([
       { id: 0, title: 'New chat', hasMessages: false, hasDraft: false },
     ]);
@@ -777,6 +805,9 @@ export function Conversation(props: ConversationProps) {
     setPickerOpen(true);
   };
   useImperativeHandle(props.controlsRef, () => ({
+    openSpeech: () => {
+      if (speechReady) openSpeech();
+    },
     openSettings: () => {
       settingsReturnFocus.current = null;
       setSettingsOpen(true);
@@ -788,7 +819,7 @@ export function Conversation(props: ConversationProps) {
               id: 'text-to-speech',
               label: 'Text to speech',
               group: 'Audio',
-              run: () => setSpeechOpen(true),
+              run: openSpeech,
             },
           ]
         : []),
@@ -899,17 +930,6 @@ export function Conversation(props: ConversationProps) {
         <header className="conversation-heading">
           <KlipMark className="size-7 shrink-0" />
           <span className="sr-only">Klip</span>
-          {speechReady && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Text to speech"
-              title="Text to speech"
-              onClick={() => setSpeechOpen(true)}
-            >
-              <AudioLines />
-            </Button>
-          )}
           {pickerLoaded ? (
             <Suspense fallback={sessionTrigger}>
               <ChatSessionPicker
@@ -943,6 +963,32 @@ export function Conversation(props: ConversationProps) {
                   privacy={{ ...privacy, includeAssetIndexes: indexingAllowed }}
                   registerSession={registerSession}
                   composerControl={null}
+                  active={session.id === conversationNumber && !props.collapsed}
+                  initialBranch={chatBranches[session.id]}
+                  onBranch={(branch) => {
+                    const id = ++nextSession.current;
+                    setChatBranches((current) => ({
+                      ...current,
+                      [id]: branch,
+                    }));
+                    setChatSessions((current) => [
+                      ...current,
+                      {
+                        id,
+                        title: `Branch of ${session.title}`,
+                        hasMessages: true,
+                        hasDraft: false,
+                      },
+                    ]);
+                    setConversationNumber(id);
+                    requestAnimationFrame(() =>
+                      document
+                        .querySelector<HTMLElement>(
+                          '.conversation-session:not([hidden]) textarea',
+                        )
+                        ?.focus(),
+                    );
+                  }}
                   retireSession={retireSession}
                   waitForRetired={waitForRetired}
                   onBusy={setSessionBusy}
@@ -1084,9 +1130,15 @@ export function Conversation(props: ConversationProps) {
           />
         </Suspense>
       )}
-      {speechOpen && speechReady && (
+      {speechReady && (
+        <Suspense fallback={null}>
+          <SpeechTasks connection={connection} editor={props.editor!} />
+        </Suspense>
+      )}
+      {speechLoaded && speechReady && (
         <Suspense fallback={null}>
           <SpeechDialog
+            open={speechOpen}
             key={`${connection.id}:${props.project!.id}`}
             connection={connection}
             preferredModel={

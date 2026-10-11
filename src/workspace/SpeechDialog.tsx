@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LoaderCircle, RefreshCw } from 'lucide-react';
+import { LoaderCircle, RefreshCw, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Editor, Job, Project } from '../editor';
 import type { SpeechAudio, SpeechModel, RenderedSpeech } from '../ai';
@@ -28,6 +28,9 @@ import {
   ComboboxValue,
 } from '../components/ui/combobox';
 import { SettingsSelect } from './SettingsSelect';
+import { Tooltip } from '../components/ui/tooltip';
+import { speechTaskKind, speechRoute } from './speech-tasks';
+import type { SpeechTaskInput, SpeechTaskResult } from './speech-tasks';
 
 const languages = [
   'Arabic',
@@ -56,6 +59,7 @@ const languages = [
   'Vietnamese',
 ];
 interface Props {
+  open: boolean;
   connection: Connection;
   editor: Editor;
   project: Project;
@@ -68,6 +72,7 @@ interface Props {
 }
 
 export default function SpeechDialog({
+  open,
   connection,
   editor,
   project,
@@ -92,9 +97,15 @@ export default function SpeechDialog({
   const [rendered, setRendered] = useState<RenderedSpeech | null>(null);
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState<string | null>('Loading speech models…');
+  const [localBusy, setLocalBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const active = useRef(false);
+  const [generation, setGeneration] = useState<string>();
+  const [restoreSaved, setRestoreSaved] = useState(true);
+  const generated = useRef<Job<SpeechTaskResult> | null>(null);
+  const selection = useRef<string | undefined>(undefined);
   const previewUrl = useRef('');
+  const loadedResult = useRef<string | undefined>(undefined);
   const publish = (result: RenderedSpeech | null) => {
     if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
     previewUrl.current = result ? URL.createObjectURL(result.file) : '';
@@ -110,6 +121,7 @@ export default function SpeechDialog({
       const abort = new AbortController();
       controller.current = abort;
       setBusy(label);
+      setLocalBusy(true);
       setError(null);
       const work = (async () => {
         try {
@@ -131,7 +143,10 @@ export default function SpeechDialog({
             setError(message);
           }
         } finally {
-          if (active.current) setBusy(null);
+          if (active.current) {
+            setBusy(null);
+            setLocalBusy(false);
+          }
           pending.current = null;
           controller.current = null;
           importing.current = null;
@@ -192,40 +207,160 @@ export default function SpeechDialog({
       : { mode: 'duration' as const, durationSeconds: Number(duration) };
   const adjust = (source = audio) => {
     if (!source) return;
+    try {
+      connection.api.validateSpeechTiming(
+        timing(),
+        source.samples.length / source.sampleRate,
+      );
+    } catch (error) {
+      publish(null);
+      setError(
+        error instanceof Error ? error.message : 'Choose valid speech timing.',
+      );
+      return;
+    }
     publish(null);
     run('Adjusting speech…', async (signal) => {
-      const result = await connection.api.renderSpeech(
-        source,
-        timing(),
-        signal,
+      const task = editor.tasks.enqueue<RenderedSpeech>(
+        'speech.timing',
+        { audio: source, timing: timing() },
+        { label: 'Adjusting speech timing', projectId: project.id },
       );
+      const abort = () => task.cancel();
+      signal.addEventListener('abort', abort, { once: true });
+      if (signal.aborted) abort();
+      let result: RenderedSpeech;
+      try {
+        result = await task.completion;
+      } finally {
+        signal.removeEventListener('abort', abort);
+      }
       if (active.current && !signal.aborted) publish(result);
     });
   };
+  const loadResult = useCallback(
+    async (id: string) => {
+      if (loadedResult.current === id) return;
+      const result = await editor.tasks.result<SpeechTaskResult>(id);
+      if (!active.current || selection.current !== id) return;
+      const input = (await editor.tasks.input(id)) as SpeechTaskInput;
+      loadedResult.current = id;
+      setAudio(result.audio);
+      setScript(input.request.script);
+      setModel(input.request.model);
+      setVoice(input.request.voice);
+      setLanguages(input.request.languages);
+      setDelivery(input.request.instructions ?? '');
+      setMode(input.timing.mode);
+      if (input.timing.mode === 'speed') setSpeed(String(input.timing.speed));
+      else setDuration(String(input.timing.durationSeconds));
+      publish(result.rendered);
+      setBusy(null);
+    },
+    [editor],
+  );
+  useEffect(() => {
+    if (!open) return;
+    const stop = editor.tasks.subscribe((task) => {
+      if (task.id !== generation || !active.current) return;
+      if (task.state === 'completed')
+        void loadResult(task.id).catch(() =>
+          setError('Saved speech could not be opened.'),
+        );
+      else if (['failed', 'interrupted', 'cancelled'].includes(task.state)) {
+        setBusy(null);
+        if (task.error) setError(task.error.message + ' ' + task.error.action);
+      } else setBusy(task.state === 'queued' ? 'Speech queued…' : task.stage);
+    });
+    if (!generation && restoreSaved)
+      void editor.tasks
+        .list()
+        .then((tasks) => {
+          const saved = tasks
+            .filter(
+              (task) =>
+                task.kind === speechTaskKind(connection) &&
+                task.projectId === project.id,
+            )
+            .at(-1);
+          if (saved && active.current && selection.current === undefined) {
+            selection.current = saved.id;
+            setGeneration(saved.id);
+            if (saved.state === 'completed') void loadResult(saved.id);
+          }
+        })
+        .catch(() =>
+          setError('Speech queue could not be read. Allow browser storage.'),
+        );
+    else if (generation)
+      void editor.tasks.get(generation).then((task) => {
+        if (task?.state === 'completed') void loadResult(task.id);
+        else if (task && ['queued', 'running', 'retrying'].includes(task.state))
+          setBusy(task.stage);
+        else if (task?.error) {
+          setBusy(null);
+          setError(task.error.message + ' ' + task.error.action);
+        }
+      });
+    return stop;
+  }, [
+    open,
+    editor,
+    connection,
+    generation,
+    project.id,
+    loadResult,
+    restoreSaved,
+  ]);
   const generate = () => {
-    invalidate();
-    run('Generating speech…', async (signal) => {
+    try {
       connection.api.validateSpeechTiming(timing());
+      if (!script.trim() || !selected?.voices.includes(voice))
+        throw new Error('Choose a script, model and voice.');
+      invalidate();
       onSelection?.(model, voice);
-      const source = await connection.provider.synthesizeSpeech(
-        {
+      const input: SpeechTaskInput = {
+        request: {
           model,
           voice,
           script,
           languages: selectedLanguages,
           instructions: delivery,
         },
-        signal,
+        timing: timing(),
+        projectId: project.id,
+        route: speechRoute(connection),
+      };
+      const job = editor.tasks.enqueue<SpeechTaskResult>(
+        speechTaskKind(connection),
+        input,
+        { label: 'Generating speech', projectId: project.id },
       );
-      if (!active.current || signal.aborted) return;
-      setAudio(source);
-      const result = await connection.api.renderSpeech(
-        source,
-        timing(),
-        signal,
+      generated.current = job;
+      selection.current = job.id;
+      setGeneration(job.id);
+      setBusy('Speech queued…');
+      void job.completion.then(
+        (result) => {
+          if (active.current && generated.current?.id === job.id) {
+            loadedResult.current = job.id;
+            setAudio(result.audio);
+            publish(result.rendered);
+            setBusy(null);
+          }
+        },
+        (error) => {
+          if (active.current && generated.current?.id === job.id) {
+            setBusy(null);
+            setError(errorText(error));
+          }
+        },
       );
-      if (active.current && !signal.aborted) publish(result);
-    });
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : 'Speech could not be queued.',
+      );
+    }
   };
   const add = () => {
     if (!rendered) return;
@@ -254,7 +389,7 @@ export default function SpeechDialog({
   };
   return (
     <Dialog
-      open
+      open={open}
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
@@ -262,11 +397,36 @@ export default function SpeechDialog({
       <DialogContent className="max-h-[calc(var(--app-viewport-height)*0.9)] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Text to speech</DialogTitle>
-          <DialogDescription>
-            Generate sends this script and delivery choices through your
-            configured speech provider route.
+          <DialogDescription className="sr-only">
+            Create and preview spoken narration.
           </DialogDescription>
         </DialogHeader>
+        {busy &&
+          !localBusy &&
+          generation &&
+          [
+            'Speech queued…',
+            'Generating speech…',
+            'Adjusting speech…',
+            'Queued',
+            'Starting',
+            'Retry scheduled',
+          ].includes(busy) && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                generated.current = null;
+                selection.current = 'new-draft';
+                setGeneration(undefined);
+                setRestoreSaved(false);
+                setBusy(null);
+                invalidate();
+                setScript('');
+              }}
+            >
+              Queue another script
+            </Button>
+          )}
         <fieldset disabled={!!busy} className="min-w-0 space-y-5">
           <div className="space-y-2">
             <Label htmlFor="speech-script">Script</Label>
@@ -284,7 +444,19 @@ export default function SpeechDialog({
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Speech model</Label>
+              <Label>
+                Speech model{' '}
+                <Tooltip content="A new generation can vary in delivery even with the same model and voice. This speech route returns no reusable seed. Reuse a saved take for identical audio; timing changes are local.">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Voice consistency"
+                  >
+                    <Info />
+                  </Button>
+                </Tooltip>
+              </Label>
               <Combobox
                 items={models}
                 value={selected ?? null}
@@ -510,6 +682,7 @@ export default function SpeechDialog({
               variant="outline"
               onClick={() => {
                 controller.current?.abort();
+                generated.current?.cancel();
                 importing.current?.cancel();
               }}
             >

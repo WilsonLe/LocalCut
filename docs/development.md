@@ -126,3 +126,13 @@ Workspace splits use the shadcn Base Resizable wrappers over pinned `react-resiz
 Production packaging moves the catalog to `fonts/<snapshot-sha256>/` and embeds that identity in UI/worker font loading. Do not edit files beneath a published snapshot URL. After font/build/cache changes, select `tests/unit/font-cache.test.ts`, `tests/tooling/font-snapshot.test.mjs`, `tests/tooling/build-state.test.mjs`, and `tests/browser/workspace-release.spec.ts` alongside the affected font/media cases. The release browser scenarios exercise missing engine/panel chunks, explicit fresh-HTML recovery with saved project/route retention, and headless discovery that bypasses stale public aliases at both bases.
 
 For font or animation changes, run `pnpm test tests/unit/text-library.test.ts tests/unit/text-animation.test.ts`, `pnpm test:ui --grep 'searchable fonts|bundled font pages'`, then (using the same verified builds) `pnpm test:browser tests/browser/text-fonts.spec.ts tests/browser/text-rendering.spec.ts`. The Chrome cases cover real worker glyphs, typewriter and handmade frames, native MP4/WebM reopening, integrity failures, tag search, pagination, editing and persistence at both bases. `pnpm test:safari` additionally covers native Safari fonts/animation through real MP4 reopening at both bases. Renderer changes retain the separate performance gate; inference code is unaffected by font-only work.
+
+## Durable task queue checks
+
+```sh
+pnpm test tests/unit/task-queue.test.ts tests/unit/assistant.test.ts tests/unit/speech.test.ts
+pnpm test:ui --grep 'chat response actions|text to speech'
+pnpm test:browser tests/browser/task-queue.spec.ts tests/browser/editor.spec.ts tests/browser/lifecycle.spec.ts
+```
+
+The browser commands use current production builds at both static bases. Facade/scheduling changes also retain the real local transcription and disk-backed export performance gates. Intercepted speech requests prove queue lifecycle and transport behavior, not paid voice quality. Dictation's controlled recognition fixture proves draft integration; microphone permission and the browser's speech service require a manual supported-browser check.

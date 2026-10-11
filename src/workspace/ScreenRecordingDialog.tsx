@@ -5,6 +5,7 @@ import {
   screenRecordingSupported,
   startScreenRecording,
 } from '../services/screen-recording';
+import type { Editor, Job } from '../editor';
 import type { ScreenRecording } from '../services/screen-recording';
 import { Button } from '../components/ui/button';
 import { Checkbox } from '../components/ui/checkbox';
@@ -47,7 +48,9 @@ function sharedAudioGuidance(userAgent: string) {
 export default function ScreenRecordingDialog({
   onClose,
   onAdd,
+  getTasks,
 }: {
+  getTasks: () => Promise<Editor['tasks']>;
   onClose: () => void;
   onAdd: (file: File) => Promise<boolean>;
 }) {
@@ -61,6 +64,7 @@ export default function ScreenRecordingDialog({
   const [audioEnded, setAudioEnded] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
   const session = useRef<ScreenRecording | null>(null);
+  const queued = useRef<Job<unknown> | null>(null);
   const controller = useRef<AbortController | null>(null);
   const active = useRef(true);
   const previewUrl = useRef('');
@@ -69,6 +73,7 @@ export default function ScreenRecordingDialog({
     return () => {
       active.current = false;
       controller.current?.abort();
+      queued.current?.cancel();
       session.current?.dispose();
       if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
     };
@@ -104,8 +109,38 @@ export default function ScreenRecordingDialog({
       }
       session.current = recording;
       setElapsed(0);
+      const tasks = await getTasks();
+      if (!active.current || abort.signal.aborted) {
+        recording.dispose();
+        return;
+      }
+      const kind = `screen.capture:${crypto.randomUUID()}`;
+      tasks.register(kind, {
+        lane: 'capture',
+        recovery: 'manual',
+        sessionBound: true,
+        retryable: false,
+        maxAttempts: 1,
+        execute: async (_input, context) => {
+          const abort = () => recording.dispose();
+          context.signal.addEventListener('abort', abort, { once: true });
+          if (context.signal.aborted) abort();
+          try {
+            context.progress({ stage: 'Recording screen' });
+            return await recording.completion;
+          } finally {
+            context.signal.removeEventListener('abort', abort);
+          }
+        },
+      });
+      const job = tasks.enqueue<Awaited<ScreenRecording['completion']>>(
+        kind,
+        {},
+        { label: 'Screen recording' },
+      );
+      queued.current = job;
       setPhase('recording');
-      const result = await recording.completion;
+      const result = await job.completion;
       if (!active.current || abort.signal.aborted) return;
       setFile(result.file);
       setLimited(result.limited);
@@ -114,6 +149,7 @@ export default function ScreenRecordingDialog({
       setUrl(previewUrl.current);
       setPhase('ready');
     } catch (failure) {
+      session.current?.dispose();
       if (!active.current || abort.signal.aborted) return;
       setError(screenRecordingError(failure));
       setPhase('idle');
@@ -127,6 +163,7 @@ export default function ScreenRecordingDialog({
   };
   const close = () => {
     controller.current?.abort();
+    queued.current?.cancel();
     session.current?.dispose();
     onClose();
   };

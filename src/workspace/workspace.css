@@ -1756,3 +1756,27 @@
     animation: none !important;
   }
 }
+
+/* Hover actions stay reachable from keyboard and touch. */
+.response-actions {
+  min-height: 2rem;
+}
+@media (hover: hover) and (pointer: fine) {
+  .response-actions {
+    opacity: 0;
+    transition: opacity 120ms;
+  }
+  article:hover > .response-actions,
+  article:focus-within > .response-actions {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .response-actions {
+    transition: none;
+  }
+}
+.chat-composer[data-dropping] {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}

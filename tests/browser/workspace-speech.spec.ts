@@ -72,6 +72,7 @@ async function connect(page: Page, context: BrowserContext, base: string) {
   ).toBeVisible();
   // Speech does not require choosing a tool-capable chat model.
   await connection.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.getByRole('button', { name: 'Expand media', exact: true }).click();
   await page
     .getByRole('button', { name: 'Text to speech', exact: true })
     .click();
@@ -88,6 +89,7 @@ async function configureSpeech(
   dialog: ReturnType<Page['getByRole']>,
 ) {
   await dialog.getByLabel('Script', { exact: true }).fill('Hello! Xin chào!');
+  await dialog.getByLabel('Speed (×)').fill('1');
   await dialog
     .getByRole('combobox', { name: 'Speech model', exact: true })
     .click();
@@ -165,7 +167,7 @@ for (const base of ['/', '/LocalCut/']) {
           dialog.getByText('Loading speech models…'),
         ).not.toBeVisible();
         await expect(dialog.getByLabel('Script', { exact: true })).toHaveValue(
-          '',
+          'Hello! Xin chào!',
         );
         expect(calls).toBe(0);
       });
@@ -447,5 +449,104 @@ for (const base of ['/', '/LocalCut/']) {
     ).not.toBeVisible();
     expect((await snapshot(page, base)).tracks).toHaveLength(0);
     expect(calls).toBe(3);
+  });
+}
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`text to speech queues retries persists dismissal and escalates refresh interruption ${base}`, async ({
+    page,
+    context,
+  }) => {
+    let calls = 0;
+    let release!: () => void;
+    await context.route(
+      'https://openrouter.ai/api/v1/audio/speech',
+      async (route) => {
+        calls++;
+        if (calls === 1)
+          return route.fulfill({
+            headers: cors,
+            status: 429,
+            json: { error: 'rate limit' },
+          });
+        if (calls === 2 || calls === 3)
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        await route
+          .fulfill({ headers: cors, contentType: 'audio/pcm', body: tone() })
+          .catch(() => {});
+      },
+    );
+    let dialog = await connect(page, context, base);
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect.poll(() => calls).toBe(2);
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    release();
+    await page.getByRole('button', { name: 'Task queue', exact: true }).click();
+    let queue = page.getByRole('dialog', { name: 'Task queue', exact: true });
+    await expect(
+      queue
+        .getByRole('article', { name: 'Generating speech', exact: true })
+        .getByRole('status'),
+    ).toContainText('completed');
+    await queue.getByRole('button', { name: 'Close', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Text to speech', exact: true })
+      .click();
+    await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
+    expect(calls).toBe(2);
+    await page.reload();
+    await page
+      .getByRole('button', { name: 'Open project', exact: true })
+      .click();
+    await page
+      .getByRole('main', { name: 'Projects', exact: true })
+      .getByRole('button')
+      .filter({ has: page.getByText('Speech project', { exact: true }) })
+      .click();
+    const expand = page.getByRole('button', {
+      name: 'Expand media',
+      exact: true,
+    });
+    if (await expand.isVisible()) await expand.click();
+    await page
+      .getByRole('button', { name: 'Text to speech', exact: true })
+      .click();
+    dialog = page.getByRole('dialog', { name: 'Text to speech', exact: true });
+    await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
+    expect(calls).toBe(2);
+    await dialog
+      .getByRole('button', { name: 'Regenerate speech', exact: true })
+      .click();
+    await expect.poll(() => calls).toBe(3);
+    await page.reload();
+    release();
+    await page
+      .getByRole('button', { name: 'Open project', exact: true })
+      .click();
+    await page
+      .getByRole('main', { name: 'Projects', exact: true })
+      .getByRole('button')
+      .filter({ has: page.getByText('Speech project', { exact: true }) })
+      .click();
+    if (await expand.isVisible()) await expand.click();
+    await page.getByRole('button', { name: 'Task queue', exact: true }).click();
+    queue = page.getByRole('dialog', { name: 'Task queue', exact: true });
+    const interrupted = queue
+      .getByRole('article', { name: 'Generating speech', exact: true })
+      .filter({ hasText: 'interrupted' });
+    await expect(interrupted).toContainText('outcome is unknown');
+    expect(calls).toBe(3);
+    await interrupted
+      .getByRole('button', { name: 'Retry task', exact: true })
+      .click();
+    await expect(interrupted).not.toBeVisible();
+    await expect(
+      queue.getByRole('status').filter({ hasText: 'completed' }),
+    ).toHaveCount(2);
+    expect(calls).toBe(4);
   });
 }
