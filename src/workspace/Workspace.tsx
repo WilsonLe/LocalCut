@@ -411,6 +411,7 @@ export function Workspace() {
   }
   const [progress, setProgress] = useState<Progress | null>(null);
   const [importBatch, setImportBatch] = useState<ImportBatch | null>(null);
+  const visibleImportBatch = useRef<string | null>(null);
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [exportError, setExportError] = useState('');
   const previewControls = useRef<PreviewControls>(null);
@@ -781,6 +782,7 @@ export function Workspace() {
       }));
     };
     const started = await action(async () => {
+      visibleImportBatch.current = batchId;
       setImportBatch({
         id: batchId,
         running: true,
@@ -865,6 +867,7 @@ export function Workspace() {
           if (getProjectId() !== targetProjectId || browsing.current) return;
           await refresh();
           if (getProjectId() !== targetProjectId || browsing.current) return;
+          if (visibleImportBatch.current !== batchId) return;
           setMediaOverride(true);
           const insert = operations.find(
             (operation) => operation.type === 'insertClip',
@@ -2318,7 +2321,10 @@ export function Workspace() {
         <Suspense fallback={null}>
           <ImportProgressDialog
             batch={importBatch}
-            onClose={() => setImportBatch(null)}
+            onClose={() => {
+              visibleImportBatch.current = null;
+              setImportBatch(null);
+            }}
           />
         </Suspense>
       )}

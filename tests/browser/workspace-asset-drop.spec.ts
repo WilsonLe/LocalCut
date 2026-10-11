@@ -424,29 +424,41 @@ for (const base of ['/', '/LocalCut/']) {
           await page
             .getByRole('button', { name: 'Close', exact: true })
             .click();
-          destinationId = await other.evaluate(async () => {
-            const engine = (
-              window as unknown as {
-                importObserver: import('../../src/editor').Editor;
-              }
-            ).importObserver;
-            return (await engine.projects.create('Other project')).id;
-          });
-          await page.goto(base + '#/project/' + destinationId);
-          await page.getByRole('button', { name: 'Edit', exact: true }).click();
-          await expect(
-            page.getByRole('button', { name: 'Open project', exact: true }),
-          ).toContainText('Other project');
-          if (dismissWith === 'X') {
-            const next = await transfer(page, [
-              { name: 'following.png', type: 'image/png', bytes },
-            ]);
+          if (dismissWith === 'Okay') {
             await page
-              .locator('.workspace')
-              .dispatchEvent('drop', { dataTransfer: next });
-            await expect(dialog.getByRole('listitem')).toHaveCount(1);
-            await expect(dialog).toContainText('following.png');
-            await next.dispose();
+              .getByRole('button', { name: 'Edit', exact: true })
+              .click();
+            await expect(page.locator('.timeline-clip.text')).toHaveAttribute(
+              'aria-pressed',
+              'true',
+            );
+          } else {
+            destinationId = await other.evaluate(async () => {
+              const engine = (
+                window as unknown as {
+                  importObserver: import('../../src/editor').Editor;
+                }
+              ).importObserver;
+              return (await engine.projects.create('Other project')).id;
+            });
+            await page.goto(base + '#/project/' + destinationId);
+            await page
+              .getByRole('button', { name: 'Edit', exact: true })
+              .click();
+            await expect(
+              page.getByRole('button', { name: 'Open project', exact: true }),
+            ).toContainText('Other project');
+            if (dismissWith === 'X') {
+              const next = await transfer(page, [
+                { name: 'following.png', type: 'image/png', bytes },
+              ]);
+              await page
+                .locator('.workspace')
+                .dispatchEvent('drop', { dataTransfer: next });
+              await expect(dialog.getByRole('listitem')).toHaveCount(1);
+              await expect(dialog).toContainText('following.png');
+              await next.dispose();
+            }
           }
         }
         await page.evaluate(() =>
@@ -472,7 +484,19 @@ for (const base of ['/', '/LocalCut/']) {
           await expect(page.locator('.timeline-clip.image')).toHaveCount(1);
         } else {
           await expect(dialog).not.toBeVisible();
-          await expect(page.locator('.timeline-clip')).toHaveCount(0);
+          await expect(page.locator('.timeline-clip')).toHaveCount(
+            dismissWith === 'Okay' ? 3 : 0,
+          );
+          if (dismissWith === 'Okay') {
+            await expect(page.locator('.timeline-clip.text')).toHaveAttribute(
+              'aria-pressed',
+              'true',
+            );
+            await expect(page.locator('.workspace')).toHaveAttribute(
+              'data-mobile-tab',
+              'edit',
+            );
+          }
         }
         await expect
           .poll(() =>
