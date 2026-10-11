@@ -1,4 +1,7 @@
-import { openAISettings } from './workspace-settings-helper';
+import {
+  prepareOpenRouterKey,
+  openAISettings,
+} from './workspace-settings-helper';
 import { versionJourney } from './workspace-version-journey';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -129,6 +132,7 @@ for (const base of ['/', '/LocalCut/']) {
           name: 'AI connection',
           exact: true,
         });
+        await prepareOpenRouterKey(page);
         await connection
           .getByLabel('OpenRouter API key')
           .fill('synthetic-navigation-key');

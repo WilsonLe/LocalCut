@@ -1,6 +1,9 @@
 import { dismissNotifications } from './workspace-notifications-helper';
 import { mediaVideo } from './workspace-video-fixture';
-import { openAISettings } from './workspace-settings-helper';
+import {
+  prepareOpenRouterKey,
+  openAISettings,
+} from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 import type { BrowserContext, Page } from '@playwright/test';
 const cors = {
@@ -80,6 +83,7 @@ async function connect(page: Page) {
     name: 'AI connection',
     exact: true,
   });
+  await prepareOpenRouterKey(page);
   await dialog
     .getByLabel('OpenRouter API key', { exact: true })
     .fill('synthetic-indexing-key');

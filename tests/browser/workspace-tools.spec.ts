@@ -1,4 +1,7 @@
-import { openAISettings } from './workspace-settings-helper';
+import {
+  prepareOpenRouterKey,
+  openAISettings,
+} from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 
 const cors = {
@@ -107,6 +110,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
+    await prepareOpenRouterKey(page);
     await connection
       .getByLabel('OpenRouter API key', { exact: true })
       .fill('synthetic-tool-detail-key');
@@ -289,6 +293,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
+    await prepareOpenRouterKey(page);
     await connection
       .getByLabel('OpenRouter API key', { exact: true })
       .fill('synthetic-atomic-key');

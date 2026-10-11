@@ -1,4 +1,8 @@
-import { openAISettings, openVideoExport } from './workspace-settings-helper';
+import {
+  prepareOpenRouterKey,
+  openAISettings,
+  openVideoExport,
+} from './workspace-settings-helper';
 import { secondaryTab } from './workspace-tab';
 import { settingsJourney } from './workspace-settings-journey';
 import { expect, test, type Page } from '@playwright/test';
@@ -25,11 +29,7 @@ async function closeMenu(page: Page) {
 async function connect(page: Page) {
   await openAISettings(page);
   const dialog = page.getByRole('dialog', { name: 'AI connection' });
-  const add = dialog.getByRole('button', {
-    name: 'Add OpenRouter',
-    exact: true,
-  });
-  if (await add.isVisible()) await add.click();
+  await prepareOpenRouterKey(page);
   await dialog
     .getByLabel('OpenRouter API key', { exact: true })
     .fill('synthetic-preference-key');

@@ -1,5 +1,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { openAISettings } from './workspace-settings-helper';
+import {
+  prepareOpenRouterKey,
+  openAISettings,
+} from './workspace-settings-helper';
 
 async function wheel(page: Page, target: Locator, delta: number) {
   const box = (await target.boundingBox())!;
@@ -113,17 +116,13 @@ for (const base of ['/', '/LocalCut/']) {
           exact: true,
         });
         await expect(dialog).toBeVisible();
-        const add = dialog.getByRole('button', {
-          name: 'Add OpenRouter',
-          exact: true,
-        });
-        if (await add.isVisible()) await add.click();
         await dialog.evaluate((el) =>
           Promise.all(
             el.getAnimations().map((animation) => animation.finished),
           ),
         );
         const height = (await dialog.boundingBox())!.height;
+        await prepareOpenRouterKey(page);
         await dialog
           .getByLabel('OpenRouter API key', { exact: true })
           .fill('synthetic-scroll-key');
