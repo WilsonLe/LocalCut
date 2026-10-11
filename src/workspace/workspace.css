@@ -1522,7 +1522,9 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
   }
-  button:not(.timeline-clip):not(.timeline-overlap) {
+  button:not(.timeline-clip):not(.timeline-overlap):not(
+      .timeline-resize-handle
+    ) {
     min-height: 44px;
     min-width: 44px;
   }

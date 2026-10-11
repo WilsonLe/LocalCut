@@ -420,3 +420,136 @@ for (const base of ['/', '/LocalCut/']) {
     });
   });
 }
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`timeline narrow clips keep a touch drag target beside resize handles ${base}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(base);
+    const id = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const canvas = new OffscreenCanvas(128, 72);
+        canvas.getContext('2d')!.fillRect(0, 0, 128, 72);
+        const asset = await editor.assets.import(
+          new File([await canvas.convertToBlob()], 'narrow.png', {
+            type: 'image/png',
+          }),
+        ).completion;
+        const p = await editor.projects.create('Narrow touch drag', {
+          width: 128,
+          height: 72,
+        });
+        await editor.commands.apply({
+          projectId: p.id,
+          expectedRevision: 0,
+          requestId: crypto.randomUUID(),
+          operations: [
+            { type: 'addTrack', track: { id: 'source', kind: 'video' } },
+            { type: 'addTrack', track: { id: 'destination', kind: 'video' } },
+            {
+              type: 'insertClip',
+              trackId: 'source',
+              clip: {
+                id: 'narrow',
+                kind: 'image',
+                assetId: asset.id,
+                startUs: 2_000_000,
+                durationUs: 200_000,
+              },
+            },
+            {
+              type: 'insertClip',
+              trackId: 'source',
+              clip: {
+                id: 'tail',
+                kind: 'image',
+                assetId: asset.id,
+                startUs: 4_000_000,
+                durationUs: 1_000_000,
+              },
+            },
+          ],
+        });
+        return p.id;
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    await page.goto(`${base}#/project/${id}`);
+    const clip = page.locator('[data-clip-id="narrow"]');
+    await clip.scrollIntoViewIfNeeded();
+    const from = (await clip.boundingBox())!;
+    expect(from.width).toBeLessThan(30);
+    const centerHitsClip = await clip.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return (
+        document
+          .elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+          ?.closest('button') === el
+      );
+    });
+    expect(centerHitsClip).toBe(true);
+    const to = (await page
+      .locator('[data-track-id="destination"] .track-lane')
+      .boundingBox())!;
+    const cdp = await page.context().newCDPSession(page);
+    try {
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchStart',
+        touchPoints: [
+          { x: from.x + from.width / 2, y: from.y + from.height / 2 },
+        ],
+      });
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [
+          { x: from.x + from.width / 2 - 20, y: to.y + to.height / 2 },
+        ],
+      });
+      await expect(
+        page.locator('.timeline-clip-move-placeholder'),
+      ).toBeVisible();
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchEnd',
+        touchPoints: [],
+      });
+      await expect
+        .poll(
+          async () => (await snapshot(page, base, id)).tracks[1]!.clips.length,
+        )
+        .toBe(1);
+      const moved = await snapshot(page, base, id);
+      expect(moved.revision).toBe(2);
+      expect(moved.tracks[1]!.clips[0]!.durationUs).toBe(200_000);
+      await page.getByRole('button', { name: 'Undo', exact: true }).click();
+      await expect
+        .poll(
+          async () =>
+            (await snapshot(page, base, id)).tracks[0]!.clips.find(
+              (c) => c.id === 'narrow',
+            )?.startUs,
+        )
+        .toBe(2_000_000);
+      const handle = page
+        .getByRole('button', { name: 'Resize end of narrow.png', exact: true })
+        .first();
+      await handle.focus();
+      await page.keyboard.press('ArrowRight');
+      await expect
+        .poll(
+          async () =>
+            (await snapshot(page, base, id)).tracks[0]!.clips.find(
+              (c) => c.id === 'narrow',
+            )?.durationUs,
+        )
+        .toBe(233_333);
+    } finally {
+      await cdp.detach();
+    }
+  });
+}
