@@ -210,7 +210,7 @@ For application update checks or deployment identity, run `pnpm test:ui --grep '
 
 ## Project header and recent-project startup checks
 
-Run `pnpm test tests/unit/recent-project.test.ts tests/unit/project-route.test.ts`, then `pnpm test:ui --grep 'project routing|workspace storyboard|chat readiness'` for header icons/keyboard/mobile bounds, most-recent restoration, explicit URL precedence, fresh startup, missing projects and restored chat without startup inference at both bases. These navigation controls do not change authored editing operations or the assistant access inventory.
+Run `pnpm test tests/unit/recent-project.test.ts tests/unit/project-route.test.ts`, then `pnpm test:ui --grep 'project routing|workspace storyboard|chat readiness'` for header icons/keyboard/mobile bounds, all interface sizes, most-recent restoration, malformed-ID fallback, delayed conversation navigation, explicit URL precedence, fresh startup, missing projects and restored chat without startup inference at both bases. These navigation controls do not change authored editing operations or the assistant access inventory.
 
 ## Storyboard checks
 

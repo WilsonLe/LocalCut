@@ -4,14 +4,16 @@ import { parseProjectRoute, projectRoutePath } from './project-route';
 import { readRecentProject } from './recent-project';
 
 /** React Router owns history; components consume validated route identity and actions. */
-export function useWorkspaceRoute() {
+export function useWorkspaceRoute({
+  restoreRecent = false,
+}: { restoreRecent?: boolean } = {}) {
   const location = useLocation();
   const navigate = useNavigate();
   const startupConsumed = useRef(false);
   const [startup] = useState(() => ({
     key: location.key,
     projectId:
-      location.pathname === '/' && !location.search
+      restoreRecent && location.pathname === '/' && !location.search
         ? readRecentProject()
         : undefined,
   }));

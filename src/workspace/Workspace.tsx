@@ -319,7 +319,7 @@ export function Workspace() {
     clear: clearProject,
     refresh: refreshProject,
   } = useWorkspaceProject(editorRef);
-  const { route, routeKey, go } = useWorkspaceRoute();
+  const { route, routeKey, go } = useWorkspaceRoute({ restoreRecent: true });
   const projectsOpen = route.screen === 'projects';
   const [projectSwitcherOpen, setProjectSwitcherOpen] = useState(false);
   const projectSwitcherTrigger = useRef<HTMLButtonElement>(null);

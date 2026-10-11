@@ -37,6 +37,8 @@ describe('recent project navigation', () => {
       JSON.stringify({ version: 1, projectId: '' }),
       JSON.stringify({ version: 1, projectId: 4 }),
       JSON.stringify({ version: 1, projectId: 'x'.repeat(201) }),
+      JSON.stringify({ version: 1, projectId: '\ud800' }),
+      JSON.stringify({ version: 1, projectId: '\udc00' }),
       ' '.repeat(1501),
     ]) {
       vi.stubGlobal('localStorage', { getItem: () => text });

@@ -13,8 +13,11 @@ export function readRecentProject(): string | undefined {
       typeof record.projectId === 'string' &&
       record.projectId.length > 0 &&
       record.projectId.length <= 200
-    )
+    ) {
+      // Reject malformed UTF-16 before startup tries to encode a project URL.
+      encodeURIComponent(record.projectId);
       return record.projectId;
+    }
   } catch {
     // Unavailable UI storage must not block local editing.
   }
