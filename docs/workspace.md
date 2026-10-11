@@ -90,7 +90,7 @@ The timeline text icon (Add text) opens a searchable library with Templates and 
 
 See the [text library](images/text-library.png) and [narrow text library](images/text-library-narrow.png). Gallery samples, preview and export share the same text drawing function.
 
-Preview uses the same engine compositor as export. Playback creates its audio context only from the Play action. Scrubbing supersedes pending frames; project changes stop the old playback session. Disposal releases image bitmaps, sessions, audio contexts and active jobs. No media is sent to a server.
+Preview uses the same engine compositor as export. Preview frame controls round their positions to integer microseconds, including the final-frame clamp at rational frame rates, so Play can resume after stepping. Playback creates its audio context only from the Play action. Scrubbing supersedes pending frames; project changes stop the old playback session. Disposal releases image bitmaps, sessions, audio contexts and active jobs. No media is sent to a server.
 
 Seek by dragging the top marker of the playhead with a mouse or touch. Its padded target sits above the tracks so clip selection remains available. The timeline has no separate bottom scrub bar. Focus the marker to use the shared playback shortcuts, including frame steps and Home/End. See the [mobile](images/timeline-playhead-mobile.png) and [desktop](images/timeline-playhead-desktop.png) layouts.
 
@@ -221,4 +221,10 @@ When no configured chat provider is available, chat renders a centered, framed s
 
 ### Project cards and actions
 
-Projects shows a responsive card list with Active and Archived views. Open a card to resume editing, or use its actions menu to Rename, Adjust thumbnail, Export backup, or Archive/Restore. Rename is undoable. Thumbnail adjustment accepts a local PNG, JPEG or WebP image and horizontal/vertical framing; Use automatic thumbnail resets to a frame from the first image/video clip (or a film placeholder when no source is available). Archive preserves edits, versions and originals and remains reversible in Archived. The current project remains open and identifiable while archived. Custom covers and archive organization stay in this browser and are excluded from exported editing backups.
+Projects shows a responsive card list with Active and Archived controls beside the page title. Open a card to resume editing, or use its actions menu to Rename, Adjust thumbnail, Export backup, or Archive/Restore. Rename is undoable. Thumbnail adjustment accepts a local PNG, JPEG or WebP image and horizontal/vertical framing; Use automatic thumbnail resets to a frame from the first image/video clip (or a film placeholder when no source is available). Archive preserves edits, versions and originals and remains reversible in Archived. The current project remains open and identifiable while archived. Custom covers and archive organization stay in this browser and are excluded from exported editing backups.
+
+## Track menu
+
+Each track has a compact ellipsis menu beneath its name. Rename, enable/disable, mute/unmute, solo/unsolo, lock/unlock, duplicate, move up/down, clear clips and delete use shared engine commands. Overlay tracks omit audio mute; first/last layers omit unavailable move directions. Locked tracks omit move/clear/delete and hide selected clip edit actions while retaining inspection. State icons show disabled, muted, solo and locked tracks; custom names remain discoverable in tooltips and accessible labels.
+
+Rename and populated-track clear/delete use revision-bound dialogs; external edits invalidate an open form instead of overwriting newer state. Empty-track delete is immediate and undoable. Historical versions expose no track mutation menu. Menus support keyboard and touch, constrain scrolling to the popup and remain within mobile viewport bounds. Drag and Alt+Up/Down reordering remain available for unlocked tracks. All operations retain persistence and Undo/Redo.

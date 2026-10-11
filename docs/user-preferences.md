@@ -87,6 +87,10 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Put an icon-only plus control beneath the last timeline track. Clicking it reveals side-by-side plus-and-audio and plus-and-video buttons. Allow additional empty tracks without media or AI, and let users drag tracks vertically to reorganize layers.
 
+## Track operations — 11 October 2026
+
+- Put common track operations, including disable and rename, behind a compact per-track menu. Provide enable/disable, rename, mute, solo, lock, duplicate, move, clear clips and delete, and make all authored operations available through the assistant's editing tools/skill.
+
 ## Text to speech — 10 October 2026
 
 - Generate natural speech through the existing OpenRouter connection. Let users edit the script, select a voice, declare multiple languages, and set delivery directions.
