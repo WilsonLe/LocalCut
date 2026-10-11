@@ -364,7 +364,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page
         .getByRole('main', { name: 'Projects' })
-        .getByRole('button', { name: /Appearance project/ }),
+        .getByRole('button', { name: /^Appearance project/ }),
     ).toBeVisible();
   });
 

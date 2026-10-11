@@ -108,6 +108,9 @@ for (const base of ['/', '/LocalCut/']) {
       '50% 80%',
     );
     await page.reload();
+    await page
+      .getByRole('button', { name: 'Open project', exact: true })
+      .click();
     await expect(browser.locator('.project-card-thumbnail img')).toHaveCSS(
       'object-position',
       '50% 80%',
@@ -124,6 +127,9 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await expect(actions).toBeVisible();
     await page.reload();
+    await page
+      .getByRole('button', { name: 'Open project', exact: true })
+      .click();
     await browser
       .getByRole('button', { name: 'Archived', exact: true })
       .click();
@@ -260,6 +266,9 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByRole('dialog', { name: 'Export project', exact: true }),
     ).toBeVisible();
+    await expect(
+      page.getByRole('dialog', { name: 'Projects', exact: true }),
+    ).toHaveCount(0);
     const backupDialog = page.getByRole('dialog', {
       name: 'Export project',
       exact: true,
@@ -272,6 +281,9 @@ for (const base of ['/', '/LocalCut/']) {
     ]);
     expect(download.suggestedFilename()).toContain('localcut');
     await expect(backupDialog).not.toBeVisible();
+    await page
+      .getByRole('button', { name: 'Open project', exact: true })
+      .click();
     await page.evaluate(async (base) => {
       const { createEditor } = (await import(
         `${base}editor.js`
