@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { httpError } from '../../src/ai/errors';
+import { AiError, httpError } from '../../src/ai/errors';
 import { errorText } from '../../src/workspace/conversation-errors';
 
 describe('safe conversation request diagnostics', () => {
@@ -14,6 +14,25 @@ describe('safe conversation request diagnostics', () => {
     expect(errorText(error)).toContain(`HTTP ${status}`);
     expect(errorText(error)).toContain(recovery);
     expect(errorText(error)).not.toMatch(/private-key|SECRET|voice/);
+  });
+
+  it('distinguishes output limits from incomplete streams using safe metadata only', () => {
+    expect(
+      errorText(
+        new AiError('RESPONSE_INCOMPLETE', 'SECRET', {
+          reason: 'output_limit',
+        }),
+      ),
+    ).toBe(
+      'The model reached its response limit before finishing. No proposal was published. Try a smaller edit or another model.',
+    );
+    expect(
+      errorText(
+        new AiError('RESPONSE_INCOMPLETE', 'SECRET', { reason: 'SECRET' }),
+      ),
+    ).toBe(
+      'The response ended early. No proposal was published. You can retry the request.',
+    );
   });
 
   it('keeps auth and credits separate from model routing failures', () => {

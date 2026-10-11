@@ -30,6 +30,7 @@ import type {
   ContextPolicy,
   EditProposal,
   Usage,
+  OpenRouterModel,
 } from '../ai';
 import type { Connection, ConversationProps } from './Conversation';
 import { Button } from '../components/ui/button';
@@ -100,6 +101,7 @@ interface SessionProps extends ConversationProps {
   project: Project;
   connection: Connection;
   model: string;
+  modelInfo: OpenRouterModel;
   privacy: Required<ContextPolicy>;
   registerSession: (cleanup: () => Promise<void>) => () => void;
   retireSession: (cleanup: () => Promise<void>) => void;
@@ -115,6 +117,7 @@ export default function ConversationSession({
   selectedClipId,
   connection,
   model,
+  modelInfo,
   privacy,
   onApplied,
   onError,
@@ -188,6 +191,11 @@ export default function ConversationSession({
   }, [messages, proposals, activity]);
   const ensureAssistant = () => {
     if (!assistant.current) {
+      const reasoning = modelInfo.supportedParameters.some((parameter) =>
+        ['reasoning', 'reasoning_effort', 'include_reasoning'].includes(
+          parameter,
+        ),
+      );
       assistant.current = connection.api.createAssistant({
         editor,
         tasks: editor.tasks,
@@ -196,6 +204,14 @@ export default function ConversationSession({
         projectId: project.id,
         model,
         context: privacy,
+        limits: {
+          // Reasoning and tool output share the provider's completion budget.
+          maxOutputTokens: Math.min(
+            reasoning ? 16_384 : 4096,
+            modelInfo.maxCompletionTokens ?? 32_768,
+          ),
+          maxOutputBytes: reasoning ? 512 * 1024 : 128 * 1024,
+        },
         transcription: connection.transcription,
       });
       unsubscribe.current = assistant.current.subscribe((event) => {

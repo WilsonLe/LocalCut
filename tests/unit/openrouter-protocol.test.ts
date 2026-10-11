@@ -74,6 +74,16 @@ describe('OpenRouter SSE protocol', () => {
       },
     ]);
   });
+  it('classifies reasoning-only token exhaustion without publishing a complete event', async () => {
+    await expect(
+      collect(
+        response(frame({ reasoning: 'private thought' }, 'length') + done),
+      ),
+    ).rejects.toMatchObject({
+      code: 'RESPONSE_INCOMPLETE',
+      details: { reason: 'output_limit' },
+    });
+  });
   it('supports CR-only events, comments and unknown SSE fields', async () => {
     const events = await collect(
       response(

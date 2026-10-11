@@ -574,6 +574,7 @@ export async function* parseChatStream(
         throw new AiError(
           'RESPONSE_INCOMPLETE',
           'AI response reached its output limit.',
+          { reason: 'output_limit' },
         );
       if (reason === 'content_filter')
         throw new AiError(
