@@ -350,7 +350,7 @@ for (const base of ['/', '/LocalCut/']) {
       }
     }, base);
     await expect(
-      browser.getByRole('button', { name: /External project/ }),
+      browser.getByRole('button', { name: /^External project/ }),
     ).toBeVisible();
     await page.evaluate(
       async ({ base, id }) => {

@@ -62,7 +62,7 @@ async function prepare(page: Page, base: string, overlap = false) {
   await page.keyboard.press('ControlOrMeta+o');
   await page
     .getByRole('main', { name: 'Projects', exact: true })
-    .getByRole('button', { name: /Input combinations/ })
+    .getByRole('button', { name: /^Input combinations/ })
     .click();
   await expect(
     page.getByRole('main', { name: 'Projects', exact: true }),
