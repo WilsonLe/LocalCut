@@ -38,7 +38,8 @@ export interface ChatRequest {
   model: string;
   messages: ChatMessage[];
   tools: ToolDefinition[];
-  maxOutputTokens: number;
+  /** Omit to use the model's advertised allowance or provider default without an application cap. */
+  maxOutputTokens?: number;
 }
 export interface Usage {
   promptTokens: number;

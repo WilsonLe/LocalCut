@@ -408,3 +408,35 @@ it('retains safe HTTP metadata for actionable endpoint errors and removes privat
     /secret-token|private provider echo/,
   );
 });
+
+it.each([
+  ['RESPONSE_INCOMPLETE', 'output_limit', { reason: 'output_limit' }],
+  ['RESPONSE_INCOMPLETE', 'secret-token', undefined],
+  ['INVALID_REQUEST', 'output_limit', undefined],
+])(
+  'retains only the incomplete-response output-limit diagnostic for %s/%s',
+  async (code, reason, expected) => {
+    const q = queue();
+    q.register('remote', {
+      lane: 'remote',
+      recovery: 'manual',
+      execute: async () => {
+        throw Object.assign(new Error('private provider echo'), {
+          code,
+          details: { reason, body: 'secret-token' },
+        });
+      },
+    });
+    const job = q.enqueue('remote', {}, { label: 'Response error' });
+    await expect(job.completion).rejects.toMatchObject({
+      code,
+      details: expected,
+    });
+    const task = await q.get(job.id);
+    expect(task?.error?.details).toEqual(expected);
+    expect(task?.attempts).toBe(1);
+    expect(JSON.stringify(task)).not.toMatch(
+      /secret-token|private provider echo/,
+    );
+  },
+);

@@ -8,16 +8,11 @@ import type {
   ReasoningDetail,
 } from './types.ts';
 
-/** Bounds are independent of provider claims and apply before parsing or tool execution. */
+/** Structural tool/metadata bounds apply before tool execution; chat output has no size cap. */
 export const PROTOCOL_LIMITS = Object.freeze({
-  eventBytes: 1_048_576,
-  streamBytes: 8_388_608,
-  textCharacters: 1_048_576,
   toolArgumentCharacters: 262_144,
   toolCalls: 32,
-  events: 65_536,
   jsonBytes: 8_388_608,
-  reasoningCharacters: 1_048_576,
   reasoningBlocks: 128,
 });
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -112,7 +107,6 @@ export function validateReasoningMetadata(
   code: AiErrorCode = 'INVALID_RESPONSE',
 ): ReasoningMetadata {
   const metadata: ReasoningMetadata = {};
-  let characters = 0;
   for (const key of ['reasoning', 'reasoning_content'] as const) {
     if (value[key] !== undefined) {
       aiInvariant(
@@ -121,7 +115,6 @@ export function validateReasoningMetadata(
         'Invalid provider reasoning metadata.',
       );
       metadata[key] = value[key] as string | null;
-      characters += typeof value[key] === 'string' ? value[key].length : 0;
     }
   }
   if (value.reasoning_details !== undefined) {
@@ -143,17 +136,10 @@ export function validateReasoningMetadata(
         );
         indices.add(detail.index);
       }
-      for (const item of Object.values(detail))
-        if (typeof item === 'string') characters += item.length;
       details.push({ ...detail } as ReasoningDetail);
     }
     metadata.reasoning_details = details;
   }
-  aiInvariant(
-    characters <= PROTOCOL_LIMITS.reasoningCharacters,
-    code === 'INVALID_RESPONSE' ? 'RESPONSE_LIMIT' : code,
-    'Provider reasoning metadata exceeded the size limit.',
-  );
   return metadata;
 }
 
@@ -162,7 +148,6 @@ class ReasoningAccumulator {
   private metadata: Record<string, unknown> = {};
   private details: Record<string, unknown>[] = [];
   private indexed = new Map<number, Record<string, unknown>>();
-  private characters = 0;
   add(delta: Record<string, unknown>): void {
     for (const key of ['reasoning', 'reasoning_content'] as const) {
       const text = delta[key];
@@ -172,7 +157,6 @@ class ReasoningAccumulator {
         if (this.metadata[key] === undefined) this.metadata[key] = null;
       } else {
         this.metadata[key] = String(this.metadata[key] ?? '') + text;
-        this.characters += text.length;
       }
     }
     if (
@@ -202,25 +186,18 @@ class ReasoningAccumulator {
           if (contentKeys.includes(key as (typeof contentKeys)[number])) {
             if (typeof value === 'string') {
               block[key] = String(previous ?? '') + value;
-              this.characters += value.length;
             } else if (previous === undefined) block[key] = value;
           } else if (
             previous === undefined ||
             (key === 'id' && previous === null)
           ) {
             block[key] = value;
-            if (typeof value === 'string') this.characters += value.length;
           } else if (!(key === 'id' && value === null) && previous !== value)
             return invalid();
         }
       }
       this.metadata.reasoning_details = this.details;
     }
-    aiInvariant(
-      this.characters <= PROTOCOL_LIMITS.reasoningCharacters,
-      'RESPONSE_LIMIT',
-      'Provider reasoning metadata exceeded the size limit.',
-    );
   }
   complete(): ReasoningMetadata {
     return validateReasoningMetadata(this.metadata);
@@ -311,13 +288,9 @@ export async function* dataEvents(
   );
   const reader = response.body.getReader();
   const decoder = new TextDecoder('utf-8', { fatal: true });
-  const encoder = new TextEncoder();
   let line = '';
   let skipLF = false;
   let lines: string[] = [];
-  let eventSize = 0;
-  let totalSize = 0;
-  let events = 0;
   const abort = () => void reader.cancel().catch(() => undefined);
   signal.addEventListener('abort', abort, { once: true });
   try {
@@ -327,12 +300,6 @@ export async function* dataEvents(
         throw new AiError('NETWORK_ERROR', 'AI connection ended unexpectedly.');
       });
       signal.throwIfAborted();
-      totalSize += value?.byteLength ?? 0;
-      aiInvariant(
-        totalSize <= PROTOCOL_LIMITS.streamBytes,
-        'RESPONSE_LIMIT',
-        'AI stream exceeded the size limit.',
-      );
       const text = done
         ? decoder.decode()
         : decoder.decode(value, { stream: true });
@@ -349,24 +316,11 @@ export async function* dataEvents(
         if (character !== '\r' && character !== '\n') continue;
         const piece = text.slice(start, index);
         line += piece;
-        eventSize += encoder.encode(piece).byteLength + 1;
-        aiInvariant(
-          eventSize <= PROTOCOL_LIMITS.eventBytes,
-          'RESPONSE_LIMIT',
-          'AI stream event exceeded the size limit.',
-        );
         if (line === '') {
           if (lines.length) {
-            events++;
-            aiInvariant(
-              events <= PROTOCOL_LIMITS.events,
-              'RESPONSE_LIMIT',
-              'AI stream exceeded the event limit.',
-            );
             yield lines.join('\n');
           }
           lines = [];
-          eventSize = 0;
         } else if (line.startsWith('data:')) {
           lines.push(line.slice(line[5] === ' ' ? 6 : 5));
         }
@@ -376,12 +330,6 @@ export async function* dataEvents(
       }
       const piece = text.slice(start);
       line += piece;
-      eventSize += encoder.encode(piece).byteLength;
-      aiInvariant(
-        eventSize <= PROTOCOL_LIMITS.eventBytes,
-        'RESPONSE_LIMIT',
-        'AI stream event exceeded the size limit.',
-      );
       if (done) break;
     }
   } catch (error) {
@@ -512,11 +460,6 @@ export async function* parseChatStream(
     reasoning.add(delta);
     if (text) {
       content += text;
-      aiInvariant(
-        content.length <= PROTOCOL_LIMITS.textCharacters,
-        'RESPONSE_LIMIT',
-        'AI response text exceeded the size limit.',
-      );
       yield { type: 'text', text };
     }
     if (hasTools) {
@@ -574,6 +517,7 @@ export async function* parseChatStream(
         throw new AiError(
           'RESPONSE_INCOMPLETE',
           'AI response reached its output limit.',
+          { reason: 'output_limit' },
         );
       if (reason === 'content_filter')
         throw new AiError(

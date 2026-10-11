@@ -47,7 +47,6 @@ export function compatibleBaseUrl(value: string): string {
 }
 export const OPENROUTER_LIMITS = Object.freeze({
   requestBytes: 2_097_152,
-  maxOutputTokens: 32_768,
   timeoutMs: 120_000,
   maximumTimeoutMs: 600_000,
   models: 20_000,
@@ -149,9 +148,9 @@ export function validateRequest(
     'Automatic model routing is not enabled.',
   );
   aiInvariant(
-    Number.isInteger(request.maxOutputTokens) &&
-      request.maxOutputTokens > 0 &&
-      request.maxOutputTokens <= OPENROUTER_LIMITS.maxOutputTokens,
+    request.maxOutputTokens === undefined ||
+      (Number.isSafeInteger(request.maxOutputTokens) &&
+        request.maxOutputTokens > 0),
     'INVALID_REQUEST',
     'AI output token limit is invalid.',
   );
@@ -828,9 +827,9 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
       let body = validateRequest(request, !!compatible);
       const requestedModel = request.model;
       const requestedTokens = request.maxOutputTokens;
+      const inputTokens = contextTokens(request.messages, request.tools);
       aiInvariant(
-        contextTokens(request.messages, request.tools, requestedTokens) <=
-          CHAT_CONTEXT_TOKENS,
+        inputTokens + (requestedTokens ?? 0) <= CHAT_CONTEXT_TOKENS,
         'CONTEXT_LIMIT',
         'Chat context exceeds 256,000 tokens.',
       );
@@ -852,11 +851,25 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         'Select an OpenRouter model with more than 256,000 context tokens.',
       );
       aiInvariant(
-        !model.maxCompletionTokens ||
+        requestedTokens === undefined ||
+          !model.maxCompletionTokens ||
           requestedTokens <= model.maxCompletionTokens,
         'INVALID_REQUEST',
         'Output limit exceeds the selected model capability.',
       );
+      // Use the model's full advertised allowance rather than a smaller provider default.
+      // This is independent of LocalCut's input compaction window and explicit caller reservations.
+      if (requestedTokens === undefined && model.maxCompletionTokens) {
+        const payload = JSON.parse(body) as Record<string, unknown>;
+        const remaining = model.contextLength - inputTokens;
+        aiInvariant(
+          remaining > 0,
+          'CONTEXT_LIMIT',
+          'Chat input exceeds the selected model context.',
+        );
+        payload.max_tokens = Math.min(model.maxCompletionTokens, remaining);
+        body = JSON.stringify(payload);
+      }
       // Strict routing must not require an optional parameter the model cannot use.
       // The assistant already executes all validated tool calls sequentially.
       if (
