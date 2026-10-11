@@ -38,7 +38,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       chat.getByRole('button', { name: /AI settings|Connect AI/ }),
     ).toHaveCount(0);
-    const composer = chat.getByRole('textbox', { name: 'Describe your edit' });
+    const composer = chat.locator('.chat-provider-empty');
     await composer.evaluate((element) => {
       (window as unknown as { originalComposer: Element }).originalComposer =
         element;

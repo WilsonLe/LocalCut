@@ -8,7 +8,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(base);
-    const composer = page.getByRole('textbox', { name: 'Describe your edit' });
+    const composer = page.locator('.chat-provider-empty');
     // Retain the exact DOM instance through dragging and collapse.
     await composer.evaluate((element) => {
       (window as unknown as { resizeComposer: Element }).resizeComposer =

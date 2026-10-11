@@ -85,7 +85,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 ## Timeline tracks — 11 October 2026
 
-- Provide an Add track button in the timeline with Video track and Audio track choices. Allow additional empty tracks without importing media or connecting AI.
+- Put an icon-only plus control beneath the last timeline track. Clicking it reveals side-by-side plus-and-audio and plus-and-video buttons. Allow additional empty tracks without media or AI, and let users drag tracks vertically to reorganize layers.
 
 ## Text to speech — 10 October 2026
 
@@ -214,3 +214,8 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Allow removing OpenRouter from configured providers, remember that removal, and offer an explicit way to add it again.
 - Let users reconnect OpenRouter or replace its key while connected; retain deliberately configured service routes and models. Keep provider identity, status and connection actions together, with optional details revealed progressively.
+## Compact editor controls — 11 October 2026
+
+- Reserve space for the editing workspace: compact the header and use an icon-only Add text control with accessible labels/tooltips.
+- Remove the media import helper sentence and the separate import/backup button row. Show an outlined import card with an upload icon in the media grid, including its empty state. Keep backup under the grouped settings menu.
+- When no configured chat provider is available, show “Connect provider first” and a connection button instead of the composer and unavailable send/media controls. Apply this to all supported providers, including OpenRouter and compatible endpoints.

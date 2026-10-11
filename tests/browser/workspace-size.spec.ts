@@ -107,7 +107,7 @@ for (const base of ['/', '/LocalCut/']) {
           await page.getByRole('button', { name: 'Close appearance' }).click();
           await aligned(page);
           const header = await page.locator('.workspace-header').boundingBox();
-          expect(header!.height).toBeCloseTo(64 * scale, 0);
+          expect(header!.height).toBeCloseTo(48 * scale, 0);
           await page.screenshot({
             path: `.artifacts/interface-${size}-${base === '/' ? 'root' : 'pages'}.png`,
           });

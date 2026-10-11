@@ -11,7 +11,6 @@ import type { Ref } from 'react';
 import { CREDENTIAL_STORAGE_KEY } from '../ai/credential-storage-key';
 import type { WorkspaceCommand } from './commands';
 import {
-  ArrowUp,
   ChevronDown,
   PanelRightClose,
   PanelRightOpen,
@@ -31,7 +30,6 @@ import type {
 } from './provider-preferences';
 import type { ProviderConnection, ChatGPTClient } from '../ai';
 import { Button } from '../components/ui/button';
-import { Textarea } from '../components/ui/textarea';
 import type { ChatSession } from './ChatSessionPicker';
 const AIConnectionDialog = lazy(() => import('./AIConnectionDialog'));
 const ChatSessionPicker = lazy(() => import('./ChatSessionPicker'));
@@ -110,6 +108,7 @@ export function Conversation(props: ConversationProps) {
     includeAssetIndexes: false,
   });
   const indexingAllowed = useIndexConsent();
+  const settingsReturnFocus = useRef<HTMLButtonElement | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [speechOpen, setSpeechOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
@@ -701,7 +700,15 @@ export function Conversation(props: ConversationProps) {
     }
   };
   const selectedModel = models.find((item) => item.id === model);
-  const ready = connection && selectedModel && props.editor && props.project;
+  const chatProviderAvailable = providerConfiguration.routes.llm.some((route) =>
+    connectedProviders.includes(route.providerId),
+  );
+  const ready =
+    chatProviderAvailable &&
+    connection &&
+    selectedModel &&
+    props.editor &&
+    props.project;
   const speechReady =
     connection &&
     providerConfiguration.routes.tts.length > 0 &&
@@ -762,7 +769,10 @@ export function Conversation(props: ConversationProps) {
     setPickerOpen(true);
   };
   useImperativeHandle(props.controlsRef, () => ({
-    openSettings: () => setSettingsOpen(true),
+    openSettings: () => {
+      settingsReturnFocus.current = null;
+      setSettingsOpen(true);
+    },
     commands: () => [
       ...(speechReady
         ? [
@@ -778,7 +788,10 @@ export function Conversation(props: ConversationProps) {
         id: 'ai-settings',
         label: connection ? 'AI provider settings' : 'Connect AI providers',
         group: 'Chat',
-        run: () => setSettingsOpen(true),
+        run: () => {
+          settingsReturnFocus.current = null;
+          setSettingsOpen(true);
+        },
       },
       ...(ready && !props.readOnly
         ? [
@@ -951,58 +964,30 @@ export function Conversation(props: ConversationProps) {
         ) : (
           <div className="conversation-session">
             <div className="min-h-0 flex-1" />
-            <div className="chat-composer">
-              {connection && (
-                <div className="space-y-2 px-1 pb-2">
-                  <p role="status" className="text-xs text-muted-foreground">
-                    {connecting
-                      ? 'Loading AI models…'
-                      : !selectedModel
-                        ? 'Choose an AI model to start chatting.'
-                        : 'Create or open a project to start chatting.'}
-                  </p>
-                  {!connecting &&
-                    (!selectedModel ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSettingsOpen(true)}
-                      >
-                        Choose AI model
-                      </Button>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          aria-label="Create project for chat"
-                          onClick={props.onNewProject}
-                        >
-                          New project
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          aria-label="Open project for chat"
-                          onClick={props.onOpenProjects}
-                        >
-                          Open project
-                        </Button>
-                      </div>
-                    ))}
-                </div>
-              )}
-              <Textarea
-                aria-label="Describe your edit"
-                placeholder="What would you like to change?"
-                disabled
-                rows={1}
-              />
-              <div className="composer-actions">
-                <Button size="icon-sm" aria-label="Send edit request" disabled>
-                  <ArrowUp />
-                </Button>
-              </div>
+            <div className="chat-provider-empty" role="status">
+              <p>
+                {!chatProviderAvailable
+                  ? 'Connect provider first'
+                  : !selectedModel
+                    ? 'Choose a chat model'
+                    : 'Open a project to chat'}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(event) => {
+                  settingsReturnFocus.current = event.currentTarget;
+                  if (!chatProviderAvailable || !selectedModel)
+                    setSettingsOpen(true);
+                  else go('projects');
+                }}
+              >
+                {!chatProviderAvailable
+                  ? 'Connect provider'
+                  : !selectedModel
+                    ? 'Choose model'
+                    : 'Choose project'}
+              </Button>
             </div>
           </div>
         )}
@@ -1010,6 +995,12 @@ export function Conversation(props: ConversationProps) {
       {settingsOpen && (
         <Suspense fallback={null}>
           <AIConnectionDialog
+            returnFocus={() => {
+              const target = settingsReturnFocus.current;
+              return target?.isConnected && target.offsetParent !== null
+                ? target
+                : document.getElementById('workspace-settings-trigger');
+            }}
             settingsOpen={settingsOpen}
             setSettingsOpen={setSettingsOpen}
             connection={connectedProviders.includes('openrouter')}

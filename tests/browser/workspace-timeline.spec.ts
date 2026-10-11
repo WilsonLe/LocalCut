@@ -1,3 +1,4 @@
+import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { Project } from '../../src/editor';
@@ -118,10 +119,20 @@ for (const base of ['/', '/LocalCut/']) {
     const p = () => snapshot(page, base, 'Track controls');
     const lanes = page.locator('.timeline-track');
     await add.focus();
-    await page.keyboard.press('ArrowDown');
-    await expect(
-      page.getByRole('menuitem', { name: 'Video track', exact: true }),
-    ).toBeFocused();
+    await page.keyboard.press('Enter');
+    const videoChoice = page.getByRole('button', {
+      name: 'Video track',
+      exact: true,
+    });
+    const audioChoice = page.getByRole('button', {
+      name: 'Audio track',
+      exact: true,
+    });
+    await expect(videoChoice).toBeVisible();
+    await page.keyboard.press('Tab');
+    await expect(audioChoice).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(videoChoice).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(lanes).toHaveCount(1);
     await expect(add).toBeFocused();
@@ -130,15 +141,8 @@ for (const base of ['/', '/LocalCut/']) {
       page.getByRole('slider', { name: 'Playhead position' }),
     ).toHaveCount(0);
     for (const kind of ['Audio track', 'Video track']) {
-      await page.keyboard.press('ArrowDown');
-      await expect(
-        page.getByRole('menuitem', { name: 'Video track', exact: true }),
-      ).toBeFocused();
-      if (kind === 'Audio track') await page.keyboard.press('ArrowDown');
-      await expect(
-        page.getByRole('menuitem', { name: kind, exact: true }),
-      ).toBeFocused();
-      await page.keyboard.press('Enter');
+      await add.click();
+      await page.getByRole('button', { name: kind, exact: true }).click();
       await expect(add).toBeFocused();
     }
     await expect(lanes).toHaveCount(3);
@@ -159,6 +163,66 @@ for (const base of ['/', '/LocalCut/']) {
     await page.reload();
     await expect(lanes).toHaveCount(3);
     expect((await p()).tracks).toEqual(saved.tracks);
+
+    await test.step('drag and keyboard reorder saved layers with history', async () => {
+      const label = lanes
+        .last()
+        .getByRole('button', { name: 'Reorder Video 3' });
+      const from = (await label.boundingBox())!;
+      const to = (await lanes.first().boundingBox())!;
+      await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(to.x + 20, to.y + to.height / 2, { steps: 8 });
+      await page.keyboard.press('Escape');
+      await page.mouse.up();
+      expect((await p()).tracks).toEqual(saved.tracks);
+      await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(to.x + 20, to.y + to.height / 2, { steps: 8 });
+      await page.mouse.up();
+      await expect
+        .poll(async () => (await p()).tracks.map((t) => t.id))
+        .toEqual([
+          saved.tracks[2]!.id,
+          saved.tracks[0]!.id,
+          saved.tracks[1]!.id,
+        ]);
+      await page.getByRole('button', { name: 'Undo', exact: true }).click();
+      await expect.poll(async () => (await p()).tracks).toEqual(saved.tracks);
+      await page.getByRole('button', { name: 'Redo', exact: true }).click();
+      const moved = await p();
+      const handle = lanes
+        .first()
+        .getByRole('button', { name: 'Reorder Video 1' });
+      await handle.focus();
+      await page.keyboard.press('Alt+ArrowDown');
+      await expect
+        .poll(async () => (await p()).tracks.map((t) => t.id))
+        .toEqual([
+          saved.tracks[0]!.id,
+          saved.tracks[2]!.id,
+          saved.tracks[1]!.id,
+        ]);
+      await expect(
+        page.getByRole('button', { name: 'Reorder Video 2' }),
+      ).toBeFocused();
+      await page.keyboard.press('Alt+ArrowUp');
+      await expect.poll(async () => (await p()).tracks).toEqual(moved.tracks);
+      await page.reload();
+      await expect(lanes).toHaveCount(3);
+      expect((await p()).tracks).toEqual(moved.tracks);
+      // Restore the original track arrangement for the import/history checks below.
+      await page
+        .getByRole('button', { name: 'Reorder Video 1' })
+        .press('Alt+ArrowDown');
+      await expect
+        .poll(async () => (await p()).tracks[1]?.id)
+        .toBe(saved.tracks[2]!.id);
+      await page
+        .getByRole('button', { name: 'Reorder Video 2' })
+        .press('Alt+ArrowDown');
+      await expect.poll(async () => (await p()).tracks).toEqual(saved.tracks);
+    });
 
     const image = await page.evaluate(async () => {
       const canvas = new OffscreenCanvas(32, 32);
@@ -204,9 +268,10 @@ for (const base of ['/', '/LocalCut/']) {
       path: testInfo.outputPath('add-tracks-desktop.png'),
     });
     await page.keyboard.press('Escape');
+    await dismissNotifications(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await add.click();
-    const menu = page.getByRole('menu', { name: 'Add track', exact: true });
+    const menu = page.getByRole('group', { name: 'Track type', exact: true });
     await expect(menu).toBeVisible();
     const bounds = await menu.boundingBox();
     expect(bounds).not.toBeNull();
@@ -216,7 +281,7 @@ for (const base of ['/', '/LocalCut/']) {
       path: testInfo.outputPath('add-tracks-mobile.png'),
     });
     await page
-      .getByRole('menuitem', { name: 'Audio track', exact: true })
+      .getByRole('button', { name: 'Audio track', exact: true })
       .click();
     await expect(lanes).toHaveCount(4);
     expect((await p()).tracks.at(-1)?.kind).toBe('audio');

@@ -1,9 +1,10 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Download, Files, Music, Upload, ScreenShare } from 'lucide-react';
+import { Files, Music, Upload, ScreenShare } from 'lucide-react';
 import type { Asset, Editor } from '../editor';
 import type { IndexConnection } from './Conversation';
 const AssetIndexControls = lazy(() => import('./AssetIndexControls'));
 import { Button } from '../components/ui/button';
+import { Tooltip } from '../components/ui/tooltip';
 import { formatTime } from './helpers';
 
 export default function MediaLibrary({
@@ -12,10 +13,8 @@ export default function MediaLibrary({
   readOnly,
   assets,
   canEdit,
-  hasProject,
   onImport,
   onRecord,
-  onBackup,
   onRelink,
 }: {
   editor: Editor | null;
@@ -23,88 +22,84 @@ export default function MediaLibrary({
   readOnly: boolean;
   assets: Asset[];
   canEdit: boolean;
-  hasProject: boolean;
   onImport: () => void;
   onRecord: () => void;
-  onBackup: () => void;
   onRelink: (id: string) => void;
 }) {
   return (
     <section className="media-library" aria-label="Project media">
       <div className="section-heading">
         <h2>Media</h2>
-        <div className="flex flex-wrap gap-2">
-          {canEdit && (
-            <Button variant="outline" size="sm" onClick={onImport}>
-              <Upload />
-              Import media
+        {canEdit && (
+          <Tooltip content="Record screen">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Record screen"
+              onClick={onRecord}
+            >
+              <ScreenShare aria-hidden="true" />
             </Button>
-          )}
-          {canEdit && (
-            <Button variant="outline" size="sm" onClick={onRecord}>
-              <ScreenShare />
-              Record screen
-            </Button>
-          )}
-          {hasProject && canEdit && (
-            <Button variant="ghost" size="sm" onClick={onBackup}>
-              <Download />
-              Backup
-            </Button>
-          )}
-        </div>
+          </Tooltip>
+        )}
       </div>
-      {assets.length ? (
-        <div className="media-grid">
-          {assets.map((asset) => (
-            <div className="media-item" key={asset.id}>
-              <Suspense fallback={<AssetPreview editor={null} asset={asset} />}>
-                <AssetIndexControls
-                  editor={editor}
-                  asset={asset}
-                  connection={indexConnection}
-                  readOnly={readOnly}
-                  details={
-                    <>
-                      <div>{asset.name}</div>
+      <div className="media-grid">
+        {canEdit && (
+          <Tooltip content="Import media">
+            <button
+              type="button"
+              className="media-import-card"
+              onClick={onImport}
+            >
+              <Upload aria-hidden="true" />
+              <span className="sr-only">Import media</span>
+            </button>
+          </Tooltip>
+        )}
+        {assets.map((asset) => (
+          <div className="media-item" key={asset.id}>
+            <Suspense fallback={<AssetPreview editor={null} asset={asset} />}>
+              <AssetIndexControls
+                editor={editor}
+                asset={asset}
+                connection={indexConnection}
+                readOnly={readOnly}
+                details={
+                  <>
+                    <div>{asset.name}</div>
+                    <div>
+                      {asset.kind} · {asset.type}
+                    </div>
+                    {asset.kind !== 'audio' && (
                       <div>
-                        {asset.kind} · {asset.type}
+                        {asset.width} × {asset.height}
                       </div>
-                      {asset.kind !== 'audio' && (
-                        <div>
-                          {asset.width} × {asset.height}
-                        </div>
-                      )}
-                      {asset.kind !== 'image' && (
-                        <div>{formatTime(asset.durationUs)}</div>
-                      )}
-                      <div>{Math.ceil(asset.size / 1024)} KiB</div>
-                      {asset.status === 'missing' && (
-                        <div>Missing · relink file</div>
-                      )}
-                    </>
-                  }
-                >
-                  <AssetPreview editor={editor} asset={asset} />
-                </AssetIndexControls>
-              </Suspense>
-              {asset.status === 'missing' && canEdit && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onRelink(asset.id)}
-                >
-                  Relink
-                </Button>
-              )}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          Import video, audio or images to add them to the timeline.
-        </p>
-      )}
+                    )}
+                    {asset.kind !== 'image' && (
+                      <div>{formatTime(asset.durationUs)}</div>
+                    )}
+                    <div>{Math.ceil(asset.size / 1024)} KiB</div>
+                    {asset.status === 'missing' && (
+                      <div>Missing · relink file</div>
+                    )}
+                  </>
+                }
+              >
+                <AssetPreview editor={editor} asset={asset} />
+              </AssetIndexControls>
+            </Suspense>
+            {asset.status === 'missing' && canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onRelink(asset.id)}
+              >
+                Relink
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

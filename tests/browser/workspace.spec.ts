@@ -387,10 +387,16 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'Asset details for red.png',
     });
     await imageDetails.hover();
-    await expect(page.getByRole('tooltip')).toContainText('128 × 72');
-    await expect(page.getByRole('tooltip')).toContainText('image/png');
+    await expect(page.getByRole('tooltip', { name: /red.png/ })).toContainText(
+      '128 × 72',
+    );
+    await expect(page.getByRole('tooltip', { name: /red.png/ })).toContainText(
+      'image/png',
+    );
     await page.mouse.move(0, 0);
-    await expect(page.getByRole('tooltip')).not.toBeVisible();
+    await expect(
+      page.getByRole('tooltip', { name: /red.png/ }),
+    ).not.toBeVisible();
     await audio.focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
@@ -425,7 +431,7 @@ for (const base of ['/', '/LocalCut/']) {
       .focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
-    await expect(page.getByRole('tooltip')).toContainText(
+    await expect(page.getByRole('tooltip', { name: /red.png/ })).toContainText(
       'Connect AI and choose a compatible model to index this asset.',
     );
     await page

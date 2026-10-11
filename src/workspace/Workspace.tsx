@@ -924,6 +924,13 @@ export function Workspace() {
       );
     });
   };
+  const reorderTrack = (trackId: string, index: number) => {
+    if (!project || busy || browsing.current) return;
+    void action(async () => {
+      await apply([{ type: 'reorderTrack', trackId, index }]);
+      toast.success('Track reordered');
+    });
+  };
   const insertText = (style: TextStyleInput) => {
     if (!project || browsed) return;
     void action(async () => {
@@ -1483,13 +1490,11 @@ export function Workspace() {
               readOnly={!!browsed || navigation.blocked}
               assets={browsed ? versionAssets : assets}
               canEdit={!busy && !browsed}
-              hasProject={!!project}
               onImport={() => fileInput.current?.click()}
               onRecord={() => {
                 previewControls.current?.pause();
                 setRecordingRoute(recordingRouteKey);
               }}
-              onBackup={backupProject}
               onRelink={relinkMedia}
             />
           </Suspense>
@@ -1824,6 +1829,7 @@ export function Workspace() {
                     onProperties={() => setDialog('properties')}
                     onText={addText}
                     onAddTrack={addTrack}
+                    onReorderTrack={reorderTrack}
                   />
                 </Suspense>
               </EditorPanels>
