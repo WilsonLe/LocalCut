@@ -710,7 +710,11 @@ export class TaskQueue {
             : cancelled
               ? 'Cancelled'
               : 'Needs attention',
-          error: this.disposed ? taskError({ code: 'INTERRUPTED' }) : failure,
+          error: cancelled
+            ? undefined
+            : this.disposed
+              ? taskError({ code: 'INTERRUPTED' })
+              : failure,
           nextAttemptAt: retry
             ? Date.now() +
               Math.max(
