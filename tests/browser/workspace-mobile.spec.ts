@@ -465,17 +465,19 @@ for (const base of ['/', '/LocalCut/']) {
       })),
     );
     await expect(media.locator('.media-item')).toHaveCount(24);
-    const header = page.locator('.workspace-header');
-    const picker = page.getByRole('button', {
-      name: 'Open project',
+    const header = media.locator('.section-heading');
+    const commands = header.getByRole('button', {
+      name: 'Commands',
       exact: true,
     });
     const headerBounds = (await header.boundingBox())!;
-    const pickerBounds = (await picker.boundingBox())!;
-    expect(pickerBounds.y + pickerBounds.height / 2).toBeLessThan(
+    const commandsBounds = (await commands.boundingBox())!;
+    expect(commandsBounds.y + commandsBounds.height).toBeLessThanOrEqual(
       headerBounds.y + headerBounds.height,
     );
-    expect(headerBounds.height).toBeLessThan(75);
+    expect(commandsBounds.y).toBeGreaterThanOrEqual(headerBounds.y);
+    await expect(page.locator('.workspace-header')).toHaveCount(0);
+    await expect(header).toBeInViewport();
     await expect
       .poll(() =>
         media
