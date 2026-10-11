@@ -24,6 +24,8 @@ Rollback to older application code retains the current project and media, but th
 
 Asset display-name changes compare the expected stored name and commit metadata in one IndexedDB transaction; they do not advance project revisions or rewrite originals. Metadata is shared by current projects and saved versions. Removing current-project clip references retains originals and saved index evidence for undo and version restoration.
 
+Looping clips add optional loop offsets to the version-one clip document; project versions, backups and history retain them without an IndexedDB migration. Older strict readers cannot read those clips. Retain a compatible reader or export rendered media before rolling back to an older app.
+
 Original media is immutable OPFS content identified by asset ID. An import journal precedes file mutation. An asset becomes ready only after the file finishes; failure removes partial content. Relink accepts a missing original with matching metadata; it does not overwrite a ready source.
 
 Imports commit ready metadata and their publication journal marker in one IndexedDB transaction. Transcripts likewise commit only after inference succeeds and their source bounds are validated. Cancellation aborts either transaction while it is pending. After a successful commit, a late cancellation cannot remove the original or transcript and the job returns the committed result. Export files and frame bitmaps have no such editing-data commit: cancellation before delivery removes the finished export or closes the bitmap before reporting CANCELLED. Delivered artifacts remain the caller's responsibility to dispose.

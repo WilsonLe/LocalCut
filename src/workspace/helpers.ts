@@ -25,6 +25,39 @@ export function clipName(clip: Clip, assets: Asset[]) {
     (clip.kind === 'caption' ? 'Captions' : 'Text')
   );
 }
+export const MEDIA_DRAG_EVENT = 'localcut-media-drag';
+export interface MediaDragDetail {
+  assetId: string;
+  clientX: number;
+  clientY: number;
+  phase: 'move' | 'drop' | 'cancel';
+}
+
+export function assetClip(
+  project: Project,
+  asset: Asset,
+  startUs: number,
+): Extract<EditOperation, { type: 'insertClip' }>['clip'] {
+  const scale =
+    asset.width && asset.height
+      ? Math.min(project.width / asset.width, project.height / asset.height)
+      : 1;
+  const width = asset.width ? asset.width * scale : project.width;
+  const height = asset.height ? asset.height * scale : project.height;
+  return {
+    id: crypto.randomUUID(),
+    kind: asset.kind,
+    assetId: asset.id,
+    startUs,
+    durationUs: asset.kind === 'image' ? 5_000_000 : asset.durationUs,
+    width,
+    height,
+    x: (project.width - width) / 2,
+    y: (project.height - height) / 2,
+    ...(asset.kind === 'image' ? {} : { sourceOutUs: asset.durationUs }),
+  };
+}
+
 export function appendAsset(project: Project, asset: Asset): EditOperation[] {
   const kind: 'audio' | 'video' = asset.kind === 'audio' ? 'audio' : 'video';
   const track = project.tracks.find((track) => track.kind === kind);
@@ -33,31 +66,13 @@ export function appendAsset(project: Project, asset: Asset): EditOperation[] {
     0,
     ...(track?.clips.map((clip) => clip.startUs + clip.durationUs) ?? []),
   );
-  const durationUs = asset.kind === 'image' ? 5_000_000 : asset.durationUs;
   const operations: EditOperation[] = [];
   if (!track)
     operations.push({ type: 'addTrack', track: { id: trackId, kind } });
-  const scale =
-    asset.width && asset.height
-      ? Math.min(project.width / asset.width, project.height / asset.height)
-      : 1;
-  const width = asset.width ? asset.width * scale : project.width;
-  const height = asset.height ? asset.height * scale : project.height;
   operations.push({
     type: 'insertClip',
     trackId,
-    clip: {
-      id: crypto.randomUUID(),
-      kind: asset.kind,
-      assetId: asset.id,
-      startUs,
-      durationUs,
-      width,
-      height,
-      x: (project.width - width) / 2,
-      y: (project.height - height) / 2,
-      ...(asset.kind === 'image' ? {} : { sourceOutUs: asset.durationUs }),
-    },
+    clip: assetClip(project, asset, startUs),
   });
   return operations;
 }

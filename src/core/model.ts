@@ -106,6 +106,10 @@ const clipInputSchema = z
     durationUs: time.positive(),
     sourceInUs: time.default(0),
     sourceOutUs: time.optional(),
+    loop: z
+      .object({ offsetUs: time.default(0) })
+      .strict()
+      .optional(),
     speed: finite.min(0.25).max(4).default(1),
     pitchMode: z.enum(['change', 'preserve']).optional(),
     speedRamp: speedRampSchema.optional(),
@@ -388,12 +392,28 @@ export function validateProject(value: unknown): Project {
           'Media source range required',
         );
         invariant(
-          Math.abs(
-            nominalSourceBounds(clip).spanUs / averageSpeed(clip) -
-              clip.durationUs,
-          ) <= 1,
+          !!clip.loop ||
+            Math.abs(
+              nominalSourceBounds(clip).spanUs / averageSpeed(clip) -
+                clip.durationUs,
+            ) <= 1,
           'INVALID_DOCUMENT',
           'Duration must match source range and speed',
+        );
+      }
+      if (clip.loop) {
+        invariant(
+          ['audio', 'video'].includes(clip.kind),
+          'INVALID_DOCUMENT',
+          'Loops require timed media',
+        );
+        invariant(
+          Math.round(nominalSourceBounds(clip).spanUs / averageSpeed(clip)) >=
+            1000 &&
+            clip.loop.offsetUs <
+              Math.round(nominalSourceBounds(clip).spanUs / averageSpeed(clip)),
+          'INVALID_DOCUMENT',
+          'Loop offset must be inside its cycle',
         );
       }
       if (clip.speedRampSourceRange)

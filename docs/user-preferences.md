@@ -109,6 +109,12 @@ This is the project record of the user's durable product and workflow choices. U
 - Provide speed adjustments with either preserved audio pitch or pitch changing with speed.
 - Provide customizable speed ramps that curve, rise/fall linearly, or step up/down. Allow direction changes and editable points.
 
+## Timeline drag feedback — 11 October 2026
+
+- Drag clip ends to shorten or extend them. Timed media repeats from its selected source beginning after reaching the end, with clear loop-back markers.
+- Drag imported media onto compatible timeline tracks; show its prospective position and duration as a placeholder before release.
+- When reordering tracks, move the entire track, including its title, with the cursor. Animate the destination placeholder and surrounding tracks into their proposed positions; respect reduced motion and commit only on release.
+
 ## Timeline seeking — 11 October 2026
 
 - Remove the separate scrub bar below the timeline tracks. Seek by dragging the top of the playhead, with a comfortable touch target and keyboard access.
