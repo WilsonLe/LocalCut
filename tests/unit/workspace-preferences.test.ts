@@ -21,6 +21,18 @@ describe('local workspace preference validation', () => {
         defaultWorkspacePreferences,
       );
   });
+  it('defaults snapping on for legacy/invalid preferences and retains an explicit off choice', () => {
+    expect(parseWorkspacePreferences(record({})).timelineSnapping).toBe(true);
+    expect(
+      parseWorkspacePreferences(record({ timelineSnapping: false }))
+        .timelineSnapping,
+    ).toBe(false);
+    for (const timelineSnapping of ['false', 0, null])
+      expect(
+        parseWorkspacePreferences(record({ timelineSnapping }))
+          .timelineSnapping,
+      ).toBe(true);
+  });
   it('normalizes bounds and rejects invalid types while retaining valid fields', () => {
     expect(
       parseWorkspacePreferences(
