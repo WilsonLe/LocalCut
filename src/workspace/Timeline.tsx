@@ -771,7 +771,11 @@ export function Timeline(props: Props) {
                             source: drag.source,
                             index: drag.index,
                             x: (event.clientX - drag.startX) / interfaceScale(),
-                            y: (event.clientY - drag.startY) / interfaceScale(),
+                            // Compact labels sit above the row center; anchor the
+                            // floating row to the pointer, not that label offset.
+                            y:
+                              (event.clientY - drag.centers[drag.source]!) /
+                              interfaceScale(),
                             offsets: drag.offsets,
                           });
                           setDropTrack(project.tracks[drag.index]?.id ?? null);
