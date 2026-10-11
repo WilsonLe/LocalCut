@@ -329,3 +329,7 @@ This is the project record of the user's durable product and workflow choices. U
 ## Chat interruptions — 11 October 2026
 
 - Pause unfinished assistant responses gracefully when navigating away from chat. Expected navigation interruption must not display an error; show Resume as the primary composer action on return while the draft is empty. Typing changes it to Send, and clearing the draft restores Resume. Resume explicitly restarts the paused request without requiring a follow-up message.
+
+## Application updates — 11 October 2026
+
+- Add an icon-only Check for update control at the top right of the main header. When a later deployed commit is available, prompt the user to update; reload only after the user chooses Update now.
