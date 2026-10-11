@@ -117,6 +117,11 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Open the mobile Media tab as a full-screen page or sheet, with a clear close control, rather than a small floating dialog.
 
+## App and popup scrolling — 11 October 2026
+
+- Keep the main app anchored to the viewport. Scroll workspace content inside its panels, including the stacked mobile workspace, so dialogs and dropdowns cannot move the page behind them.
+- Give dialogs a fixed height bounded by the viewport and scroll overflowing content inside them. Keep dropdown scrolling contained within the popup and retain hidden scrollbars.
+
 ## Media cards — 11 October 2026
 
 - Show local thumbnails for uploaded images and videos. Keep asset names and actions visible; disclose dimensions, duration and other metadata, including AI indexing guidance and labels, through accessible asset tooltips instead of inline text.
