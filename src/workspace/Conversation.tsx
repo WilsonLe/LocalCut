@@ -68,6 +68,8 @@ export interface ConversationProps {
   selectedClipId?: string;
   readOnly?: boolean;
   onApplied: () => Promise<void>;
+  onNewProject: () => void;
+  onOpenProjects: () => void;
   onError: (error: unknown) => void;
   registerCleanup?: (cleanup: () => Promise<void>) => void;
   collapsed: boolean;
@@ -950,6 +952,46 @@ export function Conversation(props: ConversationProps) {
           <div className="conversation-session">
             <div className="min-h-0 flex-1" />
             <div className="chat-composer">
+              {connection && (
+                <div className="space-y-2 px-1 pb-2">
+                  <p role="status" className="text-xs text-muted-foreground">
+                    {connecting
+                      ? 'Loading AI models…'
+                      : !selectedModel
+                        ? 'Choose an AI model to start chatting.'
+                        : 'Create or open a project to start chatting.'}
+                  </p>
+                  {!connecting &&
+                    (!selectedModel ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSettingsOpen(true)}
+                      >
+                        Choose AI model
+                      </Button>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label="Create project for chat"
+                          onClick={props.onNewProject}
+                        >
+                          New project
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label="Open project for chat"
+                          onClick={props.onOpenProjects}
+                        >
+                          Open project
+                        </Button>
+                      </div>
+                    ))}
+                </div>
+              )}
               <Textarea
                 aria-label="Describe your edit"
                 placeholder="What would you like to change?"

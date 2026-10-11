@@ -1689,6 +1689,8 @@ export function Workspace() {
                 readOnly={!!browsed || navigation.blocked}
                 selectedClipId={selected}
                 onApplied={refresh}
+                onNewProject={() => setDialog('new')}
+                onOpenProjects={showProjects}
                 onError={error}
                 registerCleanup={registerCleanup}
                 collapsed={visibleChatCollapsed}
