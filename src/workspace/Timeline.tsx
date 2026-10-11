@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { Menu } from '@base-ui/react/menu';
 import { interfaceScale } from './appearance';
 import { useViewport } from './useViewport';
@@ -20,13 +26,16 @@ import {
   Undo2,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import type { Asset, Project } from '../editor';
+import type { Asset, Editor, Project } from '../editor';
+import { TimelinePreviews } from './timeline-previews';
+import { TimelineClipPreview } from './TimelineClipPreview';
 import { clipName, formatTime, projectDuration } from './helpers';
 import { SettingsSelect } from './SettingsSelect';
 import { transitionPairs, TRANSITION_TEMPLATES } from '../core/timeline';
 import type { TransitionTemplate } from '../core/timeline';
 
 interface Props {
+  editor: Editor | null;
   project: Project | null;
   assets: Asset[];
   selected: string[];
@@ -73,6 +82,12 @@ export function Timeline(props: Props) {
         addTrackTrigger.current?.focus();
     }
   }, [busy, project?.id, props.readOnly]);
+  const previews = useMemo(
+    () => (props.editor ? new TimelinePreviews(props.editor) : null),
+    [props.editor],
+  );
+  useEffect(() => () => previews?.dispose(), [previews]);
+
   const [multiSelect, setMultiSelect] = useState(false);
   useEffect(() => {
     const touchControls = window.matchMedia(
@@ -439,7 +454,21 @@ export function Timeline(props: Props) {
                           }}
                           title={`${clipName(clip, assets)} · ${formatTime(clip.durationUs)}`}
                         >
-                          <span>{clipName(clip, assets)}</span>
+                          {clip.assetId &&
+                            assets.find(
+                              (asset) => asset.id === clip.assetId,
+                            ) && (
+                              <TimelineClipPreview
+                                previews={previews}
+                                asset={assets.find(
+                                  (asset) => asset.id === clip.assetId,
+                                )!}
+                                clip={clip}
+                              />
+                            )}
+                          <span className="timeline-clip-name">
+                            {clipName(clip, assets)}
+                          </span>
                         </button>
                       ))}
                       {project &&
