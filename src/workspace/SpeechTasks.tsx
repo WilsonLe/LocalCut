@@ -14,6 +14,11 @@ export default function SpeechTasks({
   useEffect(() => {
     const kind = speechTaskKind(connection);
     const unregister = editor.tasks.register(kind, {
+      cache: {
+        mode: 'fresh',
+        reason:
+          'Generate authorizes a provider submission; same-task audio checkpoints prevent resubmission on retry.',
+      },
       lane: 'speech',
       recovery: 'manual',
       retryCodes: ['RATE_LIMITED'],

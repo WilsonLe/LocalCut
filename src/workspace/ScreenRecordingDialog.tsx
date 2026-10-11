@@ -116,6 +116,10 @@ export default function ScreenRecordingDialog({
       }
       const kind = `screen.capture:${crypto.randomUUID()}`;
       tasks.register(kind, {
+        cache: {
+          mode: 'fresh',
+          reason: 'A recording owns a new permitted live capture stream.',
+        },
         lane: 'capture',
         recovery: 'manual',
         sessionBound: true,

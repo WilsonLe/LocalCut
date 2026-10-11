@@ -271,6 +271,11 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
   indexer.run = (assetId, runId) => {
     const kind = `index.labels:${crypto.randomUUID()}`;
     options.editor.tasks.register(kind, {
+      cache: {
+        mode: 'fresh',
+        reason:
+          'Explicit labeling is bound to current consent/model and selected run checkpoints.',
+      },
       lane: 'labels',
       recovery: 'manual',
       sessionBound: true,

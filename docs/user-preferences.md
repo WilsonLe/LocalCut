@@ -389,3 +389,9 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Show Editor and Storyboard as accessible icon-only tabs in the top project header, including mobile; remove their separate subheader.
 - Remember the most recently opened project locally and reopen it when the app starts at its bare URL. Explicit project/catalog links retain priority; a fresh browser without a saved recent project remains inert.
+
+## Layered task caching — 12 October 2026
+
+- Apply cache admission to every new task. Read valid cached results before enqueueing; on a miss, persist the cache claim and inputs before scheduling. Write newly computed results before reporting completion.
+- Use multiple local layers: the existing artifact/result owner, in-memory queue lookup and durable queue claims/results. Matching reusable requests share in-flight work across tabs and reuse valid completed results after reload. Keep source/version/parameter invalidation and explicit action/consent boundaries.
+- Declare each task's reuse policy or concrete fresh-work reason through the shared queue, following [the development contract](development.md#persist-reusable-computation).

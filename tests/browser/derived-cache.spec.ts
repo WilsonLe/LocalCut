@@ -109,8 +109,11 @@ for (const base of ['/', '/LocalCut/']) {
           32,
         );
         const tiles = await job.completion;
-        const empty = await window.editor.assets.thumbnails(saved.image, [], 32)
-          .completion;
+        const empty = await window.editor.assets.thumbnails(
+          'empty-request',
+          [],
+          32,
+        ).completion;
         stop();
         return {
           before,
@@ -183,17 +186,7 @@ for (const base of ['/', '/LocalCut/']) {
       before: cacheRead.before,
       after: cacheRead.before,
     });
-    const workerReady = page.waitForEvent('worker');
-    await page.evaluate(
-      async ({ saved }) => {
-        // Start the fresh production worker without asking it to render any pixels.
-        await window.editor.assets.contactSheet(saved.image, [0, 100], 32)
-          .completion;
-      },
-      { base, saved },
-    );
-    const worker = await workerReady;
-    await worker.evaluate(() => {
+    await page.evaluate(() => {
       const encode = OffscreenCanvas.prototype.convertToBlob;
       const bitmap = globalThis.createImageBitmap;
       const audio = AudioDecoder.prototype.configure;
@@ -218,6 +211,7 @@ for (const base of ['/', '/LocalCut/']) {
     });
     const replay = await page.evaluate(async (saved) => {
       const editor = window.editor;
+      const beforeTasks = (await editor.tasks.list()).length;
       const stages: string[] = [],
         job = editor.assets.waveform(saved.audio, 32);
       job.subscribe((event) => stages.push(event.stage));
@@ -241,8 +235,12 @@ for (const base of ['/', '/LocalCut/']) {
         tiles: await Promise.all(tiles.map((tile) => digest(tile.blob))),
         sheet: await digest(sheet.blob),
         pcmSize: pcm.size,
+        beforeTasks,
+        afterTasks: (await editor.tasks.list()).length,
       };
     }, saved);
+    expect(replay.afterTasks).toBe(replay.beforeTasks);
+    expect(workers).toEqual([]);
     expect(replay.peaks).toEqual(saved.peaks);
     expect(replay.stages).not.toContain('waveform');
     expect(replay.tiles).toEqual([
@@ -252,7 +250,7 @@ for (const base of ['/', '/LocalCut/']) {
     ]);
     expect(replay.sheet).toEqual(saved.sheet);
     expect(replay.pcmSize).toBeGreaterThan(48000 * 8);
-    await worker.evaluate(() =>
+    await page.evaluate(() =>
       (
         globalThis as typeof globalThis & { restoreCacheProbes: () => void }
       ).restoreCacheProbes(),
@@ -453,20 +451,18 @@ for (const base of ['/', '/LocalCut/']) {
     expect(saved.pixel[1]).toBeGreaterThan(240);
     expect(saved.pixel[0]).toBeLessThan(15);
     await page.reload();
-    const ready = page.waitForEvent('worker');
+    const workers: string[] = [];
+    page.on('worker', (worker) => workers.push(worker.url()));
     await page.evaluate(
       async ({ base, saved }) => {
         const { createEditor } = (await import(
           base + 'editor.js'
         )) as typeof import('../../src/editor');
         window.editor = await createEditor({ namespace: saved.namespace });
-        await window.editor.assets.contactSheet(saved.assetId, [0, 1000000], 64)
-          .completion;
       },
       { base, saved },
     );
-    const worker = await ready;
-    await worker.evaluate(() => {
+    await page.evaluate(() => {
       const fail = () => {
         throw new Error('Cache hit opened a video decoder or encoded a canvas');
       };
@@ -490,6 +486,7 @@ for (const base of ['/', '/LocalCut/']) {
         sheetSize: sheet.blob.size,
       };
     }, saved);
+    expect(workers).toEqual([]);
     expect(replay).toEqual({
       sizes: [...saved.sizes].reverse(),
       sheetSize: saved.sheetSize,

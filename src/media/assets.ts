@@ -22,6 +22,7 @@ import { EditorError, invariant } from '../core/errors';
 import { checkAbort } from '../services/jobs';
 import type { Progress } from '../services/jobs';
 import type { Store } from '../storage/store';
+import { contactSheetKey, validateWaveformBins } from '../storage/media-cache';
 import {
   sourceIdentity,
   thumbnailKey,
@@ -516,24 +517,7 @@ export async function contactSheet(
   signal: AbortSignal,
   width = 320,
 ) {
-  invariant(
-    timesUs.length > 0 &&
-      timesUs.length <= 1000 &&
-      timesUs.every((time) => Number.isSafeInteger(time) && time >= 0),
-    'INVALID_COMMAND',
-    'Contact sheet needs valid timestamps',
-  );
-  invariant(
-    Number.isSafeInteger(width) && width > 0 && width <= 4096,
-    'INVALID_COMMAND',
-    'Invalid thumbnail width',
-  );
-  const key = new TextEncoder().encode(JSON.stringify([width, timesUs]));
-  const digest = await crypto.subtle.digest('SHA-256', key);
-  const requestKey = Array.from(new Uint8Array(digest), (b) =>
-    b.toString(16).padStart(2, '0'),
-  ).join('');
-  const id = `contact-sheet-v1-${assetId}-${requestKey}`;
+  const id = await contactSheetKey(assetId, timesUs, width);
   return store.lock(
     `asset:${assetId}`,
     'shared',
@@ -646,11 +630,7 @@ export async function waveform(
   jobId: string,
   bins = 1000,
 ) {
-  invariant(
-    Number.isInteger(bins) && bins > 0 && bins <= 100000,
-    'INVALID_COMMAND',
-    'Invalid waveform bins',
-  );
+  validateWaveformBins(bins);
   return store.lock(
     `asset:${assetId}`,
     'shared',
