@@ -311,3 +311,9 @@ Completed audio is retained locally and reused for preview or pitch-preserving t
 Dictation is a separate explicit browser speech-recognition action. Depending on the browser, microphone audio may go to its speech service; its tooltip discloses this before activation. It writes only into the draft and stops on session hiding/disposal. Dragged image references remain local and extend the assistant's metadata allowlist explicitly. Remote labeling and remote transcription preserve their own consent/approval requirements. Queue recovery cannot recreate those permissions or edit approvals.
 
 Voice presets store model, voice, languages and delivery directions locally. Choosing, saving, renaming, archiving or restoring one makes no provider request and grants no sharing permission. Generate validates its settings against the current connected catalog and submits through the existing configured queue route. Presets do not add seed passthrough or voice replication, and cannot guarantee identical regenerated audio.
+
+## Track editing
+
+The progressive `editing` skill exposes every track command through the canonical edit schema: `addTrack`, `updateTrack`, `duplicateTrack`, `reorderTrack`, `clearTrack`, and `removeTrack`. Capability inspection describes output/lock rules; project and timeline inspection include structural state and evaluated visible/audible flags. Track names follow the existing `includeAssetNames` consent and are withheld by default. No new sharing permission or media upload is introduced. See [track API contracts](api.md#track-operations).
+
+Track edits are revision-bound proposals with explicit user approval. A locked track cannot be edited through AI; requested unlocking must be an explicit proposed operation. Clear/delete summaries should identify the removed contents. Loading the skill or validating a batch performs no edit and grants no approval.
