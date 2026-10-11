@@ -277,11 +277,28 @@ export function matchesTextLabels(
   item: { name: string; labels: string[]; family?: string },
   query: string,
 ) {
-  const haystack =
-    `${item.name} ${item.labels.join(' ')} ${item.family ?? ''}`.toLowerCase();
+  // CSS fallback categories are not names: searching serif must not match every sans-serif face.
+  const families = (item.family ?? '')
+    .split(',')
+    .filter(
+      (family) =>
+        ![
+          'sans-serif',
+          'serif',
+          'monospace',
+          'cursive',
+          'fantasy',
+          'system-ui',
+        ].includes(family.trim()),
+    );
+  const names = `${item.name} ${families.join(' ')}`.toLowerCase();
+  const labels = item.labels.map((label) => label.toLowerCase());
   return query
     .toLowerCase()
     .trim()
     .split(/\s+/)
-    .every((word) => haystack.includes(word));
+    .every(
+      (word) =>
+        names.includes(word) || labels.some((label) => label.startsWith(word)),
+    );
 }

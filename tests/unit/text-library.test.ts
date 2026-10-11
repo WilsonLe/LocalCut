@@ -68,6 +68,24 @@ describe('styled text contract', () => {
   it('validates every bundled identity and searches combined names, styles and languages', () => {
     expect(TEXT_FONTS.length).toBeGreaterThan(1700);
     expect(
+      matchesTextLabels(
+        TEXT_FONTS.find((font) => font.id === 'font-inter')!,
+        'serif',
+      ),
+    ).toBe(false);
+    expect(
+      matchesTextLabels(
+        TEXT_FONTS.find((font) => font.id === 'serif')!,
+        'serif',
+      ),
+    ).toBe(true);
+    expect(
+      matchesTextLabels(
+        TEXT_FONTS.find((font) => font.id === 'sans')!,
+        'Arial',
+      ),
+    ).toBe(true);
+    expect(
       JSON.stringify(z.toJSONSchema(textStyleSchema.shape.fontFamily)).length,
     ).toBeLessThan(1000);
     for (const font of TEXT_FONTS)
