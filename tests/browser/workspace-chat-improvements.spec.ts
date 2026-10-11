@@ -1,3 +1,4 @@
+import { closeMediaImport } from './workspace-import-helper';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test } from '@playwright/test';
 import {
@@ -698,6 +699,7 @@ for (const base of ['/', '/LocalCut/']) {
       mimeType: 'image/png',
       buffer: Buffer.from(imageBytes),
     });
+    await closeMediaImport(page);
     const source = page.getByRole('button', {
       name: 'Asset details for Reference.png',
       exact: true,

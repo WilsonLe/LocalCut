@@ -162,6 +162,11 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Put every asset action in an absolute top-right overflow menu revealed on hover or keyboard focus, with a visible touch trigger. Use clear indexing/results icons and offer rename, delete and missing-source relink there. This supersedes visible inline card actions.
 
+## Asset import — 11 October 2026
+
+- Accept asset files dropped on the Media tab or anywhere over the app, with a visible acceptance indicator while files hover.
+- Show import progress and results for every asset in the batch. Enqueue all selected assets up front. The progress dialog is informational: keep it open after completion, allow dismissal while work continues, and offer only Okay and the top-right X as buttons.
+
 ## Timeline media previews — 11 October 2026
 
 - Show image/video thumbnails inside visual timeline clips and real waveforms inside audio clips. Keep clip names, selection and touch/keyboard editing readable and usable. Generate these previews locally through the shared editor APIs.
