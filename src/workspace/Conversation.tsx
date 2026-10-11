@@ -1,4 +1,11 @@
 import {
+  accountStorage,
+  accountCredentialKey,
+  accountStorageKey,
+  forgetAccount,
+  OPENROUTER_ACCOUNT_PENDING,
+} from './provider-account-storage';
+import {
   lazy,
   Suspense,
   useCallback,
@@ -8,7 +15,6 @@ import {
   useState,
 } from 'react';
 import type { Ref, ReactNode } from 'react';
-import { CREDENTIAL_STORAGE_KEY } from '../ai/credential-storage-key';
 import type { WorkspaceCommand } from './commands';
 import {
   ChevronDown,
@@ -130,7 +136,6 @@ export function Conversation(props: ConversationProps) {
     setSpeechLoaded(true);
     setSpeechOpen(true);
   };
-  const [apiKey, setApiKey] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [conversationNumber, setConversationNumber] = useState(0);
@@ -259,15 +264,30 @@ export function Conversation(props: ConversationProps) {
       setModels([]);
       setModel('');
       if (showSettings) setSettingsOpen(true);
-      if (!configuration.current.routes.llm.length) return;
+      if (
+        !configuration.current.routes.llm.some((route) => {
+          const profile = configuration.current.profiles.find(
+            (p) => p.id === route.providerId,
+          );
+          return (
+            providers.current.get(route.providerId)?.client.status()
+              .connected &&
+            (profile?.kind !== 'compatible' || route.model || profile.model)
+          );
+        })
+      )
+        return;
       const catalog = await provider.listModels(controller.signal);
       if (mounted.current && token === attempt.current) {
+        const primaryProfile = configuration.current.profiles.find(
+          (profile) => profile.id === provider.selectedProvider('llm'),
+        );
         const available = catalog
           .filter(
             (item) =>
               item.supportsTools &&
               item.id !== 'openrouter/auto' &&
-              (provider.selectedProvider('llm') !== 'openrouter' ||
+              (primaryProfile?.kind !== 'openrouter' ||
                 item.contextLength > 256_000),
           )
           .sort((a, b) => a.name.localeCompare(b.name));
@@ -353,7 +373,15 @@ export function Conversation(props: ConversationProps) {
       if (profile.kind === 'chatgpt') {
         const pending = providers.current.get(profile.id)?.client as
           ChatGPTClient | undefined;
-        const chatgpt = pending ?? api.createChatGPT();
+        const chatgpt =
+          pending ??
+          api.createChatGPT({
+            credentialStorage: accountStorage(
+              profile,
+              () => window.localStorage,
+            ),
+            oauthStorage: accountStorage(profile, () => window.sessionStorage),
+          });
         client = chatgpt;
         if (restore) {
           if (!chatgpt.restore())
@@ -397,7 +425,7 @@ export function Conversation(props: ConversationProps) {
         );
       if (
         !next.routes.llm.some((r) => r.providerId === profile.id) &&
-        (profile.model || profile.kind === 'chatgpt')
+        (profile.kind === 'compatible' || profile.kind === 'chatgpt')
       )
         next.routes.llm.push({
           providerId: profile.id,
@@ -452,21 +480,21 @@ export function Conversation(props: ConversationProps) {
     }
     return accepted;
   };
-  const authorizeChatGPT = async (): Promise<string> => {
+  const authorizeChatGPT = async (
+    profile: ProviderProfile,
+  ): Promise<string> => {
     const token = ++attempt.current;
     const api = moduleRef.current ?? (await import('../ai'));
     moduleRef.current = api;
     if (!mounted.current || token !== attempt.current)
       throw new api.AiError('CANCELLED', 'Sign-in cancelled.');
-    const profile = {
-      id: 'chatgpt',
-      name: 'ChatGPT',
-      kind: 'chatgpt' as const,
-    };
     let client = providers.current.get(profile.id)?.client as
       ChatGPTClient | undefined;
     if (!client) {
-      client = api.createChatGPT();
+      client = api.createChatGPT({
+        credentialStorage: accountStorage(profile, () => window.localStorage),
+        oauthStorage: accountStorage(profile, () => window.sessionStorage),
+      });
       providers.current.set(profile.id, { ...profile, client });
     }
     const result = await client.beginAuthorization({ callbackUrl: '' });
@@ -477,39 +505,30 @@ export function Conversation(props: ConversationProps) {
     return result.authorizationUrl;
   };
   const removeProvider = useCallback(
-    (id: string, forget = true) => {
+    (id: string, forget = true, keepProfile = false) => {
       const token = ++attempt.current;
       request.current?.abort();
       const controller = new AbortController();
       request.current = controller;
       setConnecting(false);
       setConnectionError(null);
-      setApiKey('');
       setSpeechOpen(false);
       const client = providers.current.get(id)?.client;
-      // Even a disconnected row may have an outstanding same-tab OAuth flow.
-      if (forget && id === 'openrouter') {
-        try {
-          window.sessionStorage.removeItem('localcut-openrouter-oauth-v1');
-        } catch {
-          /* In-memory retirement still applies. */
-        }
-      }
+      const profile = configuration.current.profiles.find((p) => p.id === id);
       let removalFailed = false;
       try {
         if (forget) {
           if (client) client.disconnect();
-          else if (id === 'openrouter')
-            window.localStorage.removeItem(CREDENTIAL_STORAGE_KEY);
+          if (profile) forgetAccount(profile);
         }
       } catch (error) {
         removalFailed = true;
-        report(id === 'openrouter' ? storageError() : error);
+        report(profile?.kind === 'openrouter' ? storageError() : error);
       }
       client?.dispose();
       providers.current.delete(id);
       const next = structuredClone(configuration.current);
-      if (forget && !removalFailed) {
+      if (forget && !keepProfile && !removalFailed) {
         next.profiles = next.profiles.filter((p) => p.id !== id);
         next.routes.llm = next.routes.llm.filter((r) => r.providerId !== id);
         next.routes.tts = next.routes.tts.filter((r) => r.providerId !== id);
@@ -554,7 +573,11 @@ export function Conversation(props: ConversationProps) {
     [report, publishConnection],
   );
   const connect = useCallback(
-    async (kind: 'key' | 'callback' | 'saved', credential: string) => {
+    async (
+      kind: 'key' | 'callback' | 'saved',
+      credential: string,
+      accountId = 'openrouter',
+    ) => {
       const token = ++attempt.current;
       request.current?.abort();
       const controller = new AbortController();
@@ -568,8 +591,18 @@ export function Conversation(props: ConversationProps) {
         const api = moduleRef.current ?? (await import('../ai'));
         moduleRef.current = api;
         if (!current()) return;
+        const profile = configuration.current.profiles.find(
+          (p) => p.id === accountId,
+        );
+        if (!profile || profile.kind !== 'openrouter')
+          throw new api.AiError(
+            'AUTH_FLOW_INVALID',
+            'Choose an existing OpenRouter account.',
+          );
         provider = api.createOpenRouter({
-          credentialStorage: () => window.localStorage,
+          credentialStorage: () =>
+            accountStorage(profile, () => window.localStorage),
+          oauthStorage: accountStorage(profile, () => window.sessionStorage),
         });
         if (kind === 'key') provider.setKey(credential);
         else if (kind === 'saved') {
@@ -592,33 +625,33 @@ export function Conversation(props: ConversationProps) {
           }
         }
         if (!current()) return;
-        providers.current.get('openrouter')?.client.dispose();
-        providers.current.set('openrouter', {
-          id: 'openrouter',
-          name: 'OpenRouter',
+        providers.current.get(accountId)?.client.dispose();
+        providers.current.set(accountId, {
+          id: accountId,
+          name: profile.name,
           client: provider,
         });
         accepted = true;
         const next = structuredClone(configuration.current);
-        const added = !next.profiles.some((p) => p.id === 'openrouter');
+        const added = !next.profiles.some((p) => p.id === accountId);
         if (added)
           next.profiles.push({
-            id: 'openrouter',
-            name: 'OpenRouter',
+            id: accountId,
+            name: profile.name,
             kind: 'openrouter',
           });
         if (
           added &&
           kind !== 'saved' &&
-          !next.routes.llm.some((r) => r.providerId === 'openrouter')
+          !next.routes.llm.some((r) => r.providerId === accountId)
         )
-          next.routes.llm.push({ providerId: 'openrouter', model: '' });
+          next.routes.llm.push({ providerId: accountId, model: '' });
         if (
           added &&
           kind !== 'saved' &&
-          !next.routes.tts.some((r) => r.providerId === 'openrouter')
+          !next.routes.tts.some((r) => r.providerId === accountId)
         )
-          next.routes.tts.push({ providerId: 'openrouter', model: '' });
+          next.routes.tts.push({ providerId: accountId, model: '' });
         configuration.current = next;
         setProviderConfiguration(next);
         saveWorkspacePreferences({ aiProviders: JSON.stringify(next) });
@@ -631,9 +664,11 @@ export function Conversation(props: ConversationProps) {
             if (!accepted && provider) {
               try {
                 if (provider.restoreCredential().connected) {
-                  providers.current.set('openrouter', {
-                    id: 'openrouter',
-                    name: 'OpenRouter',
+                  providers.current.set(accountId, {
+                    id: accountId,
+                    name: configuration.current.profiles.find(
+                      (p) => p.id === accountId,
+                    )!.name,
                     client: provider,
                   });
                   accepted = true;
@@ -672,33 +707,54 @@ export function Conversation(props: ConversationProps) {
     queueMicrotask(() => {
       if (!active) return;
       const callback = takePendingCallback();
-      if (callback) void connect('callback', callback);
-      else {
+      void (async () => {
         try {
-          if (window.localStorage.getItem(CREDENTIAL_STORAGE_KEY) !== null)
-            void connect('saved', '');
+          if (callback) {
+            const accountId =
+              window.sessionStorage.getItem(OPENROUTER_ACCOUNT_PENDING) ??
+              'openrouter';
+            window.sessionStorage.removeItem(OPENROUTER_ACCOUNT_PENDING);
+            await connect('callback', callback, accountId);
+          }
+          for (const profile of configuration.current.profiles) {
+            if (!active) return;
+            if (
+              profile.kind === 'openrouter' &&
+              !providers.current.get(profile.id)?.client.status().connected &&
+              window.localStorage.getItem(accountCredentialKey(profile)) !==
+                null
+            )
+              await connect('saved', '', profile.id);
+          }
         } catch {
           setSettingsOpen(true);
           report(storageError());
         }
-      }
+      })();
     });
     return () => {
       active = false;
     };
   }, [connect, report]);
 
-  const authorize = async () => {
+  const authorize = async (accountId: string) => {
     const token = ++attempt.current;
     setConnecting(true);
     setConnectionError(null);
-    setApiKey('');
     let provider: OpenRouter | undefined;
     try {
       const api = moduleRef.current ?? (await import('../ai'));
       moduleRef.current = api;
       if (!mounted.current || token !== attempt.current) return;
-      provider = api.createOpenRouter();
+      const profile = configuration.current.profiles.find(
+        (p) => p.id === accountId,
+      );
+      if (!profile || profile.kind !== 'openrouter')
+        throw new Error('Choose an OpenRouter account.');
+      provider = api.createOpenRouter({
+        oauthStorage: accountStorage(profile, () => window.sessionStorage),
+      });
+      window.sessionStorage.setItem(OPENROUTER_ACCOUNT_PENDING, accountId);
       const { authorizationUrl } = await provider.beginAuthorization({
         callbackUrl: window.location.href,
       });
@@ -718,12 +774,45 @@ export function Conversation(props: ConversationProps) {
   };
   useEffect(() => {
     const changed = (event: StorageEvent) => {
-      if (event.key === CREDENTIAL_STORAGE_KEY || event.key === null)
-        removeProvider('openrouter', false);
+      if (event.storageArea !== window.localStorage) return;
+      for (const profile of configuration.current.profiles) {
+        if (
+          profile.kind !== 'compatible' &&
+          (event.key === accountCredentialKey(profile) ||
+            (profile.kind === 'chatgpt' &&
+              event.key ===
+                accountStorageKey(profile, 'localcut.chatgpt-authority.v1')) ||
+            event.key === null)
+        ) {
+          if (profile.kind === 'chatgpt') {
+            const client = providers.current.get(profile.id)?.client as
+              ChatGPTClient | undefined;
+            if (!client?.synchronize()) continue;
+          }
+          removeProvider(profile.id, false);
+        }
+      }
     };
     window.addEventListener('storage', changed);
     return () => window.removeEventListener('storage', changed);
   }, [removeProvider]);
+  const verifyProvider = async (id: string) => {
+    const client = providers.current.get(id)?.client;
+    if (!client?.status().connected)
+      throw new Error('Connect this provider first.');
+    const scope = client.verifyConnection
+      ? await client.verifyConnection()
+      : (await client.listModels(), 'credentials');
+    if (
+      !mounted.current ||
+      providers.current.get(id)?.client !== client ||
+      !client.status().connected
+    )
+      throw new Error('Connection changed during verification.');
+    return scope === 'endpoint'
+      ? 'Endpoint verified. Credential enforcement depends on this server.'
+      : 'Credentials verified with provider.';
+  };
   const refreshCatalog = async () => {
     if (!connection || connecting) return;
     const token = ++attempt.current;
@@ -733,12 +822,15 @@ export function Conversation(props: ConversationProps) {
     setConnecting(true);
     setConnectionError(null);
     try {
+      const primaryProfile = configuration.current.profiles.find(
+        (profile) => profile.id === connection.provider.selectedProvider('llm'),
+      );
       const catalog = (await connection.provider.listModels(controller.signal))
         .filter(
           (item) =>
             item.supportsTools &&
             item.id !== 'openrouter/auto' &&
-            (connection.provider.selectedProvider('llm') !== 'openrouter' ||
+            (primaryProfile?.kind !== 'openrouter' ||
               item.contextLength > 256_000),
         )
         .sort((a, b) => a.name.localeCompare(b.name));
@@ -778,8 +870,11 @@ export function Conversation(props: ConversationProps) {
       connection &&
         selectedModel &&
         indexingAllowed &&
-        providerConfiguration.routes.llm[0]?.providerId === 'openrouter' &&
-        connection.provider.selectedProvider('llm') === 'openrouter'
+        providerConfiguration.profiles.find(
+          (p) => p.id === providerConfiguration.routes.llm[0]?.providerId,
+        )?.kind === 'openrouter' &&
+        connection.provider.selectedProvider('llm') ===
+          providerConfiguration.routes.llm[0]?.providerId
         ? {
             ...connection,
             model,
@@ -1108,28 +1203,19 @@ export function Conversation(props: ConversationProps) {
             }}
             settingsOpen={settingsOpen}
             setSettingsOpen={setSettingsOpen}
-            connection={connectedProviders.includes('openrouter')}
-            providerName={
-              providerConfiguration.profiles.find(
-                (p) =>
-                  p.id ===
-                  (connection?.provider.selectedProvider('llm') ??
-                    providerConfiguration.routes.llm[0]?.providerId),
-              )?.name
-            }
             providerConfiguration={providerConfiguration}
             connectedProviders={connectedProviders}
             updateConfiguration={updateConfiguration}
             connectProvider={connectProvider}
             authorizeChatGPT={authorizeChatGPT}
             removeProvider={removeProvider}
+            disconnectProvider={(id) => removeProvider(id, true, true)}
+            verifyProvider={verifyProvider}
             connecting={connecting}
-            apiKey={apiKey}
-            setApiKey={setApiKey}
             authorize={authorize}
             connect={connect}
-            disconnect={() => removeProvider('openrouter')}
             model={model}
+            modelProviderId={connection?.provider.selectedProvider('llm')}
             setModel={(model) => {
               setModel(model);
               const next = structuredClone(configuration.current);

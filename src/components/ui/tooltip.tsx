@@ -6,9 +6,12 @@ import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
 export function Tooltip({
   children,
   content,
+  toggleOnClick = false,
 }: {
   children: ReactElement;
   content: ReactNode;
+  /** Opt in for help buttons that must also disclose their text on touch. */
+  toggleOnClick?: boolean;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -18,6 +21,7 @@ export function Tooltip({
         render={children}
         delay={200}
         aria-describedby={open ? id : undefined}
+        onClick={toggleOnClick ? () => setOpen((value) => !value) : undefined}
       />
       <TooltipPrimitive.Portal>
         <TooltipPrimitive.Positioner

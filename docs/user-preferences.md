@@ -253,7 +253,7 @@ This is the project record of the user's durable product and workflow choices. U
 ## AI Connector — 11 October 2026
 
 - Allow removing OpenRouter from configured providers, remember that removal, and offer an explicit way to add it again.
-- Let users reconnect OpenRouter or replace its key while connected; retain deliberately configured service routes and models. Keep provider identity, status and connection actions together, with optional details revealed progressively.
+- Retain deliberately configured service routes and models. The newer AI provider settings choice below supersedes the earlier connected reconnect/key-replacement controls.
 
 ## Compact editor controls — 11 October 2026
 
@@ -296,3 +296,12 @@ This is the project record of the user's durable product and workflow choices. U
 - Remove the inert pointer/context indicator; retain selected-clip context automatically.
 - Cap chat context at 256,000 tokens and compact older conversation automatically at 192,000 tokens. Offer OpenRouter chat models only with context strictly greater than 256,000 tokens. Use conservative local token budgeting and compaction without an extra paid request.
 - Put the text-to-speech synthesis entry point in Media, reusing the shared provider connection and explicit Generate consent. This supersedes the chat-header speech entry point.
+
+## AI provider settings — 11 October 2026
+
+- Use searchable dropdowns for provider selection in each LLM, TTS and STT service. Offer connected providers only, state when none are connected, and retain Local Whisper as an independent STT option.
+- Make provider connections collapsible like service configuration, with subtle horizontal dividers between sections.
+- Keep connected provider management compact with Verify, Disconnect and Remove. Disconnect clears credentials while retaining configuration; Remove also clears its service routes. Remove reconnect, connected/key metadata and API-key replacement controls.
+- Choose LLM models inside service configuration; do not ask for a duplicate model in connection setup.
+- Allow multiple named accounts for each provider type, including OpenRouter and ChatGPT. Isolate each account's credentials and service routes.
+- Keep ChatGPT callback instructions in an accessible tooltip. Label saved-account activation Connect.

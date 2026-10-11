@@ -317,6 +317,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
       async fetch(
         path:
           | '/auth/keys'
+          | '/key'
           | '/models'
           | '/models?output_modalities=speech'
           | '/models/fish-audio/s2.1-pro/endpoints'
@@ -744,14 +745,51 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         op.finish();
       }
     },
-    async listModels(signal) {
+    async verifyConnection(signal) {
+      assertActive();
+      aiInvariant(
+        key !== undefined,
+        'AUTH_REQUIRED',
+        'Connect this provider first.',
+      );
+      const op = operation(signal);
+      try {
+        const response = await op.fetch(compatible ? '/models' : '/key', {
+          method: 'GET',
+          headers: key ? { Authorization: `Bearer ${key}` } : {},
+        });
+        const value = await readJson(response, op.signal);
+        op.check();
+        aiInvariant(
+          object(value) &&
+            (compatible ? Array.isArray(value.data) : object(value.data)),
+          'INVALID_RESPONSE',
+          'The provider returned an invalid verification response.',
+        );
+        return compatible ? 'endpoint' : 'credentials';
+      } catch (error) {
+        throw op.error(error);
+      } finally {
+        op.finish();
+      }
+    },
+    async listModels(signal, routeModel) {
       assertActive();
       if (compatible) {
-        const result = compatible.model
+        const model = routeModel || compatible.model;
+        aiInvariant(
+          !model ||
+            (/^~?[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/.test(model) &&
+              !model.includes('://') &&
+              model !== 'openrouter/auto'),
+          'INVALID_REQUEST',
+          'Invalid provider model ID.',
+        );
+        const result = model
           ? [
               {
-                id: compatible.model,
-                name: compatible.model,
+                id: model,
+                name: model,
                 contextLength: 128000,
                 supportsTools: true,
                 supportedParameters: ['tools', 'tool_choice'],
@@ -797,7 +835,9 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         'Chat context exceeds 256,000 tokens.',
       );
       const epoch = generation;
-      const models = catalog ?? (await client.listModels(signal));
+      const models = compatible
+        ? await client.listModels(signal, requestedModel)
+        : (catalog ?? (await client.listModels(signal)));
       assertActive();
       aiInvariant(epoch === generation, 'CANCELLED', 'AI request cancelled.');
       const model = models.find((candidate) => candidate.id === requestedModel);

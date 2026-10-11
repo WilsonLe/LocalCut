@@ -118,7 +118,7 @@ async function connect(page: Page, context: BrowserContext, base: string) {
     .getByRole('button', { name: 'Use API key', exact: true })
     .click();
   await expect(
-    connection.getByText('Key connected', { exact: true }),
+    connection.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
   ).toBeVisible();
   // Speech does not require choosing a tool-capable chat model.
   await connection.getByRole('button', { name: 'Done', exact: true }).click();

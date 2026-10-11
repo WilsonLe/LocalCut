@@ -6,12 +6,10 @@ const cors = {
   'access-control-allow-methods': 'GET,POST,OPTIONS',
 };
 for (const base of ['/', '/LocalCut/']) {
-  test(`OpenRouter connector removes, re-adds, replaces credentials and reconnects without changing routes ${base}`, async ({
+  test(`OpenRouter connector removes and re-adds with compact connected management ${base}`, async ({
     page,
     context,
   }, info) => {
-    let exchanges = 0;
-    let deny = true;
     let paid = 0;
     await context.route('https://openrouter.ai/api/v1/**', async (route) => {
       if (route.request().method() === 'OPTIONS')
@@ -30,28 +28,8 @@ for (const base of ['/', '/LocalCut/']) {
             ],
           },
         });
-      if (route.request().url().endsWith('/auth/keys')) {
-        exchanges++;
-        return route.fulfill({
-          headers: cors,
-          json: { key: 'synthetic-reconnected' },
-        });
-      }
       paid++;
       return route.abort();
-    });
-    await context.route('https://openrouter.ai/auth?*', async (route) => {
-      const auth = new URL(route.request().url());
-      const callback = new URL(auth.searchParams.get('callback_url')!);
-      expect(callback.hash).toBe('');
-      expect(callback.searchParams.get('state')).toMatch(/^[A-Za-z0-9_-]{43}$/);
-      expect(auth.searchParams.has('state')).toBe(false);
-      if (deny) callback.searchParams.set('error', 'access_denied');
-      else callback.searchParams.set('code', 'synthetic-code');
-      await route.fulfill({
-        contentType: 'text/html',
-        body: `<a href="${callback.href.replaceAll('&', '&amp;')}">Return to LocalCut</a>`,
-      });
     });
     const dialog = page.getByRole('dialog', {
       name: 'AI connection',
@@ -95,12 +73,27 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Use API key', exact: true })
       .click();
     await expect(
-      dialog.getByText('Key connected', { exact: true }),
+      dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toBeVisible();
-    await dialog.getByText('STT · Transcription', { exact: true }).click();
+    await expect(
+      dialog.getByText('Key connected', { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      dialog.getByText('Replace API key', { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      dialog.getByRole('button', { name: 'Reconnect OpenRouter', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      dialog.getByLabel('OpenRouter API key', { exact: true }),
+    ).toHaveCount(0);
     await dialog
-      .getByRole('button', { name: 'OpenRouter', exact: true })
+      .getByRole('button', { name: 'STT · Transcription', exact: true })
       .click();
+    await dialog
+      .getByRole('combobox', { name: 'Add STT provider', exact: true })
+      .click();
+    await page.getByRole('option', { name: 'OpenRouter', exact: true }).click();
     await expect(dialog.getByLabel('OpenRouter stt route model')).toHaveValue(
       'openai/whisper-1',
     );
@@ -111,46 +104,25 @@ for (const base of ['/', '/LocalCut/']) {
     expect(
       original.routes.stt.map((r: { providerId: string }) => r.providerId),
     ).toEqual(['openrouter', 'local']);
-    await dialog.getByText('Replace API key', { exact: true }).click();
-    await dialog
-      .getByLabel('OpenRouter API key', { exact: true })
-      .fill('synthetic-replacement');
-    await dialog
-      .getByRole('button', { name: 'Use API key', exact: true })
-      .click();
-    await expect.poll(credential).toContain('synthetic-replacement');
-    expect(await config()).toEqual(original);
-    await dialog
-      .getByRole('button', { name: 'Reconnect OpenRouter', exact: true })
-      .click();
-    await page
-      .getByRole('link', { name: 'Return to LocalCut', exact: true })
-      .click();
+    const connections = dialog.getByRole('button', {
+      name: 'Provider connections',
+      exact: true,
+    });
+    await connections.click();
     await expect(
-      dialog.getByText('Key connected', { exact: true }),
+      dialog.getByRole('button', { name: 'Remove OpenRouter', exact: true }),
+    ).toBeHidden();
+    await connections.click();
+    await expect(
+      dialog.getByRole('button', { name: 'Remove OpenRouter', exact: true }),
     ).toBeVisible();
-    await expect(dialog.getByRole('alert')).toContainText('cancelled');
-    expect(exchanges).toBe(0);
-    expect(await credential()).toContain('synthetic-replacement');
     await page.reload();
     await openAISettings(page);
     await expect(
-      dialog.getByText('Key connected', { exact: true }),
+      dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toBeVisible();
-    deny = false;
-    await dialog
-      .getByRole('button', { name: 'Reconnect OpenRouter', exact: true })
-      .click();
-    await page
-      .getByRole('link', { name: 'Return to LocalCut', exact: true })
-      .click();
-    await expect(
-      dialog.getByText('Key connected', { exact: true }),
-    ).toBeVisible();
-    expect(exchanges).toBe(1);
-    expect(new URL(page.url()).search).toBe('');
-    expect(await credential()).toContain('synthetic-reconnected');
     expect(await config()).toEqual(original);
+    expect(await credential()).toContain('synthetic-original');
     expect(paid).toBe(0);
     await page.screenshot({ path: info.outputPath('connector-desktop.png') });
     await page.setViewportSize({ width: 390, height: 844 });
@@ -158,6 +130,13 @@ for (const base of ['/', '/LocalCut/']) {
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
     await page.screenshot({ path: info.outputPath('connector-mobile.png') });
+    await dialog
+      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
+      .click();
+    expect(await credential()).toBeNull();
+    expect((await config()).routes.stt).toEqual([
+      { providerId: 'local', model: 'whisper' },
+    ]);
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
     await expect(

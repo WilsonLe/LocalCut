@@ -171,11 +171,14 @@ for (const base of ['/', '/LocalCut/']) {
       .getByLabel('API base URL', { exact: true })
       .fill('http://localhost:1234/v1');
     await dialog
-      .getByLabel('LLM model (must support tools)', { exact: true })
-      .fill('local-editor');
-    await dialog
       .getByRole('button', { name: 'Connect endpoint', exact: true })
       .click();
+    await dialog.getByLabel('Local model llm route model').fill('local-editor');
+    await dialog.getByLabel('Local model llm route model').press('Tab');
+    await expect(
+      dialog.getByLabel('Local model llm route model'),
+    ).toBeEnabled();
+
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     const composer = chat.getByRole('textbox', { name: 'Describe your edit' });
     await expect(composer).toBeEnabled();
