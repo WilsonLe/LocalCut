@@ -116,6 +116,13 @@ for (const base of ['/', '/LocalCut/']) {
       'synthetic-connection-key',
     );
     expect(requests).toBe(2);
+    // On mobile the error toast covers Send; shared-browser focus can pause
+    // its auto-dismiss. Close it through the same control a user can use.
+    await page
+      .getByRole('listitem')
+      .filter({ hasText: 'OpenRouter rejected the request (HTTP 404).' })
+      .getByRole('button', { name: 'Close toast', exact: true })
+      .click();
     reject = false;
     await composer.fill('Try again');
     await send.click();
