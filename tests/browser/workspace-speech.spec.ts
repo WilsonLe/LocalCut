@@ -601,7 +601,7 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Generate speech', exact: true })
       .click();
     await expect(
-      dialog.getByText('Speech queued…', { exact: true }),
+      dialog.getByRole('status').filter({ hasText: /queued/i }),
     ).toBeVisible();
     await expect
       .poll(() =>

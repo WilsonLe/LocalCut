@@ -430,7 +430,7 @@ export default function SpeechDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="max-h-[calc(var(--app-viewport-height)*0.9)] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="h-auto max-h-[calc(var(--app-viewport-height)*0.9)] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Text to speech</DialogTitle>
           <DialogDescription className="sr-only">
