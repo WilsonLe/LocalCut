@@ -1,6 +1,6 @@
 # Development loop
 
-Start with the [contributor contract](../AGENTS.md) and, for workspace changes, [user preferences](user-preferences.md). Use the pinned setup and [command table](../README.md#setup). Work in an issue-linked isolated feature worktree; reuse the task's existing worktree and draft PR when continuing a change.
+Start with [CONTRIBUTING.md](../CONTRIBUTING.md), the [agent contract](../AGENTS.md) and, for workspace changes, [user preferences](user-preferences.md). Use the pinned setup and [command table](../README.md#setup). Work in an issue-linked isolated feature worktree; reuse the task's existing worktree and draft PR when continuing a change.
 
 Verify Node 24, pnpm 11.25.0, and installed stable Google Chrome once, then reuse that setup throughout the iteration. Run `pnpm install --frozen-lockfile` when dependencies are missing or the lockfile changes; do not reinstall or download a browser after every edit. Generic Playwright Chromium does not satisfy the native codec acceptance gate.
 
