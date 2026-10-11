@@ -6,6 +6,8 @@ type Timing = {
   durationUs: number;
   sourceInUs: number;
   sourceOutUs?: number;
+  loop?: { offsetUs: number };
+  speedRampSourceRange?: SplitRange;
 };
 function coefficients(a: SpeedPoint) {
   const u = a.curveStart ?? 0,
@@ -118,7 +120,20 @@ export function sourceDurationUs(
 ) {
   return Math.round(sourceUs / averageSpeed(clip));
 }
+export function loopDurationUs(clip: Timing) {
+  return Math.max(1, sourceDurationUs(clip, nominalSourceBounds(clip).spanUs));
+}
+export function loopLocalUs(clip: Timing, localUs: number) {
+  if (!clip.loop) return localUs;
+  const duration = loopDurationUs(clip);
+  return (((localUs + clip.loop.offsetUs) % duration) + duration) % duration;
+}
 export function sourcePositionUs(clip: Timing, localUs: number) {
+  if (clip.loop)
+    return sourcePositionUs(
+      { ...clip, loop: undefined, durationUs: loopDurationUs(clip) },
+      loopLocalUs(clip, localUs),
+    );
   if (!clip.speedRamp) return clip.sourceInUs + localUs * clip.speed;
   const p = Math.max(0, Math.min(1, localUs / clip.durationUs));
   return (
@@ -128,6 +143,11 @@ export function sourcePositionUs(clip: Timing, localUs: number) {
   );
 }
 export function localTimeForSource(clip: Timing, sourceUs: number) {
+  if (clip.loop)
+    return localTimeForSource(
+      { ...clip, loop: undefined, durationUs: loopDurationUs(clip) },
+      sourceUs,
+    );
   if (!clip.speedRamp) return (sourceUs - clip.sourceInUs) / clip.speed;
   let a = 0,
     b = 1;
@@ -139,6 +159,11 @@ export function localTimeForSource(clip: Timing, sourceUs: number) {
   return ((a + b) / 2) * clip.durationUs;
 }
 export function speedAt(clip: Timing, localUs: number) {
+  if (clip.loop)
+    return speedAt(
+      { ...clip, loop: undefined, durationUs: loopDurationUs(clip) },
+      loopLocalUs(clip, localUs),
+    );
   return clip.speedRamp
     ? (rampSpeed(clip.speedRamp, localUs / clip.durationUs) *
         (clip.sourceOutUs! - clip.sourceInUs)) /

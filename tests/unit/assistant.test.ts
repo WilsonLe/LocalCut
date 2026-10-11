@@ -1272,6 +1272,7 @@ describe('headless assistant boundaries', () => {
           sourceOutUs: 4e6,
         },
       },
+      { type: 'resizeClip', clipId: 'second', durationUs: 5e6 },
       { type: 'trimClip', clipId: 'video', sourceInUs: 0, sourceOutUs: 3e6 },
       { type: 'splitClip', clipId: 'video', atUs: 1e6, rightClipId: 'right' },
       {

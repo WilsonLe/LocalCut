@@ -107,3 +107,23 @@ it('maps silence and peaks through trimming, speed and a speed ramp', () => {
   expect(ramp[64]).toBe(1);
   expect(ramp[90]).toBe(30);
 });
+
+it('repeats waveforms across loop boundaries rather than stretching the source', () => {
+  const clip = clipSchema.parse({
+    id: 'loop',
+    kind: 'audio',
+    assetId: 'a',
+    startUs: 0,
+    durationUs: 4000000,
+    sourceOutUs: 2000000,
+    loop: { offsetUs: 0 },
+  });
+  const peaks = Float32Array.from({ length: 128 }, (_, i) => (i < 64 ? 0 : 1));
+  const heights = [
+    ...timelineWaveformPath(clip, 2000000, peaks).matchAll(/v([\d.]+)/g),
+  ].map((m) => Number(m[1]));
+  expect(heights.slice(0, 30)).toEqual(Array(30).fill(1));
+  expect(heights.slice(34, 62)).toEqual(Array(28).fill(30));
+  expect(heights.slice(66, 94)).toEqual(Array(28).fill(1));
+  expect(heights.slice(98, 126)).toEqual(Array(28).fill(30));
+});
