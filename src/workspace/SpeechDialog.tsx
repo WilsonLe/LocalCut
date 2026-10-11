@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LoaderCircle, RefreshCw, Info } from 'lucide-react';
-import { toast } from 'sonner';
 import type { Editor, Job, Project } from '../editor';
 import type { SpeechAudio, SpeechModel, RenderedSpeech } from '../ai';
 import type { Connection } from './Conversation';
@@ -508,7 +507,6 @@ export default function SpeechDialog({
       });
       // A committed edit remains authoritative even if dismissal happens afterward.
       await onApplied();
-      toast.success('Speech added to timeline');
       if (active.current) onClose();
     });
   };

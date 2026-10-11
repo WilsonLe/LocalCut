@@ -25,6 +25,11 @@ async function indexAction(page: Page, name: string, asset = 'red.png') {
     exact: true,
   });
   if ((await trigger.getAttribute('aria-expanded')) !== 'true') {
+    // Reopening mobile media restores focus to its close button. Reveal the
+    // hover-only desktop trigger before clicking instead of racing that focus.
+    await page
+      .getByRole('button', { name: `Asset details for ${asset}`, exact: true })
+      .hover();
     await trigger.focus();
     await trigger.click();
   }

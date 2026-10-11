@@ -441,6 +441,7 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
             timelineHeight: 260,
             chatCollapsed: false,
             mediaOpen: false,
+            timelineSnapping: true,
             exportFormat: 'mp4',
             aiModel: model,
             aiProviders: JSON.stringify({
