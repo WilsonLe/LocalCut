@@ -1,3 +1,4 @@
+import { createOpenRouter } from '../../src/ai/openrouter';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createOpenAICompatible,
@@ -198,6 +199,20 @@ describe('service providers', () => {
     );
     expect(b.synthesizeSpeech).toHaveBeenCalledTimes(1);
     expect(a.synthesizeSpeech).toHaveBeenCalledTimes(1);
+  });
+  it('keeps removed OpenRouter absent and accepts its explicit timestamped STT route', () => {
+    const c = defaultProviderConfiguration();
+    c.profiles = [];
+    c.routes.llm = [];
+    c.routes.tts = [];
+    expect(parseProviderConfiguration(JSON.stringify(c))).toEqual(c);
+    c.profiles.push({
+      id: 'openrouter',
+      kind: 'openrouter',
+      name: 'OpenRouter',
+    });
+    c.routes.stt.push({ providerId: 'openrouter', model: 'openai/whisper-1' });
+    expect(parseProviderConfiguration(JSON.stringify(c))).toEqual(c);
   });
   it('portable routing configuration strips credentials and validates endpoint and service capabilities', () => {
     const c = defaultProviderConfiguration();
@@ -414,6 +429,35 @@ describe('ordered transcription routes', () => {
     expect(local).not.toHaveBeenCalled();
     router.dispose();
     a.dispose();
+  });
+  it('reuses OpenRouter credentials for timestamped transcription and rejects untimed responses', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({ segments: [{ text: 'Hello', start: 0, end: 1 }] }),
+    );
+    const client = createOpenRouter({ fetch });
+    client.setKey('synthetic');
+    expect(
+      await client.transcribeSpeech!(
+        {
+          model: 'openai/whisper-1',
+          audio: new Float32Array(16000),
+          language: 'en',
+        },
+        signal(),
+      ),
+    ).toEqual([{ text: 'Hello', timestamp: [0, 1] }]);
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(url).toBe('https://openrouter.ai/api/v1/audio/transcriptions');
+    expect(init?.headers).toMatchObject({ Authorization: 'Bearer synthetic' });
+    expect((init?.body as FormData).get('model')).toBe('openai/whisper-1');
+    fetch.mockResolvedValue(Response.json({ text: 'Hello' }));
+    await expect(
+      client.transcribeSpeech!(
+        { model: 'openai/whisper-1', audio: new Float32Array(16000) },
+        signal(),
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    client.dispose();
   });
   it('sends only bounded WAV and validates timestamp JSON without exposing provider errors', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>(async () =>

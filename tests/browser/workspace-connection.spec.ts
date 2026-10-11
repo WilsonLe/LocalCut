@@ -278,14 +278,20 @@ for (const base of ['/', '/LocalCut/']) {
     await openAISettings(page);
     await expect(dialog).toBeVisible();
     await dialog
-      .getByRole('button', { name: 'Disconnect', exact: true })
+      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
       .click();
     await expect(
       dialog.getByLabel('OpenRouter API key', { exact: true }),
-    ).toHaveValue('');
+    ).toHaveCount(0);
+    await expect(
+      dialog.getByRole('button', { name: 'Add OpenRouter', exact: true }),
+    ).toBeVisible();
     await expect(
       dialog.getByText('Key connected', { exact: true }),
     ).toHaveCount(0);
+    await dialog
+      .getByRole('button', { name: 'Add OpenRouter', exact: true })
+      .click();
     await dialog
       .getByLabel('OpenRouter API key', { exact: true })
       .fill('synthetic-second-key');

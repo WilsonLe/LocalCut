@@ -110,6 +110,11 @@ for (const base of ['/', '/LocalCut/']) {
           exact: true,
         });
         await expect(dialog).toBeVisible();
+        const add = dialog.getByRole('button', {
+          name: 'Add OpenRouter',
+          exact: true,
+        });
+        if (await add.isVisible()) await add.click();
         await dialog.evaluate((el) =>
           Promise.all(
             el.getAnimations().map((animation) => animation.finished),
@@ -154,7 +159,7 @@ for (const base of ['/', '/LocalCut/']) {
         expect(await positions(page)).toEqual(workspaceBefore);
         await page.keyboard.press('Escape');
         await dialog
-          .getByRole('button', { name: 'Disconnect', exact: true })
+          .getByRole('button', { name: 'Remove OpenRouter', exact: true })
           .click();
         await page.keyboard.press('Escape');
         await expect(dialog).toBeHidden();

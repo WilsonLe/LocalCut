@@ -87,7 +87,11 @@ for (const base of ['/', '/LocalCut/']) {
     expect(authUrl.origin).toBe('https://openrouter.ai');
     expect(authUrl.searchParams.get('code_challenge_method')).toBe('S256');
     expect(authUrl.searchParams.get('code_challenge')).toMatch(/^[\w-]{43}$/);
-    expect(authUrl.searchParams.get('state')).toBeTruthy();
+    expect(
+      new URL(authUrl.searchParams.get('callback_url')!).searchParams.get(
+        'state',
+      ),
+    ).toBeTruthy();
     await page.reload();
     await context.route(
       'https://openrouter.ai/api/v1/auth/keys',
@@ -101,7 +105,12 @@ for (const base of ['/', '/LocalCut/']) {
     );
     const callback = new URL(pending.callback);
     callback.searchParams.set('code', 'synthetic-code');
-    callback.searchParams.set('state', authUrl.searchParams.get('state')!);
+    callback.searchParams.set(
+      'state',
+      new URL(authUrl.searchParams.get('callback_url')!).searchParams.get(
+        'state',
+      )!,
+    );
     const connected = await page.evaluate(
       async ({ path, callback }) => {
         const ai = (await import(
@@ -145,7 +154,9 @@ for (const base of ['/', '/LocalCut/']) {
       callback.searchParams.set('code', 'must-not-exchange');
       callback.searchParams.set(
         'state',
-        new URL(auth.authorizationUrl).searchParams.get('state')!,
+        new URL(
+          new URL(auth.authorizationUrl).searchParams.get('callback_url')!,
+        ).searchParams.get('state')!,
       );
       const fresh = createOpenRouter();
       fresh.disconnect();

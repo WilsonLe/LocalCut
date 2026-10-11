@@ -351,7 +351,9 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
       callback.searchParams.set('code', 'synthetic-ui-authorization');
       callback.searchParams.set(
         'state',
-        authorization.searchParams.get('state')!,
+        new URL(
+          authorization.searchParams.get('callback_url')!,
+        ).searchParams.get('state')!,
       );
       const href = callback.href
         .replaceAll('&', '&amp;')
@@ -465,12 +467,17 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
     ).toBeVisible();
     await expect(
       page.getByLabel('OpenRouter API key', { exact: true }),
-    ).toHaveCount(0);
+    ).not.toBeVisible();
     expect(exchanges).toBe(1);
-    await page.getByRole('button', { name: 'Disconnect', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
+      .click();
     await expect(
       page.getByLabel('OpenRouter API key', { exact: true }),
-    ).toHaveValue('');
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Add OpenRouter', exact: true }),
+    ).toBeVisible();
     expect(
       await page.evaluate(() =>
         localStorage.getItem('localcut.openrouter-credential.v1'),
@@ -516,7 +523,7 @@ for (const base of ['/', '/LocalCut/']) {
       exact: true,
     });
     await expect(
-      dialog.getByText('Saved on this device', { exact: true }),
+      dialog.getByRole('button', { name: 'Reconnect OpenRouter', exact: true }),
     ).toBeVisible();
     await page.screenshot({
       path: `.artifacts/persist-openrouter/connection-${base === '/' ? 'root' : 'pages'}.png`,
@@ -572,7 +579,7 @@ for (const base of ['/', '/LocalCut/']) {
       other.getByText('Key connected', { exact: true }),
     ).toBeVisible();
     await other
-      .getByRole('button', { name: 'Disconnect', exact: true })
+      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
       .click();
     await openAISettings(page);
     await expect(
@@ -759,7 +766,7 @@ for (const base of ['/', '/LocalCut/']) {
       exact: true,
     });
     await dialog
-      .getByRole('button', { name: 'Disconnect', exact: true })
+      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
       .click();
     await expect(dialog.getByRole('alert')).toContainText(
       'Allow local browser storage',
@@ -782,7 +789,7 @@ for (const base of ['/', '/LocalCut/']) {
       ).allowCredentialRemoval();
     });
     await dialog
-      .getByRole('button', { name: 'Disconnect', exact: true })
+      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
       .click();
     await expect(dialog.getByRole('alert')).toHaveCount(0);
     expect(

@@ -543,7 +543,7 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
     expect(exchanges).toBe(1);
     await dialog
-      .getByRole('button', { name: 'Disconnect ChatGPT', exact: true })
+      .getByRole('button', { name: 'Remove ChatGPT', exact: true })
       .click();
     expect(
       await page.evaluate(() =>
@@ -554,7 +554,7 @@ for (const base of ['/', '/LocalCut/']) {
 }
 
 for (const base of ['/', '/LocalCut/']) {
-  test(`native audio extraction routes STT and persists exact source cues ${base}`, async ({
+  test(`native audio extraction routes OpenRouter STT and persists exact source cues ${base}`, async ({
     page,
     context,
   }) => {
@@ -571,7 +571,7 @@ for (const base of ['/', '/LocalCut/']) {
       },
     );
     await context.route(
-      'https://stt-backup.example.test/v1/audio/transcriptions',
+      'https://openrouter.ai/api/v1/audio/transcriptions',
       (route) => {
         requests.push('backup');
         const body = route.request().postDataBuffer()!;
@@ -632,10 +632,7 @@ for (const base of ['/', '/LocalCut/']) {
         baseUrl: 'https://stt-first.example.test/v1',
         transcriptionModel: 'whisper-1',
       });
-      const backup = ai.createOpenAICompatible({
-        baseUrl: 'https://stt-backup.example.test/v1',
-        transcriptionModel: 'whisper-1',
-      });
+      const backup = ai.createOpenRouter();
       first.setKey('synthetic');
       backup.setKey('synthetic');
       const router = ai.createServiceRouter(
@@ -648,7 +645,7 @@ for (const base of ['/', '/LocalCut/']) {
           tts: [],
           stt: [
             { providerId: 'first', model: 'whisper-1' },
-            { providerId: 'backup', model: 'whisper-1' },
+            { providerId: 'backup', model: 'openai/whisper-1' },
           ],
         },
       );
@@ -700,7 +697,7 @@ for (const base of ['/', '/LocalCut/']) {
         { timeUs: 120003, endUs: 320003, text: 'Hello' },
         { timeUs: 370003, endUs: 770003, text: 'world' },
       ],
-      model: 'whisper-1',
+      model: 'openai/whisper-1',
       revision: 'provider:backup',
       rejected: 'INVALID_DOCUMENT',
     });
