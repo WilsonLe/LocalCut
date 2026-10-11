@@ -179,3 +179,7 @@ The browser commands use current production builds at both static bases. Facade/
 ## Header update checks
 
 For application update checks or deployment identity, run `pnpm test:ui --grep 'header check for update|deployment recovery|missing optional UI chunk'` and `node --test tests/tooling/build-state.test.mjs`. These journeys cover both static bases, desktop/mobile, explicit checks, later/current/older/unrelated commits, pending feedback, retry, preserved projects and cache-busting reload. Changes to revision generation also require both builds and `pnpm check:bundle`. The update action is a user-owned lifecycle boundary, outside the editing-feature access inventory.
+
+## Automatic chat title checks
+
+Run `pnpm test tests/unit/chat-title.test.ts tests/unit/providers.test.ts`, then `pnpm test:ui --grep 'chat title runs|chat navigation pauses|chat picker matches'`. These cover bounded complete text, the selected model and configured route transport, independent delayed naming, session/branch ownership, failure and retirement, searchable titles, full/reduced motion and retained conversation controls at both hosting bases. Provider interception establishes transport and lifecycle evidence; live naming quality and cost depend on the configured provider. Naming is session UI metadata and grants no editing/tool authority.

@@ -1,6 +1,7 @@
 /** Optional AI entry. Importing this module never starts work or opens storage. */
 export { createOpenRouter } from './openrouter';
 export { createAssistant } from './assistant';
+export { generateChatTitle } from './chat-title';
 export { createAssetIndexer } from './asset-indexer';
 export type { AssetIndexerOptions } from './asset-indexer';
 export { AiError } from './errors';

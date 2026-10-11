@@ -26,6 +26,8 @@ Live account sign-in, plan entitlement, browser CORS availability and paid infer
 
 ## Frontend wiring
 
+`generateChatTitle({ provider, model, message, signal })` performs one bounded, tool-free text request through the same configured chat transport/model. The workspace starts it alongside the first explicitly submitted message in a fresh chat; this user-requested naming behavior is the narrow exception to the earlier prohibition on automatic paid requests. It sends only that user-authored message, without project context, media, attachment IDs or sharing-policy expansion. It uses the existing ordered LLM routes and credential cancellation. Streamed fragments never become a title: only one validated complete text result of at most 80 characters is accepted, with a 512-token output allowance. The request cannot inspect or edit anything. Failure retains the local fallback without blocking the reply or retrying automatically. Session retirement aborts naming and rejects late publication. Startup, reconnection, navigation, later messages, Resume and inherited branch chats never trigger naming.
+
 Load the modules after the user chooses to connect. The frontend owns connection controls, the conversation view, model selection, progress, proposal review, and error presentation. The shared editor remains the only owner of project state. The composer information icon reveals the selected provider/model and a Configure AI action. Its connection dialog uses one searchable model dropdown with an inline refresh icon; Data & analytics reveals the separate, initially unchecked sharing opt-ins. Session switching preserves drafts and transcripts within the current project/model/context scope. See [workspace behavior](workspace.md) for the UI contract.
 
 ```ts

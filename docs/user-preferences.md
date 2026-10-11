@@ -346,3 +346,8 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Persist expensive reusable computed results locally once produced; refreshing or reopening must reuse valid results instead of recomputing, including audio waveforms. Audit other derived media/analysis values too.
 - Enforce this principle in development documentation and agent guidance, with versioned source/parameter identity, correct invalidation and refresh regression evidence.
+
+## Automatic chat titles — 11 October 2026
+
+- After the first submitted message in a new chat, generate its title asynchronously through the same configured chat model and provider routes. Sending that first message authorizes this additional naming request; never name chats on startup, reconnect or navigation.
+- Animate the returned title as a polished text replacement, respecting reduced motion. Keep the reply independent, retain a first-message fallback on failure and name each fresh chat only once.
