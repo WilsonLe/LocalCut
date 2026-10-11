@@ -136,6 +136,10 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Show image/video thumbnails inside visual timeline clips and real waveforms inside audio clips. Keep clip names, selection and touch/keyboard editing readable and usable. Generate these previews locally through the shared editor APIs.
 
+## Screen recording guidance — 11 October 2026
+
+- Show browser-specific shared-audio limitations when users enable shared audio, before choosing a capture source. Explain silent recording and a supported browser-tab audio workaround when audio is unavailable; keep microphone permission separate.
+
 ## Delivery and validation
 
 - Pull and rebase onto current `main`, including the OpenRouter integration, before completing the workspace.
