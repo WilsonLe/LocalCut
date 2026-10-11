@@ -20,7 +20,10 @@ for (const base of ['/', '/LocalCut/']) {
       ctx.fillRect(0, 0, 32, 16);
       const image = await editor.assets.import(
         new File(
-          [await canvas.convertToBlob({ type: 'image/png' })],
+          [
+            await canvas.convertToBlob({ type: 'image/png' }),
+            new Uint8Array(128),
+          ],
           'red.png',
           { type: 'image/png' },
         ),
@@ -87,15 +90,105 @@ for (const base of ['/', '/LocalCut/']) {
     expect(saved.equal).toBe(true);
     expect(Math.max(...saved.peaks)).toBeCloseTo(0.5, 2);
     await page.reload();
-    const workerReady = page.waitForEvent('worker');
-    await page.evaluate(
+    const workers: string[] = [];
+    page.on('worker', (worker) => workers.push(worker.url()));
+    const cacheRead = await page.evaluate(
       async ({ base, saved }) => {
         const { createEditor } = (await import(
           base + 'editor.js'
         )) as typeof import('../../src/editor');
         window.editor = await createEditor({ namespace: saved.namespace });
+        const before = (await window.editor.tasks.list()).length;
+        const events: { jobId: string; stage: string }[] = [];
+        const stop = window.editor.events.jobs((event) =>
+          events.push({ jobId: event.jobId, stage: event.stage }),
+        );
+        const job = window.editor.assets.thumbnails(
+          saved.image,
+          [100, 0, 100],
+          32,
+        );
+        const tiles = await job.completion;
+        const empty = await window.editor.assets.thumbnails(saved.image, [], 32)
+          .completion;
+        stop();
+        return {
+          before,
+          after: (await window.editor.tasks.list()).length,
+          events: events.filter((event) => event.jobId === job.id),
+          times: tiles.map((tile) => tile.timeUs),
+          task: !!(await window.editor.tasks.get(job.id)),
+          empty,
+        };
+      },
+      { base, saved },
+    );
+    expect(cacheRead).toEqual({
+      before: cacheRead.before,
+      after: cacheRead.before,
+      events: [],
+      times: [100, 0, 100],
+      task: false,
+      empty: [],
+    });
+    expect(workers).toEqual([]);
+    const cancellation = await page.evaluate(
+      async ({ base, saved }) => {
+        const { createEditor } = (await import(
+          base + 'editor.js'
+        )) as typeof import('../../src/editor');
+        const other = await createEditor({ namespace: saved.namespace });
+        const before = (await other.tasks.list()).length;
+        let release!: () => void;
+        let entered!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          entered = resolve;
+        });
+        const hold = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const locked = navigator.locks.request(
+          `${saved.namespace}:asset:${saved.image}`,
+          async () => {
+            entered();
+            await hold;
+          },
+        );
+        await ready;
+        try {
+          const cancelled = other.assets.thumbnails(saved.image, [0], 31);
+          cancelled.cancel();
+          const disposed = other.assets.thumbnails(saved.image, [0], 30);
+          await other.dispose();
+          const codes = await Promise.all(
+            [cancelled, disposed].map((job) =>
+              job.completion.catch((error: { code: string }) => error.code),
+            ),
+          );
+          return {
+            codes,
+            before,
+            after: (await window.editor.tasks.list()).length,
+          };
+        } finally {
+          release();
+          await locked;
+          await other.dispose();
+        }
+      },
+      { base, saved },
+    );
+    expect(cancellation).toEqual({
+      codes: ['CANCELLED', 'CANCELLED'],
+      before: cacheRead.before,
+      after: cacheRead.before,
+    });
+    const workerReady = page.waitForEvent('worker');
+    await page.evaluate(
+      async ({ saved }) => {
         // Start the fresh production worker without asking it to render any pixels.
-        await window.editor.assets.thumbnails(saved.image, [], 32).completion;
+        await window.editor.assets.contactSheet(saved.image, [0, 100], 32)
+          .completion;
       },
       { base, saved },
     );
@@ -236,6 +329,38 @@ for (const base of ['/', '/LocalCut/']) {
       const bitmap = await createImageBitmap(repaired.blob);
       const width = bitmap.width;
       bitmap.close();
+      // Relink a same-size image with new pixels; facade reads must retire old tiles.
+      const imageFile = await (await root.getFileHandle(saved.image)).getFile();
+      const blue = new OffscreenCanvas(32, 16);
+      blue.getContext('2d')!.fillStyle = 'blue';
+      blue.getContext('2d')!.fillRect(0, 0, 32, 16);
+      const blueBytes = await blue.convertToBlob({ type: 'image/png' });
+      await root.removeEntry(saved.image);
+      await window.editor.assets.relink(
+        saved.image,
+        new File(
+          [blueBytes, new Uint8Array(imageFile.size - blueBytes.size)],
+          'blue.png',
+          { type: 'image/png' },
+        ),
+      ).completion;
+      const beforeRelinkedTile = (await window.editor.tasks.list()).length;
+      const relinkedTile = window.editor.assets.thumbnails(
+        saved.image,
+        [0],
+        32,
+      );
+      const relinkedBlob = (await relinkedTile.completion)[0]!.blob;
+      const relinkedBitmap = await createImageBitmap(relinkedBlob);
+      const pixels = new OffscreenCanvas(1, 1);
+      pixels.getContext('2d')!.drawImage(relinkedBitmap, 0, 0, 1, 1);
+      relinkedBitmap.close();
+      const relinkedPixel = [
+        ...pixels.getContext('2d')!.getImageData(0, 0, 1, 1).data,
+      ];
+      const relinkedTask = await window.editor.tasks.get(relinkedTile.id);
+      await window.editor.assets.thumbnails(saved.image, [0], 32).completion;
+      const afterRelinkedTile = (await window.editor.tasks.list()).length;
       // A same-size/same-duration replacement must retire PCM as well as peaks.
       const original = await (await root.getFileHandle(saved.audio)).getFile();
       const replacement = await original.arrayBuffer(),
@@ -265,6 +390,9 @@ for (const base of ['/', '/LocalCut/']) {
         stages,
         width,
         relinked,
+        relinkedPixel,
+        relinkedTask: relinkedTask?.state,
+        newTileTasks: afterRelinkedTile - beforeRelinkedTile,
         oldBinsRemoved: !final.some(
           (record) => record.id === `waveform-v1-${saved.audio}-16`,
         ),
@@ -272,6 +400,10 @@ for (const base of ['/', '/LocalCut/']) {
     }, saved);
     expect(recovery.result).toEqual(saved.peaks);
     expect(recovery.width).toBe(32);
+    expect(recovery.relinkedPixel[0]).toBeLessThan(10);
+    expect(recovery.relinkedPixel[2]).toBeGreaterThan(245);
+    expect(recovery.relinkedTask).toBe('completed');
+    expect(recovery.newTileTasks).toBe(1);
     expect(Math.max(...recovery.relinked)).toBeCloseTo(0.125, 2);
     expect(recovery.oldBinsRemoved).toBe(true);
   });
@@ -328,7 +460,8 @@ for (const base of ['/', '/LocalCut/']) {
           base + 'editor.js'
         )) as typeof import('../../src/editor');
         window.editor = await createEditor({ namespace: saved.namespace });
-        await window.editor.assets.thumbnails(saved.assetId, [], 64).completion;
+        await window.editor.assets.contactSheet(saved.assetId, [0, 1000000], 64)
+          .completion;
       },
       { base, saved },
     );

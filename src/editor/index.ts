@@ -4,6 +4,7 @@ export type {
   StoryboardPatch,
 } from '../core/storyboard';
 import { Store } from '../storage/store';
+import { cachedThumbnails } from '../storage/thumbnail-cache';
 import { AssetIndexStore } from '../storage/asset-index';
 import type {
   AssetIndexRun,
@@ -110,6 +111,7 @@ export async function createEditor(options: EditorOptions = {}) {
   const namespace = options.namespace ?? 'localcut',
     store = await Store.open(namespace),
     jobs = new Jobs(),
+    cacheReads = new Jobs(),
     tasks = new TaskQueue(namespace);
   let disposed = false;
   const sessions = new Set<PreviewSession>();
@@ -983,6 +985,7 @@ export async function createEditor(options: EditorOptions = {}) {
       } catch (error) {
         saveError = error;
       }
+      await cacheReads.dispose();
       await tasks.dispose();
       await jobs.dispose();
       interactive.reset();
@@ -1027,9 +1030,34 @@ export async function createEditor(options: EditorOptions = {}) {
   api.assets.analyze = queued('media.analyze', api.assets.analyze, {
     lane: 'index',
   });
-  api.assets.thumbnails = queued('media.thumbnails', api.assets.thumbnails, {
+  queued('media.thumbnails', api.assets.thumbnails, {
     lane: 'derivatives',
   });
+  api.assets.thumbnails = (assetId, timesUs, width = 320) => {
+    active();
+    // Snapshot mutable caller arguments before the asynchronous cache lookup.
+    const times = [...timesUs];
+    return cacheReads.start(async (signal, progress, id) => {
+      const cached = await cachedThumbnails(
+        store,
+        assetId,
+        times,
+        width,
+        signal,
+      );
+      checkAbort(signal);
+      if (cached) return cached;
+      active();
+      return runQueuedJob(
+        tasks.enqueue<{ timeUs: number; blob: Blob }[]>(
+          'media.thumbnails',
+          [assetId, times, width],
+          { id, label: 'media thumbnails' },
+        ),
+        { id, signal, progress },
+      );
+    });
+  };
   api.assets.contactSheet = queued(
     'media.contactSheet',
     api.assets.contactSheet,

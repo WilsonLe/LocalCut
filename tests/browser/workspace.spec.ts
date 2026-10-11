@@ -659,6 +659,30 @@ for (const base of ['/', '/LocalCut/']) {
     }
     const cards = page.locator('.media-item');
     await expect(cards).toHaveCount(4);
+    const thumbnailTaskCount = () =>
+      page.evaluate(async () => {
+        const db = await new Promise<IDBDatabase>((resolve, reject) => {
+          const request = indexedDB.open('localcut-tasks-v1');
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        try {
+          const tasks = await new Promise<{ kind: string }[]>(
+            (resolve, reject) => {
+              const request = db
+                .transaction('tasks')
+                .objectStore('tasks')
+                .getAll();
+              request.onsuccess = () => resolve(request.result);
+              request.onerror = () => reject(request.error);
+            },
+          );
+          return tasks.filter((task) => task.kind === 'media.thumbnails')
+            .length;
+        } finally {
+          db.close();
+        }
+      });
     await expect(cards).not.toContainText(['128 × 72', 'Connect AI', '0.50']);
     for (const [name, expected] of [
       ['red.png', [255, 0, 0]],
@@ -688,6 +712,19 @@ for (const base of ['/', '/LocalCut/']) {
     const audio = page.getByRole('button', {
       name: 'Asset details for tone.wav',
     });
+    const generatedTasks = await thumbnailTaskCount();
+    // Imported clips also request timeline tiles at a different width.
+    expect(generatedTasks).toBeGreaterThanOrEqual(3);
+    await page
+      .getByRole('button', { name: 'Collapse media', exact: true })
+      .click();
+    await page
+      .getByRole('button', { name: 'Expand media', exact: true })
+      .click();
+    await expect(
+      page.getByRole('img', { name: 'Thumbnail for red.png' }),
+    ).toBeVisible();
+    expect(await thumbnailTaskCount()).toBe(generatedTasks);
     await expect(audio.locator('svg')).toBeVisible();
     await expect(audio.locator('img')).toHaveCount(0);
     const imageDetails = page.getByRole('button', {
@@ -719,6 +756,9 @@ for (const base of ['/', '/LocalCut/']) {
         JSON.stringify({ version: 1, provider: 'openrouter', allowed: true }),
       ),
     );
+    await page
+      .getByRole('button', { name: 'Collapse media', exact: true })
+      .click();
     await page.reload();
     await page
       .getByRole('button', { name: 'Expand media', exact: true })
@@ -748,6 +788,7 @@ for (const base of ['/', '/LocalCut/']) {
       'Connect AI and choose a compatible model to index this asset.',
       '128 × 72',
     ]);
+    expect(await thumbnailTaskCount()).toBe(generatedTasks);
     await page
       .getByRole('button', { name: 'Asset details for red.png' })
       .focus();
@@ -762,6 +803,21 @@ for (const base of ['/', '/LocalCut/']) {
     await page.screenshot({
       path: `.artifacts/media-thumbnails-${base === '/' ? 'root' : 'pages'}.png`,
     });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await dismissNotifications(page);
+    for (let visit = 0; visit < 2; visit++) {
+      await page.locator('#mobile-media-trigger').click();
+      for (const name of ['red.png', 'green.webm', 'delayed.webm']) {
+        await expect(
+          page.getByRole('img', { name: `Thumbnail for ${name}` }),
+        ).toBeVisible();
+      }
+      expect(await thumbnailTaskCount()).toBe(generatedTasks);
+      await page
+        .getByRole('navigation', { name: 'Workspace sections' })
+        .getByRole('button', { name: 'Edit', exact: true })
+        .click();
+    }
   });
 
   test(`workspace edits, restores and saves real exports ${base}`, async ({
