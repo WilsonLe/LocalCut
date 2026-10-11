@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Download, Files, Music, Upload } from 'lucide-react';
+import { Download, Files, Music, Upload, ScreenShare } from 'lucide-react';
 import type { Asset, Editor } from '../editor';
 import type { IndexConnection } from './Conversation';
 const AssetIndexControls = lazy(() => import('./AssetIndexControls'));
@@ -14,6 +14,7 @@ export default function MediaLibrary({
   canEdit,
   hasProject,
   onImport,
+  onRecord,
   onBackup,
   onRelink,
 }: {
@@ -24,6 +25,7 @@ export default function MediaLibrary({
   canEdit: boolean;
   hasProject: boolean;
   onImport: () => void;
+  onRecord: () => void;
   onBackup: () => void;
   onRelink: (id: string) => void;
 }) {
@@ -31,11 +33,17 @@ export default function MediaLibrary({
     <section className="media-library" aria-label="Project media">
       <div className="section-heading">
         <h2>Media</h2>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {canEdit && (
             <Button variant="outline" size="sm" onClick={onImport}>
               <Upload />
               Import media
+            </Button>
+          )}
+          {canEdit && (
+            <Button variant="outline" size="sm" onClick={onRecord}>
+              <ScreenShare />
+              Record screen
             </Button>
           )}
           {hasProject && canEdit && (

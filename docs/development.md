@@ -64,6 +64,8 @@ For documentation-only edits, check formatting and the referenced files/commands
 
 For compatible browser stories, use [the Playwright journey inventory](playwright-journeys.md) to reuse an open app, project and tab across named steps. Batch related specs into one runner invocation before adding browser workers or tabs. The implemented combinations carry `@journey` in their titles; `pnpm test:ui --grep '@journey'` selects them at both hosting bases. Original story titles remain in the enclosing test name and named steps, so their existing grep selectors still work. Keep incompatible startup, failure and native fixtures isolated.
 
+For screen-recording changes, start with `pnpm test tests/unit/screen-recording.test.ts`, then `pnpm test:ui --grep 'screen recording'`. Controlled capture streams cover native encoding, audio, import/export, retry and disposal at both bases. The separate stable-Chrome instance in that spec exercises real browser-tab capture using a test-only selector for its synthetic tab; it never selects the user's desktop. Native OS screen/window pickers and OS audio availability still need interactive verification on the target platform.
+
 For text-to-speech changes, start with `pnpm test tests/unit/speech.test.ts tests/unit/openrouter.test.ts`, then `pnpm test:ui --grep 'text to speech'`. These test live catalog/voice validation, multilingual request settings, cancellation, exact pitch-preserving timing, local import/history/reopening and native export. Provider interception is deterministic transport evidence; assess natural delivery separately with an explicitly connected account and a Generate action.
 
 ## Expand verification at the boundary

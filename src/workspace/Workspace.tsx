@@ -92,6 +92,7 @@ import { appendAsset, downloadFile, projectDuration } from './helpers';
 import type { TextStyleInput } from '../core/text-library';
 import type { DialogName, Progress } from './WorkspaceDialogs';
 const MediaLibrary = lazy(() => import('./MediaLibrary'));
+const ScreenRecordingDialog = lazy(() => import('./ScreenRecordingDialog'));
 const MobileNavigation = lazy(() => import('./MobileNavigation'));
 const WorkspaceDialogs = lazy(() => import('./WorkspaceDialogs'));
 const Preview = lazy(() =>
@@ -354,6 +355,28 @@ export function Workspace() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [operationBusy, setBusy] = useState(false);
+  const recordingRouteKey = JSON.stringify([
+    routeKey,
+    route.screen,
+    route.screen === 'invalid' ? undefined : route.projectId,
+  ]);
+  const [recordingRoute, setRecordingRoute] = useState<string | null>(null);
+  const [recordingAdding, setRecordingAdding] = useState(false);
+  if (
+    recordingRoute !== null &&
+    (recordingRoute !== recordingRouteKey || route.screen !== 'editor')
+  ) {
+    // Creating the recording's first project changes the URL during import.
+    // Preserve its review/retry UI only for that same active project; other
+    // navigation retires the capture even when Back returns to an old route key.
+    setRecordingRoute(
+      recordingAdding &&
+        route.screen === 'editor' &&
+        route.projectId === project?.id
+        ? recordingRouteKey
+        : null,
+    );
+  }
   const [progress, setProgress] = useState<Progress | null>(null);
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [exportError, setExportError] = useState('');
@@ -475,12 +498,13 @@ export function Workspace() {
     [],
   );
   const action = async (work: () => Promise<void>) => {
-    if (lock.current) return;
+    if (lock.current) return false;
     lock.current = true;
     cancelRequested.current = false;
     setBusy(true);
     try {
       await work();
+      return true;
     } catch (failure) {
       if (
         failure &&
@@ -490,6 +514,7 @@ export function Workspace() {
       )
         await refresh().catch(error);
       if (alive.current) error(failure);
+      return false;
     } finally {
       lock.current = false;
       if (alive.current) {
@@ -570,6 +595,7 @@ export function Workspace() {
   const restoreProject = useCallback(
     async (id: string | undefined, signal: AbortSignal) => {
       previewControls.current?.pause();
+      setRecordingRoute(null);
       setDialog(null);
       setTransfer(null);
       setCommandsOpen(false);
@@ -604,6 +630,7 @@ export function Workspace() {
       setCommandsOpen,
       setSettingsOpen,
       setTransfer,
+      setRecordingRoute,
     ],
   );
   const navigation = useProjectNavigation({
@@ -630,7 +657,7 @@ export function Workspace() {
     await refresh();
   };
   const importMedia = (files: File[]) =>
-    void action(async () => {
+    action(async () => {
       if (browsing.current) return;
       const engine = await ensureEditor();
       if (!getProjectId())
@@ -789,6 +816,7 @@ export function Workspace() {
       const media = await Promise.all(
         ids.map((id) => editor.assets.inspect(id)),
       );
+      setRecordingRoute(null);
       browsing.current = true;
       setBrowsed(version);
       setVersionAssets(media);
@@ -1457,6 +1485,10 @@ export function Workspace() {
               canEdit={!busy && !browsed}
               hasProject={!!project}
               onImport={() => fileInput.current?.click()}
+              onRecord={() => {
+                previewControls.current?.pause();
+                setRecordingRoute(recordingRouteKey);
+              }}
               onBackup={backupProject}
               onRelink={relinkMedia}
             />
@@ -1849,7 +1881,7 @@ export function Workspace() {
         onChange={(event) => {
           const files = Array.from(event.target.files ?? []);
           event.target.value = '';
-          if (files.length) importMedia(files);
+          if (files.length) void importMedia(files);
         }}
       />
       <input
@@ -1872,6 +1904,23 @@ export function Workspace() {
             });
         }}
       />
+      {recordingRoute === recordingRouteKey &&
+        !browsed &&
+        !navigation.blocked && (
+          <Suspense fallback={null}>
+            <ScreenRecordingDialog
+              onClose={() => setRecordingRoute(null)}
+              onAdd={async (file) => {
+                setRecordingAdding(true);
+                try {
+                  return await importMedia([file]);
+                } finally {
+                  setRecordingAdding(false);
+                }
+              }}
+            />
+          </Suspense>
+        )}
       {(dialog || (busy && progress)) && (
         <Suspense fallback={null}>
           <WorkspaceDialogs

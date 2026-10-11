@@ -205,3 +205,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Use polished loading indicators that match the workspace layout and appearance, with accessible status labels and reduced-motion support.
 - Render available cached results immediately and refresh them in the background. Retain visible content and usable navigation during refresh; use skeletons only when no content is available. Display caches never replace authoritative saved editing data.
+
+## Screen recording — 11 October 2026
+
+- Create new local media by recording screens and app windows, with browser tabs available through the browser's source picker. Keep explicit source permission and use the existing local import, editing and persistence workflow.
