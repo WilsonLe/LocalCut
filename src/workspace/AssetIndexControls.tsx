@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
-import { LoaderCircle, Scan, History, Trash2 } from 'lucide-react';
+import {
+  LoaderCircle,
+  Scan,
+  FileSearch,
+  Trash2,
+  RotateCcw,
+  X,
+} from 'lucide-react';
 import { toast } from 'sonner';
+import { Menu } from '@base-ui/react/menu';
+import { AssetMenu, assetMenuItemClass } from './AssetMenu';
 import type { Asset, AssetIndexRun, Editor, Job, JobEvent } from '../editor';
 import type { IndexConnection } from './Conversation';
 import { getIndexConsent, useIndexConsent } from './index-consent';
@@ -39,6 +48,7 @@ export default function AssetIndexControls({
   readOnly,
   children,
   details,
+  actions,
 }: {
   editor: Editor | null;
   asset: Asset;
@@ -46,7 +56,9 @@ export default function AssetIndexControls({
   readOnly: boolean;
   children: ReactElement;
   details: ReactNode;
+  actions: ReactNode;
 }) {
+  const trigger = useRef<HTMLButtonElement>(null);
   const allowed = useIndexConsent();
   const [runs, setRuns] = useState<AssetIndexRun[]>([]),
     [busy, setBusy] = useState(false),
@@ -197,62 +209,64 @@ export default function AssetIndexControls({
       >
         {children}
       </Tooltip>
-      {allowed && editor && (
-        <div className="mt-2 w-full space-y-2">
-          <div className="flex flex-wrap gap-1">
-            <Button
-              size="sm"
-              variant="outline"
+      <AssetMenu name={asset.name} triggerRef={trigger}>
+        {allowed && editor && (
+          <>
+            <Menu.Item
+              className={assetMenuItemClass}
               disabled={
                 !compatible || busy || readOnly || asset.status !== 'ready'
-              }
-              title={
-                !compatible
-                  ? 'Connect a chat model with the required audio/image/video inputs to index this asset'
-                  : undefined
               }
               onClick={() => void start()}
             >
               {busy ? (
-                <LoaderCircle className="motion-safe:animate-spin" />
+                <LoaderCircle
+                  aria-hidden="true"
+                  className="motion-safe:animate-spin"
+                />
               ) : (
-                <Scan />
+                <Scan aria-hidden="true" />
               )}
               {latest ? 'Reindex' : 'Index'}
-            </Button>
+            </Menu.Item>
             {busy && (
-              <Button
-                size="sm"
-                variant="ghost"
+              <Menu.Item
+                className={assetMenuItemClass}
                 onClick={() => current.current?.job.cancel()}
               >
+                <X aria-hidden="true" />
                 Cancel indexing
-              </Button>
+              </Menu.Item>
             )}
             {!busy && retry && (
-              <Button
-                size="sm"
-                variant="ghost"
+              <Menu.Item
+                className={assetMenuItemClass}
                 disabled={!compatible || readOnly || asset.status !== 'ready'}
                 onClick={() => void start(retry.id)}
               >
+                <RotateCcw aria-hidden="true" />
                 Retry indexing
-              </Button>
+              </Menu.Item>
             )}
             {!!runs.length && (
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                aria-label={`Index history for ${asset.name}`}
+              <Menu.Item
+                className={assetMenuItemClass}
                 onClick={() => {
                   setOpen(true);
                   setOffset(0);
                 }}
               >
-                <History />
-              </Button>
+                <FileSearch aria-hidden="true" />
+                View index results
+              </Menu.Item>
             )}
-          </div>
+            <Menu.Separator className="my-1 h-px bg-border" />
+          </>
+        )}
+        {actions}
+      </AssetMenu>
+      {allowed && editor && (
+        <>
           {busy && (
             <div
               role="progressbar"
@@ -276,7 +290,10 @@ export default function AssetIndexControls({
             </div>
           )}
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent className="max-h-[calc(var(--app-viewport-height)*0.85)] overflow-y-auto sm:max-w-2xl">
+            <DialogContent
+              finalFocus={trigger}
+              className="max-h-[calc(var(--app-viewport-height)*0.85)] overflow-y-auto sm:max-w-2xl"
+            >
               <DialogHeader>
                 <DialogTitle>Asset index</DialogTitle>
                 <DialogDescription>
@@ -402,7 +419,7 @@ export default function AssetIndexControls({
               )}
             </DialogContent>
           </Dialog>
-        </div>
+        </>
       )}
     </>
   );
