@@ -213,6 +213,20 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       media.getByRole('button', { name: 'Text to speech', exact: true }),
     ).toBeFocused();
+    await page.setViewportSize({ width: 320, height: 844 });
+    for (const name of [
+      'Task queue',
+      'Text to speech',
+      'Commands',
+      'Workspace settings',
+      'Record screen',
+    ]) {
+      await expect(
+        media.getByRole('button', { name, exact: true }),
+      ).toBeInViewport();
+    }
+    await fits(page);
+    await page.setViewportSize({ width: 390, height: 844 });
     await nav.getByRole('button', { name: 'Chat', exact: true }).click();
     await expect(composer).toHaveValue('Keep this draft');
     expect(completions).toBe(0);

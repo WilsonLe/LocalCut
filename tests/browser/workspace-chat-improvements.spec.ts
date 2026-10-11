@@ -16,7 +16,7 @@ async function setup(page: Page, context: BrowserContext, base: string) {
           {
             id: model,
             name: 'Chat test',
-            context_length: 32000,
+            context_length: 512000,
             supported_parameters: ['tools', 'tool_choice'],
           },
         ],

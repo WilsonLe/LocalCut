@@ -1196,8 +1196,10 @@ describe('headless assistant boundaries', () => {
       projectId: f.project().id,
       model: 'test/model',
     });
-    await assistant.run('Earlier request ' + 'x'.repeat(100000)).completion;
-    await assistant.run('Current request ' + 'y'.repeat(100000)).completion;
+    const first = await assistant.run('Earlier request ' + 'x'.repeat(100000))
+      .completion;
+    const current = await assistant.run('Current request ' + 'y'.repeat(100000))
+      .completion;
     expect(p.stream).toHaveBeenCalledTimes(2);
     const request = p.stream.mock.calls[1]![0];
     expect(
@@ -1207,10 +1209,27 @@ describe('headless assistant boundaries', () => {
       request.messages.some((m) => m.content?.includes('Earlier request')),
     ).toBe(true);
     expect(request.messages.at(-1)?.content).toContain('Current request');
+    expect(assistant.canBranch(first.id)).toBe(false);
+    expect(assistant.snapshot().historyTurnIds).toEqual([current.id]);
+    const checkpoint = assistant.branch(current.id);
+    await assistant.run('Later original request').completion;
+    const fork = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      branch: checkpoint,
+    });
+    await fork.run('Branch request').completion;
+    const branched = JSON.stringify(p.stream.mock.calls[3]![0].messages);
+    expect(branched).toContain('Earlier request');
+    expect(branched).toContain('Current request');
+    expect(branched).not.toContain('Later original request');
+    await fork.dispose();
     assistant.clearHistory();
     await assistant.run('After clear').completion;
     expect(
-      p.stream.mock.calls[2]![0].messages.some((m) =>
+      p.stream.mock.calls[4]![0].messages.some((m) =>
         m.content?.includes('Earlier request'),
       ),
     ).toBe(false);

@@ -2110,6 +2110,9 @@
   .media-library > .section-heading {
     padding-top: calc(4px + env(safe-area-inset-top));
   }
+  .media-library > .section-heading {
+    flex-wrap: wrap;
+  }
   .conversation-heading .header-actions,
   .media-library .header-actions {
     flex-wrap: nowrap;
