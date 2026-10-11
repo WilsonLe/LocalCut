@@ -2844,3 +2844,112 @@ describe('assistant response style and branches', () => {
     await assistant.dispose();
   });
 });
+
+it('uses shared generated-speech phrase metadata to propose a padded trim without granting text consent', async () => {
+  const f = fixture();
+  const transcript = {
+    id: 'transcript',
+    assetId: 'asset',
+    model: 'whisper',
+    revision: 'pinned',
+    cues: [
+      {
+        id: 'spoken',
+        timeUs: 200000,
+        endUs: 1100000,
+        text: 'Recognized phrase',
+      },
+    ],
+    speech: {
+      script: 'Authored phrase',
+      model: 'tts',
+      voice: 'voice',
+      languages: ['English'],
+      originalDurationUs: 4e6,
+      measuredCues: [
+        {
+          id: 'measured',
+          timeUs: 250000,
+          endUs: 1e6,
+          text: 'Recognized phrase',
+        },
+      ],
+      paddingUs: 50000,
+    },
+  };
+  f.editor.transcription.transcript = vi.fn(async () =>
+    structuredClone(transcript),
+  );
+  const requests: ChatRequest[] = [];
+  let round = 0;
+  const p = {
+    async *stream(request: ChatRequest) {
+      requests.push(structuredClone(request));
+      if (round++ === 0)
+        yield final('', [
+          call('load_skill', { skillId: 'editing' }, 'editing'),
+          call('load_skill', { skillId: 'transcription' }, 'transcription'),
+        ]);
+      else if (round === 2)
+        yield final('', [
+          call('read_transcript', { transcriptId: 'transcript' }),
+        ]);
+      else if (round === 3) {
+        const source = JSON.parse(request.messages.at(-1)!.content!);
+        expect(source.speech.script).toBe('Authored phrase');
+        expect(source.speech.measuredCues[0].timeUs).toBe(250000);
+        const cue = source.cues[0];
+        yield proposal([
+          {
+            type: 'trimClip',
+            clipId: 'video',
+            sourceInUs: cue.timeUs,
+            sourceOutUs: cue.endUs,
+          },
+        ]);
+      } else yield final();
+    },
+  };
+  const a = createAssistant({
+    editor: f.editor,
+    provider: p,
+    projectId: f.project().id,
+    model: 'test/model',
+    context: { includeTranscripts: true },
+  });
+  const before = structuredClone(f.project());
+  try {
+    const result = await a.run(
+      'Keep the first spoken phrase with editing padding',
+    ).completion;
+    expect(f.project()).toEqual(before);
+    expect(JSON.stringify(requests)).not.toContain('Private overlay text');
+    await a.approveProposal(result.proposalIds[0]!);
+    expect(f.project().tracks[0]!.clips[0]).toMatchObject({
+      sourceInUs: 200000,
+      sourceOutUs: 1100000,
+      durationUs: 900000,
+      transcriptId: 'transcript',
+    });
+  } finally {
+    await a.dispose();
+  }
+  const denied = provider([
+    [final('', [call('read_transcript', { transcriptId: 'transcript' })])],
+    [final()],
+  ]);
+  const privateSession = createAssistant({
+    editor: f.editor,
+    provider: denied,
+    projectId: f.project().id,
+    model: 'test/model',
+  });
+  try {
+    await privateSession.run('Inspect timing').completion;
+    expect(JSON.stringify(denied.requests)).not.toMatch(
+      /Authored phrase|Recognized phrase/,
+    );
+  } finally {
+    await privateSession.dispose();
+  }
+});
