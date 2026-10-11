@@ -1,31 +1,55 @@
 # LocalCut
 
-A local video editor that builds to static files. The conversation-led workspace combines local media import, preview, timeline editing and export with optional AI-provider editing proposals. The separately built `editor.js` and `ai.js` entries remain available to other consumers.
+A browser video editor with local media processing and an optional AI editing assistant. Import your own media, edit a timeline, and export a video without creating an account or running a backend.
 
-## Editing
+[Try LocalCut](https://wilsonle.github.io/LocalCut/) · [Get started](docs/getting-started.md) · [Contribute](CONTRIBUTING.md) · [Documentation](docs/README.md) · [Changelog](CHANGELOG.md) · [Get help](SUPPORT.md)
 
-1. Create a project or open a project saved in this browser. Import video, audio or images; files are added to the matching timeline track in selection order.
-2. Select clips to adjust timing, speed, audio pitch, gain or text. Use Clip properties to build curved, linear or staircase speed ramps with editable points. Scrub or play the preview. Use Undo and Redo to reverse committed edits.
-3. Optionally connect OpenRouter, an OpenAI-compatible endpoint, or ChatGPT, configure service routes and choose a model, and describe an edit. Review the proposed operations, then Apply or Discard. Prompts and permitted metadata go to the configured LLM route; original media stays local. Separate indexing permission allows generated stills, audio excerpts and video excerpts with sound to be sent by an explicit Index action. Sharing names, on-screen text and transcripts is off by default.
-4. Use Text to speech from chat or Commands to generate multilingual narration with a chosen voice, preview it, adjust speed/total length and add it to the audio timeline through the independent configured TTS route.
-5. Export MP4 or WebM after browser capability checks, then Save video. Use Settings → Project → Export project for a backup with optional originals. Settings → Workspace → Export workspace lets you select settings, projects, versions and original assets. Preview and select backup contents before importing.
+![Searchable bundled fonts in LocalCut’s Add text dialog](docs/images/text-fonts.png)
 
-The workspace starts without opening editing storage or starting media services. AI restores only when a saved credential is present. Projects remain on this origin and browser; workspace/appearance preferences survive reload locally; indexing permission is remembered separately; OpenRouter credentials persist separately and restore the connection; conversation state does not. Compatible-endpoint API keys remain session-only. ChatGPT tokens are saved separately and restored through an explicit action; Disconnect removes them. Open a saved project after reloading. See [workspace behavior](docs/workspace.md) and the maintained [user preferences](docs/user-preferences.md).
+## What you can do
+
+- Import video, audio and images; record a screen, window or browser tab through the browser's source picker.
+- Arrange tracks, trim and group clips, separate audio, adjust speed and pitch, and edit transitions.
+- Add styled and animated text, use bundled fonts, and generate captions with explicitly prepared local Whisper transcription.
+- Review AI editing proposals before applying them. Optional OpenRouter, compatible endpoints and ChatGPT connections support configured service routes; speech generation uses an explicit Generate action.
+- Export MP4/H.264/AAC or WebM/VP9/Opus when your browser supports the required codecs.
+- Save projects and versions in this browser and export portable project/workspace backups with optional original media.
+
+The application builds to static files. The separately built `editor.js` and `ai.js` entries expose the shared editing engine and assistant for other consumers; see the [API](docs/api.md). This repository is an application, not a published npm package (`private: true`).
+
+## Browser support and data
+
+Current stable desktop **Google Chrome** is the complete acceptance target. Native Safari has a separate macOS regression suite; that coverage does not establish full Chrome parity. Mobile layouts are available, but storage, capture and codec support depend on the browser/device. Export formats are capability-checked at runtime.
+
+Projects and originals live in IndexedDB/OPFS on this browser and origin. There is no cloud sync. Browser data clearing, eviction, changing browser profiles, or moving to a different host can make projects unavailable. Export backups with originals before relying on long-term retention. No service worker is installed, so full offline navigation is not supported; local inference can reuse explicitly downloaded model/runtime caches while the application is available.
+
+Local editing and default Whisper transcription process media on the device. Optional AI actions can send prompts and permitted metadata, indexing excerpts, authored speech scripts, or approved transcription audio to configured providers. Saved browser credentials are readable by scripts on the same origin. Read [privacy and data flows](docs/privacy.md) before connecting a provider.
+
+## Your first edit
+
+1. Open the app, create a project or open one saved in this browser, and import your media.
+2. Select clips and edit the timeline or Clip properties. Preview, Undo and Redo use the same editing engine as export.
+3. Optionally connect a provider in Chat, describe an edit and review the proposed operations. Choose Apply or Discard.
+4. Open **Settings → Export**, choose an available format, export, then Save video.
+5. Use **Settings → Project → Export project** or **Settings → Workspace → Export workspace** for a backup; select original assets if the backup must stand alone.
+
+See the [first-edit guide](docs/getting-started.md) for versions, provider setup and backup recovery.
 
 ## Setup
 
-Use Node 24 LTS and pnpm 11.25.0:
+Install Node 24 LTS, then the pinned pnpm 11.25.0. Check `node --version` reports `v24.x` before installing dependencies:
 
 ```sh
-corepack enable
-corepack prepare pnpm@11.25.0 --activate
+npm install --global pnpm@11.25.0
+git clone https://github.com/WilsonLe/LocalCut.git
+cd LocalCut
 pnpm install --frozen-lockfile
 pnpm dev
 ```
 
 Current desktop Google Chrome is required for native codec, OPFS, Web Locks, and production integration tests. Local editing requires no runtime environment variables, accounts, servers, or secrets. Optional remote AI needs an explicitly connected provider key or ChatGPT OAuth sign-in. Custom endpoints must allow browser CORS. HTTPS or localhost is required for browser storage.
 
-Contributors and coding agents: start with [AGENTS.md](AGENTS.md) and the [development guide](docs/development.md) for module ownership, fast check selection, build reuse, and the single review-and-address cycle.
+Contributors: start with [CONTRIBUTING.md](CONTRIBUTING.md). Coding agents must also read [AGENTS.md](AGENTS.md). Use the [development guide](docs/development.md) for module ownership, fast check selection, build reuse, and the single review-and-address cycle.
 
 Validation runs locally with `pnpm check` and the applicable real transcription/performance acceptance commands. Hosted CI is disabled. GitHub Pages builds and publishes automatically on every push to `main`; release packaging remains separate from local validation. Confirmed manual redeployment is also available. See [deployment and rollback](DEPLOY.md).
 
@@ -58,3 +82,17 @@ TypeScript 7.0.2 supplies `tsc` through the `@typescript/native` alias. The `typ
 See [architecture](docs/architecture.md), [API](docs/api.md), [OpenRouter integration and privacy](docs/ai.md), [storage](docs/storage.md), [local transcription](docs/transcription.md), [verification](docs/validation.md), and [deployment](DEPLOY.md).
 
 Native Safari: enable **Allow remote automation** in Safari’s Develop → Developer Settings once, then run `pnpm test:safari`. The suite uses installed Safari through `safaridriver`, verifies/reuses both builds, and runs serially with its own loopback ports. It checks storage reload and three MP4 round trips at each base path, including stereo WAV input, reimported AAC and silence. Unavailable native capabilities fail. Results and failure screenshots are saved in `test-results/safari/`. Playwright WebKit is not native Safari evidence. Safari is an explicit additional gate, with Chrome remaining the complete acceptance target.
+
+## Versioning
+
+LocalCut is currently **v0.1.0-alpha.1**, an unreleased alpha in initial development. Named releases follow [SemVer](https://semver.org/spec/v2.0.0.html) using the [project release policy](docs/releasing.md#semantic-versioning). Read the [short changelog](CHANGELOG.md) for user-facing outcomes and links to each version's full Git diff. Development deployments are identified by commit; no release tag has been published yet.
+
+## Contributing and community
+
+Bug reports, documentation fixes, accessibility improvements, reproducible browser checks and focused feature proposals are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), use the [issue templates](https://github.com/WilsonLe/LocalCut/issues/new/choose), and follow the [Code of Conduct](CODE_OF_CONDUCT.md). For questions use [SUPPORT.md](SUPPORT.md); for suspected vulnerabilities use [SECURITY.md](SECURITY.md).
+
+The [roadmap](docs/roadmap.md) explains current priorities and how to propose work. [Governance](docs/governance.md) describes maintainer decisions, and the [maintainer guide](docs/maintaining.md) covers triage, reviews and releases. There is no promised support response time or release schedule.
+
+## License
+
+LocalCut's original code and documentation are available under the [MIT License](LICENSE). Dependencies, fonts, model assets and test fixtures retain their own licenses and attribution; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Keep those notices and the per-family font licenses when distributing builds.

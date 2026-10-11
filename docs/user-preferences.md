@@ -226,3 +226,13 @@ This is the project record of the user's durable product and workflow choices. U
 - Reserve space for the editing workspace: compact the header and use an icon-only Add text control with accessible labels/tooltips. Move Versions into Settings → Project and video export into Settings → Export; remove their separate header buttons.
 - Remove the media import helper sentence and the separate import/backup button row. Use the shadcn Empty component for the outlined, icon-only import card in the media grid, including its empty state. Give upload a distinct raised icon tile, tinted surface and stronger dashed border; keep the whole card clickable. Keep backup under the grouped settings menu. Arrange media left-to-right, top-to-bottom, with the import card last. Place screen recording alongside the Media title and add a horizontal divider beneath the header.
 - When no configured chat provider is available, use the shadcn Empty component with a centered provider icon, a framed surface and a Connect provider button instead of the composer and unavailable send/media controls. Remove the “Connect provider first” sentence. Apply this to all supported providers, including OpenRouter and compatible endpoints.
+
+## Open-source documentation — 11 October 2026
+
+- Maintain newcomer-facing README, contributor, deployment, support, security, community and maintainer guidance so LocalCut is approachable as an open-source project. Keep the technical contracts accurate and connected through a documentation index.
+- License LocalCut's original code and documentation under MIT. Preserve separate third-party, font, model and fixture licenses/notices.
+
+## SemVer and changelog — 11 October 2026
+
+- Adopt Semantic Versioning with the current application at `0.1.0-alpha.1` (the latest alpha correction). Use version-based changelog entries and the release policy for future bumps.
+- Keep changelog summaries short and understandable to executives and end users. Link each summary to its full changelog: the Git diff for that version/candidate.
