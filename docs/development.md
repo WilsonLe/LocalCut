@@ -153,3 +153,7 @@ pnpm test:browser tests/browser/task-queue.spec.ts tests/browser/editor.spec.ts 
 ```
 
 The browser commands use current production builds at both static bases. Facade/scheduling changes also retain the real local transcription and disk-backed export performance gates. Intercepted speech requests prove queue lifecycle and transport behavior, not paid voice quality. Dictation's controlled recognition fixture proves draft integration; microphone permission and the browser's speech service require a manual supported-browser check.
+
+## Header update checks
+
+For application update checks or deployment identity, run `pnpm test:ui --grep 'header check for update|deployment recovery|missing optional UI chunk'` and `node --test tests/tooling/build-state.test.mjs`. These journeys cover both static bases, desktop/mobile, explicit checks, later/current/older/unrelated commits, pending feedback, retry, preserved projects and cache-busting reload. Changes to revision generation also require both builds and `pnpm check:bundle`. The update action is a user-owned lifecycle boundary, outside the editing-feature access inventory.
