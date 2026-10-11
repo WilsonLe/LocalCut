@@ -212,6 +212,10 @@ The browser commands use current production builds at both static bases. Facade/
 
 For application update checks or deployment identity, run `pnpm test:ui --grep 'header check for update|deployment recovery|missing optional UI chunk'` and `node --test tests/tooling/build-state.test.mjs`. These journeys cover both static bases, desktop/mobile, explicit checks, later/current/older/unrelated commits, pending feedback, retry, preserved projects and cache-busting reload. Changes to revision generation also require both builds and `pnpm check:bundle`. The update action is a user-owned lifecycle boundary, outside the editing-feature access inventory.
 
+## Project header and recent-project startup checks
+
+Run `pnpm test tests/unit/recent-project.test.ts tests/unit/project-route.test.ts`, then `pnpm test:ui --grep 'project routing|workspace storyboard|chat readiness'` for header icons/keyboard/mobile bounds, all interface sizes, most-recent restoration, malformed-ID fallback, delayed conversation navigation, explicit URL precedence, fresh startup, missing projects and restored chat without startup inference at both bases. These navigation controls do not change authored editing operations or the assistant access inventory.
+
 ## Storyboard checks
 
 Use `pnpm test tests/unit/storyboard.test.ts tests/unit/assistant.test.ts tests/unit/workspace-backup.test.ts` for schema, partial patches, redaction, serialized canvas writes and assistant coverage. Use `pnpm test:ui --grep 'workspace storyboard'` for real Excalidraw drawing, shared history, approved agent edits, reload, versions/backups and narrow layouts at both bases. Excalidraw remains a lazy UI dependency; core/headless schema and commands do not import it.

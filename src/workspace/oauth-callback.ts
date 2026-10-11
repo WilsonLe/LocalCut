@@ -11,6 +11,9 @@ function captureCallback(): string | null {
   return callback;
 }
 let pendingCallback = captureCallback();
+export function hasPendingCallback(): boolean {
+  return pendingCallback !== null;
+}
 export function takePendingCallback(): string | null {
   const callback = pendingCallback;
   pendingCallback = null;

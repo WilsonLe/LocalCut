@@ -116,21 +116,11 @@ for (const base of ['/', '/LocalCut/']) {
     await page.reload();
     await expect(composer).toBeEnabled();
     expect(completions).toBe(1);
-    // Bare startup still requires an explicit project selection.
+    // Bare startup restores the recent project without another inference request.
     await page.goto(base);
-    await expect(
-      page.getByText('Create or open a project to start chatting.', {
-        exact: true,
-      }),
-    ).toBeVisible();
-    await expect(settings).not.toBeVisible();
-    await expect(composer).toHaveCount(0);
-    expect(completions).toBe(1);
-    await page
-      .getByRole('button', { name: 'Open project for chat', exact: true })
-      .click();
-    await page.getByRole('button', { name: /^Chat readiness/ }).click();
     await expect(composer).toBeEnabled();
+    await expect(page).toHaveURL(/#\/project\/[^/]+$/);
+    expect(completions).toBe(1);
     await composer.fill('Hello again');
     await composer.press('Enter');
     await expect(

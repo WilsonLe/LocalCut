@@ -92,6 +92,7 @@ import {
 } from './useWorkspaceProject';
 import { useProjectNavigation } from './useProjectNavigation';
 import { useProjectCatalog } from './useProjectCatalog';
+import { rememberProject } from './recent-project';
 import { selectionIds, transitionPairs } from '../core/timeline';
 import type { TransitionTemplate } from '../core/timeline';
 import { interfaceScale, useAppearance } from './appearance';
@@ -327,7 +328,7 @@ export function Workspace() {
     clear: clearProject,
     refresh: refreshProject,
   } = useWorkspaceProject(editorRef);
-  const { route, routeKey, go } = useWorkspaceRoute();
+  const { route, routeKey, go } = useWorkspaceRoute({ restoreRecent: true });
   const projectsOpen = route.screen === 'projects';
   const [projectSwitcherOpen, setProjectSwitcherOpen] = useState(false);
   const projectSwitcherTrigger = useRef<HTMLButtonElement>(null);
@@ -671,6 +672,7 @@ export function Workspace() {
       setExportError('');
       resetProjectView();
       activate(next);
+      rememberProject(next.project.id);
       if (updateRoute) go('editor', snapshot.id);
       requestAnimationFrame(() => {
         if (!alive.current || getProjectId() !== snapshot.id) return;
@@ -2134,11 +2136,14 @@ export function Workspace() {
                     </span>
                     <ChevronDown />
                   </Button>
+                  {project && (
+                    <ProjectTabs
+                      value={projectTab}
+                      onChange={chooseProjectTab}
+                    />
+                  )}
                   {mobileTab === 'edit' ? headerActions : null}
                 </header>
-              )}
-              {narrow && project && (
-                <ProjectTabs value={projectTab} onChange={chooseProjectTab} />
               )}
               {versionsOpen && (
                 <section

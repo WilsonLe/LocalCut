@@ -438,6 +438,16 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
     }));
     expect(stored).toEqual({
       local: {
+        ...(openProject
+          ? {
+              'localcut.recent-project.v1': JSON.stringify({
+                version: 1,
+                projectId: decodeURIComponent(
+                  originalHash.slice('#/project/'.length),
+                ),
+              }),
+            }
+          : {}),
         'localcut.openrouter-credential.v1': JSON.stringify({
           version: 1,
           key,
