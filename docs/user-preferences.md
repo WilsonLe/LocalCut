@@ -384,3 +384,9 @@ This is the project record of the user's durable product and workflow choices. U
 ## Chat skill activity — 12 October 2026
 
 - Label skill-loading activity “Load skills” in the plural. Show the specific skill name in each tool row, such as “Load skills: Indexing · Completed”, instead of a generic completion label.
+
+## Layered task caching — 12 October 2026
+
+- Apply cache admission to every new task. Read valid cached results before enqueueing; on a miss, persist the cache claim and inputs before scheduling. Write newly computed results before reporting completion.
+- Use multiple local layers: the existing artifact/result owner, in-memory queue lookup and durable queue claims/results. Matching reusable requests share in-flight work across tabs and reuse valid completed results after reload. Keep source/version/parameter invalidation and explicit action/consent boundaries.
+- Declare each task's reuse policy or concrete fresh-work reason through the shared queue, following [the development contract](development.md#persist-reusable-computation).

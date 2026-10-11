@@ -55,6 +55,10 @@ See [architecture](architecture.md) and [API contracts](api.md) before crossing 
 
 Treat refresh and reopening as cache consumers. For every new or changed expensive derived computation, inspect its existing owner and enumerate its UI, editor, worker and assistant consumers before implementing it. Reuse a valid persisted result before decoding, analyzing or encoding again. Keep the [computation inventory](storage.md#reusable-computation-inventory) current; an in-memory map alone does not satisfy reuse across refreshes.
 
+Every production task registration declares `cache` first in its handler, using `freshTask(reason)` or a versioned reusable policy. The editor's `queued` wrapper requires the same policy. Legacy external handlers without a policy remain fresh for compatibility; new production tasks cannot omit the decision. `task-cache.ts` owns typed content keys and policy validation; `task-queue.ts` owns admission, sharing and durable completion. Keep cache logic out of UI components.
+
+Reusable admission checks the existing result owner before creating a queue row. A namespaced Web Lock rechecks that owner and the queue cache, then atomically persists a miss's key/inputs/task before scheduling or publishing it. Computed result writes finish before terminal success. A result cannot be written before its first computation; the pre-enqueue write is its durable claim. Artifact-backed policies disable completed queue-result reuse so eviction, corruption and relinking stay authoritative. Pure computations can reuse completed queue results. Cancelling a reusable consumer detaches it; explicit queue cancellation stops the shared task.
+
 A derived-data change is complete only when:
 
 1. Its cache key includes algorithm/format version, immutable source identity and every result-affecting request parameter. Presentation-only changes such as renaming, trimming or gain do not invalidate source analysis. Relinking invalidates old results even when size/duration match.
@@ -66,9 +70,9 @@ A derived-data change is complete only when:
 For media derivative changes, start with:
 
 ```sh
-pnpm test tests/unit/thumbnail-cache.test.ts tests/unit/derived-cache.test.ts tests/unit/storage-races.test.ts tests/unit/worker-publication.test.ts
+pnpm test tests/unit/task-cache.test.ts tests/unit/task-queue.test.ts tests/unit/thumbnail-cache.test.ts tests/unit/derived-cache.test.ts tests/unit/storage-races.test.ts tests/unit/worker-publication.test.ts
 # After both current production builds:
-pnpm test:browser tests/browser/derived-cache.spec.ts tests/browser/recovery.spec.ts
+pnpm test:browser tests/browser/derived-cache.spec.ts tests/browser/layered-cache.spec.ts tests/browser/task-queue.spec.ts tests/browser/recovery.spec.ts
 ```
 
 Select affected workspace consumers, retain native media checks, and run the performance gate when shared PCM/export behavior changes. See [storage formats and recovery](storage.md) for implementation contracts. During review, check this list against every changed computation and its consumers; undocumented session-only caching is incomplete work.

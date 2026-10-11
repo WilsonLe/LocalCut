@@ -2,7 +2,12 @@ import { errorDiagnostic } from '../core/error-diagnostics';
 import type { ErrorDiagnostic } from '../core/error-diagnostics';
 import { TaskStore } from '../storage/tasks';
 import type { TaskStorage } from '../storage/tasks';
+import { Jobs, checkAbort } from './jobs';
+import { EditorError } from '../core/errors';
 import type { Job, JobEvent, Progress } from './jobs';
+import { taskCacheKey, validateTaskCachePolicy } from './task-cache';
+import type { CacheHit, TaskCachePolicy } from './task-cache';
+export type { CacheHit, TaskCachePolicy } from './task-cache';
 
 export type TaskState =
   | 'queued'
@@ -20,6 +25,8 @@ export interface TaskRecord {
   lane: string;
   projectId?: string;
   ownerId?: string;
+  cacheKey?: string;
+  cacheVersion?: string;
   state: TaskState;
   stage: string;
   progress?: number;
@@ -43,6 +50,8 @@ export interface TaskContext {
   progress(event: Progress): void;
 }
 export interface TaskHandler {
+  /** Omitted legacy policies stay fresh; production handlers declare this. */
+  cache?: TaskCachePolicy;
   execute(input: unknown, context: TaskContext): Promise<unknown>;
   lane: string;
   /** Safe local work can resume; network outcomes and non-idempotent commits cannot. */
@@ -62,6 +71,10 @@ export interface TaskQueueOptions {
   pollMs?: number;
   retryDelayMs?: number;
 }
+const cacheCompatible = (task: TaskRecord, handler: TaskHandler) =>
+  !task.cacheKey ||
+  (handler.cache?.mode === 'reuse' &&
+    task.cacheVersion === handler.cache.version);
 export const taskTerminal = (state: TaskState) =>
   ['completed', 'failed', 'interrupted', 'cancelled'].includes(state);
 export type TaskQueueError = NonNullable<TaskRecord['error']>;
@@ -182,6 +195,8 @@ export class TaskQueue {
   private work = new Set<Promise<void>>();
   private lanes = new Set<string>();
   private results = new Map<string, unknown>();
+  private cacheReads = new Jobs();
+  private cacheIndex = new Map<string, string>();
   private timer?: ReturnType<typeof setInterval>;
   private disposed = false;
   private disposal?: Promise<void>;
@@ -202,6 +217,7 @@ export class TaskQueue {
     this.locks = options.locks ?? globalThis.navigator?.locks;
   }
   register(kind: string, handler: TaskHandler) {
+    validateTaskCachePolicy(handler);
     this.handlers.set(kind, handler);
     return () => {
       if (this.handlers.get(kind) === handler) this.handlers.delete(kind);
@@ -301,6 +317,142 @@ export class TaskQueue {
     if (this.disposed) throw new Error('Task queue disposed.');
     const handler = this.handlers.get(kind);
     if (!handler) throw new Error('No task handler is available.');
+    const policy = handler.cache;
+    if (policy?.mode !== 'reuse')
+      return this.enqueueTask<T>(kind, input, options).job;
+    const savedInput = structuredClone(input);
+    return this.cacheReads.start(
+      async (signal, progress, id) => {
+        const hit = await policy.read?.(savedInput, signal);
+        checkAbort(signal);
+        if (hit) return structuredClone(hit.value) as T;
+        const key = await taskCacheKey([
+          kind,
+          policy.version,
+          await policy.key(savedInput, signal),
+        ]);
+        checkAbort(signal);
+        if (!this.locks)
+          throw Object.assign(
+            new Error('Web Locks are required for cache admission.'),
+            { code: 'TASK_LOCK_UNAVAILABLE' },
+          );
+        let cached: CacheHit | undefined, job: Job<T> | undefined;
+        await this.locks.request(
+          `${this.namespace}-tasks-cache-${key}`,
+          { signal },
+          async () => {
+            checkAbort(signal);
+            if (this.handlers.get(kind) !== handler)
+              throw new EditorError(
+                'DISPOSED',
+                'Task handler retired during cache admission',
+              );
+            cached = await policy.read?.(savedInput, signal);
+            checkAbort(signal);
+            if (cached) return;
+            for await (const task of this.cacheCandidates(key)) {
+              if (
+                task.cacheKey !== key ||
+                task.cacheVersion !== policy.version ||
+                task.kind !== kind ||
+                task.ownerId ||
+                task.cancelRequested
+              )
+                continue;
+              if (task.state === 'completed' && policy.reuseCompleted) {
+                try {
+                  const value = await this.result<T>(task.id);
+                  // An absent result is a miss, even if a stale status survived.
+                  if (value === undefined) continue;
+                  cached = { value };
+                } catch {
+                  continue;
+                }
+                this.rememberCache(key, task.id);
+                return;
+              }
+              if (['queued', 'running', 'retrying'].includes(task.state)) {
+                job = this.job<T>(task.id);
+                this.rememberCache(key, task.id);
+                this.start();
+                return;
+              }
+            }
+            checkAbort(signal);
+            const created = this.enqueueTask<T>(kind, savedInput, {
+              ...options,
+              id,
+              cacheKey: key,
+            });
+            job = created.job;
+            // Commit the cache claim and input before another admission can pass.
+            await created.saved;
+            this.rememberCache(key, id);
+          },
+        );
+        checkAbort(signal);
+        if (cached) return structuredClone(cached.value) as T;
+        const target = job!;
+        let abort!: () => void;
+        const cancelled = new Promise<never>((_resolve, reject) => {
+          abort = () =>
+            reject(
+              Object.assign(new Error('Cancelled'), { code: 'CANCELLED' }),
+            );
+          signal.addEventListener('abort', abort, { once: true });
+          if (signal.aborted) abort();
+        });
+        const stop = target.subscribe(progress);
+        try {
+          return structuredClone(
+            await Promise.race([target.completion, cancelled]),
+          );
+        } finally {
+          stop();
+          signal.removeEventListener('abort', abort);
+        }
+      },
+      {
+        id: options.id,
+        error: (error) => {
+          if (error instanceof EditorError) return error;
+          const safe = taskError(error);
+          return Object.assign(new Error(safe.message), {
+            code: safe.code,
+            details: safe.details,
+          });
+        },
+      },
+    );
+  }
+  private rememberCache(key: string, id: string) {
+    this.cacheIndex.delete(key);
+    this.cacheIndex.set(key, id);
+    if (this.cacheIndex.size > 128)
+      this.cacheIndex.delete(this.cacheIndex.keys().next().value!);
+  }
+  private async *cacheCandidates(key: string) {
+    const indexed = this.cacheIndex.get(key);
+    const previous = indexed ? await this.get(indexed) : undefined;
+    if (previous) yield previous;
+    // A stale memory entry must not hide a newer claim from another tab.
+    for (const task of (await this.list()).reverse())
+      if (task.cacheKey === key && task.id !== previous?.id) yield task;
+  }
+  private enqueueTask<T>(
+    kind: string,
+    input: unknown,
+    options: {
+      label: string;
+      projectId?: string;
+      id?: string;
+      cacheKey?: string;
+    },
+  ) {
+    if (this.disposed) throw new Error('Task queue disposed.');
+    const handler = this.handlers.get(kind);
+    if (!handler) throw new Error('No task handler is available.');
     // Facade cache lookups may already own this fresh job ID before a miss.
     const id = options.id ?? crypto.randomUUID(),
       now = Date.now();
@@ -308,6 +460,9 @@ export class TaskQueue {
       version: 1,
       id,
       kind,
+      ...(options.cacheKey && handler.cache?.mode === 'reuse'
+        ? { cacheKey: options.cacheKey, cacheVersion: handler.cache.version }
+        : {}),
       label: options.label,
       projectId: options.projectId,
       lane: handler.lane,
@@ -331,7 +486,7 @@ export class TaskQueue {
         return this.poll();
       })
       .catch((error) => this.reportError(error));
-    return job;
+    return { job, saved };
   }
   private job<T>(
     id: string,
@@ -345,7 +500,7 @@ export class TaskQueue {
       settle = resolve;
       reject = fail;
     });
-    const unsubscribe = this.subscribe((task) => {
+    const observe = (task: TaskRecord) => {
       if (task.id !== id || finished) return;
       const terminal = taskTerminal(task.state);
       latest = {
@@ -386,7 +541,14 @@ export class TaskQueue {
             },
           ),
         );
-    });
+    };
+    const unsubscribe = this.subscribe(observe);
+    void saved
+      .then(() => this.get(id))
+      .then((task) => {
+        if (task) observe(task);
+      })
+      .catch(() => {});
     void saved.catch((error) => {
       finished = true;
       unsubscribe();
@@ -423,7 +585,8 @@ export class TaskQueue {
       !!task &&
       ['failed', 'interrupted', 'cancelled'].includes(task.state) &&
       !!handler &&
-      handler.retryable !== false
+      handler.retryable !== false &&
+      cacheCompatible(task, handler)
     );
   }
   async retry(id: string) {
@@ -433,7 +596,8 @@ export class TaskQueue {
     if (
       (task.ownerId && task.ownerId !== this.ownerId) ||
       !this.handlers.has(task.kind) ||
-      this.handlers.get(task.kind)?.retryable === false
+      this.handlers.get(task.kind)?.retryable === false ||
+      !cacheCompatible(task, this.handlers.get(task.kind)!)
     )
       throw new Error(
         'Reopen the owning workflow and reconnect before retrying this task.',
@@ -557,6 +721,20 @@ export class TaskQueue {
           this.lanes.has(handler.lane)
         )
           continue;
+        if (!cacheCompatible(task, handler)) {
+          await this.lock(`task-${task.id}`, async () => {
+            const current = await this.get(task.id);
+            if (current && ['queued', 'retrying'].includes(current.state))
+              this.publish(
+                await this.storage.update(task.id, {
+                  state: 'interrupted',
+                  stage: 'Needs attention',
+                  error: taskError({ code: 'INTERRUPTED' }),
+                }),
+              );
+          });
+          continue;
+        }
         this.lanes.add(handler.lane);
         const work = this.lock(`lane-${handler.lane}`, () =>
           this.lock(`task-${task.id}`, () => this.execute(task.id, handler)),
@@ -643,6 +821,15 @@ export class TaskQueue {
         progress,
       });
       await progressWrites;
+      if (handler.cache?.mode === 'reuse') {
+        checkAbort(controller.signal);
+        await handler.cache.write?.(
+          await this.storage.input(id),
+          result,
+          controller.signal,
+        );
+        checkAbort(controller.signal);
+      }
       let encoded: unknown;
       try {
         encoded = handler.encodeResult
@@ -744,6 +931,7 @@ export class TaskQueue {
   }
   private async retire() {
     this.disposed = true;
+    await this.cacheReads.dispose();
     clearInterval(this.timer);
     for (const controller of this.active.values()) controller.abort();
     await this.scanDone;
@@ -767,6 +955,7 @@ export class TaskQueue {
     this.listeners.clear();
     this.errorListeners.clear();
     this.results.clear();
+    this.cacheIndex.clear();
     await this.storage.close();
   }
 }

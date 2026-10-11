@@ -4,7 +4,14 @@ export type {
   StoryboardPatch,
 } from '../core/storyboard';
 import { Store } from '../storage/store';
-import { cachedThumbnails } from '../storage/thumbnail-cache';
+import { mediaTaskCache } from '../storage/media-cache';
+import { freshTask, pureTaskCache, taskCacheKey } from '../services/task-cache';
+import type { TaskCachePolicy } from '../services/task-cache';
+import {
+  MODEL as modelId,
+  MODEL_REVISION as modelRevision,
+  RUNTIME_VERSION,
+} from '../services/transcription-config';
 import { AssetIndexStore } from '../storage/asset-index';
 import type {
   AssetIndexRun,
@@ -18,6 +25,8 @@ import { Jobs, checkAbort } from '../services/jobs';
 import { TaskQueue, runQueuedJob, taskTerminal } from '../services/task-queue';
 import type { TaskHandler, TaskContext } from '../services/task-queue';
 export { TaskQueue } from '../services/task-queue';
+export { freshTask, pureTaskCache, taskCacheKey } from '../services/task-cache';
+export type { TaskCachePolicy, CacheHit } from '../services/task-cache';
 export type {
   TaskRecord,
   TaskState,
@@ -111,7 +120,6 @@ export async function createEditor(options: EditorOptions = {}) {
   const namespace = options.namespace ?? 'localcut',
     store = await Store.open(namespace),
     jobs = new Jobs(),
-    cacheReads = new Jobs(),
     tasks = new TaskQueue(namespace);
   let disposed = false;
   const sessions = new Set<PreviewSession>();
@@ -985,7 +993,6 @@ export async function createEditor(options: EditorOptions = {}) {
       } catch (error) {
         saveError = error;
       }
-      await cacheReads.dispose();
       await tasks.dispose();
       await jobs.dispose();
       interactive.reset();
@@ -1004,75 +1011,68 @@ export async function createEditor(options: EditorOptions = {}) {
   const queued = <A extends unknown[], R>(
     kind: string,
     operation: (...args: A) => import('../services/jobs').Job<R>,
-    policy: Partial<Omit<TaskHandler, 'execute'>> = {},
+    policy: Partial<Omit<TaskHandler, 'execute'>> & { cache: TaskCachePolicy },
   ): ((...args: A) => import('../services/jobs').Job<R>) => {
+    const { cache, ...scheduling } = policy;
     tasks.register(kind, {
+      cache,
       lane: 'media',
       recovery: 'safe',
       retryCodes: ['WORKER_FAILED'],
-      ...policy,
+      ...scheduling,
       execute: (input, context) =>
         adoptQueuedJob(operation(...(input as A)), context),
     });
-    return (...args) =>
-      tasks.enqueue<R>(kind, args, { label: kind.replaceAll('.', ' ') });
+    return (...args) => {
+      active();
+      return tasks.enqueue<R>(kind, args, { label: kind.replaceAll('.', ' ') });
+    };
   };
   api.assets.import = queued('media.import', api.assets.import, {
+    cache: freshTask('Import publishes a new original and asset identity.'),
     recovery: 'manual',
     acceptCommittedResult: true,
     retryCodes: [],
   });
   api.assets.relink = queued('media.relink', api.assets.relink, {
+    cache: freshTask(
+      'Relink replaces a missing original and invalidates source caches.',
+    ),
     recovery: 'manual',
     acceptCommittedResult: true,
     retryCodes: [],
   });
   api.assets.analyze = queued('media.analyze', api.assets.analyze, {
+    cache: freshTask(
+      'Explicit analysis creates or resumes its selected index run and checkpoints.',
+    ),
     lane: 'index',
   });
-  queued('media.thumbnails', api.assets.thumbnails, {
+  api.assets.thumbnails = queued('media.thumbnails', api.assets.thumbnails, {
+    cache: mediaTaskCache(store, 'media.thumbnails'),
     lane: 'derivatives',
   });
-  api.assets.thumbnails = (assetId, timesUs, width = 320) => {
-    active();
-    // Snapshot mutable caller arguments before the asynchronous cache lookup.
-    const times = [...timesUs];
-    return cacheReads.start(async (signal, progress, id) => {
-      const cached = await cachedThumbnails(
-        store,
-        assetId,
-        times,
-        width,
-        signal,
-      );
-      checkAbort(signal);
-      if (cached) return cached;
-      active();
-      return runQueuedJob(
-        tasks.enqueue<{ timeUs: number; blob: Blob }[]>(
-          'media.thumbnails',
-          [assetId, times, width],
-          { id, label: 'media thumbnails' },
-        ),
-        { id, signal, progress },
-      );
-    });
-  };
   api.assets.contactSheet = queued(
     'media.contactSheet',
     api.assets.contactSheet,
-    { lane: 'derivatives' },
+    { lane: 'derivatives', cache: mediaTaskCache(store, 'media.contactSheet') },
   );
   api.assets.waveform = queued('media.waveform', api.assets.waveform, {
+    cache: mediaTaskCache(store, 'media.waveform'),
     lane: 'derivatives',
   });
   api.assets.derivative = queued('media.derivative', api.assets.derivative, {
+    cache: mediaTaskCache(store, 'media.derivative'),
     lane: 'derivatives',
   });
   api.exports.preflight = queued('export.preflight', api.exports.preflight, {
+    cache: freshTask(
+      'Probe current native codecs and current project/source readiness.',
+    ),
     lane: 'export',
   });
   api.exports.start = queued('export.video', api.exports.start, {
+    cache: freshTask('Each export has caller-owned disposable native output.'),
     lane: 'export',
     recovery: 'manual',
     retryCodes: [],
@@ -1098,11 +1098,17 @@ export async function createEditor(options: EditorOptions = {}) {
       (result as ExportResult & { dispose: () => Promise<void> }).dispose(),
   });
   api.workspace.export = queued('workspace.export', api.workspace.export, {
+    cache: freshTask(
+      'Backup captures current projects, versions, preferences and source selection.',
+    ),
     lane: 'transfer',
     recovery: 'manual',
     retryCodes: [],
   });
   api.workspace.import = queued('workspace.import', api.workspace.import, {
+    cache: freshTask(
+      'Import publishes fresh project/source identities and settings.',
+    ),
     lane: 'transfer',
     recovery: 'manual',
     acceptCommittedResult: true,
@@ -1112,12 +1118,28 @@ export async function createEditor(options: EditorOptions = {}) {
     'transcription.prepare',
     api.transcription.prepare,
     {
+      cache: {
+        mode: 'reuse',
+        version: 'model-prepare-v1',
+        reuseCompleted: false,
+        key: async () =>
+          taskCacheKey([modelId, modelRevision, RUNTIME_VERSION]),
+        read: async (_input, signal) => {
+          checkAbort(signal);
+          const status = await modelStatus(namespace);
+          checkAbort(signal);
+          return status.ready ? { value: status } : undefined;
+        },
+      },
       lane: 'transcription',
       retryCodes: ['MODEL_DOWNLOAD_FAILED', 'WORKER_FAILED'],
     },
   );
   const measure = api.transcription.measure;
   const localMeasure = queued('transcription.measure', measure, {
+    cache: pureTaskCache(
+      `local-measure-v1:${modelId}:${modelRevision}:${RUNTIME_VERSION}`,
+    ),
     lane: 'transcription',
     recovery: 'safe',
     retryCodes: ['WORKER_FAILED'],
@@ -1128,6 +1150,9 @@ export async function createEditor(options: EditorOptions = {}) {
     options = { ...options };
     const kind = `transcription.measure.remote:${crypto.randomUUID()}`;
     tasks.register(kind, {
+      cache: freshTask(
+        'Remote audio measurement needs the current disclosed route and approval.',
+      ),
       lane: 'transcription',
       recovery: 'manual',
       sessionBound: true,
@@ -1145,6 +1170,9 @@ export async function createEditor(options: EditorOptions = {}) {
   };
   const transcribe = api.transcription.transcribe;
   const localTranscribe = queued('transcription.local', transcribe, {
+    cache: freshTask(
+      'Explicit transcription publishes canonical transcript identities; retry retains its committed result.',
+    ),
     lane: 'transcription',
     recovery: 'manual',
     acceptCommittedResult: true,
@@ -1154,6 +1182,9 @@ export async function createEditor(options: EditorOptions = {}) {
     if (!options.provider) return localTranscribe(assetId, options);
     const kind = `transcription.remote:${crypto.randomUUID()}`;
     tasks.register(kind, {
+      cache: freshTask(
+        'Remote transcription shares source audio under the current approved route.',
+      ),
       lane: 'transcription',
       recovery: 'manual',
       sessionBound: true,
@@ -1170,6 +1201,7 @@ export async function createEditor(options: EditorOptions = {}) {
     );
   };
   tasks.register('speech.timing', {
+    cache: pureTaskCache('speech-timing-v1'),
     lane: 'speech-timing',
     recovery: 'safe',
     execute: async (input, context) => {

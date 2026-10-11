@@ -120,6 +120,11 @@ export default function DictationButton({
       setRecording(true);
       const kind = `dictation:${crypto.randomUUID()}`;
       editor.tasks.register(kind, {
+        cache: {
+          mode: 'fresh',
+          reason:
+            'Dictation owns the current permitted live microphone/recognition session.',
+        },
         lane: 'dictation',
         recovery: 'manual',
         sessionBound: true,
