@@ -210,4 +210,6 @@ For application update checks or deployment identity, run `pnpm test:ui --grep '
 
 Use `pnpm test tests/unit/storyboard.test.ts tests/unit/assistant.test.ts tests/unit/workspace-backup.test.ts` for schema, partial patches, redaction, serialized canvas writes and assistant coverage. Use `pnpm test:ui --grep 'workspace storyboard'` for real Excalidraw drawing, shared history, approved agent edits, reload, versions/backups and narrow layouts at both bases. Excalidraw remains a lazy UI dependency; core/headless schema and commands do not import it.
 
+The same Chrome selection verifies failed drawing fonts stay local and rejects dropped files/library scenes in live and historical views. `node --test tests/tooling/storyboard-assets.test.mjs` checks the pinned development/production fallback adapter; dependency updates must preserve local-only loading or deliberately update that adapter and its evidence.
+
 `scripts/storyboard-assets.ts` publishes the pinned package's drawing fonts below `storyboard/excalidraw-0.18.1/`, with a SHA-256 inventory verified by the bundle gate. Update the package pin, asset path and inventory together on upgrade. The package includes internal Radix components; its transitive peer metadata predates React 19, so verify the real diagram interactions alongside the package's declared React 19 support.

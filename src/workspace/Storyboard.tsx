@@ -125,6 +125,16 @@ export function Storyboard({
       className="storyboard"
       data-storyboard
       aria-label="Project storyboard"
+      onDropCapture={(event) => {
+        // Vendor file/library imports bypass its disabled load action and onPaste.
+        // Keep both live and historical views owned by the project engine.
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onDragOverCapture={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
       onKeyDownCapture={(event) => {
         if (
           (event.metaKey || event.ctrlKey) &&

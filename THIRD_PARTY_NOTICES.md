@@ -33,3 +33,5 @@ Maintainers may regenerate the snapshot with `node scripts/import-fonts.mjs`; th
 ## Excalidraw Storyboard
 
 The embedded diagram uses pinned `@excalidraw/excalidraw` 0.18.1 (MIT) and its transitive dependencies. Drawing fonts are served locally from that package's distributed assets, with [font notices](public/storyboard/FONT-NOTICES.txt); their upstream licensing remains available in [Excalidraw's font sources](https://github.com/excalidraw/excalidraw/tree/v0.18.1/packages/excalidraw/fonts). The diagram uses Excalidraw's bundled font families independently from the authored-video text catalog.
+
+The build adapter in `scripts/storyboard-assets.ts` redirects the pinned vendor's automatic CDN font fallback to the same local assets. It verifies the expected source pattern and fails if a dependency update changes it; third-party licensing is retained.
