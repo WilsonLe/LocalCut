@@ -21,7 +21,7 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     const browser = page.getByRole('main', { name: 'Projects', exact: true });
     await expect(
-      browser.getByRole('button', { name: /Removed film/ }),
+      browser.getByRole('button', { name: /^Removed film/ }),
     ).toBeEnabled();
     const cached = await page.evaluate(() =>
       localStorage.getItem('localcut.project-catalog.v1'),
@@ -40,7 +40,7 @@ for (const base of ['/', '/LocalCut/']) {
       { base, ids },
     );
     await expect(
-      browser.getByRole('button', { name: /Fresh film/ }),
+      browser.getByRole('button', { name: /^Fresh film/ }),
     ).toBeVisible();
     await page.evaluate(
       (cached) => localStorage.setItem('localcut.project-catalog.v1', cached!),
@@ -56,7 +56,7 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(
-      browser.getByRole('button', { name: /Removed film/ }),
+      browser.getByRole('button', { name: /^Removed film/ }),
     ).toBeEnabled();
     await expect(browser).toHaveAttribute('aria-busy', 'true');
     await browser
@@ -75,16 +75,16 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBe(true);
     release();
     await expect(
-      browser.getByRole('button', { name: /Fresh film/ }),
+      browser.getByRole('button', { name: /^Fresh film/ }),
     ).toBeEnabled();
     await expect(
-      browser.getByRole('button', { name: /Removed film/ }),
+      browser.getByRole('button', { name: /^Removed film/ }),
     ).toHaveCount(0);
     await expect(
       browser.getByRole('textbox', { name: 'Search projects' }),
     ).toHaveValue('film');
     await expect(browser).toHaveAttribute('aria-busy', 'false');
-    await browser.getByRole('button', { name: /Keep film/ }).click();
+    await browser.getByRole('button', { name: /^Keep film/ }).click();
     await expect(
       page.getByRole('button', { name: 'Open project', exact: true }),
     ).toContainText('Keep film');
@@ -153,7 +153,7 @@ for (const base of ['/', '/LocalCut/']) {
       'Storage temporarily unavailable',
     );
     await expect(
-      browser.getByRole('button', { name: /Cached film/ }),
+      browser.getByRole('button', { name: /^Cached film/ }),
     ).toBeEnabled();
     await expect(browser).toHaveAttribute('aria-busy', 'false');
     await browser.getByRole('button', { name: 'Refresh projects' }).click();
@@ -161,7 +161,7 @@ for (const base of ['/', '/LocalCut/']) {
       browser.getByText('No saved projects yet', { exact: true }),
     ).toBeVisible();
     await expect(
-      browser.getByRole('button', { name: /Cached film/ }),
+      browser.getByRole('button', { name: /^Cached film/ }),
     ).toHaveCount(0);
     // A stale cached ID can never become an editable project.
     await page.goto(`${base}#/project/missing-cached-id`);
@@ -197,7 +197,7 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     const browser = page.getByRole('main', { name: 'Projects', exact: true });
     await expect(
-      browser.getByRole('button', { name: /Second cached film/ }),
+      browser.getByRole('button', { name: /^Second cached film/ }),
     ).toBeEnabled();
     let release!: () => void;
     const held = new Promise<void>((resolve) => {
@@ -212,12 +212,14 @@ for (const base of ['/', '/LocalCut/']) {
     });
     try {
       await expect(
-        browser.getByRole('button', { name: /First cached film/ }),
+        browser.getByRole('button', { name: /^First cached film/ }),
       ).toBeEnabled();
       await expect(
-        browser.getByRole('button', { name: /Second cached film/ }),
+        browser.getByRole('button', { name: /^Second cached film/ }),
       ).toBeEnabled();
-      await browser.getByRole('button', { name: /Second cached film/ }).click();
+      await browser
+        .getByRole('button', { name: /^Second cached film/ })
+        .click();
       await expect(page).toHaveURL(new RegExp(`/project/${ids.second}$`));
       release();
       await expect(

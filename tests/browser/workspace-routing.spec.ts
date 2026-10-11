@@ -88,13 +88,13 @@ for (const base of ['/', '/LocalCut/']) {
       new RegExp(`/projects\\?project=${ids.first}$`),
     );
     const catalog = page.getByRole('main', { name: 'Projects', exact: true });
-    await catalog.getByRole('button', { name: /Route second/ }).click();
+    await catalog.getByRole('button', { name: /^Route second/ }).click();
     await expect(page).toHaveURL(new RegExp(`/project/${ids.second}$`));
     await expect(picker(page)).toContainText('Route second');
     await page.goBack();
     await expect(catalog).toBeVisible();
     await expect(
-      catalog.getByRole('button', { name: /Route first/ }),
+      catalog.getByRole('button', { name: /^Route first/ }),
     ).toContainText('Current');
     await page.goBack();
     await expect(picker(page)).toContainText('Route first');
@@ -105,7 +105,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(catalog).toBeVisible();
     await page.reload();
     await expect(
-      catalog.getByRole('button', { name: /Route first/ }),
+      catalog.getByRole('button', { name: /^Route first/ }),
     ).toContainText('Current');
     await catalog
       .getByRole('button', { name: 'Back to editor', exact: true })
@@ -154,7 +154,7 @@ for (const base of ['/', '/LocalCut/']) {
       page.getByRole('main', { name: 'Video editor' }),
     ).not.toBeVisible();
     await page.getByRole('button', { name: 'Open saved projects' }).click();
-    await catalog.getByRole('button', { name: /Route first/ }).click();
+    await catalog.getByRole('button', { name: /^Route first/ }).click();
     await expect(picker(page)).toContainText('Route first');
     await page.evaluate(
       async ({ base, id }) => {
@@ -172,7 +172,7 @@ for (const base of ['/', '/LocalCut/']) {
       'unavailable in this browser',
     );
     await page.getByRole('button', { name: 'Open saved projects' }).click();
-    await catalog.getByRole('button', { name: /Route second/ }).click();
+    await catalog.getByRole('button', { name: /^Route second/ }).click();
     await expect(picker(page)).toContainText('Route second');
   });
 

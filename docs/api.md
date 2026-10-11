@@ -182,6 +182,14 @@ Cross-tab Web Locks serialize each lane and guard each task. Safe local derivati
 
 `assistant.branch(turnId)` creates an opaque checkpoint through a retained completed turn. Pass it as `branch` to `createAssistant` with the same project/model/context policy. The fork copies bounded protocol history and matching tool exchanges, excludes later turns, and carries no proposals, artifacts or approval authority. Forged/mismatched checkpoints are rejected. `canBranch(turnId)` reports availability. `includeAssets(ids)` explicitly extends the local asset allowlist while idle; it sends metadata under the existing sharing policy, never source pixels.
 
+## Project catalog management
+
+`projects.catalog()` returns entries with `project`, catalog `revision`, `archived`, optional local `thumbnail` Blob, and `thumbnailPosition: { x, y }` (0–100). Existing records default to active, revision zero and centered automatic previews. `projects.list()` still returns every document, including archived projects.
+
+`projects.updateCatalog(id, expectedRevision, patch)` atomically patches `archived`, `thumbnail` (PNG/JPEG/WebP Blob up to 2 MiB, or `null` to reset), and/or `thumbnailPosition`. A stale catalog revision fails with `REVISION_CONFLICT`; successful commits increment only the catalog revision and emit a project notification. Catalog changes do not alter editing history or immutable versions.
+
+The normal command `{ type: 'renameProject', name }` trims a nonempty name (maximum 1,000 characters), uses the editing revision/receipt contract, and supports undo, redo, autosave, and backups. Catalog forms keep their authored revision and require explicitly reloading details after conflict.
+
 ## Track operations
 
 Tracks optionally persist `name` (trimmed, 1–1000 characters), `disabled`, `solo` and `locked`; `muted` retains its existing false default. Omitted optional fields retain legacy behavior. `updateTrack { trackId, patch }` changes only supplied fields among those five properties. No clips or timeline positions change when toggling output state. Project duration includes disabled clips so enable/disable cannot shift the timeline endpoint.
