@@ -1196,6 +1196,7 @@ test('workspace imports image, audio and video, handles invalid input and cancel
       .flatMap((track) => track.clips.map((clip) => clip.kind))
       .sort(),
   ).toEqual(['audio', 'image', 'video']);
+  await dismissNotifications(page);
   await page.getByRole('button', { name: 'green.webm', exact: true }).click();
   await page
     .getByRole('button', { name: 'Clip properties', exact: true })
@@ -1235,6 +1236,7 @@ test('workspace imports image, audio and video, handles invalid input and cancel
     ),
   ).toHaveLength(3);
 
+  await dismissNotifications(page);
   await page.getByRole('button', { name: 'red.png', exact: true }).click();
   await page
     .getByRole('button', { name: 'Clip properties', exact: true })
