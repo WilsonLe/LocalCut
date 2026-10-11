@@ -118,6 +118,187 @@ async function snapshot(page: Page, base: string): Promise<Project> {
   }, base);
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`text to speech manages voice presets and preserves drafts at ${base}`, async ({
+    page,
+    context,
+  }) => {
+    const requests: Record<string, unknown>[] = [];
+    await context.route(
+      'https://openrouter.ai/api/v1/audio/speech',
+      async (route) => {
+        if (route.request().method() === 'OPTIONS')
+          return route.fulfill({ headers: cors, status: 204 });
+        requests.push(route.request().postDataJSON());
+        await route.fulfill({
+          headers: { ...cors, 'content-type': 'audio/pcm' },
+          body: tone(),
+        });
+      },
+    );
+    let dialog = await connect(page, context, base);
+    await dialog
+      .getByLabel('Delivery directions')
+      .fill('Calm Australian narrator');
+    await dialog.getByText('Manage voice presets', { exact: true }).click();
+    await dialog.getByLabel('New preset name').fill('Narrator');
+    await dialog
+      .getByRole('button', { name: 'Save as new preset', exact: true })
+      .click();
+    await expect(
+      dialog.getByRole('combobox', { name: 'Voice preset', exact: true }),
+    ).toContainText('Narrator');
+    await dialog
+      .getByLabel('Script', { exact: true })
+      .fill('A different script');
+    await dialog.getByLabel('Speed (×)').fill('1.25');
+    await dialog.getByLabel('Delivery directions').fill('Warm narrator');
+    await expect(
+      dialog.getByRole('combobox', { name: 'Voice preset', exact: true }),
+    ).toContainText('Narrator (modified)');
+    await dialog
+      .getByRole('button', { name: 'Save preset changes', exact: true })
+      .click();
+    await dialog
+      .getByRole('combobox', { name: 'Speech voice', exact: true })
+      .click();
+    await page.getByRole('option', { name: 'Puck', exact: true }).click();
+    await dialog
+      .getByRole('combobox', { name: 'Voice preset', exact: true })
+      .click();
+    await page.getByRole('option', { name: 'Narrator', exact: true }).click();
+    await expect(
+      dialog.getByRole('combobox', { name: 'Speech voice', exact: true }),
+    ).toContainText('Kore');
+    await expect(dialog.getByLabel('Delivery directions')).toHaveValue(
+      'Warm narrator',
+    );
+    await expect(dialog.getByLabel('Script', { exact: true })).toHaveValue(
+      'A different script',
+    );
+    await expect(dialog.getByLabel('Speed (×)')).toHaveValue('1.25');
+    expect(requests).toHaveLength(0);
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      model,
+      voice: 'Kore',
+      input: 'A different script',
+    });
+    expect(requests[0]?.instructions).toContain('Warm narrator');
+    await dialog
+      .getByLabel('Rename Narrator', { exact: true })
+      .fill('Documentary');
+    await dialog
+      .getByRole('button', { name: 'Save name for Narrator', exact: true })
+      .click();
+    await expect(
+      dialog.getByRole('combobox', { name: 'Voice preset', exact: true }),
+    ).toContainText('Documentary');
+    await dialog
+      .getByRole('button', { name: 'Archive Documentary', exact: true })
+      .click();
+    await dialog
+      .getByRole('combobox', { name: 'Voice preset', exact: true })
+      .click();
+    await expect(
+      page.getByRole('option', { name: 'Documentary', exact: true }),
+    ).toHaveCount(0);
+    await page
+      .getByRole('option', { name: 'Custom settings', exact: true })
+      .click();
+    dialog = await reopenSpeech(page);
+    await dialog.getByText('Manage voice presets', { exact: true }).click();
+    await expect(
+      dialog.getByLabel('Rename Documentary', { exact: true }),
+    ).toHaveValue('Documentary');
+    await dialog
+      .getByRole('button', { name: 'Restore Documentary', exact: true })
+      .click();
+    await dialog
+      .getByRole('combobox', { name: 'Voice preset', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'Documentary', exact: true })
+      .click();
+    await expect(dialog.getByLabel('Delivery directions')).toHaveValue(
+      'Warm narrator',
+    );
+    const other = await context.newPage();
+    await other.goto(base);
+    await other.evaluate(() => {
+      const key = 'localcut.voice-presets.v1';
+      const record = JSON.parse(localStorage.getItem(key)!);
+      record.presets[0].name = 'Updated in another tab';
+      localStorage.setItem(key, JSON.stringify(record));
+    });
+    await expect(
+      dialog.getByLabel('Rename Updated in another tab', { exact: true }),
+    ).toBeVisible();
+    await other.evaluate(() => {
+      const key = 'localcut.voice-presets.v1';
+      const record = JSON.parse(localStorage.getItem(key)!);
+      record.presets[0].name = 'Documentary';
+      localStorage.setItem(key, JSON.stringify(record));
+    });
+    await expect(
+      dialog.getByLabel('Rename Documentary', { exact: true }),
+    ).toBeVisible();
+    await other.close();
+    if (base === '/') {
+      await dialog.evaluate((element) => {
+        element.scrollTop = 0;
+      });
+      await page.screenshot({
+        path: 'docs/images/workspace-voice-presets.png',
+      });
+      await page.setViewportSize({ width: 375, height: 812 });
+      await dialog.evaluate((element) => {
+        element.scrollTop = 0;
+      });
+      const bounds = await dialog.boundingBox();
+      expect(bounds!.width).toBeLessThanOrEqual(375);
+      await page.screenshot({
+        path: 'docs/images/workspace-voice-presets-narrow.png',
+      });
+      await page.setViewportSize({ width: 1366, height: 900 });
+    }
+    await page.evaluate(() => {
+      const write = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === 'localcut.voice-presets.v1')
+          throw new DOMException('Full', 'QuotaExceededError');
+        write.call(this, key, value);
+      };
+    });
+    await dialog.getByLabel('New preset name').fill('Unsaved');
+    await dialog
+      .getByRole('button', { name: 'Save as new preset', exact: true })
+      .click();
+    await expect(dialog.getByRole('alert')).toContainText(
+      'Allow browser storage',
+    );
+    await expect(
+      dialog.getByLabel('Rename Unsaved', { exact: true }),
+    ).toHaveCount(0);
+    expect(requests).toHaveLength(1);
+    await context.route('https://openrouter.ai/api/v1/models**', (route) =>
+      route.fulfill({ headers: cors, json: { data: [] } }),
+    );
+    dialog = await reopenSpeech(page);
+    await dialog
+      .getByRole('combobox', { name: 'Voice preset', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'Documentary (unavailable)', exact: true })
+      .click();
+    await expect(
+      dialog.getByRole('alert').filter({ hasText: 'current connection' }),
+    ).toBeVisible();
+    expect(requests).toHaveLength(1);
+  });
   test(
     '@journey ' +
       [

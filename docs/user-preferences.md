@@ -245,3 +245,5 @@ This is the project record of the user's durable product and workflow choices. U
 - Keep assistant replies short and concise. For broad requests, lead with a brief high-level answer; expand into details when asked.
 - Remove the speech-dialog provider metatext. Use one persistent local queue for long-running work, with a public status-polling API, bounded safe retries and visible error escalation. Closing the speech dialog keeps generation running. Persist submitted requests and completed takes across refresh; interrupted remote submissions need explicit retry to avoid duplicate charges. The user selected this local approach over a hosted job service.
 - Retain completed speech audio so identical takes can be reused and retimed locally. Do not imply that a preset voice or unavailable provider seed guarantees identical regeneration.
+
+- Let users choose and manage local voice presets during speech generation: save settings, rename, archive and restore. Keep scripts and audio separate; selecting a preset does not generate speech.

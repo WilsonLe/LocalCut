@@ -1,0 +1,126 @@
+import { useEffect, useSyncExternalStore } from 'react';
+
+export const VOICE_PRESETS_KEY = 'localcut.voice-presets.v1';
+export interface VoiceSettings {
+  model: string;
+  voice: string;
+  languages: string[];
+  instructions: string;
+}
+export interface VoicePreset extends VoiceSettings {
+  id: string;
+  name: string;
+  archived: boolean;
+}
+const bounded = (value: unknown, max: number): value is string =>
+  typeof value === 'string' && value.length <= max;
+export function validVoiceSettings(value: VoiceSettings): boolean {
+  return (
+    bounded(value.model, 256) &&
+    /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(value.model) &&
+    bounded(value.voice, 80) &&
+    /^[A-Za-z0-9_-]+$/.test(value.voice) &&
+    Array.isArray(value.languages) &&
+    value.languages.length >= 1 &&
+    value.languages.length <= 8 &&
+    value.languages.every(
+      (language) => bounded(language, 80) && !!language.trim(),
+    ) &&
+    bounded(value.instructions, 1500)
+  );
+}
+export function parseVoicePresets(raw: string | null): VoicePreset[] {
+  try {
+    const record = JSON.parse(raw ?? 'null');
+    if (record?.version !== 1 || !Array.isArray(record.presets)) return [];
+    const ids = new Set<string>();
+    const result: VoicePreset[] = [];
+    for (const p of record.presets.slice(0, 100)) {
+      if (
+        !p ||
+        !bounded(p.id, 80) ||
+        !/^[A-Za-z0-9_-]+$/.test(p.id) ||
+        ids.has(p.id) ||
+        !bounded(p.name, 100) ||
+        !p.name.trim() ||
+        typeof p.archived !== 'boolean' ||
+        !validVoiceSettings(p)
+      )
+        continue;
+      ids.add(p.id);
+      result.push({
+        id: p.id,
+        name: p.name.trim(),
+        archived: p.archived,
+        model: p.model,
+        voice: p.voice,
+        languages: [...new Set(p.languages)] as string[],
+        instructions: p.instructions,
+      });
+    }
+    return result;
+  } catch {
+    return [];
+  }
+}
+let presets: VoicePreset[] = [];
+const listeners = new Set<() => void>();
+let initialized = false;
+const notify = () => {
+  for (const listener of listeners) listener();
+};
+function initialize() {
+  if (initialized) return;
+  initialized = true;
+  try {
+    presets = parseVoicePresets(localStorage.getItem(VOICE_PRESETS_KEY));
+  } catch {
+    presets = [];
+  }
+  window.addEventListener('storage', (event) => {
+    if (event.key !== VOICE_PRESETS_KEY && event.key !== null) return;
+    try {
+      presets = parseVoicePresets(localStorage.getItem(VOICE_PRESETS_KEY));
+      notify();
+    } catch {
+      /* Preserve the last readable list; mutations still report denied storage. */
+    }
+  });
+  notify();
+}
+/** Patch the latest stored list; publish only after a successful local write. */
+export function changeVoicePresets(
+  change: (current: VoicePreset[]) => VoicePreset[],
+) {
+  try {
+    const current = parseVoicePresets(localStorage.getItem(VOICE_PRESETS_KEY));
+    const next = change(current);
+    const serialized = JSON.stringify({ version: 1, presets: next });
+    const validated = parseVoicePresets(serialized);
+    if (next.length > 100 || validated.length !== next.length)
+      throw new Error('Use valid voice settings and keep at most 100 presets.');
+    localStorage.setItem(
+      VOICE_PRESETS_KEY,
+      JSON.stringify({ version: 1, presets: validated }),
+    );
+    presets = validated;
+    notify();
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Use valid'))
+      throw error;
+    throw new Error(
+      'Voice preset could not be saved. Allow browser storage and try again.',
+      { cause: error },
+    );
+  }
+}
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+};
+export function useVoicePresets() {
+  useEffect(initialize, []);
+  return useSyncExternalStore(subscribe, () => presets);
+}
