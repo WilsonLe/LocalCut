@@ -30,6 +30,7 @@ import type {
 } from './provider-preferences';
 import type { ProviderConnection, ChatGPTClient } from '../ai';
 import { Button } from '../components/ui/button';
+import { Empty, EmptyContent, EmptyDescription } from '../components/ui/empty';
 import type { ChatSession } from './ChatSessionPicker';
 const AIConnectionDialog = lazy(() => import('./AIConnectionDialog'));
 const ChatSessionPicker = lazy(() => import('./ChatSessionPicker'));
@@ -964,31 +965,36 @@ export function Conversation(props: ConversationProps) {
         ) : (
           <div className="conversation-session">
             <div className="min-h-0 flex-1" />
-            <div className="chat-provider-empty" role="status">
-              <p>
-                {!chatProviderAvailable
-                  ? 'Connect provider first'
-                  : !selectedModel
+            <Empty
+              className="chat-provider-empty flex-none gap-3"
+              role="status"
+            >
+              {chatProviderAvailable && (
+                <EmptyDescription>
+                  {!selectedModel
                     ? 'Choose a chat model'
                     : 'Open a project to chat'}
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={(event) => {
-                  settingsReturnFocus.current = event.currentTarget;
-                  if (!chatProviderAvailable || !selectedModel)
-                    setSettingsOpen(true);
-                  else go('projects');
-                }}
-              >
-                {!chatProviderAvailable
-                  ? 'Connect provider'
-                  : !selectedModel
-                    ? 'Choose model'
-                    : 'Choose project'}
-              </Button>
-            </div>
+                </EmptyDescription>
+              )}
+              <EmptyContent>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(event) => {
+                    settingsReturnFocus.current = event.currentTarget;
+                    if (!chatProviderAvailable || !selectedModel)
+                      setSettingsOpen(true);
+                    else go('projects');
+                  }}
+                >
+                  {!chatProviderAvailable
+                    ? 'Connect provider'
+                    : !selectedModel
+                      ? 'Choose model'
+                      : 'Choose project'}
+                </Button>
+              </EmptyContent>
+            </Empty>
           </div>
         )}
       </div>

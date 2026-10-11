@@ -18,7 +18,10 @@ for (const base of ['/', '/LocalCut/']) {
       exact: true,
     });
     await expect(connect).toBeVisible();
-    await expect(chat).toContainText('Connect provider first');
+    await expect(chat).not.toContainText('Connect provider first');
+    const providerEmpty = chat.locator('.chat-provider-empty');
+    await expect(providerEmpty).toHaveAttribute('data-slot', 'empty');
+    await expect(providerEmpty).toHaveText('Connect provider');
     await expect(chat.getByRole('textbox')).toHaveCount(0);
     await expect(
       chat.getByRole('button', { name: 'Send edit request' }),
@@ -82,12 +85,22 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await expect(card).toBeVisible();
     await expect(media.locator('.media-grid > :last-child')).toHaveClass(
-      'media-import-card',
+      /(?:^|\s)media-import-card(?:\s|$)/,
     );
     await expect(card.locator('span')).toHaveClass('sr-only');
+    const importEmpty = media.locator('.media-import-card');
+    await expect(importEmpty).toHaveAttribute('data-slot', 'empty');
     expect(
-      await card.evaluate((el) => getComputedStyle(el).borderTopStyle),
+      await importEmpty.evaluate((el) => getComputedStyle(el).borderTopStyle),
     ).toBe('dashed');
+    const emptyBounds = (await importEmpty.boundingBox())!;
+    const actionBounds = (await card.boundingBox())!;
+    expect(
+      Math.abs(emptyBounds.width - actionBounds.width),
+    ).toBeLessThanOrEqual(2);
+    expect(
+      Math.abs(emptyBounds.height - actionBounds.height),
+    ).toBeLessThanOrEqual(2);
     const image = await page.evaluate(async () => {
       const canvas = new OffscreenCanvas(32, 32);
       const ctx = canvas.getContext('2d')!;
@@ -98,7 +111,7 @@ for (const base of ['/', '/LocalCut/']) {
       ];
     });
     const chooser = page.waitForEvent('filechooser');
-    await card.click();
+    await card.click({ position: { x: 4, y: 4 } });
     await (
       await chooser
     ).setFiles({
@@ -115,7 +128,7 @@ for (const base of ['/', '/LocalCut/']) {
       'media-item',
     );
     await expect(media.locator('.media-grid > :last-child')).toHaveClass(
-      'media-import-card',
+      /(?:^|\s)media-import-card(?:\s|$)/,
     );
     await page
       .getByRole('button', { name: 'Workspace settings', exact: true })

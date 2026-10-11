@@ -4,6 +4,7 @@ import type { Asset, Editor } from '../editor';
 import type { IndexConnection } from './Conversation';
 const AssetIndexControls = lazy(() => import('./AssetIndexControls'));
 import { Button } from '../components/ui/button';
+import { Empty, EmptyContent } from '../components/ui/empty';
 import { Tooltip } from '../components/ui/tooltip';
 import { formatTime } from './helpers';
 
@@ -88,16 +89,20 @@ export default function MediaLibrary({
           </div>
         ))}
         {canEdit && (
-          <Tooltip content="Import media">
-            <button
-              type="button"
-              className="media-import-card"
-              onClick={onImport}
-            >
-              <Upload aria-hidden="true" />
-              <span className="sr-only">Import media</span>
-            </button>
-          </Tooltip>
+          <Empty className="media-import-card">
+            <EmptyContent className="h-full max-w-none">
+              <Tooltip content="Import media">
+                <Button
+                  variant="ghost"
+                  className="media-import-action"
+                  onClick={onImport}
+                >
+                  <Upload aria-hidden="true" />
+                  <span className="sr-only">Import media</span>
+                </Button>
+              </Tooltip>
+            </EmptyContent>
+          </Empty>
         )}
       </div>
     </section>
