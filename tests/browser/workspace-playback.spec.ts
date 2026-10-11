@@ -67,6 +67,14 @@ for (const base of ['/', '/LocalCut/']) {
         name: 'Next frame',
         exact: true,
       });
+      const first = page.getByRole('button', {
+        name: 'Go to first frame',
+        exact: true,
+      });
+      const last = page.getByRole('button', {
+        name: 'Go to last frame',
+        exact: true,
+      });
       const previous = page.getByRole('button', {
         name: 'Previous frame',
         exact: true,
@@ -101,7 +109,21 @@ for (const base of ['/', '/LocalCut/']) {
 
       // End moves to the final frame. Repeated Next clamps to the preview's
       // last-frame boundary, which is fractional at these frame rates.
-      await playhead.press('End');
+      await last.click();
+      await expect(playhead).toHaveAttribute(
+        'aria-valuenow',
+        String(Math.round(durationUs - frameUs)),
+      );
+      await first.click();
+      await expect(playhead).toHaveAttribute('aria-valuenow', '0');
+      await play.click();
+      await expect(pause).toBeVisible();
+      await last.click();
+      await expect(play).toBeVisible();
+      await expect(playhead).toHaveAttribute(
+        'aria-valuenow',
+        String(Math.round(durationUs - frameUs)),
+      );
       await next.click();
       await next.click();
       await expect(playhead).toHaveAttribute(

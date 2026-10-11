@@ -283,3 +283,9 @@ This is the project record of the user's durable product and workflow choices. U
 - Let users save an auditioned favorite voice for future scripts and manage it through selection, rename, archive and restore. A saved voice retains its original recording and matching transcript locally, then explicitly sends that reference through a supported OpenRouter cloning model on Generate. Saving settings alone does not satisfy this choice. Do not imply that a seed locks voice identity or guarantees identical generated output.
 
 - Store measured word or phrase timestamps with generated speech so later chat agents can use that context to edit. Retain the authored script and synthesis identity alongside the timing; keep transcript sharing separately controlled. Provide modest editing padding around phrases, with no overlapping ranges; continuous boundaries are acceptable.
+
+## Timeline movement and playback controls — 11 October 2026
+
+- Drag existing clips within a track and across compatible tracks with mouse or touch, with placement feedback before release.
+- Use different icons for enabled and disabled control states, including snapping and multiple selection.
+- Put first-frame and last-frame navigation in the same row as previous frame, Play/Pause and next frame.

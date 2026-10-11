@@ -7,6 +7,8 @@ import {
   Pause,
   Play,
   SkipBack,
+  StepBack,
+  StepForward,
   SkipForward,
 } from 'lucide-react';
 import type { Editor, Project, PreviewSession } from '../editor';
@@ -268,6 +270,18 @@ export function Preview({
         </span>
         <div className="flex items-center gap-1">
           {!!total && (
+            <Tooltip content="Go to first frame">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Go to first frame"
+                onClick={() => void seek(0)}
+              >
+                <SkipBack />
+              </Button>
+            </Tooltip>
+          )}
+          {!!total && (
             <Button
               variant="ghost"
               size="icon-sm"
@@ -276,7 +290,7 @@ export function Preview({
                 void seek(Math.max(0, displayedTime - frameDuration))
               }
             >
-              <SkipBack />
+              <StepBack />
             </Button>
           )}
           {!!total && (
@@ -303,8 +317,20 @@ export function Preview({
                 )
               }
             >
-              <SkipForward />
+              <StepForward />
             </Button>
+          )}
+          {!!total && (
+            <Tooltip content="Go to last frame">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Go to last frame"
+                onClick={() => void seek(Math.max(0, total - frameDuration))}
+              >
+                <SkipForward />
+              </Button>
+            </Tooltip>
           )}
         </div>
         <Tooltip
