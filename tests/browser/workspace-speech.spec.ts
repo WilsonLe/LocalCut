@@ -550,3 +550,145 @@ for (const base of ['/', '/LocalCut/']) {
     expect(calls).toBe(4);
   });
 }
+
+async function reopenSpeech(page: Page) {
+  await page.reload();
+  await page.getByRole('button', { name: 'Open project', exact: true }).click();
+  await page
+    .getByRole('main', { name: 'Projects', exact: true })
+    .getByRole('button')
+    .filter({ has: page.getByText('Speech project', { exact: true }) })
+    .click();
+  const expand = page.getByRole('button', {
+    name: 'Expand media',
+    exact: true,
+  });
+  if (await expand.isVisible()) await expand.click();
+  await page
+    .getByRole('button', { name: 'Text to speech', exact: true })
+    .click();
+  return page.getByRole('dialog', { name: 'Text to speech', exact: true });
+}
+for (const base of ['/', '/LocalCut/']) {
+  test(`restored speech cancels its saved pending task ${base}`, async ({
+    page,
+    context,
+  }) => {
+    const releases: (() => void)[] = [];
+    let calls = 0;
+    await context.route(
+      'https://openrouter.ai/api/v1/audio/speech',
+      async (route) => {
+        calls++;
+        await new Promise<void>((resolve) => {
+          releases.push(resolve);
+        });
+        await route
+          .fulfill({ headers: cors, contentType: 'audio/pcm', body: tone() })
+          .catch(() => {});
+      },
+    );
+    let dialog = await connect(page, context, base);
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect.poll(() => calls).toBe(1);
+    await dialog
+      .getByRole('button', { name: 'Queue another script', exact: true })
+      .click();
+    await dialog.getByLabel('Script', { exact: true }).fill('Second script');
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect(
+      dialog.getByText('Speech queued…', { exact: true }),
+    ).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate(async (base) => {
+          const { TaskQueue } = await import(base + 'editor.js');
+          const queue = new TaskQueue('localcut');
+          try {
+            return (await queue.list()).filter(
+              (task: { label: string; state: string }) =>
+                task.label === 'Generating speech' && task.state === 'queued',
+            ).length;
+          } finally {
+            await queue.dispose();
+          }
+        }, base),
+      )
+      .toBe(1);
+    dialog = await reopenSpeech(page);
+    releases[0]!();
+    await expect.poll(() => calls).toBe(2);
+    await expect(
+      dialog.getByText('Loading speech models…', { exact: true }),
+    ).not.toBeVisible();
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(
+      dialog.getByRole('button', { name: 'Cancel', exact: true }),
+    ).not.toBeVisible();
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: 'Task queue', exact: true }).click();
+    const queue = page.getByRole('dialog', { name: 'Task queue', exact: true });
+    await expect(
+      queue
+        .getByRole('article', { name: 'Generating speech', exact: true })
+        .filter({ hasText: 'cancelled' }),
+    ).toHaveCount(1);
+    releases[1]!();
+    expect(calls).toBe(2);
+  });
+  test(`failed initial speech timing restores its take for local correction ${base}`, async ({
+    page,
+    context,
+  }) => {
+    let calls = 0;
+    await context.route(
+      'https://openrouter.ai/api/v1/audio/speech',
+      (route) => {
+        calls++;
+        return route.fulfill({
+          headers: cors,
+          contentType: 'audio/pcm',
+          body: tone(),
+        });
+      },
+    );
+    let dialog = await connect(page, context, base);
+    await dialog
+      .getByRole('combobox', { name: 'Speech timing', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'Total length', exact: true })
+      .click();
+    await dialog
+      .getByLabel('Total length (seconds)', { exact: true })
+      .fill('0.1');
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect(
+      dialog.getByRole('button', { name: 'Adjust timing', exact: true }),
+    ).toBeVisible();
+    await expect(dialog).toContainText('Original: 2.00s');
+    expect(calls).toBe(1);
+    dialog = await reopenSpeech(page);
+    await expect(
+      dialog.getByRole('button', { name: 'Adjust timing', exact: true }),
+    ).toBeVisible();
+    await expect(dialog).toContainText('Original: 2.00s');
+    await dialog
+      .getByLabel('Total length (seconds)', { exact: true })
+      .fill('1.25');
+    await dialog
+      .getByRole('button', { name: 'Adjust timing', exact: true })
+      .click();
+    await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
+    await expect(
+      dialog.getByRole('button', { name: 'Add to timeline', exact: true }),
+    ).toBeEnabled();
+    expect(calls).toBe(1);
+  });
+}

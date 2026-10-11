@@ -18,7 +18,11 @@ export interface TaskStorage {
   input(id: string): Promise<unknown>;
   result(id: string): Promise<unknown>;
   checkpoint(id: string, result: unknown): Promise<void>;
-  complete(id: string, result: unknown): Promise<TaskRecord>;
+  complete(
+    id: string,
+    result: unknown,
+    options?: { signal?: AbortSignal; acceptCommittedResult?: boolean },
+  ): Promise<TaskRecord>;
   remove(id: string): Promise<void>;
   close(): Promise<void>;
 }
@@ -77,25 +81,58 @@ export class TaskStore implements TaskStorage {
   async checkpoint(id: string, result: unknown) {
     await (await this.db()).put('results', result, id);
   }
-  async complete(id: string, result: unknown) {
+  async complete(
+    id: string,
+    result: unknown,
+    options: { signal?: AbortSignal; acceptCommittedResult?: boolean } = {},
+  ) {
     const tx = (await this.db()).transaction(
       ['tasks', 'inputs', 'results'],
       'readwrite',
     );
-    const task = await tx.objectStore('tasks').get(id);
-    if (!task) throw new Error('Task no longer exists.');
-    const next: TaskRecord = {
-      ...task,
-      state: 'completed',
-      stage: 'Completed',
-      progress: 1,
-      error: undefined,
-      updatedAt: Date.now(),
+    const abort = () => {
+      if (!options.acceptCommittedResult) {
+        try {
+          tx.abort();
+        } catch {
+          // A committed transaction remains successful.
+        }
+      }
     };
-    await tx.objectStore('results').put(result, id);
-    await tx.objectStore('tasks').put(next);
-    await tx.done;
-    return next;
+    options.signal?.addEventListener('abort', abort, { once: true });
+    try {
+      const task = await tx.objectStore('tasks').get(id);
+      if (!task) throw new Error('Task no longer exists.');
+      if (
+        !options.acceptCommittedResult &&
+        (task.cancelRequested || options.signal?.aborted)
+      )
+        throw Object.assign(new Error('Cancelled'), { code: 'CANCELLED' });
+      const next: TaskRecord = {
+        ...task,
+        state: 'completed',
+        stage: 'Completed',
+        progress: 1,
+        error: undefined,
+        updatedAt: Date.now(),
+      };
+      await tx.objectStore('results').put(result, id);
+      await tx.objectStore('tasks').put(next);
+      await tx.done;
+      return next;
+    } catch (error) {
+      try {
+        tx.abort();
+      } catch {
+        // Already aborted or committed.
+      }
+      await tx.done.catch(() => {});
+      if (options.signal?.aborted && !options.acceptCommittedResult)
+        throw Object.assign(new Error('Cancelled'), { code: 'CANCELLED' });
+      throw error;
+    } finally {
+      options.signal?.removeEventListener('abort', abort);
+    }
   }
   async remove(id: string) {
     const tx = (await this.db()).transaction(

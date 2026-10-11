@@ -103,6 +103,7 @@ export default function SpeechDialog({
   const [generation, setGeneration] = useState<string>();
   const [restoreSaved, setRestoreSaved] = useState(true);
   const generated = useRef<Job<SpeechTaskResult> | null>(null);
+  const loadedSource = useRef<string | undefined>(undefined);
   const selection = useRef<string | undefined>(undefined);
   const previewUrl = useRef('');
   const loadedResult = useRef<string | undefined>(undefined);
@@ -144,7 +145,7 @@ export default function SpeechDialog({
           }
         } finally {
           if (active.current) {
-            setBusy(null);
+            setBusy((current) => (current === label ? null : current));
             setLocalBusy(false);
           }
           pending.current = null;
@@ -238,26 +239,54 @@ export default function SpeechDialog({
       if (active.current && !signal.aborted) publish(result);
     });
   };
+  const restoreRequest = useCallback((input: SpeechTaskInput) => {
+    setScript(input.request.script);
+    setModel(input.request.model);
+    setVoice(input.request.voice);
+    setLanguages(input.request.languages);
+    setDelivery(input.request.instructions ?? '');
+    setMode(input.timing.mode);
+    if (input.timing.mode === 'speed') setSpeed(String(input.timing.speed));
+    else setDuration(String(input.timing.durationSeconds));
+  }, []);
+  const loadSource = useCallback(
+    async (id: string) => {
+      if (loadedSource.current === id) return;
+      const source = (await editor.tasks.checkpoint(id)) as
+        SpeechAudio | undefined;
+      if (!source) return;
+      const input = (await editor.tasks.input(id)) as SpeechTaskInput;
+      if (!active.current || selection.current !== id) return;
+      loadedSource.current = id;
+      restoreRequest(input);
+      setAudio(source);
+      setBusy(null);
+      try {
+        connection.api.validateSpeechTiming(
+          input.timing,
+          source.samples.length / source.sampleRate,
+        );
+      } catch (error) {
+        setError(
+          error instanceof Error ? error.message : 'Adjust speech timing.',
+        );
+      }
+    },
+    [editor, connection.api, restoreRequest],
+  );
   const loadResult = useCallback(
     async (id: string) => {
       if (loadedResult.current === id) return;
       const result = await editor.tasks.result<SpeechTaskResult>(id);
-      if (!active.current || selection.current !== id) return;
       const input = (await editor.tasks.input(id)) as SpeechTaskInput;
+      if (!active.current || selection.current !== id) return;
       loadedResult.current = id;
       setAudio(result.audio);
-      setScript(input.request.script);
-      setModel(input.request.model);
-      setVoice(input.request.voice);
-      setLanguages(input.request.languages);
-      setDelivery(input.request.instructions ?? '');
-      setMode(input.timing.mode);
-      if (input.timing.mode === 'speed') setSpeed(String(input.timing.speed));
-      else setDuration(String(input.timing.durationSeconds));
+      restoreRequest(input);
       publish(result.rendered);
       setBusy(null);
     },
-    [editor],
+    [editor, restoreRequest],
   );
   useEffect(() => {
     if (!open) return;
@@ -270,6 +299,9 @@ export default function SpeechDialog({
       else if (['failed', 'interrupted', 'cancelled'].includes(task.state)) {
         setBusy(null);
         if (task.error) setError(task.error.message + ' ' + task.error.action);
+        void loadSource(task.id).catch(() =>
+          setError('Saved speech source could not be opened.'),
+        );
       } else setBusy(task.state === 'queued' ? 'Speech queued…' : task.stage);
     });
     if (!generation && restoreSaved)
@@ -300,6 +332,9 @@ export default function SpeechDialog({
         else if (task?.error) {
           setBusy(null);
           setError(task.error.message + ' ' + task.error.action);
+          void loadSource(task.id).catch(() =>
+            setError('Saved speech source could not be opened.'),
+          );
         }
       });
     return stop;
@@ -310,6 +345,7 @@ export default function SpeechDialog({
     generation,
     project.id,
     loadResult,
+    loadSource,
     restoreSaved,
   ]);
   const generate = () => {
@@ -682,7 +718,14 @@ export default function SpeechDialog({
               variant="outline"
               onClick={() => {
                 controller.current?.abort();
-                generated.current?.cancel();
+                if (!localBusy && generation)
+                  void editor.tasks
+                    .cancel(generation)
+                    .catch(() =>
+                      setError(
+                        'Speech could not be cancelled. Try the task queue.',
+                      ),
+                    );
                 importing.current?.cancel();
               }}
             >

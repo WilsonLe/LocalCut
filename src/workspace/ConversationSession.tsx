@@ -194,7 +194,6 @@ export default function ConversationSession({
         projectId: project.id,
         model,
         context: privacy,
-        assetIds: attachments.map((asset) => asset.id),
         transcription: connection.transcription,
       });
       unsubscribe.current = assistant.current.subscribe((event) => {
@@ -240,6 +239,7 @@ export default function ConversationSession({
       await waitForRetired();
       if (!mounted.current || cancelBeforeRun.current) return;
       const session = ensureAssistant();
+      session.includeAssets(attachments.map((asset) => asset.id));
       const context =
         (selected ? `Selected clip ID: ${selected.id}.\n\n` : '') +
         (attachments.length
@@ -435,7 +435,6 @@ export default function ConversationSession({
           ).values(),
         ].slice(0, 8),
       );
-      assistant.current?.includeAssets(images.map((asset) => asset.id));
       composer.current?.focus();
       onDraftChange(true);
     } catch (error) {

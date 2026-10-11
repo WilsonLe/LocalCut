@@ -231,6 +231,23 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(page.getByLabel('Attached images')).toContainText(
       'Reference.png',
     );
+    await page
+      .getByRole('button', { name: 'Remove Reference.png', exact: true })
+      .click();
+    await input.fill('No attachment in this request');
+    await page
+      .getByRole('button', { name: 'Send edit request', exact: true })
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'Cancel response', exact: true }),
+    ).not.toBeVisible();
+    expect(JSON.stringify(requests.at(-1))).not.toContain(asset.id);
+    await page
+      .locator('.conversation-session:not([hidden]) .chat-composer')
+      .dispatchEvent('drop', { dataTransfer: transfer });
+    await expect(page.getByLabel('Attached images')).toContainText(
+      'Reference.png',
+    );
     await input.fill('Use the attached image');
     await page
       .getByRole('button', { name: 'Send edit request', exact: true })
@@ -240,6 +257,61 @@ for (const base of ['/', '/LocalCut/']) {
     ).not.toBeVisible();
     expect(JSON.stringify(requests.at(-1))).toContain(asset.id);
     expect(JSON.stringify(requests.at(-1))).not.toMatch(/data:image|base64/);
+    const overflow = await page.evaluate(async (base) => {
+      const { createEditor } = await import(base + 'editor.js');
+      const editor = await createEditor();
+      try {
+        const canvas = new OffscreenCanvas(16, 16);
+        const assets = [];
+        for (let i = 0; i < 9; i++) {
+          const context = canvas.getContext('2d')!;
+          context.fillStyle = `rgb(${i * 20}, 0, 0)`;
+          context.fillRect(0, 0, 16, 16);
+          assets.push(
+            await editor.assets.import(
+              await canvas.convertToBlob({ type: 'image/png' }),
+              `Image${i}.png`,
+            ).completion,
+          );
+        }
+        return assets;
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    await input.fill('Use only the visible attached images');
+    for (const [i, image] of overflow.entries()) {
+      const data = await page.evaluateHandle((id) => {
+        const transfer = new DataTransfer();
+        transfer.setData('application/x-localcut-image', id);
+        return transfer;
+      }, image.id);
+      await page
+        .locator('.conversation-session:not([hidden]) .chat-composer')
+        .dispatchEvent('drop', { dataTransfer: data });
+      if (i < 8)
+        await expect(page.getByLabel('Attached images')).toContainText(
+          image.name,
+        );
+      await expect(
+        page.getByRole('button', { name: 'Send edit request', exact: true }),
+      ).toBeEnabled();
+      await data.dispose();
+    }
+    await expect(
+      page.getByRole('button', { name: 'Remove Image8.png', exact: true }),
+    ).toHaveCount(0);
+    await page
+      .getByRole('button', { name: 'Send edit request', exact: true })
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'Cancel response', exact: true }),
+    ).not.toBeVisible();
+    const allowed = JSON.stringify(requests.at(-1));
+    for (const image of overflow.slice(0, 8))
+      expect(allowed).toContain(image.id);
+    expect(allowed).not.toContain(overflow[8]!.id);
+    expect(allowed).toContain(asset.id); // Previously sent context remains available.
     await input.fill('Next draft');
     const sendBox = await page
       .getByRole('button', { name: 'Send edit request', exact: true })

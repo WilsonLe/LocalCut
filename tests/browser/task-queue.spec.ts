@@ -1,4 +1,77 @@
 import { expect, test } from '@playwright/test';
+test('task publication observes cancellation and preserves committed results', async ({
+  page,
+}) => {
+  await page.goto('/LocalCut/');
+  const outcomes = await page.evaluate(async () => {
+    const { TaskQueue } = await import(String('/LocalCut/editor.js'));
+    const outcomes = [];
+    for (const committed of [false, true]) {
+      const queue = new TaskQueue(`publication-${crypto.randomUUID()}`);
+      const storage = queue.storage;
+      const complete = storage.complete.bind(storage);
+      let entered!: () => void,
+        release!: () => void,
+        discarded = 0;
+      const publishing = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      storage.complete = async (...args: unknown[]) => {
+        entered();
+        await gate;
+        return complete(...args);
+      };
+      queue.register('publication', {
+        lane: 'publication',
+        recovery: 'manual',
+        acceptCommittedResult: committed,
+        execute: async () => ({ value: 'output' }),
+        discard: () => {
+          discarded++;
+        },
+      });
+      const job = queue.enqueue('publication', {}, { label: 'Publication' });
+      try {
+        await publishing;
+        await queue.cancel(job.id);
+        release();
+        let rejected = false;
+        await job.completion.catch(() => {
+          rejected = true;
+        });
+        outcomes.push({
+          committed,
+          rejected,
+          discarded,
+          state: (await queue.get(job.id)).state,
+          saved: await queue.checkpoint(job.id),
+        });
+      } finally {
+        await queue.dispose();
+      }
+    }
+    return outcomes;
+  });
+  expect(outcomes).toEqual([
+    {
+      committed: false,
+      rejected: true,
+      discarded: 1,
+      state: 'cancelled',
+      saved: undefined,
+    },
+    {
+      committed: true,
+      rejected: false,
+      discarded: 0,
+      state: 'completed',
+      saved: { value: 'output' },
+    },
+  ]);
+});
 for (const base of ['/', '/LocalCut/']) {
   test(`durable task API polls retries escalates and recovers after reload ${base}`, async ({
     page,

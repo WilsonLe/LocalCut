@@ -648,9 +648,19 @@ export class TaskQueue {
       }
       // Encoded native artifacts are read from the durable blob, so a caller
       // disposing the original OPFS file cannot invalidate the saved result.
+      let completed: TaskRecord;
+      try {
+        completed = await this.storage.complete(id, encoded, {
+          signal: controller.signal,
+          acceptCommittedResult: handler.acceptCommittedResult,
+        });
+      } catch (error) {
+        await handler.discard?.(result);
+        throw error;
+      }
       if (!handler.encodeResult || !handler.decodeResult)
         this.results.set(id, result);
-      this.publish(await this.storage.complete(id, encoded));
+      this.publish(completed);
     } catch (error) {
       await progressWrites;
       const failure = taskError(error);
