@@ -290,12 +290,18 @@ describe('OpenRouter SSE protocol', () => {
       collect(response(first + frame({}, 'stop') + done)),
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
   });
-  it('bounds event sizes and tool arguments before publication', async () => {
-    await expect(
-      collect(
-        response('data: ' + 'x'.repeat(PROTOCOL_LIMITS.eventBytes + 1), 65536),
-      ),
-    ).rejects.toMatchObject({ code: 'RESPONSE_LIMIT' });
+  it('accepts long text and reasoning without response, frame or stream caps', async () => {
+    const reasoning = 'r'.repeat(9 * 1024 * 1024);
+    const content = 'x'.repeat(1024 * 1024 + 1);
+    const events = await collect(
+      response(frame({ reasoning, content }, 'stop') + done, 65536),
+    );
+    expect(events.at(-1)).toMatchObject({
+      type: 'complete',
+      message: { content, reasoning },
+    });
+  });
+  it('bounds tool arguments before publication', async () => {
     const calls = [
       {
         index: 0,
@@ -380,15 +386,15 @@ describe('OpenRouter SSE protocol', () => {
       'AI connection ended unexpectedly.',
     );
   });
-  it('bounds aggregate text and total stream bytes', async () => {
+  it('still requires completion after long text or comment streams', async () => {
     const part = frame({ content: 'x'.repeat(65536) });
     await expect(
       collect(response(part.repeat(17), 65536)),
-    ).rejects.toMatchObject({ code: 'RESPONSE_LIMIT' });
+    ).rejects.toMatchObject({ code: 'RESPONSE_INCOMPLETE' });
     const comment = ': ' + 'x'.repeat(65536) + '\n\n';
     await expect(
       collect(response(comment.repeat(129), 65536)),
-    ).rejects.toMatchObject({ code: 'RESPONSE_LIMIT' });
+    ).rejects.toMatchObject({ code: 'RESPONSE_INCOMPLETE' });
   });
   it('preserves ordered indexed reasoning, late signatures, opaque data, summaries and legacy aliases', async () => {
     const stream =
@@ -557,22 +563,39 @@ describe('OpenRouter SSE protocol', () => {
       ),
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
   });
-  it('bounds reasoning bytes across blocks and aliases and bounds block count', async () => {
+  it('accepts long reasoning aliases and indexed blocks while bounding block count', async () => {
     const part = frame({
       reasoning: 'x'.repeat(65536),
       reasoning_content: 'x'.repeat(65536),
     });
-    await expect(
-      collect(response(part.repeat(9), 65536)),
-    ).rejects.toMatchObject({ code: 'RESPONSE_LIMIT' });
+    const aliases = await collect(
+      response(part.repeat(9) + frame({}, 'stop') + done, 65536),
+    );
+    expect(aliases.at(-1)).toMatchObject({
+      message: {
+        reasoning: 'x'.repeat(9 * 65536),
+        reasoning_content: 'x'.repeat(9 * 65536),
+      },
+    });
     const block = frame({
       reasoning_details: [
         { type: 'reasoning.encrypted', data: 'x'.repeat(65536), index: 0 },
       ],
     });
-    await expect(
-      collect(response(block.repeat(17), 65536)),
-    ).rejects.toMatchObject({ code: 'RESPONSE_LIMIT' });
+    const blocks = await collect(
+      response(block.repeat(17) + frame({}, 'stop') + done, 65536),
+    );
+    expect(blocks.at(-1)).toMatchObject({
+      message: {
+        reasoning_details: [
+          {
+            type: 'reasoning.encrypted',
+            index: 0,
+            data: 'x'.repeat(17 * 65536),
+          },
+        ],
+      },
+    });
     await expect(
       collect(
         response(

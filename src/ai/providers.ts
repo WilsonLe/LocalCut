@@ -307,7 +307,7 @@ export function createServiceRouter(
             );
             // A selected model's reservation may exceed a configured backup's ceiling.
             let maxOutputTokens = request.maxOutputTokens;
-            if (!ownsSelection) {
+            if (!ownsSelection && maxOutputTokens !== undefined) {
               const catalog = await client.listModels(op.signal, model);
               if (op.signal.aborted)
                 throw new AiError('CANCELLED', 'AI request cancelled.');

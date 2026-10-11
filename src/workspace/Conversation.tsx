@@ -1078,7 +1078,6 @@ export function Conversation(props: ConversationProps) {
                   project={props.project!}
                   connection={connection}
                   model={model}
-                  modelInfo={selectedModel}
                   privacy={{ ...privacy, includeAssetIndexes: indexingAllowed }}
                   registerSession={registerSession}
                   composerControl={null}

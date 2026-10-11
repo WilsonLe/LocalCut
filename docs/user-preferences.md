@@ -314,3 +314,7 @@ This is the project record of the user's durable product and workflow choices. U
 - Choose LLM models inside service configuration; do not ask for a duplicate model in connection setup.
 - Allow multiple named accounts for each provider type, including OpenRouter and ChatGPT. Isolate each account's credentials and service routes.
 - Keep ChatGPT callback instructions in an accessible tooltip. Label saved-account activation Connect.
+
+## Chat output policy — 11 October 2026
+
+- Do not cap editing-chat output responses in LocalCut. Leave output token limits to each provider/model instead of imposing a fixed 4k, 16k or 32k allowance, and accept long response text and hidden reasoning. Keep context compaction, explicit proposal approval, privacy, terminal validation and explicit retry behavior.

@@ -1291,6 +1291,25 @@ describe('headless assistant boundaries', () => {
     expect(history.snapshot().historyTurns).toBe(1);
     expect(() => make({ maxRounds: 0 })).toThrow(AiError);
   });
+  it('publishes a staged proposal after an uncapped long final response', async () => {
+    const f = fixture();
+    const text = 'x'.repeat(1024 * 1024 + 1);
+    const p = provider([[proposal()], [{ type: 'text', text }, final(text)]]);
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'model',
+    });
+    const result = await a.run('Move the clip').completion;
+    expect(result.text).toBe(text);
+    expect(result.proposalIds).toHaveLength(1);
+    expect(a.getProposal(result.proposalIds[0]!).status).toBe('pending');
+    expect(
+      p.requests.every((request) => request.maxOutputTokens === undefined),
+    ).toBe(true);
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+  });
   it('keeps proposal events detached from internal command data', async () => {
     const f = setup();
     f.assistant.subscribe((e) => {

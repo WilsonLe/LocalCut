@@ -161,8 +161,6 @@ const defaults = {
   maxProposals: 20,
   maxHistoryTurns: 50,
   maxContextBytes: 2 * 1024 * 1024,
-  maxOutputBytes: 128 * 1024,
-  maxOutputTokens: 4096,
 };
 const ceiling = {
   maxRounds: 20,
@@ -171,8 +169,6 @@ const ceiling = {
   maxProposals: 100,
   maxHistoryTurns: 50,
   maxContextBytes: 2 * 1024 * 1024,
-  maxOutputBytes: 1024 * 1024,
-  maxOutputTokens: 32768,
 };
 const systemPrompt = `You are Klip, LocalCut's editing assistant. Help edit the selected project. Use only the declared tools.
 Keep replies short and concise. Lead with the result or a brief high-level recommendation. For broad requests, give a short overview and the next useful decision; expand into lower-level details only when the user asks. Match the user's language. Avoid long enumerations, repeated tool narration and unsolicited implementation detail.
@@ -241,6 +237,14 @@ export function createAssistant(options: AssistantOptions) {
       'INVALID_REQUEST',
       `Invalid assistant limit: ${key}.`,
     );
+  for (const key of ['maxOutputBytes', 'maxOutputTokens'] as const) {
+    const value = limits[key];
+    aiInvariant(
+      value === undefined || (Number.isSafeInteger(value) && value > 0),
+      'INVALID_REQUEST',
+      `Invalid assistant limit: ${key}.`,
+    );
+  }
   const policy = { ...options.context };
   const transcription = options.transcription
     ? { ...options.transcription }
@@ -835,7 +839,8 @@ export function createAssistant(options: AssistantOptions) {
               if (event.value.type === 'text') {
                 outputBytes += byteLength(event.value.text);
                 aiInvariant(
-                  outputBytes <= limits.maxOutputBytes,
+                  limits.maxOutputBytes === undefined ||
+                    outputBytes <= limits.maxOutputBytes,
                   'RESPONSE_LIMIT',
                   'Assistant output exceeds the configured limit.',
                 );
@@ -847,7 +852,8 @@ export function createAssistant(options: AssistantOptions) {
                 completed = event.value;
                 outputBytes += byteLength(completed.message);
                 aiInvariant(
-                  outputBytes <= limits.maxOutputBytes,
+                  limits.maxOutputBytes === undefined ||
+                    outputBytes <= limits.maxOutputBytes,
                   'RESPONSE_LIMIT',
                   'Assistant output exceeds the configured limit.',
                 );

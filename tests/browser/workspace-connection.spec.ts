@@ -15,10 +15,10 @@ const models = Array.from({ length: 120 }, (_, index) => ({
 }));
 
 for (const base of ['/', '/LocalCut/']) {
-  for (const [kind, expectedTokens, completionLimit] of [
-    ['standard', 4096, 32768],
-    ['reasoning', 16384, 32768],
-    ['reasoning-capped', 8192, 8192],
+  for (const [kind, completionLimit] of [
+    ['standard', 32768],
+    ['reasoning', 943718],
+    ['reasoning-capped', 8192],
   ] as const) {
     test(`mobile OpenRouter chat routes supported parameters and explains endpoint rejection ${kind} ${base}`, async ({
       page,
@@ -32,6 +32,7 @@ for (const base of ['/', '/LocalCut/']) {
             data: [
               {
                 ...models[0],
+                context_length: 1048576,
                 supported_parameters: [
                   'tools',
                   'tool_choice',
@@ -56,7 +57,9 @@ for (const base of ['/', '/LocalCut/']) {
           requests++;
           const body = route.request().postDataJSON();
           expect(body.model).toBe(models[0]!.id);
-          expect(body.max_tokens).toBe(expectedTokens);
+          expect(body.max_tokens).toBe(completionLimit);
+          expect(body).not.toHaveProperty('max_output_tokens');
+          expect(body).not.toHaveProperty('max_completion_tokens');
           expect(body.provider).toEqual({
             data_collection: 'deny',
             require_parameters: true,
@@ -135,7 +138,7 @@ for (const base of ['/', '/LocalCut/']) {
             await route.fulfill({
               headers: cors,
               contentType: 'text/event-stream',
-              body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { reasoning: 'Completed private thought', ...(tools ? { tool_calls: tools } : { content: 'Try a short opening montage.' }) }, finish_reason: tools ? 'tool_calls' : 'stop' }] })}\n\ndata: [DONE]\n\n`,
+              body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { reasoning: tools ? 'Completed private thought' : 'Completed private thought'.repeat(40000), ...(tools ? { tool_calls: tools } : { content: 'Try a short opening montage.' }) }, finish_reason: tools ? 'tool_calls' : 'stop' }] })}\n\ndata: [DONE]\n\n`,
             });
             return;
           }
