@@ -5,7 +5,7 @@ export default function ChatSessionTitle({
   sessionId,
   title,
 }: {
-  sessionId: number;
+  sessionId: string;
   title: string;
 }) {
   const [shown, setShown] = useState({

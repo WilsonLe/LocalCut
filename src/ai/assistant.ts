@@ -81,7 +81,17 @@ const branches = new WeakMap<
   }
 >();
 
+export interface RestoredChatTurn {
+  id: string;
+  user: string;
+  assistant: string;
+}
 export interface AssistantOptions {
+  /** Completed text-only exchanges from the caller's matching local chat scope.
+   * Never restore tool results, proposals, skills, approvals or sharing consent. */
+  restoredTurns?: readonly RestoredChatTurn[];
+  /** Local index-run identity captured with retained text history. */
+  restoredIndexScope?: string;
   tasks?: import('../services/task-queue').TaskQueue;
   /** Opaque completed-history checkpoint from this assistant module. */
   branch?: AssistantBranch;
@@ -294,9 +304,48 @@ export function createAssistant(options: AssistantOptions) {
       'INVALID_REQUEST',
       'Branch context no longer matches this session.',
     );
-  const history: ChatMessage[][] = structuredClone(checkpoint?.history ?? []);
-  const historyIds: string[] = [...(checkpoint?.ids ?? [])];
-  let indexScope: string | undefined = checkpoint?.indexScope;
+  const restored = options.restoredTurns ?? [];
+  aiInvariant(
+    !options.branch || !restored.length,
+    'INVALID_REQUEST',
+    'Choose a branch or restored chat history.',
+  );
+  aiInvariant(
+    Array.isArray(restored) &&
+      restored.every(
+        (turn) =>
+          turn &&
+          typeof turn.id === 'string' &&
+          turn.id.length > 0 &&
+          turn.id.length <= 200 &&
+          typeof turn.user === 'string' &&
+          typeof turn.assistant === 'string',
+      ) &&
+      new Set(restored.map((turn) => turn.id)).size === restored.length,
+    'INVALID_REQUEST',
+    'Invalid restored chat history.',
+  );
+  const retained = restored.slice(-limits.maxHistoryTurns);
+  const history: ChatMessage[][] = structuredClone(
+    checkpoint?.history ??
+      retained.map((turn) => [
+        { role: 'user' as const, content: turn.user },
+        { role: 'assistant' as const, content: turn.assistant },
+      ]),
+  );
+  const historyIds: string[] = [
+    ...(checkpoint?.ids ?? retained.map((turn) => turn.id)),
+  ];
+  aiInvariant(
+    options.restoredIndexScope === undefined ||
+      typeof options.restoredIndexScope === 'string',
+    'INVALID_REQUEST',
+    'Invalid restored index scope.',
+  );
+  // A missing provenance marker cannot authorize reuse of index-bearing narration.
+  let indexScope: string | undefined =
+    checkpoint?.indexScope ??
+    (restored.length ? (options.restoredIndexScope ?? '') : undefined);
   let memory = checkpoint?.memory ?? '';
   let disposed = false;
   let active: { id: string; controller: AbortController } | undefined;
@@ -1477,6 +1526,7 @@ export function createAssistant(options: AssistantOptions) {
         proposals: [...proposals.values()].map((p) => structuredClone(p)),
         historyTurns: history.length,
         historyTurnIds: [...historyIds],
+        historyIndexScope: indexScope,
       };
     },
     subscribe(listener: (event: AssistantEvent) => void) {

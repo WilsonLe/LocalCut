@@ -23,7 +23,7 @@ OpenRouter credentials persist in a separate browser-local record and may restor
 
 Browser localStorage can be read by scripts executing on the same origin; this is not an OS-protected credential vault. Do not connect sensitive accounts on shared computers or untrusted copies of the app. Prefer a dedicated origin for self-hosting. Build-time variables cannot safely conceal a provider key in a static application.
 
-Remembering a model or restoring a connection does not authorize paid inference or new data sharing. Chat text/name/transcript consent is session-only; indexing permission is remembered separately. Conversations are not restored across reloads. For authoritative details use [AI credentials and frontend wiring](ai.md) and [workspace behavior](workspace.md).
+Remembering a model or restoring a connection does not authorize paid inference or new data sharing. Chat text/name/transcript consent is session-only; indexing permission is remembered separately. Chat titles, messages, tool activity, unsent drafts and attachment references persist locally in IndexedDB, scoped to the project, LLM route/model and sharing choices. Restoring a matching chat does not start a request or restore consent, credentials or executable proposals; interrupted work stays stopped. Completed text exchanges can be sent as conversation history only after Send. Chats are excluded from portable backups. For authoritative details use [AI credentials and frontend wiring](ai.md) and [workspace behavior](workspace.md).
 
 ## Retention, removal and recovery
 

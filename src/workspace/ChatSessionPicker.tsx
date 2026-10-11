@@ -6,7 +6,7 @@ import { Input } from '../components/ui/input';
 import ChatSessionTitle from './ChatSessionTitle';
 
 export interface ChatSession {
-  id: number;
+  id: string;
   title: string;
   hasMessages: boolean;
   hasDraft: boolean;
@@ -25,9 +25,9 @@ export default function ChatSessionPicker({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sessions: ChatSession[];
-  selected: number;
+  selected: string;
   busy: boolean;
-  onSelect: (id: number) => void;
+  onSelect: (id: string) => void;
   onNew: () => void;
 }) {
   const [search, setSearch] = useState('');
@@ -111,7 +111,7 @@ export default function ChatSessionPicker({
               <Menu.RadioGroup
                 value={selected}
                 onValueChange={(id) => {
-                  onSelect(Number(id));
+                  onSelect(String(id));
                   onOpenChange(false);
                 }}
               >
