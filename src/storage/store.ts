@@ -13,7 +13,18 @@ import {
   validateSpeechTranscriptTiming,
 } from '../core/model';
 import { commitWithSignal } from './transaction';
+import { checkAbort } from '../services/jobs';
+import { withQuotaRecovery } from './quota';
 import type { Asset, Project, Transcript, ProjectBackup } from '../core/model';
+async function blobHash(blob: Blob) {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    await blob.arrayBuffer(),
+  );
+  return Array.from(new Uint8Array(digest), (b) =>
+    b.toString(16).padStart(2, '0'),
+  ).join('');
+}
 export interface ProjectVersion {
   id: string;
   number: number;
@@ -124,6 +135,9 @@ export interface Derivative {
   size: number;
   accessed: number;
   kind: string;
+  source?: string;
+  contentType?: string;
+  sha256?: string;
 }
 export class Store {
   private constructor(
@@ -767,9 +781,89 @@ export class Store {
     const d = (await this.db.get('derivatives', id)) as Derivative | undefined;
     if (d) {
       d.accessed = Date.now();
-      await this.db.put('derivatives', d);
+      // LRU bookkeeping must not make an existing readable cache unusable at quota.
+      await this.db.put('derivatives', d).catch(() => {});
     }
     return d;
+  }
+  /** Caller holds the original's shared lock and this derivative's exclusive lock. */
+  async cachedBlob(id: string, source: string): Promise<Blob | undefined> {
+    const record = await this.derivative(id);
+    if (!record) return;
+    try {
+      if (record.source === source && record.sha256) {
+        const file = await this.file(record.path);
+        if (
+          file.size === record.size &&
+          (await blobHash(file)) === record.sha256
+        )
+          return new Blob([file], { type: record.contentType });
+      }
+    } catch {
+      // Disposable files may have been evicted independently of metadata.
+    }
+    // A denied cleanup cannot prevent computing a fresh display result.
+    await this.remove(record.path).catch(() => {});
+    await this.db.delete('derivatives', id).catch(() => {});
+  }
+  /** Cache persistence is best effort; an already computed preview stays usable. */
+  async saveCachedBlob(
+    id: string,
+    assetId: string,
+    kind: string,
+    source: string,
+    blob: Blob,
+    signal: AbortSignal,
+  ) {
+    checkAbort(signal);
+    const path = `cache-${id}`;
+    const sha256 = await blobHash(blob);
+    const jobId = crypto.randomUUID();
+    await this.lock(
+      `job:${jobId}`,
+      'exclusive',
+      async () => {
+        try {
+          await withQuotaRecovery(this, blob.size, signal, async () => {
+            await this.journal({ id: jobId, target: path, kind: 'derivative' });
+            try {
+              await this.write(path, blob);
+              checkAbort(signal);
+              await this.cache({
+                id,
+                assetId,
+                kind,
+                source,
+                sha256,
+                path,
+                contentType: blob.type,
+                size: blob.size,
+                accessed: Date.now(),
+              });
+              checkAbort(signal);
+              await this.finishJournal(jobId);
+            } catch (error) {
+              await this.db.delete('derivatives', id);
+              await this.remove(path);
+              await this.finishJournal(jobId);
+              throw error;
+            }
+          });
+        } catch {
+          checkAbort(signal);
+          // Quota/denied cache writes must not hide successfully computed pixels/peaks.
+        }
+      },
+      signal,
+    );
+  }
+  /** Caller holds the exclusive original lock, excluding all derivative readers. */
+  async invalidateDerivatives(assetId: string) {
+    const records = (await this.db.getAll('derivatives')) as Derivative[];
+    for (const record of records.filter((r) => r.assetId === assetId)) {
+      await this.remove(record.path);
+      await this.db.delete('derivatives', record.id);
+    }
   }
   async cache(record: Derivative) {
     await this.db.put('derivatives', record);

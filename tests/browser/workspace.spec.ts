@@ -204,6 +204,70 @@ async function downloadedVideo(page: Page, data: Buffer, type: string) {
 }
 
 for (const base of ['/', '/LocalCut/']) {
+  test(`timeline previews refresh stale visibility after layout changes ${base}`, async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const NativeObserver = window.IntersectionObserver;
+      // Reproduce the observed Chrome failure: the first observation retains
+      // offscreen geometry until the consumer explicitly observes it again.
+      window.IntersectionObserver = class extends NativeObserver {
+        private visits: WeakMap<Element, number>;
+        constructor(
+          callback: IntersectionObserverCallback,
+          options?: IntersectionObserverInit,
+        ) {
+          const visits = new WeakMap<Element, number>();
+          super((entries, observer) => {
+            callback(
+              entries.map((entry) =>
+                entry.target.classList.contains('timeline-clip-preview') &&
+                (visits.get(entry.target) ?? 0) < 2
+                  ? ({
+                      target: entry.target,
+                      isIntersecting: false,
+                    } as IntersectionObserverEntry)
+                  : entry,
+              ),
+              observer,
+            );
+          }, options);
+          this.visits = visits;
+        }
+        observe(target: Element) {
+          this.visits.set(target, (this.visits.get(target) ?? 0) + 1);
+          super.observe(target);
+        }
+      };
+    });
+    await page.goto(base);
+    await createProject(page, 'Resize visibility');
+    await page
+      .getByLabel('Import media', { exact: true })
+      .setInputFiles(await redPng(page));
+    const thumbnail = page
+      .getByRole('region', { name: 'Video timeline' })
+      .getByRole('button', { name: 'red.png', exact: true })
+      .locator('.timeline-thumbnail');
+    await expect(thumbnail).toBeAttached();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(thumbnail).toBeAttached();
+    const pixel = await thumbnail.evaluate(async (element) => {
+      const image = new Image();
+      image.src = getComputedStyle(element).backgroundImage.slice(5, -2);
+      await image.decode();
+      const canvas = new OffscreenCanvas(1, 1),
+        context = canvas.getContext('2d')!;
+      context.drawImage(image, 0, 0, 1, 1);
+      return [...context.getImageData(0, 0, 1, 1).data];
+    });
+    // Thumbnail WebP encoding uses the same small color tolerance as below.
+    [255, 0, 0].forEach((value, i) =>
+      expect(Math.abs(pixel[i]! - value)).toBeLessThan(8),
+    );
+    expect(pixel[3]).toBe(255);
+  });
+
   test(`timeline media previews, waveform trimming and mobile selection ${base}`, async ({
     page,
   }) => {

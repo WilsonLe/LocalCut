@@ -5,6 +5,7 @@ composition, codec preflight, and streaming export. Read [architecture](../../do
 [API contracts](../../docs/api.md), and [acceptance evidence](../../docs/validation.md).
 
 - Keep container formats explicit. Inspect all selected streams and reject ambiguous or unsupported streams; preserve source orientation and required audio.
+- Reuse persisted peaks, thumbnail tiles, contact sheets and PCM/proxies before opening native decoders. Follow [the computation checklist](../../docs/development.md#persist-reusable-computation); parameters/version/source identity and relink invalidation are cache contracts.
 - Bound native decoding resources. Each active video clip owns its cursor even when clips share an asset; release ended cursors, samples, bitmaps, inputs, and PCM leases, including stale results after cancellation.
 - Preview and export share `Renderer`. Preserve scratch-surface effect order, resolution-scaled blur, weighted premultiplied crossfades, and black fades that cover lower tracks.
 - Mix bounded 48 kHz stereo windows. Derive resampling phase from absolute sample indices, retain interpolation halos, apply gain/fades/mute, and clamp output without allocating full-project audio.

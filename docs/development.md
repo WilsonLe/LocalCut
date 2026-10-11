@@ -25,6 +25,28 @@ Read the root `AGENTS.md`, then the guides in the target file's ancestor directo
 
 See [architecture](architecture.md) and [API contracts](api.md) before crossing a boundary. Preserve the existing owner instead of duplicating project state in a control or transport.
 
+## Persist reusable computation
+
+Treat refresh and reopening as cache consumers. For every new or changed expensive derived computation, inspect its existing owner and enumerate its UI, editor, worker and assistant consumers before implementing it. Reuse a valid persisted result before decoding, analyzing or encoding again. Keep the [computation inventory](storage.md#reusable-computation-inventory) current; an in-memory map alone does not satisfy reuse across refreshes.
+
+A derived-data change is complete only when:
+
+1. Its cache key includes algorithm/format version, immutable source identity and every result-affecting request parameter. Presentation-only changes such as renaming, trimming or gain do not invalidate source analysis. Relinking invalidates old results even when size/duration match.
+2. Persistence belongs to the existing storage owner and stays local and namespaced. Disposable artifacts use journaled OPFS files and derivative records with the shared LRU/quota policy; authored data, transcripts and retained index evidence keep their existing stronger retention contracts. Never persist native handles or object URLs.
+3. Matching concurrent requests share computation, cancellation leaves no partial publication, and missing/corrupt/obsolete cache entries rebuild. Cache-write failure must preserve an otherwise successfully computed display result. Eviction protects originals and active readers.
+4. A production Chrome regression computes once, closes/reloads into a fresh engine/worker, then proves the repeat request avoids native computation and returns equivalent output. Cover changed parameters, source replacement, corruption/missing files and relevant cancellation/quota races. A warm same-session repeat or timing-only assertion is insufficient.
+5. Any deliberate recomputation has a concrete validity or lifecycle reason in the inventory, such as current codec support, integrity verification or native resources tied to a rendering realm. New caches must preserve explicit consent and bare-startup laziness; cache population cannot initiate remote work.
+
+For media derivative changes, start with:
+
+```sh
+pnpm test tests/unit/derived-cache.test.ts tests/unit/storage-races.test.ts tests/unit/worker-publication.test.ts
+# After both current production builds:
+pnpm test:browser tests/browser/derived-cache.spec.ts tests/browser/recovery.spec.ts
+```
+
+Select affected workspace consumers, retain native media checks, and run the performance gate when shared PCM/export behavior changes. See [storage formats and recovery](storage.md) for implementation contracts. During review, check this list against every changed computation and its consumers; undocumented session-only caching is incomplete work.
+
 ## Keep agent access complete
 
 Every new or changed editing feature must ship with assistant access in the same change, following the [durable user preference](user-preferences.md#complete-agent-editing-access--11-october-2026). Before implementation, inventory the affected UI/API commands, authored properties, recipes and service actions against the [AI feature-access inventory](ai.md#editing-feature-access-inventory). Record a concrete reason for each user-owned boundary; a missing assistant path is unfinished editing work.
