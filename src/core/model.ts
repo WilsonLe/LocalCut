@@ -34,7 +34,7 @@ const keyframeInputSchema = keyframeSchema.extend({ id: id.optional() });
 
 /** Stable IDs for implicit entities, including legacy version-one keyframes. */
 export function nestedId(
-  kind: 'keyframe' | 'cue' | 'transition',
+  kind: 'keyframe' | 'cue' | 'transition' | 'clip' | 'group',
   owner: string,
   identity: string,
 ) {
@@ -195,9 +195,17 @@ export const trackSchema = z
   .object({
     id,
     kind: z.enum(['video', 'audio', 'overlay']),
+    name: z.string().trim().min(1).max(1000).optional(),
+    disabled: z.boolean().optional(),
+    solo: z.boolean().optional(),
+    locked: z.boolean().optional(),
     muted: z.boolean().default(false),
     clips: z.array(clipSchema).default([]),
   })
+  .strict();
+export const trackPatchSchema = trackSchema
+  .pick({ name: true, disabled: true, solo: true, locked: true })
+  .extend({ muted: z.boolean().optional() })
   .strict();
 export const transitionSchema = z
   .object({

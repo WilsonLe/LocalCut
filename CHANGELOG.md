@@ -6,6 +6,7 @@ Current version: **0.1.0-alpha.1**. Short summaries for end users and executives
 
 - Keep AI connections and editing code consistent across cached releases; headless integrations can discover matching module versions.
 - Recover missing deployment assets with an explicit reload, preserving saved projects, and load fonts from consistent snapshots.
+- Manage tracks through compact menus: rename, disable, mute, solo, lock, duplicate, reorder, clear or delete, with the same operations available in reviewed AI proposals. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/pull/122/files).
 
 [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/pull/109/files)
 

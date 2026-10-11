@@ -4,6 +4,7 @@ import {
   clipPatchSchema,
   nestedId,
   trackSchema,
+  trackPatchSchema,
   transitionSchema,
   validateProject,
 } from './model';
@@ -24,6 +25,13 @@ import type { TransitionTemplate } from './timeline';
 import { transitionTemplateOperations } from './transition-templates';
 export type EditOperation =
   | { type: 'addTrack'; track: TrackInput }
+  | {
+      type: 'updateTrack';
+      trackId: string;
+      patch: z.input<typeof trackPatchSchema>;
+    }
+  | { type: 'duplicateTrack'; trackId: string; newTrackId: string }
+  | { type: 'clearTrack'; trackId: string }
   | { type: 'removeTrack'; trackId: string }
   | { type: 'reorderTrack'; trackId: string; index: number }
   | { type: 'insertClip'; trackId: string; clip: ClipInput }
@@ -109,6 +117,21 @@ const delta = z
   .max(Number.MAX_SAFE_INTEGER);
 const operationSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('addTrack'), track: trackSchema }).strict(),
+  z
+    .object({
+      type: z.literal('updateTrack'),
+      trackId: entityId,
+      patch: trackPatchSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('duplicateTrack'),
+      trackId: entityId,
+      newTrackId: entityId,
+    })
+    .strict(),
+  z.object({ type: z.literal('clearTrack'), trackId: entityId }).strict(),
   z.object({ type: z.literal('removeTrack'), trackId: z.string() }).strict(),
   z
     .object({
@@ -344,9 +367,16 @@ export function applyOperations(
 ): { project: Project; affectedIds: string[] } {
   const p = validateProject(original),
     affected = new Set<string>();
-  const track = (id: string) => {
+  const writable = (t: Project['tracks'][number]) =>
+    invariant(
+      !t.locked,
+      'INVALID_COMMAND',
+      `Track ${t.id} is locked. Unlock it before editing.`,
+    );
+  const track = (id: string, write = true) => {
     const t = p.tracks.find((t) => t.id === id);
     invariant(t, 'NOT_FOUND', `Track ${id} missing`);
+    if (write) writable(t);
     affected.add(id);
     return t;
   };
@@ -354,6 +384,7 @@ export function applyOperations(
     for (const t of p.tracks) {
       const c = t.clips.find((c) => c.id === id);
       if (c) {
+        writable(t);
         affected.add(id);
         return { t, c };
       }
@@ -371,7 +402,10 @@ export function applyOperations(
       .filter((c) => c.groupId === groupId);
     invariant(clips.length >= 2, 'NOT_FOUND', `Group ${groupId} missing`);
     affected.add(groupId);
-    for (const c of clips) affected.add(c.id);
+    for (const c of clips) {
+      locate(c.id);
+      affected.add(c.id);
+    }
     return clips;
   };
   const duplicateClip = (c: Clip, id: string, startUs: number) => {
@@ -393,8 +427,64 @@ export function applyOperations(
         p.tracks.push(trackSchema.parse(op.track));
         affected.add(op.track.id);
         break;
+      case 'updateTrack': {
+        const t = track(op.trackId, false);
+        Object.assign(t, trackPatchSchema.parse(op.patch));
+        break;
+      }
+      case 'duplicateTrack': {
+        const source = track(op.trackId, false);
+        const copy = structuredClone(source);
+        copy.id = op.newTrackId;
+        copy.name =
+          `${source.name ?? (source.kind === 'audio' ? 'Audio' : source.kind === 'overlay' ? 'Text' : 'Video')} copy`.slice(
+            0,
+            1000,
+          );
+        copy.locked = false;
+        const remap = new Map<string, string>();
+        const groups = new Map<string, Clip[]>();
+        for (const clip of source.clips)
+          if (clip.groupId)
+            groups.set(clip.groupId, [
+              ...(groups.get(clip.groupId) ?? []),
+              clip,
+            ]);
+        copy.clips = source.clips.map((clip) => {
+          const id = nestedId('clip', copy.id, clip.id);
+          remap.set(clip.id, id);
+          const item = duplicateClip(clip, id, clip.startUs);
+          if (clip.groupId && groups.get(clip.groupId)!.length > 1)
+            item.groupId = nestedId('group', copy.id, clip.groupId);
+          return item;
+        });
+        p.tracks.splice(p.tracks.indexOf(source) + 1, 0, copy);
+        for (const transition of [...p.transitions])
+          if (transition.trackId === source.id) {
+            const id = nestedId('transition', copy.id, transition.id);
+            p.transitions.push({
+              ...transition,
+              id,
+              trackId: copy.id,
+              fromClipId: remap.get(transition.fromClipId)!,
+              toClipId: remap.get(transition.toClipId)!,
+            });
+            affected.add(id);
+          }
+        affected.add(copy.id);
+        break;
+      }
+      case 'clearTrack': {
+        const t = track(op.trackId);
+        for (const clip of t.clips) affected.add(clip.id);
+        t.clips = [];
+        p.transitions = p.transitions.filter(
+          (transition) => transition.trackId !== t.id,
+        );
+        break;
+      }
       case 'removeTrack':
-        track(op.trackId);
+        for (const clip of track(op.trackId).clips) affected.add(clip.id);
         p.tracks = p.tracks.filter((t) => t.id !== op.trackId);
         p.transitions = p.transitions.filter((t) => t.trackId !== op.trackId);
         break;
@@ -681,6 +771,7 @@ export function applyOperations(
         break;
       }
       case 'addTransition':
+        track(op.transition.trackId);
         p.transitions.push(op.transition);
         affected.add(op.transition.id);
         break;
@@ -690,6 +781,7 @@ export function applyOperations(
           'NOT_FOUND',
           'Transition missing',
         );
+        track(p.transitions.find((t) => t.id === op.transitionId)!.trackId);
         p.transitions = p.transitions.filter((t) => t.id !== op.transitionId);
         affected.add(op.transitionId);
         break;
@@ -700,6 +792,7 @@ export function applyOperations(
     if (c.groupId) groups.set(c.groupId, [...(groups.get(c.groupId) ?? []), c]);
   for (const [groupId, clips] of groups)
     if (clips.length < 2) {
+      locate(clips[0]!.id);
       delete clips[0]!.groupId;
       affected.add(groupId);
       affected.add(clips[0]!.id);
