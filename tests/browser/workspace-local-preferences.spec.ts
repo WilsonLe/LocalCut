@@ -1,4 +1,4 @@
-import { openAISettings } from './workspace-settings-helper';
+import { openAISettings, openVideoExport } from './workspace-settings-helper';
 import { secondaryTab } from './workspace-tab';
 import { settingsJourney } from './workspace-settings-journey';
 import { expect, test, type Page } from '@playwright/test';
@@ -344,7 +344,7 @@ for (const base of ['/', '/LocalCut/']) {
           page.getByRole('button', { name: 'Expand media', exact: true }),
         ).toBeVisible();
         await second.close();
-        await page.getByRole('button', { name: 'Export', exact: true }).click();
+        await openVideoExport(page);
         const dialog = page.getByRole('dialog', {
           name: 'Export video',
           exact: true,

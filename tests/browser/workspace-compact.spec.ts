@@ -25,6 +25,11 @@ for (const base of ['/', '/LocalCut/']) {
     ).toHaveCount(0);
     const header = (await page.locator('.workspace-header').boundingBox())!;
     expect(header.height).toBeLessThanOrEqual(50);
+    await expect(
+      page
+        .locator('.workspace-header')
+        .getByRole('button', { name: /^(Versions|Export)$/ }),
+    ).toHaveCount(0);
     await connect.click();
     const dialog = page.getByRole('dialog', {
       name: 'AI connection',
@@ -48,6 +53,26 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     const media = page.getByRole('region', { name: 'Project media' });
     await expect(media).not.toContainText('Import video, audio or images');
+    const heading = media.locator('.section-heading');
+    const record = heading.getByRole('button', {
+      name: 'Record screen',
+      exact: true,
+    });
+    await expect(record).toBeVisible();
+    await expect(heading).toHaveCSS('flex-direction', 'row');
+    await expect(heading).toHaveCSS('border-bottom-width', '1px');
+    const titleBounds = (await heading
+      .getByRole('heading', { name: 'Media', exact: true })
+      .boundingBox())!;
+    const recordBounds = (await record.boundingBox())!;
+    expect(
+      Math.abs(
+        titleBounds.y +
+          titleBounds.height / 2 -
+          recordBounds.y -
+          recordBounds.height / 2,
+      ),
+    ).toBeLessThan(2);
     await expect(
       media.getByRole('button', { name: 'Backup', exact: true }),
     ).toHaveCount(0);
@@ -56,6 +81,9 @@ for (const base of ['/', '/LocalCut/']) {
       exact: true,
     });
     await expect(card).toBeVisible();
+    await expect(media.locator('.media-grid > :last-child')).toHaveClass(
+      'media-import-card',
+    );
     await expect(card.locator('span')).toHaveClass('sr-only');
     expect(
       await card.evaluate((el) => getComputedStyle(el).borderTopStyle),
@@ -83,6 +111,12 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       media.getByRole('button', { name: 'Asset details for card.png' }),
     ).toBeVisible();
+    await expect(media.locator('.media-grid > :first-child')).toHaveClass(
+      'media-item',
+    );
+    await expect(media.locator('.media-grid > :last-child')).toHaveClass(
+      'media-import-card',
+    );
     await page
       .getByRole('button', { name: 'Workspace settings', exact: true })
       .click();

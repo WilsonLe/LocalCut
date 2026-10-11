@@ -41,6 +41,9 @@ export async function settingsJourney(page: Page, base: string) {
     });
     await expect(projectMenu).toBeVisible();
     await expect(
+      projectMenu.getByRole('menuitem', { name: 'Versions', exact: true }),
+    ).toHaveCount(0);
+    await expect(
       projectMenu.getByRole('menuitem', { name: 'New project', exact: true }),
     ).toBeFocused();
     await expect(

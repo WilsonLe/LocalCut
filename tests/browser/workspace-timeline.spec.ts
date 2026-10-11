@@ -1,3 +1,4 @@
+import { openVersions } from './workspace-settings-helper';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -250,7 +251,7 @@ for (const base of ['/', '/LocalCut/']) {
       1, 0, 0,
     ]);
 
-    await page.getByRole('button', { name: 'Versions', exact: true }).click();
+    await openVersions(page);
     await page
       .getByRole('group', { name: 'Saved versions' })
       .getByRole('button')

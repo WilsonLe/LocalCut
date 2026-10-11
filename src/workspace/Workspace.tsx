@@ -8,8 +8,6 @@ import {
   useState,
 } from 'react';
 import {
-  ArrowUpRight,
-  History,
   LoaderCircle,
   Search,
   PanelLeftClose,
@@ -1540,24 +1538,6 @@ export function Workspace() {
           </Button>
         )}
         <div className="header-actions">
-          {project && !busy && !projectsOpen && (
-            <Button
-              variant="outline"
-              size="sm"
-              aria-label="Versions"
-              aria-expanded={versionsOpen}
-              onClick={showVersions}
-            >
-              <History />
-              <span className="header-action-label">Versions</span>
-            </Button>
-          )}
-          {!!total && !busy && !browsed && !projectsOpen && (
-            <Button size="sm" aria-label="Export" onClick={showExport}>
-              <ArrowUpRight />
-              <span className="header-action-label">Export</span>
-            </Button>
-          )}
           {!busy && (
             <Button
               id="workspace-command-trigger"
@@ -1578,6 +1558,7 @@ export function Workspace() {
                 busy={busy || !!browsed}
                 hasProject={!!project && !projectsOpen}
                 canExport={!!total && !projectsOpen}
+                canBrowseVersions={!!project && !busy && !projectsOpen}
                 mediaOpen={drawer}
                 chatCollapsed={narrow ? mobileTab !== 'chat' : chatCollapsed}
                 format={format}
@@ -1588,6 +1569,7 @@ export function Workspace() {
                 onToggleMedia={toggleMedia}
                 onToggleChat={toggleChat}
                 onExport={showExport}
+                onVersions={showVersions}
                 onFormatChange={setFormat}
                 onProjectExport={() =>
                   setTransfer({

@@ -1,3 +1,4 @@
+import { openWorkspaceGroup } from './workspace-settings-helper';
 import { chromium, expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { Asset, Project } from '../../src/editor';
@@ -206,9 +207,12 @@ for (const base of ['/', '/LocalCut/']) {
     await expect
       .poll(async () => (await snapshot(page, base)).project.id)
       .toBe(projectId);
+    const exportMenu = await openWorkspaceGroup(page, 'Export');
     await expect(
-      page.getByRole('button', { name: 'Export', exact: true }),
+      exportMenu.getByRole('menuitem', { name: 'Export video', exact: true }),
     ).toBeEnabled();
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
     // Exercise actual native exports and reopen them through the public facade.
     const exports = await page.evaluate(
       async ({ base, projectId }) => {

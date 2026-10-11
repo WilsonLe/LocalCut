@@ -216,6 +216,6 @@ This is the project record of the user's durable product and workflow choices. U
 - Let users reconnect OpenRouter or replace its key while connected; retain deliberately configured service routes and models. Keep provider identity, status and connection actions together, with optional details revealed progressively.
 ## Compact editor controls — 11 October 2026
 
-- Reserve space for the editing workspace: compact the header and use an icon-only Add text control with accessible labels/tooltips.
-- Remove the media import helper sentence and the separate import/backup button row. Show an outlined import card with an upload icon in the media grid, including its empty state. Keep backup under the grouped settings menu.
+- Reserve space for the editing workspace: compact the header and use an icon-only Add text control with accessible labels/tooltips. Move Versions into Settings → Project and video export into Settings → Export; remove their separate header buttons.
+- Remove the media import helper sentence and the separate import/backup button row. Show an outlined import card with an upload icon in the media grid, including its empty state. Keep backup under the grouped settings menu. Arrange media left-to-right, top-to-bottom, with the import card last. Place screen recording alongside the Media title and add a horizontal divider beneath the header.
 - When no configured chat provider is available, show “Connect provider first” and a connection button instead of the composer and unavailable send/media controls. Apply this to all supported providers, including OpenRouter and compatible endpoints.

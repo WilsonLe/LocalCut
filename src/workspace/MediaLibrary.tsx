@@ -44,18 +44,6 @@ export default function MediaLibrary({
         )}
       </div>
       <div className="media-grid">
-        {canEdit && (
-          <Tooltip content="Import media">
-            <button
-              type="button"
-              className="media-import-card"
-              onClick={onImport}
-            >
-              <Upload aria-hidden="true" />
-              <span className="sr-only">Import media</span>
-            </button>
-          </Tooltip>
-        )}
         {assets.map((asset) => (
           <div className="media-item" key={asset.id}>
             <Suspense fallback={<AssetPreview editor={null} asset={asset} />}>
@@ -99,6 +87,18 @@ export default function MediaLibrary({
             )}
           </div>
         ))}
+        {canEdit && (
+          <Tooltip content="Import media">
+            <button
+              type="button"
+              className="media-import-card"
+              onClick={onImport}
+            >
+              <Upload aria-hidden="true" />
+              <span className="sr-only">Import media</span>
+            </button>
+          </Tooltip>
+        )}
       </div>
     </section>
   );

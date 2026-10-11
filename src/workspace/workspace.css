@@ -391,10 +391,12 @@
   pointer-events: none;
 }
 .media-library .section-heading {
-  align-items: flex-start;
-  flex-direction: column;
-  gap: 16px;
+  align-items: center;
+  flex-direction: row;
+  gap: 8px;
   padding-right: 26px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
 }
 .new-project-dialog {
   padding: 28px;

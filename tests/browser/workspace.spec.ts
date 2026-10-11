@@ -1,6 +1,6 @@
 import { dismissNotifications } from './workspace-notifications-helper';
 import { dragPlayhead } from './workspace-playhead-helper';
-import { openAISettings } from './workspace-settings-helper';
+import { openAISettings, openVideoExport } from './workspace-settings-helper';
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -537,7 +537,7 @@ for (const base of ['/', '/LocalCut/']) {
       durationUs: 500000,
     });
     for (const format of ['mp4', 'webm']) {
-      await page.getByRole('button', { name: 'Export', exact: true }).click();
+      await openVideoExport(page);
       const dialog = page.getByRole('dialog', {
         name: 'Export video',
         exact: true,
@@ -926,7 +926,7 @@ test('workspace imports image, audio and video, handles invalid input and cancel
   await page
     .getByRole('button', { name: 'Apply properties', exact: true })
     .click();
-  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  await openVideoExport(page);
   const dialog = page.getByRole('dialog', {
     name: 'Export video',
     exact: true,
