@@ -1,8 +1,34 @@
 # Development loop
 
-Start with [CONTRIBUTING.md](../CONTRIBUTING.md), the [agent contract](../AGENTS.md) and, for workspace changes, [user preferences](user-preferences.md). Use the pinned setup and [command table](../README.md#setup). Work in an issue-linked isolated feature worktree; reuse the task's existing worktree and draft PR when continuing a change.
+Start with [CONTRIBUTING.md](../CONTRIBUTING.md), the [agent contract](../AGENTS.md) and, for workspace changes, [user preferences](user-preferences.md). Use the [setup guide](setup.md) and [command reference](#commands). Work in an issue-linked isolated feature worktree; reuse the task's existing worktree and draft PR when continuing a change.
 
 Verify Node 24, pnpm 11.25.0, and installed stable Google Chrome once, then reuse that setup throughout the iteration. Run `pnpm install --frozen-lockfile` when dependencies are missing or the lockfile changes; do not reinstall or download a browser after every edit. Generic Playwright Chromium does not satisfy the native codec acceptance gate.
+
+## Commands
+
+| Command                               | Purpose                                                       |
+| ------------------------------------- | ------------------------------------------------------------- |
+| `pnpm dev`                            | Local editor workspace at the root path                       |
+| `pnpm typecheck`                      | Strict browser, worker, Node/test/config checks               |
+| `pnpm lint`                           | ESLint and pure-core import boundaries                        |
+| `pnpm format:check`                   | Prettier                                                      |
+| `pnpm test`                           | Domain and service unit tests                                 |
+| `pnpm build`                          | App + `editor.js` + `ai.js` + worker assets + declarations    |
+| `pnpm build:root`                     | Equivalent build at `/` in `dist-root`                        |
+| `pnpm test:browser`                   | Production integration in Google Chrome                       |
+| `pnpm test:safari`                    | Native Safari storage and H.264/AAC regressions (macOS)       |
+| `pnpm test:profile <label> <command>` | Wall time, descendant CPU/RSS and host utilization profile    |
+| `pnpm test:tooling`                   | Resource scheduling and verified-build cache regressions      |
+| `pnpm test:ui`                        | Focused workspace tests; rebuild only stale production assets |
+| `pnpm test:transcription`             | Real pinned Whisper preparation and cached replay             |
+| `pnpm test:performance`               | Warmup, two- and five-minute 1080p exports                    |
+| `pnpm test:ai:live`                   | Opt-in real OpenRouter test; private key and model required   |
+| `pnpm check:bundle`                   | Actual entry graph and static artifact budgets                |
+| `pnpm check`                          | Normal formatting/lint/type/unit/build/bundle/browser gates   |
+
+Browser commands require both production builds first, except `test:ui` and `test:safari`, which verify or build them automatically. The harness server is test-only and never enters `dist`. See [build reuse and resource scheduling](#expand-verification-at-the-boundary) and [native browser verification](browser-support.md#native-browser-verification).
+
+TypeScript 7.0.2 supplies `tsc` through the `@typescript/native` alias. The `typescript` alias supplies Microsoft's pinned v6 compatibility API for typescript-eslint; it does not replace the production compiler. Dependencies and the lockfile are exact.
 
 ## Read guidance at the file's scope
 
@@ -144,8 +170,8 @@ Merge requires authorization and triggers automatic Pages deployment on `main`. 
 ## Indexing checks
 
 ```sh
-pnpm test tests/unit/asset-index.test.ts tests/unit/asset-index-provider.test.ts
-pnpm test:ui --grep 'workspace indexing'
+pnpm test tests/unit/asset-index.test.ts tests/unit/asset-index-provider.test.ts tests/unit/assistant.test.ts
+pnpm test:ui --grep 'workspace indexing|chat indexing'
 # After both current builds:
 pnpm test:browser tests/browser/asset-index.spec.ts
 pnpm test:performance

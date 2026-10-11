@@ -3,7 +3,7 @@
 ## Start here
 
 - Read [user preferences](docs/user-preferences.md); update that record when the user states a durable preference. Newer explicit choices take precedence.
-- Use [README setup and commands](README.md#setup), then the [development guide](docs/development.md) for module ownership, focused checks, and failure recovery. Read the relevant API, storage, AI, or deployment contract only when the change touches it.
+- Use the [setup guide](docs/setup.md) and [command reference](docs/development.md#commands), then the [development guide](docs/development.md) for module ownership, focused checks, and failure recovery. Read the relevant API, storage, AI, or deployment contract only when the change touches it.
 - Before editing a file, read the `AGENTS.md` files in its ancestor directories, including the nearest module guide. Root guidance applies everywhere; nested guidance adds the local contract. Keep instructions at their narrowest useful scope and link shared rules instead of copying them.
 - Inspect the current branch, dirty files, base, and linked issue/PR before editing. Reuse the task's isolated feature worktree and existing tracking issue; preserve unrelated work. Keep the issue's scope current before implementation.
 

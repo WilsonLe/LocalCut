@@ -27,6 +27,7 @@ import {
 } from '../components/ui/dialog';
 import { formatTime } from './helpers';
 import { errorText } from './conversation-errors';
+import { taskTerminal } from '../services/task-queue';
 import { hashDistance, histogramDistance } from '../core/asset-index';
 const indexError = (e: unknown) => {
   const code = e && typeof e === 'object' && 'code' in e ? e.code : '';
@@ -98,7 +99,12 @@ export default function AssetIndexControls({
   useEffect(() => {
     mounted.current = true;
     void refresh().catch((e) => toast.error(indexError(e)));
+    const stop = editor?.tasks.subscribe((task) => {
+      if (task.kind.startsWith('index.labels:') && taskTerminal(task.state))
+        void refresh().catch((e) => toast.error(indexError(e)));
+    });
     return () => {
+      stop?.();
       mounted.current = false;
       current.current?.job.cancel();
       void current.current?.indexer.dispose();

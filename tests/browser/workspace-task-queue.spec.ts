@@ -10,6 +10,17 @@ for (const base of ['/', '/LocalCut/']) {
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
+    if (base === '/LocalCut/') {
+      await page.addInitScript(() =>
+        localStorage.setItem(
+          'localcut.appearance.v1',
+          JSON.stringify({
+            version: 1,
+            preferences: { mode: 'dark', base: 'slate' },
+          }),
+        ),
+      );
+    }
     await page.goto(base);
     await page
       .getByRole('button', { name: 'Workspace settings', exact: true })
@@ -186,6 +197,12 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await expect(right).toBeVisible();
     await expect(left).toHaveCount(0);
+    // The control remains an accessible target but paints only its chevron.
+    for (const hover of [false, true]) {
+      if (hover) await right.hover();
+      await expect(right).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+      await expect(right).toHaveCSS('border-top-width', '0px');
+    }
     await page.screenshot({
       animations: 'disabled',
       path: `.artifacts/task-queue/${base === '/' ? 'root' : 'pages'}-narrow.png`,

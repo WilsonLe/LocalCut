@@ -12,6 +12,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -867,31 +868,27 @@ export function Conversation(props: ConversationProps) {
     onSpeechAvailability?.(!!speechReady);
   }, [speechReady, onSpeechAvailability]);
   const onIndexConnection = props.onIndexConnection;
-  useEffect(() => {
-    onIndexConnection?.(
+  const indexConnection = useMemo<IndexConnection | null>(
+    () =>
       connection &&
-        selectedModel &&
-        indexingAllowed &&
-        providerConfiguration.profiles.find(
-          (p) => p.id === providerConfiguration.routes.llm[0]?.providerId,
-        )?.kind === 'openrouter' &&
-        connection.provider.selectedProvider('llm') ===
-          providerConfiguration.routes.llm[0]?.providerId
+      selectedModel &&
+      indexingAllowed &&
+      providerConfiguration.profiles.find(
+        (p) => p.id === providerConfiguration.routes.llm[0]?.providerId,
+      )?.kind === 'openrouter' &&
+      connection.provider.selectedProvider('llm') ===
+        providerConfiguration.routes.llm[0]?.providerId
         ? {
             ...connection,
             model,
             inputModalities: selectedModel.inputModalities ?? [],
           }
         : null,
-    );
-  }, [
-    connection,
-    selectedModel,
-    model,
-    indexingAllowed,
-    onIndexConnection,
-    providerConfiguration,
-  ]);
+    [connection, selectedModel, indexingAllowed, providerConfiguration, model],
+  );
+  useEffect(() => {
+    onIndexConnection?.(indexConnection);
+  }, [indexConnection, onIndexConnection]);
   const sessionKey = `${connection?.id}:${props.project?.id}:${model}:${privacy.includeText}:${privacy.includeAssetNames}:${privacy.includeTranscripts}:${indexingAllowed}`;
 
   const [sessionScope, setSessionScope] = useState(sessionKey);
@@ -1082,6 +1079,7 @@ export function Conversation(props: ConversationProps) {
                   editor={props.editor!}
                   project={props.project!}
                   connection={connection}
+                  indexConnection={indexConnection}
                   model={model}
                   privacy={{ ...privacy, includeAssetIndexes: indexingAllowed }}
                   registerSession={registerSession}

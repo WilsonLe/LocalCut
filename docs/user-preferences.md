@@ -263,6 +263,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 ## Open-source documentation — 11 October 2026
 
+- Keep README sections short, including setup and browser support. Link to longer setup instructions and the relevant detailed guides instead of embedding command tables or extended compatibility notes.
 - Maintain newcomer-facing README, contributor, deployment, support, security, community and maintainer guidance so LocalCut is approachable as an open-source project. Keep the technical contracts accurate and connected through a documentation index.
 - License LocalCut's original code and documentation under MIT. Preserve separate third-party, font, model and fixture licenses/notices.
 
@@ -332,7 +333,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 ## Task queue table — 11 October 2026
 
-- Render the task queue using the shadcn Base table. When columns overflow horizontally, show shaded left/right chevrons only in directions with more content; clicking moves one column in that direction.
+- Render the task queue using the shadcn Base table. When columns overflow horizontally, show shaded left/right chevrons only in directions with more content; clicking moves one column in that direction. Render standalone chevrons without visible button boxes over a shaded gradient using theme colors; retain accessible click targets and keyboard focus.
 
 ## Project switcher dialog — 11 October 2026
 
@@ -356,3 +357,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Use a dropdown of the selected TTS model's catalog voices in AI connector settings, rather than a raw voice text field.
 - Remove blank space above populated dropdown options across the app; empty-result messages retain their normal readable spacing.
+
+## Chat asset indexing — 11 October 2026
+
+- Let the chat agent index assets through the existing shared indexer. Keep remembered indexing consent and explicit proposal approval, disclose derived-evidence sharing and possible cost, and reuse progress/cancellation and saved local results.

@@ -6,7 +6,8 @@ Choose a starting point for the work you want to do. Current behavior lives in t
 
 | Guide                                 | What it covers                                                     |
 | ------------------------------------- | ------------------------------------------------------------------ |
-| [Project overview](../README.md)      | Features, browser limits, demo, setup and commands                 |
+| [Project overview](../README.md)      | Features, demo and links to detailed guides                        |
+| [Browser support](browser-support.md) | Chrome/Safari coverage, capture, local data and offline limits     |
 | [Getting started](getting-started.md) | First edit, AI choices, exports, versions and portable backups     |
 | [Privacy and data flows](privacy.md)  | Local storage, remote actions, credentials and deletion boundaries |
 | [Troubleshooting](troubleshooting.md) | Storage, codec, model, provider and setup failures                 |
@@ -18,6 +19,7 @@ Choose a starting point for the work you want to do. Current behavior lives in t
 | Guide                                         | What it covers                                                     |
 | --------------------------------------------- | ------------------------------------------------------------------ |
 | [Contributing](../CONTRIBUTING.md)            | Issue-first changes, setup, validation, PRs and licensing          |
+| [Source setup](setup.md)                      | Prerequisites, installation, local start and next steps            |
 | [Development](development.md)                 | Module ownership, focused checks, build reuse and failure recovery |
 | [Architecture](architecture.md)               | Runtime boundaries and state ownership                             |
 | [API](api.md)                                 | Headless editor contracts, commands and lifecycle                  |

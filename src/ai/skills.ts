@@ -18,6 +18,11 @@ export const skillCatalog = [
       'Inspect local speech readiness, prepare models, transcribe or read shared transcripts.',
   },
   {
+    id: 'indexing',
+    description:
+      'Inspect selected media and propose asset indexing with derived-evidence sharing and explicit approval.',
+  },
+  {
     id: 'history',
     description: 'Propose Undo or Redo of committed project edits.',
   },
@@ -31,6 +36,7 @@ export function availableSkills(
   return skillCatalog.filter(
     ({ id }) =>
       id === 'editing' ||
+      (id === 'indexing' && capabilities.indexing) ||
       (id === 'export' && capabilities.export) ||
       (id === 'history' && (capabilities.undo || capabilities.redo)) ||
       (id === 'transcription' &&
@@ -49,6 +55,8 @@ export async function loadSkill(id: SkillId): Promise<string> {
       return (await import('./skills/export')).instructions;
     case 'transcription':
       return (await import('./skills/transcription')).instructions;
+    case 'indexing':
+      return (await import('./skills/indexing')).instructions;
     case 'history':
       return (await import('./skills/history')).instructions;
   }
