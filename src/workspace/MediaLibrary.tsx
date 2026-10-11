@@ -12,7 +12,6 @@ import type { Asset, Editor } from '../editor';
 import type { IndexConnection } from './Conversation';
 import AssetIndexControls from './AssetIndexControls';
 import { Menu } from '@base-ui/react/menu';
-import { toast } from 'sonner';
 import { assetMenuItemClass } from './AssetMenu';
 import { Input } from '../components/ui/input';
 import {
@@ -263,9 +262,6 @@ function MediaAssetCard({
       if (dialog === 'rename') await onRename(original, name.trim());
       else await onDelete(asset);
       setDialog(null);
-      toast.success(
-        dialog === 'rename' ? 'Asset renamed' : 'Asset removed from project',
-      );
     } catch (e) {
       setFailure(
         e instanceof Error
