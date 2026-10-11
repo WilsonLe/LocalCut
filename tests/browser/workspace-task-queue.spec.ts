@@ -1,5 +1,10 @@
 import { expect, test } from '@playwright/test';
 
+type ProgressFixture = {
+  advance: (progress: number) => void;
+  finish: () => Promise<void>;
+};
+
 for (const base of ['/', '/LocalCut/']) {
   test(`task queue table scrolls one column and preserves saved actions ${base}`, async ({
     page,
@@ -52,6 +57,21 @@ for (const base of ['/', '/LocalCut/']) {
       await tasks.dispose();
     }, base);
     await page.getByRole('button', { name: 'Task queue', exact: true }).click();
+    const resize = async (width: number, height: number) => {
+      await page.setViewportSize({ width, height });
+      const mobileNavigation = page.getByRole('navigation', {
+        name: 'Workspace sections',
+        includeHidden: true,
+      });
+      if (width < 600) await expect(mobileNavigation).toBeVisible();
+      else await expect(mobileNavigation).toHaveCount(0);
+      // Wait for the responsive header to settle before reopening its queue.
+      if (!(await queue.isVisible()))
+        await page
+          .getByRole('button', { name: 'Task queue', exact: true })
+          .click();
+      await expect(queue).toBeVisible();
+    };
     const row = queue.getByRole('row', { name: 'Saved output', exact: true });
     await expect(
       queue.getByRole('table', { name: 'Saved tasks' }),
@@ -64,6 +84,71 @@ for (const base of ['/', '/LocalCut/']) {
       'Actions',
     ]);
     await expect(row.getByRole('status')).toContainText('completed');
+    await expect(row.getByRole('status')).toContainText('100%');
+    await page.evaluate(async (base) => {
+      const { TaskQueue } = await import(base + 'editor.js');
+      const tasks = new TaskQueue('localcut', { pollMs: 10 });
+      let advance!: (progress: number) => void;
+      let release!: () => void;
+      let entered!: () => void;
+      const started = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      tasks.register('table-progress', {
+        lane: 'local',
+        recovery: 'safe',
+        execute: async (
+          _input: unknown,
+          context: {
+            progress: (event: { stage: string; progress: number }) => void;
+          },
+        ) => {
+          advance = (progress) =>
+            context.progress({ stage: 'Processing', progress });
+          advance(0.25);
+          entered();
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          return { text: 'Done' };
+        },
+      });
+      const job = tasks.enqueue(
+        'table-progress',
+        {},
+        { label: 'Progress task' },
+      );
+      await started;
+      Object.assign(window, {
+        queueProgressFixture: {
+          advance,
+          finish: async () => {
+            release();
+            await job.completion;
+            await tasks.remove(job.id);
+            await tasks.dispose();
+          },
+        },
+      });
+    }, base);
+    const live = queue
+      .getByRole('row', { name: 'Progress task', exact: true })
+      .getByRole('status');
+    await expect(live).toContainText('Processing');
+    await expect(live).toContainText('25%');
+    await page.evaluate(() =>
+      (
+        window as unknown as { queueProgressFixture: ProgressFixture }
+      ).queueProgressFixture.advance(0.75),
+    );
+    await expect(live).toContainText('Processing');
+    await expect(live).toContainText('75%');
+    await page.evaluate(() =>
+      (
+        window as unknown as { queueProgressFixture: ProgressFixture }
+      ).queueProgressFixture.finish(),
+    );
+    await expect(live).toHaveCount(0);
     await expect(
       queue.getByRole('button', { name: /Scroll one column/ }),
     ).toHaveCount(0);
@@ -71,7 +156,7 @@ for (const base of ['/', '/LocalCut/']) {
       path: `.artifacts/task-queue/${base === '/' ? 'root' : 'pages'}-desktop.png`,
     });
 
-    await page.setViewportSize({ width: 390, height: 844 });
+    await resize(390, 844);
     const region = queue.getByRole('region', { name: 'Task queue columns' });
     const left = queue.getByRole('button', { name: 'Scroll one column left' });
     const right = queue.getByRole('button', {
@@ -129,7 +214,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(left).toBeVisible();
     await expect.poll(position).toBeCloseTo(maximum, 0);
     // Resize while at the far edge: both controls disappear when every column fits.
-    await page.setViewportSize({ width: 1440, height: 1000 });
+    await resize(1440, 1000);
     await expect(
       queue.getByRole('button', { name: /Scroll one column/ }),
     ).toHaveCount(0);
@@ -168,14 +253,14 @@ for (const base of ['/', '/LocalCut/']) {
         ),
       )
       .toBe(true);
-    await page.setViewportSize({ width: 390, height: 844 });
+    await resize(390, 844);
     await expect(right).toBeVisible();
     const controlBounds = await right.boundingBox();
     expect(controlBounds!.y + controlBounds!.height).toBeLessThan(844);
     await region.focus();
     await page.keyboard.press('ArrowRight');
     await expect.poll(position).toBeGreaterThan(0);
-    await page.setViewportSize({ width: 1440, height: 1000 });
+    await resize(1440, 1000);
     await page.screenshot({
       path: `.artifacts/task-queue/${base === '/' ? 'root' : 'pages'}-long.png`,
     });

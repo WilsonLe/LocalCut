@@ -324,6 +324,12 @@ export default function TaskQueueDialog({
                         className="text-xs text-muted-foreground"
                       >
                         {task.state} · {task.stage}
+                        {task.progress !== undefined && (
+                          <span className="sr-only">
+                            {' '}
+                            · {Math.round(task.progress * 100)}%
+                          </span>
+                        )}
                       </p>
                       {task.error && (
                         <p
