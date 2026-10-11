@@ -21,6 +21,29 @@ import {
 type Phase =
   'idle' | 'choosing' | 'recording' | 'stopping' | 'ready' | 'adding';
 
+// Browser identity selects advice only; the capture service checks actual tracks.
+function sharedAudioGuidance(userAgent: string) {
+  const chromium = /(?:Chrome|Chromium|Edg|OPR)\//.test(userAgent);
+  const browser = /Firefox\//.test(userAgent)
+    ? 'Firefox'
+    : /Safari\//.test(userAgent) && !chromium
+      ? 'Safari'
+      : undefined;
+  if (browser)
+    return `${browser} does not provide shared tab or system audio here. Turn off Include shared audio to record without sound, or open LocalCut and the page you want to record in Chrome or Edge and share a browser tab with audio enabled.`;
+  if (chromium) {
+    const name = /Edg\//.test(userAgent)
+      ? 'Edge'
+      : /OPR\//.test(userAgent)
+        ? 'Opera'
+        : /Chrome\//.test(userAgent)
+          ? 'Chrome'
+          : 'this browser';
+    return `In ${name}, choose a browser tab and enable Share tab audio in the sharing picker. Screen and window audio depend on your browser and operating system.`;
+  }
+  return 'Shared audio depends on your browser, operating system and selected source. Enable audio in the sharing picker where offered. If unavailable, record without sound or open LocalCut and the target page in Chrome or Edge and share a tab with audio enabled.';
+}
+
 export default function ScreenRecordingDialog({
   onClose,
   onAdd,
@@ -150,14 +173,18 @@ export default function ScreenRecordingDialog({
                 id="record-shared-audio"
                 checked={audio}
                 onCheckedChange={(checked) => setAudio(checked === true)}
+                aria-describedby={
+                  audio ? 'record-shared-audio-help' : undefined
+                }
               />
               <Label htmlFor="record-shared-audio">Include shared audio</Label>
             </div>
             {audio && (
-              <p className="text-sm text-muted-foreground">
-                Enable audio in the browser’s sharing picker too. For YouTube in
-                Safari, use Chrome and share the YouTube tab with tab audio
-                enabled.
+              <p
+                id="record-shared-audio-help"
+                className="text-sm text-muted-foreground"
+              >
+                {sharedAudioGuidance(navigator.userAgent)}
               </p>
             )}
           </div>
