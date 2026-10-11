@@ -103,13 +103,22 @@ for (const base of ['/', '/LocalCut/']) {
             progress: (event: { stage: string; progress: number }) => void;
           },
         ) => {
-          advance = (progress) =>
-            context.progress({ stage: 'Processing', progress });
+          let progressTimer: number | undefined;
+          advance = (progress) => {
+            if (progressTimer !== undefined)
+              window.clearInterval(progressTimer);
+            const emit = () =>
+              context.progress({ stage: 'Processing', progress });
+            emit();
+            // Model ongoing native work; the queue coalesces fixed-stage updates.
+            progressTimer = window.setInterval(emit, 20);
+          };
           advance(0.25);
           entered();
           await new Promise<void>((resolve) => {
             release = resolve;
           });
+          window.clearInterval(progressTimer);
           return { text: 'Done' };
         },
       });
@@ -153,6 +162,7 @@ for (const base of ['/', '/LocalCut/']) {
       queue.getByRole('button', { name: /Scroll one column/ }),
     ).toHaveCount(0);
     await page.screenshot({
+      animations: 'disabled',
       path: `.artifacts/task-queue/${base === '/' ? 'root' : 'pages'}-desktop.png`,
     });
 
@@ -177,6 +187,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(right).toBeVisible();
     await expect(left).toHaveCount(0);
     await page.screenshot({
+      animations: 'disabled',
       path: `.artifacts/task-queue/${base === '/' ? 'root' : 'pages'}-narrow.png`,
     });
     await right.click();
@@ -262,6 +273,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect.poll(position).toBeGreaterThan(0);
     await resize(1440, 1000);
     await page.screenshot({
+      animations: 'disabled',
       path: `.artifacts/task-queue/${base === '/' ? 'root' : 'pages'}-long.png`,
     });
     await page.keyboard.press('Escape');
