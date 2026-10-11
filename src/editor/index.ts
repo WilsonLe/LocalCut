@@ -1,3 +1,8 @@
+export type {
+  Storyboard,
+  StoryboardElement,
+  StoryboardPatch,
+} from '../core/storyboard';
 import { Store } from '../storage/store';
 import { AssetIndexStore } from '../storage/asset-index';
 import type {

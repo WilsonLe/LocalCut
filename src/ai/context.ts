@@ -1,3 +1,4 @@
+import type { Storyboard } from '../core/storyboard';
 import type { Asset, Project, Transcript } from '../core/model';
 import { durationUs, parameterSchema } from '../core/model';
 import { frameTimeUs, gainAt, sourceTimeUs, valueAt } from '../core/timing';
@@ -26,9 +27,14 @@ export function boundedContext<T>(value: T, maxBytes: number): T {
 }
 
 export function projectContext(project: Project, policy: ContextPolicy = {}) {
-  const { name, tracks, ...settings } = project;
+  const { name, tracks, storyboard, ...settings } = project;
   return {
     ...settings,
+    storyboard: {
+      elementCount:
+        storyboard?.elements.filter((e) => !e.isDeleted).length ?? 0,
+      tool: 'inspect_storyboard',
+    },
     ...(policy.includeAssetNames ? { name } : {}),
     tracks: tracks.map(({ name, ...track }) => ({
       ...track,
@@ -150,6 +156,31 @@ export function timelineContext(
           blackBackground: transition.kind === 'black',
         },
       ];
+    }),
+  };
+}
+
+/** Bounded structural inspection; arbitrary local labels are never sent implicitly. */
+export function storyboardContext(
+  scene: Storyboard | undefined,
+  policy: ContextPolicy,
+  offset = 0,
+  limit = 50,
+) {
+  const elements = scene?.elements.filter((e) => !e.isDeleted) ?? [];
+  return {
+    total: elements.length,
+    offset,
+    nextOffset: offset + limit < elements.length ? offset + limit : null,
+    backgroundColor: scene?.backgroundColor ?? '#ffffff',
+    elements: elements.slice(offset, offset + limit).map((e) => {
+      const { text, originalText, name, ...geometry } = e;
+      return {
+        ...geometry,
+        ...(policy.includeText
+          ? { text, originalText, name }
+          : { hasText: text !== undefined, hasName: name != null }),
+      };
     }),
   };
 }

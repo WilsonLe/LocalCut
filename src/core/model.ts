@@ -1,3 +1,4 @@
+import { storyboardSchema, validateStoryboard } from './storyboard';
 import { z } from 'zod';
 import { averageSpeed, nominalSourceBounds } from './speed';
 import { speedRampSchema } from './speed-schema';
@@ -243,6 +244,7 @@ export const projectSchema = z
       .strict(),
     tracks: z.array(trackSchema),
     transitions: z.array(transitionSchema).default([]),
+    storyboard: storyboardSchema.optional(),
   })
   .strict();
 export type Project = z.infer<typeof projectSchema>;
@@ -427,6 +429,7 @@ export function validateProject(value: unknown): Project {
     ids.add(key);
   };
   unique(project.id);
+  if (project.storyboard) validateStoryboard(project.storyboard);
   for (const track of project.tracks) {
     unique(track.id);
     for (const clip of track.clips) {

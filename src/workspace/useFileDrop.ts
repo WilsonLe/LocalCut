@@ -13,7 +13,12 @@ function hasFiles(transfer: DataTransfer | null) {
 export function useFileDrop(enabled: boolean, onDrop: (files: File[]) => void) {
   const [hovering, setHovering] = useState(false);
   const depth = useRef(0);
-  const accept = useEffectEvent(() => enabled && !hasBlockingOverlay());
+  const accept = useEffectEvent(
+    (target: EventTarget | null) =>
+      enabled &&
+      !hasBlockingOverlay() &&
+      !(target instanceof Element && target.closest('[data-storyboard]')),
+  );
   const importFiles = useEffectEvent(onDrop);
   useEffect(() => {
     const reset = () => {
@@ -24,13 +29,13 @@ export function useFileDrop(enabled: boolean, onDrop: (files: File[]) => void) {
       if (!hasFiles(event.dataTransfer)) return;
       event.preventDefault();
       depth.current++;
-      setHovering(accept());
+      setHovering(accept(event.target));
     };
     const over = (event: DragEvent) => {
       if (!hasFiles(event.dataTransfer)) return;
       event.preventDefault();
-      event.dataTransfer!.dropEffect = accept() ? 'copy' : 'none';
-      setHovering(accept());
+      event.dataTransfer!.dropEffect = accept(event.target) ? 'copy' : 'none';
+      setHovering(accept(event.target));
     };
     const leave = () => {
       depth.current = Math.max(0, depth.current - 1);
@@ -41,7 +46,7 @@ export function useFileDrop(enabled: boolean, onDrop: (files: File[]) => void) {
       // Never let the browser navigate to a file, including in blocked views.
       event.preventDefault();
       event.stopPropagation();
-      const allowed = accept();
+      const allowed = accept(event.target);
       const files = Array.from(event.dataTransfer!.files);
       reset();
       if (allowed && files.length) importFiles(files);

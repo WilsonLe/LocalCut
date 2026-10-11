@@ -217,3 +217,15 @@ These optional fields use existing document/history/backup serialization without
 `retimeSpeechTranscript(timing, originalDurationUs, renderedDurationUs)` proportionally maps measured phrases to the rendered WAV, retaining IDs and pauses. `padSpeechTranscript(timing, durationUs, paddingUs = 80000)` expands editing ranges, clipped to source endpoints and neighboring midpoint boundaries so they never overlap. `transcription.attach(assetId, timing, speech?)` validates and commits a canonical transcript and returns its ID for an `insertClip` operation. Metadata stores the original script, TTS model/voice/languages/directions, original duration, rendered-source measured cues and padding. Keep recognized text distinct from the authored script: transcription is an estimate, not forced alignment. Retimed boundaries are proportional estimates, with the same small timing uncertainty as ASR/WSOLA. Attachment is a short canonical commit; measurement is durable queued work.
 
 The speech task checkpoints normalized audio before measurement, and timing before rendering. Timing failure preserves the take; explicit retry does not synthesize it again. Completed result/input/checkpoint records and saved voice references retain measured phrases. Legacy takes without timing remain readable and offer explicit measurement. Imported clips link `transcriptId`, and project/workspace backups preserve the transcript metadata. `read_transcript` exposes both measured boundaries and padded editing ranges only after transcript-sharing consent. No raw audio or reference bytes are included in that tool.
+
+## Storyboard commands
+
+`Project.storyboard` is optional and contains `{ elements, backgroundColor }`, with stable Excalidraw vector/text element IDs. `projects.snapshot` reads it without loading the canvas library. The public types include `Storyboard`, `StoryboardElement` and `StoryboardPatch`.
+
+All storyboard mutations use `commands.validate/apply`, request IDs and expected revisions:
+
+- `upsertStoryboardElements { elements: [{ id, type?, x?, y?, width?, height?, text?, ... }] }` creates or patches elements. New elements need a type; omitted fields in existing elements are preserved. Types are rectangle, diamond, ellipse, text, line, arrow, freedraw and frame. Text requires `text`; linear/freehand drawings require local `points`. Existing types cannot change. Common style defaults are applied only to new elements.
+- `removeStoryboardElements { elementIds }` removes elements and clears references to them from frames, text containers and arrow bindings.
+- `setStoryboard { storyboard: { elements, backgroundColor } }` replaces the complete scene, as used by direct Excalidraw drawing. It never changes timeline clips or media.
+
+Scenes are bounded to 5,000 unique elements, 20,000 points per drawing and 100,000 characters per text element. Only defined fields are accepted; files, media bytes, web embeds, links and arbitrary custom metadata are excluded. Undo/Redo, autosaved versions and backups reuse the canonical project owners.

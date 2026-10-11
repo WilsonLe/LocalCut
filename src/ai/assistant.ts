@@ -1,3 +1,4 @@
+import { storyboardContext } from './context';
 import type { AssetIndexRun } from '../core/asset-index';
 import type { CommandBatch, EditReceipt } from '../core/commands';
 import { assetIds, durationUs } from '../core/model';
@@ -533,6 +534,13 @@ export function createAssistant(options: AssistantOptions) {
                 args.limit as number | undefined,
               );
             }
+            case 'inspect_storyboard':
+              return storyboardContext(
+                snapshot.storyboard,
+                policy,
+                args.offset as number,
+                args.limit as number,
+              );
             case 'inspect_project':
               return projectContext(snapshot, policy);
             case 'inspect_timeline':

@@ -1,3 +1,10 @@
+import {
+  storyboardSchema,
+  storyboardPatchSchema,
+  upsertStoryboard,
+  removeStoryboard,
+} from './storyboard';
+import type { Storyboard, StoryboardPatch } from './storyboard';
 import { z } from 'zod';
 import {
   clipSchema,
@@ -31,6 +38,9 @@ import type { TransitionTemplate } from './timeline';
 import { transitionTemplateOperations } from './transition-templates';
 export type EditOperation =
   | { type: 'renameProject'; name: string }
+  | { type: 'setStoryboard'; storyboard: Storyboard }
+  | { type: 'upsertStoryboardElements'; elements: StoryboardPatch[] }
+  | { type: 'removeStoryboardElements'; elementIds: string[] }
   | { type: 'addTrack'; track: TrackInput }
   | {
       type: 'updateTrack';
@@ -124,6 +134,21 @@ const delta = z
   .min(-Number.MAX_SAFE_INTEGER)
   .max(Number.MAX_SAFE_INTEGER);
 const operationSchema = z.discriminatedUnion('type', [
+  z
+    .object({ type: z.literal('setStoryboard'), storyboard: storyboardSchema })
+    .strict(),
+  z
+    .object({
+      type: z.literal('upsertStoryboardElements'),
+      elements: z.array(storyboardPatchSchema).min(1).max(5000),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('removeStoryboardElements'),
+      elementIds: z.array(entityId).min(1).max(5000),
+    })
+    .strict(),
   z
     .object({
       type: z.literal('renameProject'),
@@ -444,6 +469,24 @@ export function applyOperations(
   for (let index = 0; index < pending.length; index++) {
     const op = pending[index]!;
     switch (op.type) {
+      case 'setStoryboard':
+        p.storyboard = op.storyboard;
+        affected.add(p.id);
+        break;
+      case 'upsertStoryboardElements':
+        p.storyboard = upsertStoryboard(
+          p.storyboard ?? { elements: [], backgroundColor: '#ffffff' },
+          op.elements,
+        );
+        op.elements.forEach((e) => affected.add(e.id));
+        break;
+      case 'removeStoryboardElements':
+        p.storyboard = removeStoryboard(
+          p.storyboard ?? { elements: [], backgroundColor: '#ffffff' },
+          op.elementIds,
+        );
+        op.elementIds.forEach((id) => affected.add(id));
+        break;
       case 'renameProject':
         p.name = op.name;
         affected.add(p.id);

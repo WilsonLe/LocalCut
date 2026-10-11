@@ -3,6 +3,11 @@ import type { AssistantCapabilities } from './actions';
 /** Only catalog metadata is eager. Guidance lives in separately imported modules. */
 export const skillCatalog = [
   {
+    id: 'storyboard',
+    description:
+      'Inspect and edit the project Storyboard: Excalidraw shapes, shot panels, text, arrows, frames and freehand drawings.',
+  },
+  {
     id: 'editing',
     description:
       'Project naming, tracks, timeline edits, object keyframes, audio, searchable fonts/text templates, animated text, captions, effects, groups and transitions.',
@@ -36,6 +41,7 @@ export function availableSkills(
   return skillCatalog.filter(
     ({ id }) =>
       id === 'editing' ||
+      id === 'storyboard' ||
       (id === 'indexing' && capabilities.indexing) ||
       (id === 'export' && capabilities.export) ||
       (id === 'history' && (capabilities.undo || capabilities.redo)) ||
@@ -49,6 +55,8 @@ export function availableSkills(
 
 export async function loadSkill(id: SkillId): Promise<string> {
   switch (id) {
+    case 'storyboard':
+      return (await import('./skills/storyboard')).instructions;
     case 'editing':
       return (await import('./skills/editing')).instructions;
     case 'export':

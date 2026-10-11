@@ -17,6 +17,7 @@ export function useEditorShortcuts({
     const handle = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
       const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('[data-storyboard]')) return;
       const action = resolveShortcut(event, {
         inEditor: !!target?.closest('[data-editor-shortcuts]'),
         editable: !!target?.closest(

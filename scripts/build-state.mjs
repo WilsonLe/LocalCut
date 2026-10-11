@@ -71,6 +71,7 @@ export async function inputHash(build) {
       'build-state.mjs',
       'font-snapshot.ts',
       'build-info.ts',
+      'storyboard-assets.ts',
     ].map((name) => join(root, 'scripts', name)),
   ];
   const environment = Object.fromEntries(

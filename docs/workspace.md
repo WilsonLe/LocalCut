@@ -298,3 +298,13 @@ Empty chats show centered editing guidance. Dictation sits immediately before Se
 ### Empty provider setup
 
 Fresh provider settings show a shadcn Empty state with Add provider; no remote account or LLM/TTS route is created by default. Local Whisper remains available independently. Adding an OpenRouter account presents I have an API key and Log in and generate a key. The first reveals the password field with a Back action that clears the draft; the second starts the existing OpenRouter authorization flow explicitly. Saved accounts/routes remain compatible, including legacy saved credentials without a provider configuration. Credential setup remains user-owned and does not authorize paid inference.
+
+## Editor and Storyboard
+
+The project header offers **Editor** and **Storyboard** tabs. Editor retains the preview and timeline. Storyboard opens a local Excalidraw canvas for shot panels, notes, arrows, frames and freehand drawings. Chat and media remain alongside the selected view on desktop; on mobile, these project tabs choose the content of the existing Edit view. Arrow keys, Home and End navigate the project tabs. Switching tabs preserves timeline selection/playhead, chat and the diagram; entering Storyboard pauses video playback. The selected view is temporary navigation state.
+
+Drawings save through revision-aware project commands. Undo/Redo in the storyboard use shared project history, so they can also undo an earlier timeline edit. Canvas drawing shortcuts stay inside the diagram. Historical project versions display their storyboard in read-only mode. Project/workspace backups include diagrams. Source images and web embeds are outside the vector/text canvas; use the media library and timeline for original media. No Excalidraw account, collaboration or cloud save is used.
+
+Klip's `storyboard` skill inspects paginated diagram elements and proposes element creation, partial updates or removal for approval. Existing text-sharing consent independently controls disclosure of labels and frame names. Geometry patches preserve omitted labels. Drawing fonts are served from the same origin and loaded only when needed.
+
+See the [desktop storyboard](images/workspace-storyboard.png) and [mobile storyboard](images/workspace-storyboard-narrow.png) from the production Chrome regression.

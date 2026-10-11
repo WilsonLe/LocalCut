@@ -1,3 +1,9 @@
+import type { StoryboardControls } from './Storyboard';
+import { ProjectTabs } from './ProjectTabs';
+import type { ProjectTab } from './ProjectTabs';
+const Storyboard = lazy(() =>
+  import('./Storyboard').then(({ Storyboard }) => ({ default: Storyboard })),
+);
 import {
   lazy,
   Suspense,
@@ -144,6 +150,16 @@ export function Workspace() {
     () => window.matchMedia(narrowQuery).matches,
   );
   const [mobileTab, setMobileTab] = useState<MobileTab>('edit');
+  const [projectTab, setProjectTab] = useState<ProjectTab>('editor');
+  const [storyboardLoaded, setStoryboardLoaded] = useState(false);
+  const chooseProjectTab = (tab: ProjectTab) => {
+    if (tab === 'storyboard') {
+      setStoryboardLoaded(true);
+      previewControls.current?.pause();
+    }
+    setProjectTab(tab);
+    if (narrow) setMobileTab('edit');
+  };
   const composerFocused = useChatViewport(
     narrow && mobileTab === 'chat',
     scale,
@@ -415,6 +431,7 @@ export function Workspace() {
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [exportError, setExportError] = useState('');
   const previewControls = useRef<PreviewControls>(null);
+  const storyboardControls = useRef<StoryboardControls>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const backupInput = useRef<HTMLInputElement>(null);
   const instance = useRef<Promise<Editor> | null>(null);
@@ -1005,9 +1022,24 @@ export function Workspace() {
       document.querySelector<HTMLElement>('[data-editor-shortcuts]')?.focus(),
     );
   };
+  const beginTransfer = (value: NonNullable<typeof transfer>) => {
+    void action(async () => {
+      if (
+        storyboardControls.current &&
+        !(await storyboardControls.current.flush())
+      )
+        return;
+      setTransfer(value);
+    });
+  };
   const backupProject = () =>
     void action(async () => {
       if (!project) return;
+      if (
+        storyboardControls.current &&
+        !(await storyboardControls.current.flush())
+      )
+        return;
       const engine = await ensureEditor();
       downloadFile(
         new Blob([await engine.projects.exportJSON(project.id)], {
@@ -1019,6 +1051,11 @@ export function Workspace() {
   const showVersions = () =>
     void action(async () => {
       if (!project || !editor) return;
+      if (
+        storyboardControls.current &&
+        !(await storyboardControls.current.flush())
+      )
+        return;
       await editor.projects.versions.save(project.id);
       setVersions(await editor.projects.versions.list(project.id));
       setVersionsOpen(true);
@@ -1026,6 +1063,11 @@ export function Workspace() {
   const browseVersion = (id: string) =>
     void action(async () => {
       if (!project || !editor) return;
+      if (
+        storyboardControls.current &&
+        !(await storyboardControls.current.flush())
+      )
+        return;
       await editor.projects.versions.save(project.id);
       setVersions(await editor.projects.versions.list(project.id));
       const version = await editor.projects.versions.snapshot(project.id, id);
@@ -1593,7 +1635,7 @@ export function Workspace() {
               showProjects,
               returnToEditor,
               () => backupInput.current?.click(),
-              setTransfer,
+              beginTransfer,
               setAppearanceOpen,
               seek,
               backupProject,
@@ -1710,17 +1752,17 @@ export function Workspace() {
             onVersions={showVersions}
             onFormatChange={setFormat}
             onProjectExport={() =>
-              setTransfer({
+              beginTransfer({
                 mode: 'export',
                 projectOnly: true,
                 projectId: project?.id,
               })
             }
             onProjectImport={() =>
-              setTransfer({ mode: 'import', projectOnly: true })
+              beginTransfer({ mode: 'import', projectOnly: true })
             }
-            onWorkspaceExport={() => setTransfer({ mode: 'export' })}
-            onWorkspaceImport={() => setTransfer({ mode: 'import' })}
+            onWorkspaceExport={() => beginTransfer({ mode: 'export' })}
+            onWorkspaceImport={() => beginTransfer({ mode: 'import' })}
             onAppearance={() => setAppearanceOpen(true)}
             onShortcuts={() => setDialog('shortcuts')}
             onCommands={showCommands}
@@ -1850,7 +1892,7 @@ export function Workspace() {
       onDetails={catalog.updateDetails}
       onExport={(id) => {
         setProjectSwitcherOpen(false);
-        setTransfer({ mode: 'export', projectOnly: true, projectId: id });
+        beginTransfer({ mode: 'export', projectOnly: true, projectId: id });
       }}
       currentProjectId={project?.id}
       busy={busy}
@@ -1926,6 +1968,9 @@ export function Workspace() {
               <span className="sr-only">Projects</span>
               <ChevronDown />
             </Button>
+          )}
+          {!projectsOpen && project && (
+            <ProjectTabs value={projectTab} onChange={chooseProjectTab} />
           )}
           {headerActions}
         </header>
@@ -2021,9 +2066,13 @@ export function Workspace() {
             <main
               id="workspace-editor"
               className="editing-area"
-              data-editor-shortcuts
+              data-editor-shortcuts={projectTab === 'editor' ? '' : undefined}
               tabIndex={0}
-              aria-label="Video editor"
+              aria-label={
+                projectTab === 'editor'
+                  ? 'Video editor'
+                  : 'Storyboard workspace'
+              }
             >
               {narrow && (
                 <header className="mobile-edit-heading">
@@ -2043,6 +2092,9 @@ export function Workspace() {
                   </Button>
                   {mobileTab === 'edit' ? headerActions : null}
                 </header>
+              )}
+              {narrow && project && (
+                <ProjectTabs value={projectTab} onChange={chooseProjectTab} />
               )}
               {versionsOpen && (
                 <section
@@ -2116,69 +2168,103 @@ export function Workspace() {
                   )}
                 </section>
               )}
-              <EditorPanels narrow={narrow}>
-                <Suspense fallback={<PreviewSkeleton />}>
-                  <Preview
-                    controlsRef={previewControls}
-                    editor={editor}
-                    project={viewProject}
-                    versionId={browsed?.id}
-                    timeUs={timeUs}
-                    seekRevision={seekRevision}
-                    onTime={setTimeUs}
-                    onImport={() => fileInput.current?.click()}
-                    onError={error}
-                  />
-                </Suspense>
-                <Suspense fallback={<TimelineSkeleton />}>
-                  <Timeline
-                    editor={editor}
-                    project={viewProject}
-                    assets={browsed ? versionAssets : assets}
-                    versionId={browsed?.id}
-                    readOnly={!!browsed || navigation.blocked}
-                    selected={selectedIds}
-                    timeUs={timeUs}
-                    busy={busy}
-                    onSelect={selectClip}
-                    canGroup={canGroup}
-                    canUngroup={!!selectedGroups.length}
-                    canSeparate={canSeparate}
-                    overlap={overlap}
-                    transitionTemplate={
-                      activeTransition?.templateId ?? activeTransition?.kind
-                    }
-                    onSelectOverlap={(from, to) => {
-                      setSelected(from);
-                      setSelection(selectionIds(viewProject, [from, to]));
-                    }}
-                    onGroup={group}
-                    onUngroup={ungroup}
-                    onSeparate={separateAudio}
-                    onTransition={setTransition}
-                    onTime={seek}
-                    onUndo={undo}
-                    onRedo={redo}
-                    onSplit={split}
-                    onDelete={deleteClip}
-                    onProperties={() => setDialog('properties')}
-                    onText={addText}
-                    onAddTrack={addTrack}
-                    onReorderTrack={reorderTrack}
-                    draggingAsset={draggingAsset}
-                    onDropAsset={dropAsset}
-                    onResizeClip={(clipId, durationUs) =>
-                      void action(async () => {
-                        await apply([
-                          { type: 'resizeClip', clipId, durationUs },
-                        ]);
-                      })
-                    }
-                    onMoveClips={trackOperation}
-                    onTrackOperation={trackOperation}
-                  />
-                </Suspense>
-              </EditorPanels>
+              <div
+                id="project-editor-panel"
+                role="tabpanel"
+                aria-labelledby="project-editor-tab"
+                className="project-view-panel"
+                hidden={projectTab !== 'editor'}
+                inert={projectTab !== 'editor'}
+              >
+                <EditorPanels narrow={narrow}>
+                  <Suspense fallback={<PreviewSkeleton />}>
+                    <Preview
+                      controlsRef={previewControls}
+                      editor={editor}
+                      project={viewProject}
+                      versionId={browsed?.id}
+                      timeUs={timeUs}
+                      seekRevision={seekRevision}
+                      onTime={setTimeUs}
+                      onImport={() => fileInput.current?.click()}
+                      onError={error}
+                    />
+                  </Suspense>
+                  <Suspense fallback={<TimelineSkeleton />}>
+                    <Timeline
+                      editor={editor}
+                      project={viewProject}
+                      assets={browsed ? versionAssets : assets}
+                      versionId={browsed?.id}
+                      readOnly={!!browsed || navigation.blocked}
+                      selected={selectedIds}
+                      timeUs={timeUs}
+                      busy={busy}
+                      onSelect={selectClip}
+                      canGroup={canGroup}
+                      canUngroup={!!selectedGroups.length}
+                      canSeparate={canSeparate}
+                      overlap={overlap}
+                      transitionTemplate={
+                        activeTransition?.templateId ?? activeTransition?.kind
+                      }
+                      onSelectOverlap={(from, to) => {
+                        setSelected(from);
+                        setSelection(selectionIds(viewProject, [from, to]));
+                      }}
+                      onGroup={group}
+                      onUngroup={ungroup}
+                      onSeparate={separateAudio}
+                      onTransition={setTransition}
+                      onTime={seek}
+                      onUndo={undo}
+                      onRedo={redo}
+                      onSplit={split}
+                      onDelete={deleteClip}
+                      onProperties={() => setDialog('properties')}
+                      onText={addText}
+                      onAddTrack={addTrack}
+                      onReorderTrack={reorderTrack}
+                      draggingAsset={draggingAsset}
+                      onDropAsset={dropAsset}
+                      onResizeClip={(clipId, durationUs) =>
+                        void action(async () => {
+                          await apply([
+                            { type: 'resizeClip', clipId, durationUs },
+                          ]);
+                        })
+                      }
+                      onMoveClips={trackOperation}
+                      onTrackOperation={trackOperation}
+                    />
+                  </Suspense>
+                </EditorPanels>
+              </div>
+              <div
+                id="project-storyboard-panel"
+                role="tabpanel"
+                aria-labelledby="project-storyboard-tab"
+                className="project-view-panel"
+                hidden={projectTab !== 'storyboard'}
+                inert={projectTab !== 'storyboard'}
+              >
+                {storyboardLoaded && editor && viewProject && (
+                  <Suspense
+                    fallback={<div role="status">Loading storyboard…</div>}
+                  >
+                    <Storyboard
+                      key={`${viewProject.id}:${browsed?.id ?? 'current'}`}
+                      editor={editor}
+                      controlsRef={storyboardControls}
+                      project={viewProject}
+                      readOnly={!!browsed || navigation.blocked}
+                      active={projectTab === 'storyboard'}
+                      onSaved={refresh}
+                      onError={error}
+                    />
+                  </Suspense>
+                )}
+              </div>
             </main>
           </WorkspacePanels>
         </Suspense>

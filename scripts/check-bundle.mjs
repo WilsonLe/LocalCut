@@ -15,6 +15,45 @@ async function files(path) {
 }
 for (const root of ['dist', 'dist-root']) {
   const fontFiles = await checkFonts(root);
+  const storyboardRoot = 'storyboard/excalidraw-0.18.1/';
+  const drawingFonts = JSON.parse(
+    await readFile(`${root}/${storyboardRoot}manifest.json`, 'utf8'),
+  );
+  const packageRoot = join(
+    import.meta.dirname,
+    '../node_modules/@excalidraw/excalidraw/dist/prod',
+  );
+  assert(
+    Object.keys(drawingFonts).length > 0,
+    'Missing drawing font inventory',
+  );
+  for (const [name, digest] of Object.entries(drawingFonts)) {
+    assert(
+      /^fonts\/[a-zA-Z0-9 /_.-]+\.woff2$/.test(name) && !name.includes('..'),
+      'Invalid storyboard font path',
+    );
+    const bytes = await readFile(`${root}/${storyboardRoot}${name}`);
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), digest);
+    assert.equal(
+      createHash('sha256')
+        .update(await readFile(join(packageRoot, name)))
+        .digest('hex'),
+      digest,
+    );
+    fontFiles.add(`${root}/${storyboardRoot}${name}`);
+  }
+  const drawingHashes = new Set(Object.values(drawingFonts));
+  for (const file of await files(`${root}/assets`)) {
+    if (
+      file.endsWith('.woff2') &&
+      drawingHashes.has(
+        createHash('sha256')
+          .update(await readFile(file))
+          .digest('hex'),
+      )
+    )
+      fontFiles.add(file);
+  }
   const manifest = JSON.parse(
     await readFile(`${root}/.vite/manifest.json`, 'utf8'),
   );
