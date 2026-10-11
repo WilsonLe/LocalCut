@@ -1,3 +1,8 @@
+import {
+  accountStorage,
+  accountCredentialKey,
+} from '../../src/workspace/provider-account-storage';
+import type { ProviderProfile } from '../../src/workspace/provider-preferences';
 import { describe, expect, it, vi } from 'vitest';
 import {
   ChatGPTAuthorization,
@@ -19,9 +24,17 @@ const memory = (): AuthorizationStorage => {
   };
 };
 const b64 = (value: Uint8Array) => Buffer.from(value).toString('base64url');
-async function setup() {
-  const persistent = memory(),
-    temporary = memory();
+async function setup(
+  profile?: Pick<ProviderProfile, 'id' | 'kind'>,
+  persistentRoot = memory(),
+  temporaryRoot = memory(),
+) {
+  const persistent = profile
+      ? accountStorage(profile, () => persistentRoot)
+      : persistentRoot,
+    temporary = profile
+      ? accountStorage(profile, () => temporaryRoot)
+      : temporaryRoot;
   let time = 1000000;
   const keys = await crypto.subtle.generateKey(
     {
@@ -104,6 +117,33 @@ async function setup() {
   };
 }
 describe('ChatGPT OAuth', () => {
+  it('isolates multiple accounts pending state, signed tokens, restore and disconnect authority', async () => {
+    const persistent = memory(),
+      temporary = memory();
+    const primary = { id: 'chatgpt', kind: 'chatgpt' as const };
+    const secondary = { id: 'chatgpt-work', kind: 'chatgpt' as const };
+    const a = await setup(primary, persistent, temporary);
+    const b = await setup(secondary, persistent, temporary);
+    expect(a.params.get('state')).not.toBe(b.params.get('state'));
+    await a.auth.complete(a.callback.href);
+    await b.auth.complete(b.callback.href);
+    expect(persistent.getItem(accountCredentialKey(primary))).not.toBeNull();
+    const secondTokens = persistent.getItem(accountCredentialKey(secondary));
+    expect(secondTokens).not.toBeNull();
+    a.auth.invalidate(true);
+    expect(persistent.getItem(accountCredentialKey(primary))).toBeNull();
+    expect(persistent.getItem(accountCredentialKey(secondary))).toBe(
+      secondTokens,
+    );
+    expect(b.auth.connected()).toBe(true);
+    expect(b.auth.restore()).toBe(true);
+    expect(await b.auth.accessToken(new AbortController().signal)).toBe(
+      'synthetic-access-token',
+    );
+    b.auth.invalidate(true);
+    expect(persistent.getItem(accountCredentialKey(secondary))).toBeNull();
+  });
+
   it('is inert and generates independent PKCE, state and nonce with the public dynamic registration flow', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>();
     const c = createChatGPT({ fetch });
@@ -210,6 +250,52 @@ describe('ChatGPT OAuth', () => {
 });
 
 describe('durable ChatGPT session authority', () => {
+  it('synchronizes rotated tokens without retiring work and immediately cancels a replaced session', async () => {
+    const s = await setup();
+    await s.auth.complete(s.callback.href);
+    let release!: (response: Response) => void;
+    const fetch = vi.fn<typeof globalThis.fetch>(
+      () => new Promise<Response>((resolve) => (release = resolve)),
+    );
+    const client = createChatGPT({
+      fetch,
+      credentialStorage: s.persistent,
+      oauthStorage: memory(),
+      now: () => 1000000,
+    });
+    client.restore();
+    const catalog = {
+      models: [{ slug: 'model', display_name: 'Model', visibility: 'list' }],
+    };
+    const pending = client.listModels();
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    const saved = JSON.parse(s.persistent.getItem(CHATGPT_CREDENTIAL_KEY)!);
+    s.persistent.setItem(
+      CHATGPT_CREDENTIAL_KEY,
+      JSON.stringify({ ...saved, accessToken: 'rotated-token' }),
+    );
+    expect(client.synchronize()).toBe(false);
+    expect(client.status().connected).toBe(true);
+    release(Response.json(catalog));
+    await expect(pending).resolves.toMatchObject([{ id: 'model' }]);
+    const replaced = client.listModels();
+    const rejected = expect(replaced).rejects.toMatchObject({
+      code: 'CANCELLED',
+    });
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    expect(
+      new Headers(fetch.mock.calls[1]![1]?.headers).get('authorization'),
+    ).toBe('Bearer rotated-token');
+    s.persistent.setItem(
+      CHATGPT_CREDENTIAL_KEY,
+      JSON.stringify({ ...saved, sessionId: 'replacement-session' }),
+    );
+    expect(client.synchronize()).toBe(true);
+    await rejected;
+    expect(client.status().connected).toBe(false);
+    release(Response.json(catalog));
+    client.dispose();
+  });
   it('rejects replacement credentials before a storage event and cancels late catalog publication', async () => {
     const s = await setup();
     await s.auth.complete(s.callback.href);

@@ -86,7 +86,7 @@ async function connect(page: Page) {
     .getByRole('button', { name: 'Use API key', exact: true })
     .click();
   await expect(
-    dialog.getByText('Key connected', { exact: true }),
+    dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
   ).toBeVisible();
   await dialog.getByRole('combobox', { name: 'AI model', exact: true }).click();
   await page

@@ -100,7 +100,13 @@ export interface OpenRouterClient {
   disconnect(): void;
   /** Explicitly restore an optional local credential, without network activity. */
   restoreCredential(): ConnectionStatus;
-  listModels(signal?: AbortSignal): Promise<OpenRouterModel[]>;
+  /** Explicit non-inference check. Public/local endpoints prove reachability only. */
+  verifyConnection?(signal?: AbortSignal): Promise<'credentials' | 'endpoint'>;
+  /** Compatible endpoints may declare their tool model in the service route. */
+  listModels(
+    signal?: AbortSignal,
+    routeModel?: string,
+  ): Promise<OpenRouterModel[]>;
   listSpeechModels(signal?: AbortSignal): Promise<SpeechModel[]>;
   synthesizeSpeech(
     request: SpeechRequest,

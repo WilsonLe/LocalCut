@@ -190,7 +190,7 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Use API key', exact: true })
       .click();
     await expect(
-      dialog.getByText('Key connected', { exact: true }),
+      dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toBeVisible();
     await expect(
       dialog.getByRole('checkbox', { name: 'Allow asset indexing' }),
@@ -284,7 +284,7 @@ for (const base of ['/', '/LocalCut/']) {
       dialog.getByRole('button', { name: 'Add OpenRouter', exact: true }),
     ).toBeVisible();
     await expect(
-      dialog.getByText('Key connected', { exact: true }),
+      dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toHaveCount(0);
     await dialog
       .getByRole('button', { name: 'Add OpenRouter', exact: true })

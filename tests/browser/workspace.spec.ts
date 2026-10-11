@@ -1003,14 +1003,14 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Use API key', exact: true })
       .click();
     await expect(
-      settings.getByText('Key connected', { exact: true }),
+      settings.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toBeVisible();
     await expect(
       settings.getByLabel('OpenRouter API key', { exact: true }),
     ).not.toBeVisible();
     await expect(
       settings.getByRole('button', {
-        name: 'Reconnect OpenRouter',
+        name: 'Remove OpenRouter',
         exact: true,
       }),
     ).toBeVisible();

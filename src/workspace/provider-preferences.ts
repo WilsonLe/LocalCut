@@ -50,7 +50,6 @@ export function parseProviderConfiguration(raw: string): ProviderConfiguration {
         p.name.trim().length === 0 ||
         p.name.length > 80 ||
         !['openrouter', 'compatible', 'chatgpt'].includes(p.kind) ||
-        (p.kind === 'openrouter' && p.id !== 'openrouter') ||
         (p.kind !== 'openrouter' && p.id === 'openrouter') ||
         p.id === 'local'
       )
@@ -130,7 +129,6 @@ export function parseProviderConfiguration(raw: string): ProviderConfiguration {
           (service === 'tts' &&
             (p.kind === 'chatgpt' ||
               (p.kind === 'compatible' && !p.speechModel))) ||
-          (service === 'llm' && p.kind === 'compatible' && !p.model) ||
           (service === 'stt' &&
             (p.kind === 'chatgpt' ||
               (p.kind === 'compatible' && !p.transcriptionModel) ||
