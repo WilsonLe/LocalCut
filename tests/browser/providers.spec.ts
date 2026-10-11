@@ -6,6 +6,49 @@ const cors = {
   'access-control-allow-methods': 'POST,GET,OPTIONS',
 };
 for (const base of ['/', '/LocalCut/']) {
+  test(`successive provider popover creations keep distinct accounts ${base}`, async ({
+    page,
+  }) => {
+    await page.goto(base);
+    await openAISettings(page);
+    const dialog = page.getByRole('dialog', {
+      name: 'AI connection',
+      exact: true,
+    });
+    await dialog.getByText('Providers & services', { exact: true }).click();
+    for (const name of ['OpenRouter work', 'OpenRouter personal']) {
+      await dialog
+        .getByRole('button', { name: 'Add provider', exact: true })
+        .click();
+      await page
+        .getByRole('combobox', { name: 'Provider type', exact: true })
+        .click();
+      await page
+        .getByRole('option', { name: 'OpenRouter', exact: true })
+        .click();
+      await expect(
+        page.getByLabel('Account name', { exact: true }),
+      ).toHaveValue('');
+      await page.getByLabel('Account name', { exact: true }).fill(name);
+      await page
+        .getByRole('button', { name: 'Add OpenRouter account', exact: true })
+        .click();
+      await expect(dialog.getByText(name, { exact: true })).toBeVisible();
+    }
+    const profiles = await page.evaluate(
+      () =>
+        JSON.parse(
+          JSON.parse(localStorage.getItem('localcut.workspace-preferences.v1')!)
+            .preferences.aiProviders,
+        ).profiles as { id: string; name: string }[],
+    );
+    expect(profiles.map((profile) => profile.name)).toEqual([
+      'OpenRouter',
+      'OpenRouter work',
+      'OpenRouter personal',
+    ]);
+    expect(new Set(profiles.map((profile) => profile.id)).size).toBe(3);
+  });
   test(`provider endpoints and service ordering survive reload without credentials ${base}`, async ({
     page,
   }, testInfo) => {
@@ -588,6 +631,62 @@ for (const base of ['/', '/LocalCut/']) {
       dialog.getByRole('button', { name: 'Verify ChatGPT work', exact: true }),
     ).toBeVisible();
     await secondPopup.close();
+    await test.step('a third ChatGPT account preserves both previous identities', async () => {
+      await dialog
+        .getByRole('button', { name: 'Add provider', exact: true })
+        .click();
+      await expect(
+        page.getByLabel('Account name', { exact: true }),
+      ).toHaveValue('');
+      await page
+        .getByLabel('Account name', { exact: true })
+        .fill('ChatGPT sandbox');
+      const popupPromise = context.waitForEvent('page');
+      await page
+        .getByRole('button', { name: 'Continue with ChatGPT', exact: true })
+        .click();
+      const popup = await popupPromise;
+      await expect(popup.getByText('Synthetic sign-in complete')).toBeVisible();
+      callback.searchParams.set('state', authParams.get('state')!);
+      await page
+        .getByLabel('Callback URL', { exact: true })
+        .fill(callback.href);
+      await page
+        .getByRole('button', { name: 'Complete sign-in', exact: true })
+        .click();
+      for (const name of ['ChatGPT', 'ChatGPT work', 'ChatGPT sandbox']) {
+        await expect(
+          dialog.getByRole('button', { name: `Verify ${name}`, exact: true }),
+        ).toBeVisible();
+      }
+      const ids = await page.evaluate(
+        () =>
+          JSON.parse(
+            JSON.parse(
+              localStorage.getItem('localcut.workspace-preferences.v1')!,
+            ).preferences.aiProviders,
+          )
+            .profiles.filter(
+              (profile: { kind: string }) => profile.kind === 'chatgpt',
+            )
+            .map((profile: { id: string }) => profile.id) as string[],
+      );
+      expect(ids).toHaveLength(3);
+      expect(new Set(ids).size).toBe(3);
+      await popup.close();
+      await dialog
+        .getByRole('button', {
+          name: 'Disconnect ChatGPT sandbox',
+          exact: true,
+        })
+        .click();
+      await dialog
+        .getByRole('button', {
+          name: 'Disconnect ChatGPT sandbox',
+          exact: true,
+        })
+        .click();
+    });
     const sibling = await context.newPage();
     await sibling.goto(base);
     const accountKey = await page.evaluate(() =>
@@ -703,7 +802,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toBeVisible();
-    expect(exchanges).toBe(2);
+    expect(exchanges).toBe(3);
     await dialog
       .getByRole('button', { name: 'Disconnect ChatGPT work', exact: true })
       .click();

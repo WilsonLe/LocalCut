@@ -82,6 +82,22 @@ export function ProviderSettings(props: ProviderSettingsProps) {
   const [newId, setNewId] = useState(() => crypto.randomUUID());
   const [editing, setEditing] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const resetDraft = () => {
+    setEditing(null);
+    setNewId(crypto.randomUUID());
+    setKey('');
+    setName('');
+    setBaseUrl('');
+    setSpeechModel('');
+    setTranscriptionModel('');
+    setVoices('');
+    setCallback('');
+    setAuthUrl('');
+  };
+  const finishConnection = () => {
+    setShowForm(false);
+    resetDraft();
+  };
   const chatgpt: ProviderProfile = {
     id:
       editing ??
@@ -251,14 +267,7 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                       }
                       onClick={() => {
                         if (!showForm && editing) {
-                          setEditing(null);
-                          setNewId(crypto.randomUUID());
-                          setKey('');
-                          setName('');
-                          setBaseUrl('');
-                          setSpeechModel('');
-                          setTranscriptionModel('');
-                          setVoices('');
+                          resetDraft();
                         }
                       }}
                     >
@@ -328,7 +337,7 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                                 kind: 'openrouter',
                               });
                             });
-                            setShowForm(false);
+                            finishConnection();
                           }}
                         >
                           Add OpenRouter account
@@ -374,7 +383,7 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                             void props
                               .connectProvider(profile, credential)
                               .then((connected) => {
-                                if (connected) setShowForm(false);
+                                if (connected) finishConnection();
                               });
                           }}
                         >
@@ -542,7 +551,7 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                               void props
                                 .connectProvider(chatgpt, url)
                                 .then((connected) => {
-                                  if (connected) setShowForm(false);
+                                  if (connected) finishConnection();
                                 });
                             }}
                           >
@@ -556,7 +565,7 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                                 void props
                                   .connectProvider(chatgpt, '', true)
                                   .then((connected) => {
-                                    if (connected) setShowForm(false);
+                                    if (connected) finishConnection();
                                   })
                               }
                             >
