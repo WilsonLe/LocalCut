@@ -95,6 +95,40 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 describe('durable task queue', () => {
+  it('cancels a navigation-interrupted request without retaining its network error', async () => {
+    const q = queue();
+    let started = false;
+    q.register('chat', {
+      lane: 'chat',
+      recovery: 'manual',
+      execute: async (_input, task) => {
+        started = true;
+        return new Promise((_resolve, reject) => {
+          task.signal.addEventListener(
+            'abort',
+            () => {
+              reject(
+                Object.assign(new Error('connection lost'), {
+                  code: 'NETWORK_ERROR',
+                }),
+              );
+            },
+            { once: true },
+          );
+        });
+      },
+    });
+    const job = q.enqueue('chat', {}, { label: 'Assistant response' });
+    await wait(async () => started);
+    job.cancel();
+    await expect(job.completion).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(await q.get(job.id)).toMatchObject({
+      state: 'cancelled',
+      error: undefined,
+    });
+    await q.poll();
+    expect((await q.list())[0]?.error).toBeUndefined();
+  });
   it('cancels while encoding a saved artifact and discards its native output', async () => {
     const q = queue();
     let release!: () => void;

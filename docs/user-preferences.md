@@ -314,3 +314,7 @@ This is the project record of the user's durable product and workflow choices. U
 - Choose LLM models inside service configuration; do not ask for a duplicate model in connection setup.
 - Allow multiple named accounts for each provider type, including OpenRouter and ChatGPT. Isolate each account's credentials and service routes.
 - Keep ChatGPT callback instructions in an accessible tooltip. Label saved-account activation Connect.
+
+## Chat interruptions — 11 October 2026
+
+- Pause unfinished assistant responses gracefully when navigating away from chat. Expected navigation interruption must not display an error; show Resume as the primary composer action on return while the draft is empty. Typing changes it to Send, and clearing the draft restores Resume. Resume explicitly restarts the paused request without requiring a follow-up message.
