@@ -9,12 +9,29 @@ export type * from '../core/asset-index';
 import { Autosave } from '../services/autosave';
 export type { ProjectVersion, ProjectVersionInfo } from '../storage/store';
 import { Jobs, checkAbort } from '../services/jobs';
+import { TaskQueue, runQueuedJob, taskTerminal } from '../services/task-queue';
+import type { TaskHandler, TaskContext } from '../services/task-queue';
+export { TaskQueue } from '../services/task-queue';
+export type {
+  TaskRecord,
+  TaskState,
+  TaskContext,
+  TaskHandler,
+  TaskQueueError,
+} from '../services/task-queue';
 import type { JobEvent } from '../services/jobs';
 import { WorkerClient } from '../services/worker-client';
 import { EditorError, invariant, asEditorError } from '../core/errors';
-import { newProject, validateProject } from '../core/model';
+import { newProject, validateProject, transcriptSchema } from '../core/model';
+import { resampleAt } from '../core/resample';
 import { outputAssetIds } from '../core/timeline';
-import type { Asset, Project, Transcript } from '../core/model';
+import type {
+  Asset,
+  Project,
+  Transcript,
+  SpeechTranscript,
+  SpeechMetadata,
+} from '../core/model';
 import { applyOperations, parseBatch } from '../core/commands';
 import { repairLegacyIdentities } from '../core/legacy-identities';
 import type { CommandBatch } from '../core/commands';
@@ -37,6 +54,10 @@ export type {
   EditReceipt,
 } from '../core/commands';
 export { importCaptions, exportCaptions } from '../core/captions';
+export {
+  retimeSpeechTranscript,
+  padSpeechTranscript,
+} from '../core/transcript-timing';
 export { EditorError } from '../core/errors';
 export type { Job, JobEvent, Progress } from '../services/jobs';
 export type { ExportOptions, ExportResult } from '../media/export';
@@ -83,7 +104,8 @@ export interface ProjectEvent {
 export async function createEditor(options: EditorOptions = {}) {
   const namespace = options.namespace ?? 'localcut',
     store = await Store.open(namespace),
-    jobs = new Jobs();
+    jobs = new Jobs(),
+    tasks = new TaskQueue(namespace);
   let disposed = false;
   const sessions = new Set<PreviewSession>();
   const projectListeners = new Set<(event: ProjectEvent) => void>();
@@ -222,7 +244,18 @@ export async function createEditor(options: EditorOptions = {}) {
       return completion;
     });
   };
-  return {
+  const queuedRawJobs = new Set<string>();
+  const adoptQueuedJob = <T>(
+    job: import('../services/jobs').Job<T>,
+    context: TaskContext,
+  ) => {
+    queuedRawJobs.add(job.id);
+    return runQueuedJob(job, context).finally(() =>
+      queuedRawJobs.delete(job.id),
+    );
+  };
+  const api = {
+    tasks,
     workspace: {
       async snapshot(
         projectIds: string[],
@@ -708,6 +741,117 @@ export async function createEditor(options: EditorOptions = {}) {
           {},
         );
       },
+      /** Explicit generated-audio measurement; no import, upload or download by default. */
+      measure(
+        samples: Float32Array,
+        sampleRate: number,
+        options: { language?: string; provider?: TranscriptionExecutor } = {},
+      ) {
+        active();
+        options = { ...options };
+        return jobs.start<SpeechTranscript>(async (signal, progress) => {
+          invariant(
+            samples instanceof Float32Array &&
+              samples.length > 0 &&
+              samples.length <= 12_000_000 &&
+              [16000, 24000, 48000].includes(sampleRate),
+            'INVALID_COMMAND',
+            'Invalid generated speech audio',
+          );
+          const endUs = Math.round((samples.length / sampleRate) * 1e6);
+          const audio = new Float32Array(
+            Math.ceil((samples.length * 16000) / sampleRate),
+          );
+          for (let i = 0; i < samples.length; i++)
+            invariant(
+              Number.isFinite(samples[i]) && Math.abs(samples[i]!) <= 1,
+              'INVALID_COMMAND',
+              'Invalid generated speech sample',
+            );
+          for (let i = 0; i < audio.length; i++) {
+            audio[i] = resampleAt(
+              samples,
+              (i * sampleRate) / 16000,
+              sampleRate / 16000,
+            );
+            if (i % 65536 === 0) {
+              checkAbort(signal);
+              await new Promise<void>((resolve) => setTimeout(resolve, 0));
+            }
+          }
+          const assetId = crypto.randomUUID();
+          const local = async () => {
+            invariant(
+              (await modelStatus(namespace)).ready,
+              'MODEL_REQUIRED',
+              'Prepare transcription before measuring speech timing',
+            );
+            const job = speechRun<Transcript>('transcribe', {
+              audio,
+              assetId,
+              startUs: 0,
+              endUs,
+              language: options.language,
+            });
+            const abort = () => job.cancel();
+            signal.addEventListener('abort', abort, { once: true });
+            const unsubscribe = job.subscribe((event) => progress(event));
+            try {
+              checkAbort(signal);
+              return await job.completion;
+            } finally {
+              unsubscribe();
+              signal.removeEventListener('abort', abort);
+            }
+          };
+          checkAbort(signal);
+          const result = options.provider
+            ? await options.provider(
+                audio,
+                { assetId, startUs: 0, endUs, language: options.language },
+                local,
+                signal,
+              )
+            : await local();
+          checkAbort(signal);
+          const parsed = transcriptSchema.safeParse(result);
+          invariant(
+            parsed.success &&
+              result.assetId === assetId &&
+              result.cues.every((cue) => cue.endUs <= endUs),
+            'INVALID_DOCUMENT',
+            'Invalid measured speech transcript',
+          );
+          // The same validation used on attachment also verifies identities/order here.
+          const { retimeSpeechTranscript } =
+            await import('../core/transcript-timing');
+          return retimeSpeechTranscript(
+            {
+              model: result.model,
+              revision: result.revision,
+              ...(result.language ? { language: result.language } : {}),
+              cues: result.cues,
+            },
+            endUs,
+            endUs,
+          );
+        });
+      },
+      async attach(
+        assetId: string,
+        timing: SpeechTranscript,
+        speech?: SpeechMetadata,
+      ) {
+        active();
+        const value: Transcript = {
+          ...timing,
+          id: crypto.randomUUID(),
+          assetId,
+          ...(speech ? { speech } : {}),
+        };
+        await store.saveTranscript(value);
+        return value;
+      },
       transcribe(
         assetId: string,
         options: {
@@ -824,7 +968,29 @@ export async function createEditor(options: EditorOptions = {}) {
       },
       jobs(listener: (event: JobEvent) => void) {
         active();
-        return jobs.subscribe(listener);
+        const stopRaw = jobs.subscribe((event) => {
+          if (!queuedRawJobs.has(event.jobId)) listener(event);
+        });
+        const stopTasks = tasks.subscribe((task) =>
+          listener({
+            jobId: task.id,
+            stage: task.stage,
+            progress: task.progress,
+            error: task.error,
+            state:
+              task.state === 'completed'
+                ? 'completed'
+                : task.state === 'cancelled'
+                  ? 'cancelled'
+                  : taskTerminal(task.state)
+                    ? 'failed'
+                    : 'running',
+          }),
+        );
+        return () => {
+          stopRaw();
+          stopTasks();
+        };
       },
       projects(listener: (event: ProjectEvent) => void) {
         active();
@@ -842,6 +1008,7 @@ export async function createEditor(options: EditorOptions = {}) {
       } catch (error) {
         saveError = error;
       }
+      await tasks.dispose();
       await jobs.dispose();
       interactive.reset();
       background.reset();
@@ -854,5 +1021,164 @@ export async function createEditor(options: EditorOptions = {}) {
       if (saveError) throw saveError;
     },
   };
+  // Public long-running operations share durable scheduling; internal preview and
+  // transcription sub-jobs keep their dedicated workers and never queue behind themselves.
+  const queued = <A extends unknown[], R>(
+    kind: string,
+    operation: (...args: A) => import('../services/jobs').Job<R>,
+    policy: Partial<Omit<TaskHandler, 'execute'>> = {},
+  ): ((...args: A) => import('../services/jobs').Job<R>) => {
+    tasks.register(kind, {
+      lane: 'media',
+      recovery: 'safe',
+      retryCodes: ['WORKER_FAILED'],
+      ...policy,
+      execute: (input, context) =>
+        adoptQueuedJob(operation(...(input as A)), context),
+    });
+    return (...args) =>
+      tasks.enqueue<R>(kind, args, { label: kind.replaceAll('.', ' ') });
+  };
+  api.assets.import = queued('media.import', api.assets.import, {
+    recovery: 'manual',
+    acceptCommittedResult: true,
+    retryCodes: [],
+  });
+  api.assets.relink = queued('media.relink', api.assets.relink, {
+    recovery: 'manual',
+    acceptCommittedResult: true,
+    retryCodes: [],
+  });
+  api.assets.analyze = queued('media.analyze', api.assets.analyze, {
+    lane: 'index',
+  });
+  api.assets.thumbnails = queued('media.thumbnails', api.assets.thumbnails, {
+    lane: 'derivatives',
+  });
+  api.assets.contactSheet = queued(
+    'media.contactSheet',
+    api.assets.contactSheet,
+    { lane: 'derivatives' },
+  );
+  api.assets.waveform = queued('media.waveform', api.assets.waveform, {
+    lane: 'derivatives',
+  });
+  api.assets.derivative = queued('media.derivative', api.assets.derivative, {
+    lane: 'derivatives',
+  });
+  api.exports.preflight = queued('export.preflight', api.exports.preflight, {
+    lane: 'export',
+  });
+  api.exports.start = queued('export.video', api.exports.start, {
+    lane: 'export',
+    recovery: 'manual',
+    retryCodes: [],
+    encodeResult: async (result) => {
+      const saved = {
+        ...(result as ExportResult & { dispose?: () => Promise<void> }),
+      };
+      delete saved.dispose;
+      // Detach the durable take from the disposable OPFS export. Streaming into
+      // a browser Blob avoids buffering a large export in a JS ArrayBuffer.
+      const blob = await new Response(saved.file.stream()).blob();
+      saved.file = new File([blob], saved.file.name, {
+        type: saved.file.type,
+        lastModified: saved.file.lastModified,
+      });
+      return saved;
+    },
+    decodeResult: (value) => {
+      const result = value as ExportResult;
+      return { ...result, dispose: () => store.remove(result.path) };
+    },
+    discard: (result) =>
+      (result as ExportResult & { dispose: () => Promise<void> }).dispose(),
+  });
+  api.workspace.export = queued('workspace.export', api.workspace.export, {
+    lane: 'transfer',
+    recovery: 'manual',
+    retryCodes: [],
+  });
+  api.workspace.import = queued('workspace.import', api.workspace.import, {
+    lane: 'transfer',
+    recovery: 'manual',
+    acceptCommittedResult: true,
+    retryCodes: [],
+  });
+  api.transcription.prepare = queued(
+    'transcription.prepare',
+    api.transcription.prepare,
+    {
+      lane: 'transcription',
+      retryCodes: ['MODEL_DOWNLOAD_FAILED', 'WORKER_FAILED'],
+    },
+  );
+  const measure = api.transcription.measure;
+  const localMeasure = queued('transcription.measure', measure, {
+    lane: 'transcription',
+    recovery: 'safe',
+    retryCodes: ['WORKER_FAILED'],
+  });
+  api.transcription.measure = (audio, sampleRate, options = {}) => {
+    if (!options.provider) return localMeasure(audio, sampleRate, options);
+    audio = audio.slice();
+    options = { ...options };
+    const kind = `transcription.measure.remote:${crypto.randomUUID()}`;
+    tasks.register(kind, {
+      lane: 'transcription',
+      recovery: 'manual',
+      sessionBound: true,
+      retryCodes: [],
+      execute: (_input, context) =>
+        adoptQueuedJob(measure(audio, sampleRate, options), context),
+    });
+    const saved = { ...options };
+    delete saved.provider;
+    return tasks.enqueue<SpeechTranscript>(
+      kind,
+      { audio, sampleRate, options: saved },
+      { label: 'Measuring speech timing' },
+    );
+  };
+  const transcribe = api.transcription.transcribe;
+  const localTranscribe = queued('transcription.local', transcribe, {
+    lane: 'transcription',
+    recovery: 'manual',
+    acceptCommittedResult: true,
+    retryCodes: [],
+  });
+  api.transcription.transcribe = (assetId, options = {}) => {
+    if (!options.provider) return localTranscribe(assetId, options);
+    const kind = `transcription.remote:${crypto.randomUUID()}`;
+    tasks.register(kind, {
+      lane: 'transcription',
+      recovery: 'manual',
+      sessionBound: true,
+      acceptCommittedResult: true,
+      execute: (_input, context) =>
+        adoptQueuedJob(transcribe(assetId, options), context),
+    });
+    const saved = { ...options };
+    delete saved.provider;
+    return tasks.enqueue<Transcript>(
+      kind,
+      { assetId, options: saved },
+      { label: 'Transcribing audio' },
+    );
+  };
+  tasks.register('speech.timing', {
+    lane: 'speech-timing',
+    recovery: 'safe',
+    execute: async (input, context) => {
+      const { renderSpeech } = await import('../ai/speech-audio');
+      const value = input as {
+        audio: import('../ai').SpeechAudio;
+        timing: import('../ai').SpeechTiming;
+      };
+      return renderSpeech(value.audio, value.timing, context.signal);
+    },
+  });
+  tasks.start();
+  return api;
 }
 export type Editor = Awaited<ReturnType<typeof createEditor>>;

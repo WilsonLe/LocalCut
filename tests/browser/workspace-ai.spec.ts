@@ -1,3 +1,4 @@
+import { dismissNotifications } from './workspace-notifications-helper';
 import { openAISettings } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 import type { BrowserContext, Page, Route } from '@playwright/test';
@@ -321,11 +322,7 @@ test('rate-limit errors remain visible and retry requires a fresh send', async (
   await expect(
     page.getByRole('button', { name: 'Apply proposal', exact: true }),
   ).toHaveCount(0);
-  await page
-    .getByRole('listitem')
-    .filter({ hasText: 'OpenRouter rate limit reached.' })
-    .getByRole('button', { name: 'Close toast', exact: true })
-    .click();
+  await dismissNotifications(page);
   await send(page, 'Retry the overlay track request.');
   await expect(
     page.getByRole('button', { name: 'Apply proposal', exact: true }),

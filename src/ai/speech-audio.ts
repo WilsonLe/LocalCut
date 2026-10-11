@@ -10,7 +10,10 @@ export interface RenderedSpeech {
   speed: number;
 }
 /** Validate user timing before generation, when the source duration is still unknown. */
-export function validateSpeechTiming(timing: SpeechTiming): void {
+export function validateSpeechTiming(
+  timing: SpeechTiming,
+  sourceSeconds?: number,
+): void {
   aiInvariant(
     timing.mode === 'speed' || timing.mode === 'duration',
     'INVALID_REQUEST',
@@ -29,6 +32,17 @@ export function validateSpeechTiming(timing: SpeechTiming): void {
       ? 'Choose a speed from 0.5 to 2×.'
       : 'Enter a positive total length in seconds.',
   );
+  if (sourceSeconds !== undefined) {
+    const speed =
+      timing.mode === 'speed'
+        ? timing.speed
+        : sourceSeconds / timing.durationSeconds;
+    aiInvariant(
+      Number.isFinite(speed) && speed >= 0.5 && speed <= 2,
+      'INVALID_REQUEST',
+      `Choose a speed from 0.5 to 2×, or a duration from ${(sourceSeconds / 2).toFixed(2)} to ${(sourceSeconds * 2).toFixed(2)} seconds.`,
+    );
+  }
 }
 
 /** WSOLA: align overlapping waveform windows instead of changing sample pitch. */
@@ -134,11 +148,7 @@ export async function renderSpeech(
   const seconds = audio.samples.length / audio.sampleRate;
   const speed =
     timing.mode === 'speed' ? timing.speed : seconds / timing.durationSeconds;
-  aiInvariant(
-    Number.isFinite(speed) && speed >= 0.5 && speed <= 2,
-    'INVALID_REQUEST',
-    `Choose a speed from 0.5 to 2×, or a duration from ${(seconds / 2).toFixed(2)} to ${(seconds * 2).toFixed(2)} seconds.`,
-  );
+  validateSpeechTiming(timing, seconds);
   const frames = Math.round(audio.samples.length / speed);
   const samples = await stretch(audio.samples, frames, signal);
   const buffer = new ArrayBuffer(44 + frames * 2);

@@ -318,6 +318,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
           | '/auth/keys'
           | '/models'
           | '/models?output_modalities=speech'
+          | '/models/fish-audio/s2.1-pro/endpoints'
           | '/audio/speech'
           | '/audio/transcriptions'
           | '/chat/completions',
@@ -472,6 +473,26 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
           headers: key ? { Authorization: `Bearer ${key}` } : {},
         });
         const result = speechModelsFrom(await readJson(response, op.signal));
+        const referenceModel = result.find((model) => model.referenceVoice);
+        if (referenceModel) {
+          const endpoints = await op.fetch(
+            '/models/fish-audio/s2.1-pro/endpoints',
+            {
+              method: 'GET',
+              headers: key ? { Authorization: `Bearer ${key}` } : {},
+            },
+          );
+          const catalog = (await readJson(endpoints, op.signal)) as {
+            data?: { endpoints?: { supports_voice_cloning?: boolean }[] };
+          };
+          if (
+            !Array.isArray(catalog.data?.endpoints) ||
+            !catalog.data.endpoints.some(
+              (endpoint) => endpoint?.supports_voice_cloning === true,
+            )
+          )
+            result.splice(result.indexOf(referenceModel), 1);
+        }
         op.check();
         speechCatalog = structuredClone(result);
         return result;
@@ -490,9 +511,10 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
       );
       // Capture/validate user input before any async catalog request.
       const body = speechBody(request, !!compatible);
-      const { model, voice } = JSON.parse(body) as {
+      const { model, voice, response_format } = JSON.parse(body) as {
         model: string;
-        voice: string;
+        voice?: string;
+        response_format: 'pcm' | 'mp3';
       };
       const epoch = generation;
       const models = speechCatalog ?? (await client.listSpeechModels(signal));
@@ -503,7 +525,13 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         'Speech request cancelled.',
       );
       aiInvariant(
-        models.some((item) => item.id === model && item.voices.includes(voice)),
+        models.some(
+          (item) =>
+            item.id === model &&
+            (response_format === 'mp3'
+              ? item.referenceVoice
+              : !!voice && item.voices.includes(voice)),
+        ),
         'MODEL_UNSUPPORTED',
         'Choose a current speech model and one of its voices.',
       );
@@ -514,11 +542,15 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
           headers: {
             ...(key ? { Authorization: `Bearer ${key}` } : {}),
             'Content-Type': 'application/json',
-            Accept: 'audio/pcm',
+            Accept: response_format === 'mp3' ? 'audio/mpeg' : 'audio/pcm',
           },
           body,
         });
-        const audio = await readSpeechAudio(response, op.signal);
+        const audio = await readSpeechAudio(
+          response,
+          op.signal,
+          response_format,
+        );
         op.check();
         return audio;
       } catch (error) {

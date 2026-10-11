@@ -2,6 +2,7 @@ import type { Editor } from '../editor';
 import type { AssetIndexRun, IndexLabel } from '../core/asset-index';
 import { parseIndexLabel, indexSceneResponseSchema } from '../core/asset-index';
 import { Jobs, checkAbort } from '../services/jobs';
+import { runQueuedJob } from '../services/task-queue';
 import { asEditorError } from '../core/errors';
 import { AiError, aiInvariant } from './errors';
 import type { OpenRouter, IndexLabelRequest } from './types';
@@ -32,7 +33,7 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
       'Connect AI before indexing.',
     );
   };
-  return {
+  const indexer = {
     run(assetId: string, runId?: string) {
       return jobs.start<AssetIndexRun>(
         async (signal, progress) => {
@@ -47,12 +48,13 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
             model?.supportsTools &&
               (asset.kind === 'audio'
                 ? model.inputModalities?.includes('audio')
-                : model.inputModalities?.includes('image') &&
-                  (asset.kind === 'image' ||
-                    model.inputModalities.includes('video'))),
+                : model.inputModalities?.includes('image')),
             'MODEL_UNSUPPORTED',
             'Choose a chat model supporting the required audio/image/video inputs for indexing.',
           );
+          const framesOnly =
+            asset.kind === 'video' &&
+            !model?.inputModalities?.includes('video');
           const local = options.editor.assets.analyze(assetId, runId);
           const abort = () => local.cancel(),
             unsubscribe = local.subscribe(progress);
@@ -83,6 +85,7 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
                   );
                   const media: IndexLabelRequest['media'] = [];
                   for (const artifact of scene?.artifacts ?? []) {
+                    if (framesOnly && artifact.kind !== 'image') continue;
                     const file = await options.editor.assets.indexes.artifact(
                       run.id,
                       artifact.id,
@@ -109,7 +112,10 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
                       sceneId,
                       prompt,
                       model: options.model,
-                      artifactIds: scene?.artifacts.map((a) => a.id) ?? [],
+                      artifactIds:
+                        scene?.artifacts
+                          .filter((a) => !framesOnly || a.kind === 'image')
+                          .map((a) => a.id) ?? [],
                       createdAt: Date.now(),
                       ...(intermediate
                         ? { purpose: 'summary-part' as const }
@@ -146,6 +152,8 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
                       );
                       normalized = parsed.label;
                     } else normalized = parseIndexLabel(result.text);
+                    if (framesOnly)
+                      normalized.sound = 'Not assessed from still frames';
                   } catch (e) {
                     await options.editor.assets.indexes.recordResponse(
                       run.id,
@@ -183,7 +191,7 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
                     progress: i / (run.analysis.scenes.length + 1),
                   });
                   await label(
-                    `Label the supplied ${run.source.kind === 'audio' ? 'audio excerpt' : 'representative still'}${run.source.kind === 'video' ? ' and action excerpt including sound' : ''}. These are selected samples, not complete scene coverage. Return only {"sceneId":"${scene.id}","label":${shape}}. Do not guess unseen content or identify people by name. Local measurements: ${JSON.stringify({ startUs: scene.startUs, endUs: scene.endUs, excerptStartUs: scene.excerptStartUs, excerptEndUs: scene.excerptEndUs, sharpness: scene.representative?.sharpness, clipped: scene.representative?.clipped, colors: scene.representative?.colors, audio: scene.audio })}`,
+                    `Label the supplied ${run.source.kind === 'audio' ? 'audio excerpt' : 'representative still'}${run.source.kind === 'video' && !framesOnly ? ' and action excerpt including sound' : ''}. ${framesOnly ? 'Video frame indexing: only a still is supplied; do not infer motion or sound. Set sound to "Not assessed from still frames". ' : ''}These are selected samples, not complete scene coverage. Return only {"sceneId":"${scene.id}","label":${shape}}. Do not guess unseen content or identify people by name. Local measurements: ${JSON.stringify({ startUs: scene.startUs, endUs: scene.endUs, excerptStartUs: scene.excerptStartUs, excerptEndUs: scene.excerptEndUs, sharpness: scene.representative?.sharpness, clipped: scene.representative?.clipped, colors: scene.representative?.colors, audio: scene.audio })}`,
                     scene.id,
                   );
                 }
@@ -255,4 +263,22 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
       await jobs.dispose();
     },
   };
+  if (!options.editor.tasks) return indexer;
+  const run = indexer.run;
+  indexer.run = (assetId, runId) => {
+    const kind = `index.labels:${crypto.randomUUID()}`;
+    options.editor.tasks.register(kind, {
+      lane: 'labels',
+      recovery: 'manual',
+      sessionBound: true,
+      maxAttempts: 1,
+      execute: (_input, context) => runQueuedJob(run(assetId, runId), context),
+    });
+    return options.editor.tasks.enqueue<AssetIndexRun>(
+      kind,
+      { assetId, runId, model: options.model },
+      { label: 'Indexing asset' },
+    );
+  };
+  return indexer;
 }

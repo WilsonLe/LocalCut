@@ -90,7 +90,8 @@ for (const base of ['/', '/LocalCut/']) {
       context,
     }) => {
       let chatRequests = 0,
-        speechRequests = 0;
+        speechRequests = 0,
+        timingRequests = 0;
       await context.route('https://openrouter.ai/api/v1/models*', (route) =>
         route.fulfill({ status: 503, headers: cors, body: 'unavailable' }),
       );
@@ -126,6 +127,18 @@ for (const base of ['/', '/LocalCut/']) {
           });
         },
       );
+      await context.route(
+        'https://backup.example.test/v1/audio/transcriptions',
+        (route) => {
+          timingRequests++;
+          return route.fulfill({
+            headers: cors,
+            json: {
+              segments: [{ text: 'Hello backup', start: 0.1, end: 0.9 }],
+            },
+          });
+        },
+      );
       await page.goto(base);
       await page.evaluate(() =>
         localStorage.setItem(
@@ -143,6 +156,7 @@ for (const base of ['/', '/LocalCut/']) {
                     baseUrl: 'https://backup.example.test/v1',
                     model: 'backup',
                     speechModel: 'tts',
+                    transcriptionModel: 'whisper',
                     voices: ['voice'],
                   },
                 ],
@@ -159,7 +173,7 @@ for (const base of ['/', '/LocalCut/']) {
                     },
                     { providerId: 'backup', model: 'tts', voice: 'voice' },
                   ],
-                  stt: [{ providerId: 'local', model: 'whisper' }],
+                  stt: [{ providerId: 'backup', model: 'whisper' }],
                 },
               }),
             },
@@ -229,6 +243,9 @@ for (const base of ['/', '/LocalCut/']) {
         page.getByText('backup success', { exact: true }),
       ).toBeVisible();
       await page
+        .getByRole('button', { name: 'Expand media', exact: true })
+        .click();
+      await page
         .getByRole('button', { name: 'Text to speech', exact: true })
         .click();
       const speech = page.getByRole('dialog', {
@@ -248,12 +265,19 @@ for (const base of ['/', '/LocalCut/']) {
       await page.getByRole('option', { name: 'voice', exact: true }).click();
       await speech.getByLabel('Script', { exact: true }).fill('Hello backup');
       await speech
+        .getByRole('combobox', { name: 'Phrase timing', exact: true })
+        .click();
+      await page
+        .getByRole('option', { name: 'Configured STT route', exact: true })
+        .click();
+      await expect(speech).toContainText('STT providers in order: Backup');
+      await speech
         .getByRole('button', { name: 'Generate speech', exact: true })
         .click();
       await expect(
         speech.getByLabel('Generated speech preview', { exact: true }),
       ).toBeVisible();
-      expect([chatRequests, speechRequests]).toEqual([1, 1]);
+      expect([chatRequests, speechRequests, timingRequests]).toEqual([1, 1, 1]);
       const routes = await page.evaluate(
         () =>
           JSON.parse(
