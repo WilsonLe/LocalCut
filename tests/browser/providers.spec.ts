@@ -1,3 +1,4 @@
+import { fulfillChatTitle } from './chat-title-fixture';
 import { openAISettings } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 const cors = {
@@ -147,9 +148,10 @@ for (const base of ['/', '/LocalCut/']) {
       );
       await context.route(
         'https://backup.example.test/v1/chat/completions',
-        (route) => {
-          chatRequests++;
+        async (route) => {
           expect(route.request().postDataJSON().model).toBe('backup');
+          if (await fulfillChatTitle(route)) return;
+          chatRequests++;
           return route.fulfill({
             headers: { ...cors, 'content-type': 'text/event-stream' },
             body: 'data: {"choices":[{"index":0,"delta":{"content":"backup success"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',

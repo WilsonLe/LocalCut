@@ -1,3 +1,4 @@
+import { fulfillChatTitle } from './chat-title-fixture';
 import { expect, test } from '@playwright/test';
 import { openAISettings } from './workspace-settings-helper';
 
@@ -29,11 +30,12 @@ for (const base of ['/', '/LocalCut/']) {
     );
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
-      (route) => {
+      async (route) => {
         if (route.request().method() === 'OPTIONS')
           return route.fulfill({ headers: cors, body: '' });
-        completions++;
         expect(route.request().postDataJSON().model).toBe('test/chat');
+        if (await fulfillChatTitle(route)) return;
+        completions++;
         return route.fulfill({
           headers: cors,
           contentType: 'text/event-stream',

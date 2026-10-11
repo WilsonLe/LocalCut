@@ -1,3 +1,4 @@
+import { fulfillChatTitle } from './chat-title-fixture';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -312,9 +313,10 @@ for (const base of ['/', '/LocalCut/']) {
     );
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
-      (route) => {
+      async (route) => {
         if (route.request().method() === 'OPTIONS')
           return route.fulfill({ headers: cors, body: '' });
+        if (await fulfillChatTitle(route)) return;
         paid++;
         return route.fulfill({
           headers: cors,

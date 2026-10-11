@@ -1,3 +1,4 @@
+import { fulfillChatTitle } from './chat-title-fixture';
 import { openAISettings } from './workspace-settings-helper';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test } from '@playwright/test';
@@ -54,6 +55,7 @@ for (const base of ['/', '/LocalCut/']) {
             await route.fulfill({ headers: cors, body: '' });
             return;
           }
+          if (await fulfillChatTitle(route)) return;
           requests++;
           const body = route.request().postDataJSON();
           expect(body.model).toBe(models[0]!.id);

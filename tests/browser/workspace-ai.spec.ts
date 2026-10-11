@@ -1,3 +1,4 @@
+import { fulfillChatTitle } from './chat-title-fixture';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { openAISettings } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
@@ -298,6 +299,7 @@ test('rate-limit errors remain visible and retry requires a fresh send', async (
         await route.fulfill({ headers: cors, body: '' });
         return;
       }
+      if (await fulfillChatTitle(route)) return;
       requests++;
       if (fail) {
         fail = false;

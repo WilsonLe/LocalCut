@@ -1,3 +1,4 @@
+import { fulfillChatTitle } from './chat-title-fixture';
 import { mediaVideo } from './workspace-video-fixture';
 import { openAISettings } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
@@ -320,6 +321,7 @@ for (const base of ['/', '/LocalCut/']) {
           await route.fulfill({ headers: cors });
           return;
         }
+        if (await fulfillChatTitle(route)) return;
         const body = route.request().postDataJSON();
         bodies.push(body);
         const messages = body.messages as { content: unknown }[];
