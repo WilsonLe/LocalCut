@@ -8,10 +8,18 @@ import {
 } from 'react';
 import { loopDurationUs } from '../core/speed';
 import { frameTimeUs } from '../core/frame-time';
+import { TrackMenu } from './TrackMenu';
+import type { TrackOperationScope } from './TrackMenu';
+import type { EditOperation } from '../editor';
+import { trackName } from '../core/timeline';
 import { interfaceScale } from './appearance';
 import { useViewport } from './useViewport';
 import {
   Captions,
+  LockKeyhole,
+  EyeOff,
+  VolumeX,
+  Headphones,
   Plus,
   ListChecks,
   Group,
@@ -75,6 +83,10 @@ interface Props {
   draggingAsset: Asset | null;
   onDropAsset: (trackId: string, startUs: number) => void;
   onResizeClip: (clipId: string, durationUs: number) => void;
+  onTrackOperation: (
+    operations: EditOperation[],
+    scope: TrackOperationScope,
+  ) => void;
 }
 export function Timeline(props: Props) {
   const { project, assets, selected, timeUs, draggingAsset, onDropAsset } =
@@ -149,6 +161,34 @@ export function Timeline(props: Props) {
       Math.round(Math.min(total - 1, Math.max(0, fraction * total))),
     );
   };
+  const menuFocus = useRef<{
+    projectId: string;
+    trackId: string;
+    index: number;
+  } | null>(null);
+  useEffect(() => {
+    const pending = menuFocus.current;
+    if (!pending || busy) return;
+    menuFocus.current = null;
+    if (
+      pending.projectId !== project?.id ||
+      props.readOnly ||
+      document.activeElement !== document.body
+    )
+      return;
+    const rows = [
+      ...(tracksElement.current?.querySelectorAll<HTMLElement>(
+        '.timeline-track',
+      ) ?? []),
+    ];
+    const target =
+      rows.find((row) => row.dataset.trackId === pending.trackId) ??
+      rows[Math.min(pending.index, rows.length - 1)];
+    (
+      target?.querySelector<HTMLButtonElement>('.track-menu-trigger') ??
+      addTrackTrigger.current
+    )?.focus();
+  }, [busy, project?.id, project?.revision, props.readOnly]);
   const reorderFocus = useRef<{ projectId: string; trackId: string } | null>(
     null,
   );
@@ -246,6 +286,7 @@ export function Timeline(props: Props) {
       const track = project?.tracks.find((track) => track.id === trackId);
       if (
         busy ||
+        track?.locked ||
         !asset ||
         detail.assetId !== asset.id ||
         !lane ||
@@ -350,6 +391,11 @@ export function Timeline(props: Props) {
   const selectedClip = project?.tracks
     .flatMap((track) => track.clips)
     .find((clip) => clip.id === selected[0]);
+  const selectionLocked = !!project?.tracks.some(
+    (track) =>
+      track.locked && track.clips.some((clip) => selected.includes(clip.id)),
+  );
+  const clipBusy = busy || selectionLocked;
   return (
     <section className="timeline" aria-label="Video timeline">
       <div className="timeline-toolbar">
@@ -378,7 +424,7 @@ export function Timeline(props: Props) {
           {!(
             selected.length !== 1 ||
             !selectedClip ||
-            busy ||
+            clipBusy ||
             timeUs <= selectedClip.startUs ||
             timeUs >= selectedClip.startUs + selectedClip.durationUs
           ) && (
@@ -391,7 +437,7 @@ export function Timeline(props: Props) {
               <Scissors />
             </Button>
           )}
-          {!!selected.length && !busy && (
+          {!!selected.length && !clipBusy && (
             <Button
               variant="ghost"
               size="icon-sm"
@@ -401,7 +447,7 @@ export function Timeline(props: Props) {
               <Trash2 />
             </Button>
           )}
-          {props.canSeparate && !busy && (
+          {props.canSeparate && !clipBusy && (
             <Button
               variant="ghost"
               size="icon-sm"
@@ -412,7 +458,7 @@ export function Timeline(props: Props) {
               <AudioLines />
             </Button>
           )}
-          {props.canGroup && !busy && (
+          {props.canGroup && !clipBusy && (
             <Button
               variant="ghost"
               size="icon-sm"
@@ -423,7 +469,7 @@ export function Timeline(props: Props) {
               <Group />
             </Button>
           )}
-          {props.canUngroup && !busy && (
+          {props.canUngroup && !clipBusy && (
             <Button
               variant="ghost"
               size="icon-sm"
@@ -455,7 +501,7 @@ export function Timeline(props: Props) {
           </span>
         </div>
         <div className="flex items-center gap-1">
-          {props.overlap && !busy && (
+          {props.overlap && !clipBusy && (
             <div className="transition-picker">
               <SettingsSelect
                 label="Transition template"
@@ -526,7 +572,7 @@ export function Timeline(props: Props) {
               project?.tracks.flatMap((track, index) =>
                 track.clips.map((clip) => ({
                   value: clip.id,
-                  label: `${clipName(clip, assets)} · ${track.kind} ${index + 1} · ${formatTime(clip.startUs)}`,
+                  label: `${clipName(clip, assets)} · ${trackName(track, index)} · ${formatTime(clip.startUs)}`,
                 })),
               ) ?? []
             }
@@ -635,126 +681,155 @@ export function Timeline(props: Props) {
                           }
                         : undefined
                     }
+                    data-disabled={!!track.disabled}
+                    data-locked={!!track.locked}
+                    data-solo={!!track.solo}
                   >
-                    <button
-                      type="button"
-                      className="track-label"
-                      disabled={props.readOnly}
-                      aria-disabled={!!busy}
-                      aria-label={`Reorder ${track.kind === 'audio' ? 'Audio' : track.kind === 'overlay' ? 'Text' : 'Video'} ${index + 1}`}
-                      title="Drag to reorder · Alt+Up/Down"
-                      onKeyDown={(event) => {
-                        if (event.key === 'Escape' && trackDrag.current) {
+                    <div className="track-header">
+                      <button
+                        type="button"
+                        className="track-label"
+                        disabled={props.readOnly || track.locked}
+                        aria-disabled={!!busy || !!track.locked}
+                        aria-label={`Reorder ${trackName(track, index)}`}
+                        title={`${trackName(track, index)} · ${track.locked ? 'Locked' : 'Drag to reorder · Alt+Up/Down'}`}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Escape' && trackDrag.current) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            cancelTrackDrag();
+                            return;
+                          }
+                          if (
+                            event.altKey &&
+                            (event.key === 'ArrowUp' ||
+                              event.key === 'ArrowDown')
+                          ) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            const next =
+                              index + (event.key === 'ArrowUp' ? -1 : 1);
+                            if (
+                              !busy &&
+                              !track.locked &&
+                              next >= 0 &&
+                              next < project.tracks.length
+                            )
+                              reorder(track.id, next);
+                          }
+                        }}
+                        onPointerDown={(event) => {
+                          if (busy || track.locked || event.button !== 0)
+                            return;
                           event.preventDefault();
-                          event.stopPropagation();
+                          event.currentTarget.focus();
+                          event.currentTarget.setPointerCapture(
+                            event.pointerId,
+                          );
+                          trackDrag.current = {
+                            id: event.pointerId,
+                            trackId: track.id,
+                            startX: event.clientX,
+                            startY: event.clientY,
+                            centers: [
+                              ...(tracksElement.current?.querySelectorAll<HTMLElement>(
+                                '.timeline-track',
+                              ) ?? []),
+                            ].map((row) => {
+                              const rect = row.getBoundingClientRect();
+                              return rect.y + rect.height / 2;
+                            }),
+                            offsets: [
+                              ...(tracksElement.current?.querySelectorAll<HTMLElement>(
+                                '.timeline-track',
+                              ) ?? []),
+                            ].map((row) => row.offsetTop),
+                            source: index,
+                            index,
+                            moved: false,
+                          };
+                        }}
+                        onPointerMove={(event) => {
+                          const drag = trackDrag.current;
+                          if (!drag || drag.id !== event.pointerId) return;
+                          if (
+                            Math.abs(event.clientY - drag.startY) < 4 &&
+                            !drag.moved
+                          )
+                            return;
+                          drag.moved = true;
+                          drag.index = drag.centers.reduce(
+                            (closest, center, i) =>
+                              Math.abs(event.clientY - center) <
+                              Math.abs(event.clientY - drag.centers[closest]!)
+                                ? i
+                                : closest,
+                            0,
+                          );
+                          setTrackMotion({
+                            trackId: drag.trackId,
+                            source: drag.source,
+                            index: drag.index,
+                            x: (event.clientX - drag.startX) / interfaceScale(),
+                            y: (event.clientY - drag.startY) / interfaceScale(),
+                            offsets: drag.offsets,
+                          });
+                          setDropTrack(project.tracks[drag.index]?.id ?? null);
+                        }}
+                        onPointerUp={(event) => {
+                          const drag = trackDrag.current;
                           cancelTrackDrag();
-                          return;
-                        }
-                        if (
-                          event.altKey &&
-                          (event.key === 'ArrowUp' || event.key === 'ArrowDown')
-                        ) {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          const next =
-                            index + (event.key === 'ArrowUp' ? -1 : 1);
                           if (
                             !busy &&
-                            next >= 0 &&
-                            next < project.tracks.length
+                            !track.locked &&
+                            drag?.id === event.pointerId &&
+                            drag.moved &&
+                            drag.index !== index
                           )
-                            reorder(track.id, next);
-                        }
-                      }}
-                      onPointerDown={(event) => {
-                        if (busy || event.button !== 0) return;
-                        event.preventDefault();
-                        event.currentTarget.focus();
-                        event.currentTarget.setPointerCapture(event.pointerId);
-                        trackDrag.current = {
-                          id: event.pointerId,
-                          trackId: track.id,
-                          startX: event.clientX,
-                          startY: event.clientY,
-                          centers: [
-                            ...(tracksElement.current?.querySelectorAll<HTMLElement>(
-                              '.timeline-track',
-                            ) ?? []),
-                          ].map((row) => {
-                            const rect = row.getBoundingClientRect();
-                            return rect.y + rect.height / 2;
-                          }),
-                          offsets: [
-                            ...(tracksElement.current?.querySelectorAll<HTMLElement>(
-                              '.timeline-track',
-                            ) ?? []),
-                          ].map((row) => row.offsetTop),
-                          source: index,
-                          index,
-                          moved: false,
-                        };
-                      }}
-                      onPointerMove={(event) => {
-                        const drag = trackDrag.current;
-                        if (!drag || drag.id !== event.pointerId) return;
-                        if (
-                          Math.abs(event.clientY - drag.startY) < 4 &&
-                          !drag.moved
-                        )
-                          return;
-                        drag.moved = true;
-                        drag.index = drag.centers.reduce(
-                          (closest, center, i) =>
-                            Math.abs(event.clientY - center) <
-                            Math.abs(event.clientY - drag.centers[closest]!)
-                              ? i
-                              : closest,
-                          0,
-                        );
-                        setTrackMotion({
-                          trackId: drag.trackId,
-                          source: drag.source,
-                          index: drag.index,
-                          x: (event.clientX - drag.startX) / interfaceScale(),
-                          y: (event.clientY - drag.startY) / interfaceScale(),
-                          offsets: drag.offsets,
-                        });
-                        setDropTrack(project.tracks[drag.index]?.id ?? null);
-                      }}
-                      onPointerUp={(event) => {
-                        const drag = trackDrag.current;
-                        cancelTrackDrag();
-                        if (
-                          !busy &&
-                          drag?.id === event.pointerId &&
-                          drag.moved &&
-                          drag.index !== index
-                        )
-                          reorder(drag.trackId, drag.index);
-                      }}
-                      onPointerCancel={() => {
-                        cancelTrackDrag();
-                      }}
-                      onLostPointerCapture={() => {
-                        cancelTrackDrag();
-                      }}
-                    >
-                      {track.kind === 'audio' ? (
-                        <Music2 />
-                      ) : track.kind === 'overlay' ? (
-                        <Captions />
-                      ) : (
-                        <Film />
-                      )}
-                      <span>
-                        {track.kind === 'audio'
-                          ? 'Audio'
-                          : track.kind === 'overlay'
-                            ? 'Text'
-                            : 'Video'}{' '}
-                        {index + 1}
-                      </span>
-                    </button>
+                            reorder(drag.trackId, drag.index);
+                        }}
+                        onPointerCancel={() => {
+                          cancelTrackDrag();
+                        }}
+                        onLostPointerCapture={() => {
+                          cancelTrackDrag();
+                        }}
+                      >
+                        {track.kind === 'audio' ? (
+                          <Music2 />
+                        ) : track.kind === 'overlay' ? (
+                          <Captions />
+                        ) : (
+                          <Film />
+                        )}
+                        <span>{trackName(track, index)}</span>
+                      </button>
+                      <div className="track-state-row">
+                        {track.disabled && (
+                          <EyeOff aria-label="Track disabled" />
+                        )}
+                        {track.muted && <VolumeX aria-label="Track muted" />}
+                        {track.solo && <Headphones aria-label="Track solo" />}
+                        {track.locked && (
+                          <LockKeyhole aria-label="Track locked" />
+                        )}
+                        <TrackMenu
+                          project={project}
+                          track={track}
+                          index={index}
+                          busy={!!busy}
+                          readOnly={props.readOnly}
+                          onOperation={(operations, scope) => {
+                            menuFocus.current = {
+                              projectId: scope.projectId,
+                              trackId: track.id,
+                              index,
+                            };
+                            props.onTrackOperation(operations, scope);
+                          }}
+                        />
+                      </div>
+                    </div>
                     <div
                       className="track-lane"
                       onPointerDown={(event) => {
@@ -868,7 +943,7 @@ export function Timeline(props: Props) {
                                 {clipName(clip, assets)}
                               </span>
                             </button>
-                            {!busy && (
+                            {!busy && !track.locked && (
                               <button
                                 type="button"
                                 className="timeline-resize-handle"

@@ -665,7 +665,11 @@ export function Workspace() {
     setMediaDrag(null);
     if (!asset || !project) return;
     const track = project.tracks.find((track) => track.id === trackId);
-    if (track?.kind !== (asset.kind === 'audio' ? 'audio' : 'video')) return;
+    if (
+      track?.locked ||
+      track?.kind !== (asset.kind === 'audio' ? 'audio' : 'video')
+    )
+      return;
     const clip = assetClip(project, asset, startUs);
     void action(async () => {
       await apply([{ type: 'insertClip', trackId, clip }]);
@@ -673,11 +677,19 @@ export function Workspace() {
       setSelection([]);
     });
   };
-  const apply = async (operations: EditOperation[]) => {
+  const apply = async (
+    operations: EditOperation[],
+    scope?: { projectId: string; revision: number },
+  ) => {
     if (browsing.current)
       throw new Error('Return to the current version to edit.');
     if (!project) throw new Error('Create or open a project first.');
     const engine = await ensureEditor();
+    if (
+      scope &&
+      (scope.projectId !== project.id || scope.revision !== project.revision)
+    )
+      throw new Error('The project changed. Try again.');
     if (project.id !== getProjectId())
       throw new Error('The active project changed. Try again.');
     await engine.commands.apply({
@@ -796,6 +808,10 @@ export function Workspace() {
   const selectedClip = viewProject?.tracks
     .flatMap((track) => track.clips)
     .find((clip) => clip.id === selected);
+  const selectionLocked = !!viewProject?.tracks.some(
+    (track) =>
+      track.locked && track.clips.some((clip) => selectedIds.includes(clip.id)),
+  );
   const seek = (value: number) => {
     setTimeUs(value);
     setSeekRevision((value) => value + 1);
@@ -963,10 +979,21 @@ export function Workspace() {
       toast.success('Track reordered');
     });
   };
+  const trackOperation = (
+    operations: EditOperation[],
+    scope: { projectId: string; revision: number },
+  ) => {
+    if (!project || busy || browsing.current) return;
+    void action(async () => {
+      await apply(operations, scope);
+    });
+  };
   const insertText = (style: TextStyleInput) => {
     if (!project || browsed) return;
     void action(async () => {
-      const track = project!.tracks.find((track) => track.kind === 'overlay');
+      const track = project!.tracks.find(
+        (track) => track.kind === 'overlay' && !track.locked,
+      );
       const trackId = track?.id ?? crypto.randomUUID();
       const id = crypto.randomUUID();
       await apply([
@@ -1078,6 +1105,7 @@ export function Workspace() {
     ),
   ];
   const canGroup =
+    !selectionLocked &&
     selectedIds.length >= 2 &&
     !(
       selectedGroups.length === 1 &&
@@ -1105,6 +1133,7 @@ export function Workspace() {
       toast.success('Clips ungrouped');
     });
   const canSeparate =
+    !selectionLocked &&
     selectedIds.length === 1 &&
     selectedClip?.kind === 'video' &&
     !selectedClip.muted &&
@@ -1113,7 +1142,7 @@ export function Workspace() {
     void action(async () => {
       if (!project || !selectedClip) return;
       const track = project.tracks.find(
-        (track) => track.kind === 'audio' && !track.muted,
+        (track) => track.kind === 'audio' && !track.muted && !track.locked,
       );
       const trackId = track?.id ?? crypto.randomUUID();
       const audioClipId = crypto.randomUUID();
@@ -1180,6 +1209,7 @@ export function Workspace() {
       );
     });
   const canSplit =
+    !selectionLocked &&
     selectedIds.length === 1 &&
     !!selectedClip &&
     timeUs > selectedClip.startUs &&
@@ -1274,25 +1304,25 @@ export function Workspace() {
     selectAll: total ? selectAll : undefined,
     clearSelection: selectedIds.length ? clearSelection : undefined,
     copy: selectedIds.length && !browsed ? copy : undefined,
-    cut: selectedIds.length && !browsed ? cut : undefined,
+    cut: selectedIds.length && !browsed && !selectionLocked ? cut : undefined,
     paste:
       project && clipboard?.projectId === project.id && !browsed
         ? paste
         : undefined,
     nudgeLeft:
-      selectedIds.length && !browsed
+      selectedIds.length && !browsed && !selectionLocked
         ? () => editSelection(nudgeSelection(project!, selectedIds, -1))
         : undefined,
     nudgeRight:
-      selectedIds.length && !browsed
+      selectedIds.length && !browsed && !selectionLocked
         ? () => editSelection(nudgeSelection(project!, selectedIds, 1))
         : undefined,
     nudgeTenLeft:
-      selectedIds.length && !browsed
+      selectedIds.length && !browsed && !selectionLocked
         ? () => editSelection(nudgeSelection(project!, selectedIds, -10))
         : undefined,
     nudgeTenRight:
-      selectedIds.length && !browsed
+      selectedIds.length && !browsed && !selectionLocked
         ? () => editSelection(nudgeSelection(project!, selectedIds, 10))
         : undefined,
     trimStart:
@@ -1304,7 +1334,9 @@ export function Workspace() {
         ? () => editSelection(trimEndOperations, true)
         : undefined,
     rippleDelete:
-      rippleOperations.length && !browsed
+      rippleOperations.length &&
+      !browsed &&
+      !viewProject?.tracks.some((track) => track.locked)
         ? () => editSelection(rippleOperations, true)
         : undefined,
     properties: total
@@ -1337,10 +1369,15 @@ export function Workspace() {
       ? () => seek(frameStep(total, 0, viewProject!.frameRate, total))
       : undefined,
     split: canSplit && !browsed ? split : undefined,
-    delete: selectedClip && !browsed ? deleteClip : undefined,
-    duplicate: selectedClip && !browsed ? duplicate : undefined,
+    delete:
+      selectedClip && !browsed && !selectionLocked ? deleteClip : undefined,
+    duplicate:
+      selectedClip && !browsed && !selectionLocked ? duplicate : undefined,
     group: canGroup && !browsed ? group : undefined,
-    ungroup: selectedGroups.length && !browsed ? ungroup : undefined,
+    ungroup:
+      selectedGroups.length && !browsed && !selectionLocked
+        ? ungroup
+        : undefined,
     addText: project && !browsed ? addText : undefined,
     undo: project && !browsed ? undo : undefined,
     redo: project && !browsed ? redo : undefined,
@@ -1894,6 +1931,7 @@ export function Workspace() {
                         ]);
                       })
                     }
+                    onTrackOperation={trackOperation}
                   />
                 </Suspense>
               </EditorPanels>

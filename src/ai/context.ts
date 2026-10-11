@@ -1,6 +1,7 @@
 import type { Asset, Project, Transcript } from '../core/model';
 import { durationUs, parameterSchema } from '../core/model';
 import { frameTimeUs, gainAt, sourceTimeUs, valueAt } from '../core/timing';
+import { outputTracks } from '../core/timeline';
 import { AiError } from './errors';
 
 /** Each option independently opts the corresponding local text into remote context. */
@@ -29,8 +30,9 @@ export function projectContext(project: Project, policy: ContextPolicy = {}) {
   return {
     ...settings,
     ...(policy.includeAssetNames ? { name } : {}),
-    tracks: tracks.map((track) => ({
+    tracks: tracks.map(({ name, ...track }) => ({
       ...track,
+      ...(policy.includeAssetNames && name ? { name } : {}),
       clips: track.clips.map((clip) => {
         const { text, cues, ...properties } = clip;
         return {
@@ -73,6 +75,8 @@ export function timelineContext(
   const rate = project.frameRate;
   const frameIndex = Math.floor((timeUs * rate.num) / (1_000_000 * rate.den));
   const redacted = projectContext(project, policy);
+  const audible = new Set(outputTracks(project, 'audio').map((t) => t.id));
+  const visible = new Set(outputTracks(project, 'visual').map((t) => t.id));
   return {
     projectId: project.id,
     revision: project.revision,
@@ -84,6 +88,12 @@ export function timelineContext(
       id: track.id,
       kind: track.kind,
       muted: track.muted,
+      name: track.name,
+      disabled: track.disabled,
+      solo: track.solo,
+      locked: track.locked,
+      visible: visible.has(track.id),
+      audible: audible.has(track.id),
       clips: track.clips
         .filter(
           (clip) =>
@@ -106,13 +116,14 @@ export function timelineContext(
               ]),
             ),
             audibleGain:
-              track.muted || !['video', 'audio'].includes(clip.kind)
+              !audible.has(track.id) || !['video', 'audio'].includes(clip.kind)
                 ? 0
                 : gainAt(original, timeUs),
           };
         }),
     })),
     transitions: project.transitions.flatMap((transition) => {
+      if (!visible.has(transition.trackId)) return [];
       const clips = project.tracks.find(
         (track) => track.id === transition.trackId,
       )!.clips;
