@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, copyFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -10,25 +11,54 @@ test('verified build cache reuses test/docs edits and rejects source/output/envi
   try {
     for (const dir of ['scripts', 'src', 'public', 'dist', 'tests', 'docs'])
       await mkdir(join(root, dir));
-    for (const name of ['build-state.mjs', 'build.mjs', 'font-snapshot.ts'])
+    for (const name of [
+      'build-state.mjs',
+      'build.mjs',
+      'font-snapshot.ts',
+      'build-info.ts',
+    ])
       await copyFile(
         new URL('../../scripts/' + name, import.meta.url),
         join(root, 'scripts', name),
       );
     await writeFile(join(root, 'src', 'index.ts'), 'production');
-    await writeFile(join(root, 'package.json'), '{}');
+    await writeFile(join(root, 'package.json'), '{"type":"module"}');
     await writeFile(join(root, 'dist', 'index.html'), 'output');
     const { target, inputHash, recordBuild, buildStatus } = await import(
       pathToFileURL(join(root, 'scripts', 'build-state.mjs')).href
     );
     const build = target();
     assert.equal((await buildStatus(build)).current, false);
+    execFileSync('git', ['init', '-q'], { cwd: root });
+    const commit = () =>
+      execFileSync(
+        'git',
+        [
+          '-c',
+          'user.name=Test',
+          '-c',
+          'user.email=test@example.invalid',
+          'commit',
+          '--allow-empty',
+          '-qm',
+          'build identity',
+        ],
+        { cwd: root },
+      );
+    commit();
     await recordBuild(build, await inputHash(build));
     assert.equal((await buildStatus(build)).current, true);
     await writeFile(join(root, 'tests', 'test.ts'), 'new test');
     await writeFile(join(root, 'docs', 'readme.md'), 'new docs');
     await writeFile(join(root, 'src', 'AGENTS.md'), 'instructions');
     assert.equal((await buildStatus(build)).current, true);
+    commit();
+    assert.equal(
+      (await buildStatus(build)).current,
+      false,
+      'a new Git revision invalidates identical source',
+    );
+    await recordBuild(build, await inputHash(build));
     await writeFile(join(root, 'dist', 'index.html'), 'tampered');
     assert.equal((await buildStatus(build)).current, false);
     await writeFile(join(root, 'dist', 'index.html'), 'output');

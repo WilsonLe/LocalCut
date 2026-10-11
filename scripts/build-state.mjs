@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readBuildInfo } from './build-info.ts';
 
 export const root = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -65,9 +66,12 @@ export async function inputHash(build) {
       (file) => basename(file) !== 'AGENTS.md',
     ),
     ...(await filesIn(join(root, 'public'))),
-    ...['build.mjs', 'build-state.mjs', 'font-snapshot.ts'].map((name) =>
-      join(root, 'scripts', name),
-    ),
+    ...[
+      'build.mjs',
+      'build-state.mjs',
+      'font-snapshot.ts',
+      'build-info.ts',
+    ].map((name) => join(root, 'scripts', name)),
   ];
   const environment = Object.fromEntries(
     Object.entries(process.env)
@@ -78,6 +82,7 @@ export async function inputHash(build) {
     files,
     JSON.stringify({
       version: 1,
+      revision: readBuildInfo(root),
       base: build.base,
       node: process.versions.node,
       environment,
