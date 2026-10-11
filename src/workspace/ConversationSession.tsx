@@ -47,7 +47,7 @@ export interface Message {
   id: string;
   role: 'user' | 'assistant';
   text: string;
-  status: 'complete' | 'streaming' | 'interrupted' | 'failed';
+  status: 'complete' | 'streaming' | 'interrupted' | 'paused' | 'failed';
   proposalIds: string[];
   usage?: Usage;
   tools?: AssistantToolCall[];
@@ -159,6 +159,7 @@ export default function ConversationSession({
   const list = useRef<HTMLDivElement>(null);
   const nearBottom = useRef(true);
   const cancelBeforeRun = useRef(false);
+  const pausedByNavigation = useRef(false);
   const runningRef = useRef(false);
   const applyingRef = useRef(false);
   const selected = project.tracks
@@ -168,9 +169,31 @@ export default function ConversationSession({
     (proposal) => proposal.status === 'applying',
   );
 
+  const pauseResponse = useCallback(() => {
+    if (!runningRef.current) return;
+    pausedByNavigation.current = true;
+    cancelBeforeRun.current = true;
+    turn.current?.cancel();
+  }, []);
+  useLayoutEffect(() => {
+    if (!active) pauseResponse();
+  }, [active, pauseResponse]);
+  useEffect(() => {
+    const visibility = () => {
+      if (document.visibilityState === 'hidden') pauseResponse();
+    };
+    document.addEventListener('visibilitychange', visibility);
+    window.addEventListener('pagehide', pauseResponse);
+    return () => {
+      document.removeEventListener('visibilitychange', visibility);
+      window.removeEventListener('pagehide', pauseResponse);
+    };
+  }, [pauseResponse]);
+
   useEffect(() => {
     mounted.current = true;
     const cleanup = async () => {
+      pauseResponse();
       turn.current?.cancel();
       unsubscribe.current?.();
       await assistant.current?.dispose();
@@ -181,7 +204,7 @@ export default function ConversationSession({
       retireSession(cleanup);
       unregister();
     };
-  }, [registerSession, retireSession]);
+  }, [registerSession, retireSession, pauseResponse]);
   useLayoutEffect(() => {
     if (nearBottom.current && list.current)
       list.current.scrollTop = list.current.scrollHeight;
@@ -224,7 +247,7 @@ export default function ConversationSession({
   };
   const send = async (event: FormEvent) => {
     event.preventDefault();
-    if (readOnly) return;
+    if (readOnly || !active || document.visibilityState === 'hidden') return;
     const text = prompt.trim();
     if (!text || attaching || runningRef.current || applyingRef.current) return;
     runningRef.current = true;
@@ -235,6 +258,7 @@ export default function ConversationSession({
     onBusy(true);
     onTitle(text.slice(0, 80));
     cancelBeforeRun.current = false;
+    pausedByNavigation.current = false;
     let activeTurn: AssistantTurn | undefined;
     let stop: (() => void) | undefined;
     try {
@@ -324,18 +348,23 @@ export default function ConversationSession({
         );
     } catch (error) {
       if (!mounted.current) return;
-      const cancelled = errorCode(error) === 'CANCELLED';
+      const paused = pausedByNavigation.current;
+      const cancelled = paused || errorCode(error) === 'CANCELLED';
       const text = cancelled
         ? 'Response stopped. No unfinished proposal was saved.'
         : errorText(error);
-      setFailure(text);
+      setFailure(paused ? null : text);
       if (activeTurn)
         setMessages((current) =>
           current.map((message) =>
             message.id === activeTurn!.id
               ? {
                   ...message,
-                  status: cancelled ? 'interrupted' : 'failed',
+                  status: paused
+                    ? 'paused'
+                    : cancelled
+                      ? 'interrupted'
+                      : 'failed',
                   proposalIds: [],
                 }
               : message,
@@ -568,11 +597,14 @@ export default function ConversationSession({
                 </p>
               )}
               {(message.status === 'interrupted' ||
+                message.status === 'paused' ||
                 message.status === 'failed') && (
                 <p className="text-xs text-muted-foreground">
-                  {message.status === 'interrupted'
-                    ? 'Stopped'
-                    : 'Incomplete response'}{' '}
+                  {message.status === 'paused'
+                    ? 'Paused'
+                    : message.status === 'interrupted'
+                      ? 'Stopped'
+                      : 'Incomplete response'}{' '}
                   · No pending changes
                 </p>
               )}
