@@ -398,7 +398,14 @@ for (const base of ['/', '/LocalCut/']) {
     await openAISettings(page);
     await expect(dialog).toBeVisible();
     await dialog
-      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
+      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
+      .click();
+    await expect(
+      dialog.getByLabel('OpenRouter API key', { exact: true }),
+    ).toBeVisible();
+    // Forget the disconnected profile through its replacement account control.
+    await dialog
+      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
     await expect(
       dialog.getByLabel('OpenRouter API key', { exact: true }),

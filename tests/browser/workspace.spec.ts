@@ -1010,7 +1010,7 @@ for (const base of ['/', '/LocalCut/']) {
     ).not.toBeVisible();
     await expect(
       settings.getByRole('button', {
-        name: 'Remove OpenRouter',
+        name: 'Disconnect OpenRouter',
         exact: true,
       }),
     ).toBeVisible();

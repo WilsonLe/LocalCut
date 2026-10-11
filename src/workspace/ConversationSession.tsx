@@ -34,6 +34,12 @@ import type {
 } from '../ai';
 import type { Connection, ConversationProps } from './Conversation';
 import { Button } from '../components/ui/button';
+import {
+  Empty,
+  EmptyHeader,
+  EmptyTitle,
+  EmptyDescription,
+} from '../components/ui/empty';
 import { Textarea } from '../components/ui/textarea';
 import { AccordionDisclosure } from '../components/ui/accordion';
 import { downloadFile, MEDIA_DRAG_EVENT } from './helpers';
@@ -557,6 +563,16 @@ export default function ConversationSession({
             setFollowing(nearBottom.current);
           }}
         >
+          {!messages.length && (
+            <Empty className="h-full px-6 py-8">
+              <EmptyHeader>
+                <EmptyTitle>What would you like to create?</EmptyTitle>
+                <EmptyDescription>
+                  Ask to trim a clip, add captions, or shape your next edit.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )}
           {messages.map((message) => (
             <article
               aria-label={
@@ -981,8 +997,8 @@ export default function ConversationSession({
                 event.preventDefault();
             }}
           >
-            <div className="flex items-center gap-1">
-              {composerControl}
+            <div className="flex items-center gap-1">{composerControl}</div>
+            <div className="ml-auto flex items-center gap-1">
               <DictationButton
                 editor={editor}
                 active={active}
@@ -995,8 +1011,6 @@ export default function ConversationSession({
                 }}
                 onError={setFailure}
               />
-            </div>
-            <div className="ml-auto flex items-center gap-1">
               {running ? (
                 <Button
                   type="button"
@@ -1012,7 +1026,9 @@ export default function ConversationSession({
                 >
                   <Square className="size-3" aria-hidden="true" />
                 </Button>
-              ) : (
+              ) : prompt.trim() ||
+                attachments.length ||
+                (pausedRequest && prompt.length === 0) ? (
                 <Button
                   type="submit"
                   size="icon-sm"
@@ -1035,7 +1051,7 @@ export default function ConversationSession({
                     <ArrowUp aria-hidden="true" />
                   )}
                 </Button>
-              )}
+              ) : null}
             </div>
           </div>
         </div>

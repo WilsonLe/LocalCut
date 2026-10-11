@@ -480,7 +480,14 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
     ).not.toBeVisible();
     expect(exchanges).toBe(1);
     await page
-      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
+      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
+      .click();
+    await expect(
+      page.getByLabel('OpenRouter API key', { exact: true }),
+    ).toBeVisible();
+    // Forget the disconnected profile through its replacement account control.
+    await page
+      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
     await expect(
       page.getByLabel('OpenRouter API key', { exact: true }),
@@ -534,7 +541,10 @@ for (const base of ['/', '/LocalCut/']) {
       exact: true,
     });
     await expect(
-      dialog.getByRole('button', { name: 'Remove OpenRouter', exact: true }),
+      dialog.getByRole('button', {
+        name: 'Disconnect OpenRouter',
+        exact: true,
+      }),
     ).toBeVisible();
     await page.screenshot({
       path: `.artifacts/persist-openrouter/connection-${base === '/' ? 'root' : 'pages'}.png`,
@@ -590,7 +600,7 @@ for (const base of ['/', '/LocalCut/']) {
       other.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toBeVisible();
     await other
-      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
+      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
     await openAISettings(page);
     await expect(
@@ -674,7 +684,7 @@ for (const base of ['/', '/LocalCut/']) {
     await openConnectedSettings(page);
     await dialog.getByText('Providers & services', { exact: true }).click();
     await dialog.getByRole('button', { name: 'Connect', exact: true }).click();
-    await dialog
+    await page
       .getByRole('button', { name: 'Connect endpoint', exact: true })
       .click();
     await expect(
@@ -771,7 +781,7 @@ for (const base of ['/', '/LocalCut/']) {
       exact: true,
     });
     await dialog
-      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
+      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
     await expect(dialog.getByRole('alert')).toContainText(
       'Allow local browser storage',
@@ -794,7 +804,7 @@ for (const base of ['/', '/LocalCut/']) {
       ).allowCredentialRemoval();
     });
     await dialog
-      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
+      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
     await expect(dialog.getByRole('alert')).toHaveCount(0);
     expect(

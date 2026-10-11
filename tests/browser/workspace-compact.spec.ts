@@ -166,11 +166,11 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Add provider', exact: true })
       .click();
-    await dialog.getByLabel('Name', { exact: true }).fill('Local model');
-    await dialog
+    await page.getByLabel('Name', { exact: true }).fill('Local model');
+    await page
       .getByLabel('API base URL', { exact: true })
       .fill('http://localhost:1234/v1');
-    await dialog
+    await page
       .getByRole('button', { name: 'Connect endpoint', exact: true })
       .click();
     await dialog.getByLabel('Local model llm route model').fill('local-editor');

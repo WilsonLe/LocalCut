@@ -120,6 +120,25 @@ async function connect(page: Page, context: BrowserContext, base: string) {
   await expect(
     connection.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
   ).toBeVisible();
+  await connection
+    .getByRole('button', { name: 'TTS · Speech', exact: true })
+    .click();
+  await connection
+    .getByRole('combobox', { name: 'OpenRouter tts route model', exact: true })
+    .click();
+  await page
+    .getByRole('combobox', { name: 'Search models', exact: true })
+    .fill('gemini');
+  await page
+    .getByRole('option', { name: /Gemini/ })
+    .first()
+    .click();
+  await expect(
+    connection.getByRole('combobox', {
+      name: 'OpenRouter tts route model',
+      exact: true,
+    }),
+  ).toContainText('Gemini');
   // Speech does not require choosing a tool-capable chat model.
   await connection.getByRole('button', { name: 'Done', exact: true }).click();
   if (
@@ -130,6 +149,14 @@ async function connect(page: Page, context: BrowserContext, base: string) {
     await page
       .getByRole('button', { name: 'Expand media', exact: true })
       .click();
+  const speechBounds = (await page
+    .getByRole('button', { name: 'Text to speech', exact: true })
+    .boundingBox())!;
+  const recordBounds = (await page
+    .getByRole('button', { name: 'Record screen', exact: true })
+    .boundingBox())!;
+  expect(Math.abs(speechBounds.y - recordBounds.y)).toBeLessThan(2);
+  expect(recordBounds.x - speechBounds.x - speechBounds.width).toBeLessThan(8);
   await page
     .getByRole('button', { name: 'Text to speech', exact: true })
     .click();
