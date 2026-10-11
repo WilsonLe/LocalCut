@@ -635,7 +635,7 @@ for (const base of ['/', '/LocalCut/']) {
           .click();
         const sizing = await page
           .locator(
-            '.workspace-header button, .mobile-navigation button, .playback-controls button',
+            '.workspace-header button, .mobile-tab-header button, .mobile-navigation button, .playback-controls button',
           )
           .evaluateAll((nodes) =>
             nodes.map((n) => ({
@@ -663,7 +663,7 @@ for (const base of ['/', '/LocalCut/']) {
         await expect(media).toBeInViewport();
         const mediaBounds = (await media.boundingBox())!;
         expect(mediaBounds.x).toBeCloseTo(0, 0);
-        expect(mediaBounds.y).toBeGreaterThan(0);
+        expect(mediaBounds.y).toBeCloseTo(0, 0);
         expect(mediaBounds.width).toBeCloseTo(320, 0);
         expect(mediaBounds.y + mediaBounds.height).toBeLessThanOrEqual(
           (await nav.boundingBox())!.y,
