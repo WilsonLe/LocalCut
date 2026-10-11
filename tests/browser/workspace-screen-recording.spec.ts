@@ -147,6 +147,88 @@ async function snapshot(
   }, base);
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`screen recording browser audio guidance before permission ${base}`, async ({
+    page,
+  }, info) => {
+    await page.goto(base);
+    await source(page);
+    for (const [browser, userAgent, unsupported] of [
+      [
+        'Safari',
+        'Mozilla/5.0 AppleWebKit/605.1.15 Version/26.0 Safari/605.1.15',
+        true,
+      ],
+      ['Firefox', 'Mozilla/5.0 Gecko/20100101 Firefox/144.0', true],
+      ['Chrome', 'Mozilla/5.0 Chrome/141.0.0.0 Safari/537.36', false],
+      [
+        'Edge',
+        'Mozilla/5.0 Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0',
+        false,
+      ],
+      [
+        'Opera',
+        'Mozilla/5.0 Chrome/141.0.0.0 Safari/537.36 OPR/124.0.0.0',
+        false,
+      ],
+      ['Unknown', 'UnknownBrowser/1.0', false],
+    ] as const) {
+      await test.step(browser, async () => {
+        await page.evaluate((value) => {
+          Object.defineProperty(navigator, 'userAgent', {
+            configurable: true,
+            value,
+          });
+        }, userAgent);
+        const dialog = await open(page);
+        const audio = dialog.getByRole('checkbox', {
+          name: 'Include shared audio',
+          exact: true,
+        });
+        await expect(audio).not.toBeChecked();
+        await audio.check();
+        const note = dialog.locator('#record-shared-audio-help');
+        await expect(note).toBeVisible();
+        await expect(audio).toHaveAttribute(
+          'aria-describedby',
+          'record-shared-audio-help',
+        );
+        if (unsupported) {
+          await expect(note).toContainText(browser);
+          await expect(note).toContainText(
+            'does not provide shared tab or system audio',
+          );
+          await expect(note).toContainText('record without sound');
+          await expect(note).toContainText('open LocalCut and the page');
+        } else if (browser === 'Unknown') {
+          await expect(note).toContainText('depends on your browser');
+          await expect(note).toContainText('Chrome or Edge');
+        } else {
+          await expect(note).toContainText(browser);
+          await expect(note).toContainText('Share tab audio');
+          await expect(note).toContainText('operating system');
+          await expect(note).not.toContainText('does not provide');
+        }
+        await page.setViewportSize({ width: 390, height: 844 });
+        expect(
+          await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth),
+        ).toBe(true);
+        await page.screenshot({
+          path: info.outputPath(`audio-guidance-${browser}.png`),
+        });
+        expect((await fixture(page, '')).calls).toBe(0);
+        expect(await page.evaluate(() => indexedDB.databases())).toHaveLength(
+          0,
+        );
+        await audio.uncheck();
+        await expect(note).not.toBeVisible();
+        await expect(audio).not.toHaveAttribute('aria-describedby');
+        await dialog
+          .getByRole('button', { name: 'Cancel', exact: true })
+          .click();
+      });
+    }
+  });
+
   test(`screen recording native media imports, persists and exports ${base}`, async ({
     page,
   }, info) => {

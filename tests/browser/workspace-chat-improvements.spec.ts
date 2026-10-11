@@ -206,16 +206,46 @@ for (const base of ['/', '/LocalCut/']) {
       page.getByText('Alternative reply.', { exact: true }),
     ).not.toBeVisible();
     // Import a real local image into the draft; only its metadata/ID may travel remotely.
+    const imageBytes = await page.evaluate(async () => {
+      const canvas = new OffscreenCanvas(32, 32);
+      canvas.getContext('2d')!.fillRect(0, 0, 32, 32);
+      return [
+        ...new Uint8Array(
+          await (
+            await canvas.convertToBlob({ type: 'image/png' })
+          ).arrayBuffer(),
+        ),
+      ];
+    });
+    await page.getByLabel('Import media', { exact: true }).setInputFiles({
+      name: 'Reference.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(imageBytes),
+    });
+    const source = page.getByRole('button', {
+      name: 'Asset details for Reference.png',
+      exact: true,
+    });
+    await expect(source).toBeVisible();
+    await expect(source.locator('img')).toBeVisible();
+    for (const close of await page
+      .getByRole('button', { name: 'Close toast', exact: true })
+      .all())
+      if (await close.isVisible()) await close.click();
     const asset = await page.evaluate(async (base) => {
-      const { createEditor } = await import(base + 'editor.js');
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
       const editor = await createEditor();
       try {
-        const canvas = new OffscreenCanvas(32, 32);
-        canvas.getContext('2d')!.fillRect(0, 0, 32, 32);
-        return await editor.assets.import(
-          await canvas.convertToBlob({ type: 'image/png' }),
-          'Reference.png',
-        ).completion;
+        const summary = (await editor.projects.list()).find(
+          (item) => item.name === 'Chat improvements',
+        )!;
+        const project = await editor.projects.snapshot(summary.id);
+        const id = project.tracks
+          .flatMap((track) => track.clips)
+          .find((clip) => clip.assetId)?.assetId;
+        return await editor.assets.inspect(id!);
       } finally {
         await editor.dispose();
       }
@@ -225,15 +255,29 @@ for (const base of ['/', '/LocalCut/']) {
       data.setData('application/x-localcut-image', id);
       return data;
     }, asset.id);
-    await page
-      .locator('.conversation-session:not([hidden]) .chat-composer')
-      .dispatchEvent('drop', { dataTransfer: transfer });
+    for (const close of await page
+      .getByRole('button', { name: 'Close toast', exact: true })
+      .all())
+      if (await close.isVisible()) await close.click();
+    const from = (await source.boundingBox())!;
+    const to = (await input.boundingBox())!;
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, {
+      steps: 12,
+    });
+    await expect(
+      page.locator('.conversation-session:not([hidden]) .chat-composer'),
+    ).toHaveAttribute('data-dropping', 'true');
+    await page.mouse.up();
     await expect(page.getByLabel('Attached images')).toContainText(
       'Reference.png',
     );
     await page
       .getByRole('button', { name: 'Remove Reference.png', exact: true })
       .click();
+    // Remove the placed clip before checking that an unsent attachment grants no context.
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
     await input.fill('No attachment in this request');
     await page
       .getByRole('button', { name: 'Send edit request', exact: true })

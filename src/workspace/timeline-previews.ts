@@ -1,4 +1,5 @@
 import type { Asset, Clip, Editor } from '../editor';
+import { loopDurationUs } from '../core/speed';
 import { sourceTimeUs } from '../core/timing';
 
 export type TimelinePreview = { url: string } | { peaks: Float32Array };
@@ -129,13 +130,28 @@ export function timelineWaveformPath(
       clip,
       clip.startUs + ((i + 1) * clip.durationUs) / 128,
     );
-    const from = Math.max(0, Math.floor((fromUs / durationUs) * peaks.length));
-    const to = Math.min(
-      peaks.length,
-      Math.max(from + 1, Math.ceil((toUs / durationUs) * peaks.length)),
-    );
+    const cycle = clip.loop ? loopDurationUs(clip) : 0;
+    const fromLocal = (i * clip.durationUs) / 128 + (clip.loop?.offsetUs ?? 0);
+    const toLocal =
+      ((i + 1) * clip.durationUs) / 128 + (clip.loop?.offsetUs ?? 0);
+    const ranges =
+      cycle && toLocal - fromLocal >= cycle
+        ? [[clip.sourceInUs, clip.sourceOutUs!]]
+        : cycle && Math.floor(fromLocal / cycle) !== Math.floor(toLocal / cycle)
+          ? [
+              [fromUs, clip.sourceOutUs!],
+              [clip.sourceInUs, toUs],
+            ]
+          : [[fromUs, toUs]];
     let peak = 0;
-    for (let bin = from; bin < to; bin++) peak = Math.max(peak, peaks[bin]!);
+    for (const [a, b] of ranges) {
+      const from = Math.max(0, Math.floor((a! / durationUs) * peaks.length));
+      const to = Math.min(
+        peaks.length,
+        Math.max(from + 1, Math.ceil((b! / durationUs) * peaks.length)),
+      );
+      for (let bin = from; bin < to; bin++) peak = Math.max(peak, peaks[bin]!);
+    }
     const height = Math.max(0.5, Math.min(1, peak) * 15);
     return `M${i + 0.5} ${16 - height}v${height * 2}`;
   }).join(' ');

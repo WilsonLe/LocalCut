@@ -1,13 +1,41 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
-import { Files, Music, Upload, ScreenShare, AudioLines } from 'lucide-react';
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useState,
+  useRef,
+  type PointerEvent,
+} from 'react';
+import {
+  Files,
+  Music,
+  Upload,
+  ScreenShare,
+  AudioLines,
+  Pencil,
+  Trash2,
+  Link,
+} from 'lucide-react';
 import type { Asset, Editor } from '../editor';
 import type { IndexConnection } from './Conversation';
 const TaskQueueControl = lazy(() => import('./TaskQueueControl'));
 const AssetIndexControls = lazy(() => import('./AssetIndexControls'));
+import { Menu } from '@base-ui/react/menu';
+import { toast } from 'sonner';
+import { assetMenuItemClass } from './AssetMenu';
+import { Input } from '../components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '../components/ui/dialog';
+
 import { Button } from '../components/ui/button';
 import { Empty, EmptyContent } from '../components/ui/empty';
 import { Tooltip } from '../components/ui/tooltip';
-import { formatTime } from './helpers';
+import { MEDIA_DRAG_EVENT, formatTime } from './helpers';
 
 export default function MediaLibrary({
   editor,
@@ -20,6 +48,9 @@ export default function MediaLibrary({
   onRecord,
   onSpeech,
   onRelink,
+  onRename,
+  onDelete,
+  onAssetDrag,
 }: {
   editor: Editor | null;
   queueOwner?: Pick<Editor, 'tasks'> | null;
@@ -31,7 +62,92 @@ export default function MediaLibrary({
   onRecord: () => void;
   onSpeech?: () => void;
   onRelink: (id: string) => void;
+  onRename: (asset: Asset, name: string) => Promise<void>;
+  onDelete: (asset: Asset) => Promise<void>;
+  onAssetDrag: (id: string | null) => void;
 }) {
+  const drag = useRef<{
+    pointerId: number;
+    assetId: string;
+    x: number;
+    y: number;
+    moved: boolean;
+  } | null>(null);
+  const emit = (
+    phase: 'move' | 'drop' | 'cancel',
+    assetId: string,
+    clientX = 0,
+    clientY = 0,
+  ) =>
+    document.dispatchEvent(
+      new CustomEvent(MEDIA_DRAG_EVENT, {
+        detail: { phase, assetId, clientX, clientY },
+      }),
+    );
+  const cancel = () => {
+    if (drag.current?.moved) {
+      emit('cancel', drag.current.assetId);
+      onAssetDrag(null);
+    }
+    drag.current = null;
+  };
+  const dragProps = (asset: Asset) => ({
+    draggable: false,
+    'data-draggable': canEdit && !readOnly && asset.status === 'ready',
+    onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
+      if (
+        event.button !== 0 ||
+        !canEdit ||
+        readOnly ||
+        asset.status !== 'ready'
+      )
+        return;
+      event.preventDefault();
+      event.currentTarget.focus();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      drag.current = {
+        pointerId: event.pointerId,
+        assetId: asset.id,
+        x: event.clientX,
+        y: event.clientY,
+        moved: false,
+      };
+    },
+    onPointerMove: (event: PointerEvent<HTMLButtonElement>) => {
+      const gesture = drag.current;
+      if (!gesture || gesture.pointerId !== event.pointerId) return;
+      if (!canEdit || readOnly) {
+        cancel();
+        return;
+      }
+      if (
+        !gesture.moved &&
+        Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) < 4
+      )
+        return;
+      if (!gesture.moved) {
+        gesture.moved = true;
+        onAssetDrag(asset.id);
+      }
+      emit('move', asset.id, event.clientX, event.clientY);
+    },
+    onPointerUp: (event: PointerEvent<HTMLButtonElement>) => {
+      if (drag.current?.pointerId !== event.pointerId) return;
+      if (drag.current.moved)
+        emit('drop', asset.id, event.clientX, event.clientY);
+      drag.current = null;
+      onAssetDrag(null);
+    },
+    onPointerCancel: cancel,
+    onLostPointerCapture: cancel,
+    onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (event.key === 'Escape' && drag.current) {
+        event.preventDefault();
+        event.stopPropagation();
+        cancel();
+      }
+    },
+  });
   return (
     <section className="media-library" aria-label="Project media">
       <div className="section-heading">
@@ -68,47 +184,18 @@ export default function MediaLibrary({
       </div>
       <div className="media-grid">
         {assets.map((asset) => (
-          <div className="media-item" key={asset.id}>
-            <Suspense fallback={<AssetPreview editor={null} asset={asset} />}>
-              <AssetIndexControls
-                editor={editor}
-                asset={asset}
-                connection={indexConnection}
-                readOnly={readOnly}
-                details={
-                  <>
-                    <div>{asset.name}</div>
-                    <div>
-                      {asset.kind} · {asset.type}
-                    </div>
-                    {asset.kind !== 'audio' && (
-                      <div>
-                        {asset.width} × {asset.height}
-                      </div>
-                    )}
-                    {asset.kind !== 'image' && (
-                      <div>{formatTime(asset.durationUs)}</div>
-                    )}
-                    <div>{Math.ceil(asset.size / 1024)} KiB</div>
-                    {asset.status === 'missing' && (
-                      <div>Missing · relink file</div>
-                    )}
-                  </>
-                }
-              >
-                <AssetPreview editor={editor} asset={asset} />
-              </AssetIndexControls>
-            </Suspense>
-            {asset.status === 'missing' && canEdit && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onRelink(asset.id)}
-              >
-                Relink
-              </Button>
-            )}
-          </div>
+          <MediaAssetCard
+            key={asset.id}
+            editor={editor}
+            asset={asset}
+            connection={indexConnection}
+            readOnly={readOnly}
+            canEdit={canEdit}
+            onRelink={onRelink}
+            onRename={onRename}
+            onDelete={onDelete}
+            previewProps={dragProps(asset)}
+          />
         ))}
         {canEdit && (
           <Empty className="media-import-card">
@@ -130,6 +217,197 @@ export default function MediaLibrary({
         )}
       </div>
     </section>
+  );
+}
+
+function MediaAssetCard({
+  editor,
+  asset,
+  connection,
+  readOnly,
+  canEdit,
+  onRelink,
+  onRename,
+  onDelete,
+  previewProps,
+}: {
+  editor: Editor | null;
+  asset: Asset;
+  canEdit: boolean;
+  connection: IndexConnection | null;
+  readOnly: boolean;
+  onRelink: (id: string) => void;
+  onRename: (asset: Asset, name: string) => Promise<void>;
+  onDelete: (asset: Asset) => Promise<void>;
+  previewProps: React.ComponentProps<'button'>;
+}) {
+  const blocked = readOnly || !canEdit;
+  const card = useRef<HTMLDivElement>(null);
+  const [dialog, setDialog] = useState<'rename' | 'delete' | null>(null);
+  const [name, setName] = useState('');
+  const [original, setOriginal] = useState(asset);
+  const [saving, setSaving] = useState(false);
+  const [failure, setFailure] = useState('');
+  const actions = (
+    <>
+      <Menu.Item
+        className={assetMenuItemClass}
+        disabled={blocked || saving}
+        onClick={() => {
+          setOriginal(asset);
+          setName(asset.name);
+          setFailure('');
+          setDialog('rename');
+        }}
+      >
+        <Pencil aria-hidden="true" />
+        Rename
+      </Menu.Item>
+      {asset.status === 'missing' && (
+        <Menu.Item
+          className={assetMenuItemClass}
+          disabled={blocked || saving}
+          onClick={() => onRelink(asset.id)}
+        >
+          <Link aria-hidden="true" />
+          Relink
+        </Menu.Item>
+      )}
+      <Menu.Item
+        className={`${assetMenuItemClass} text-destructive`}
+        disabled={blocked || saving}
+        onClick={() => {
+          setFailure('');
+          setDialog('delete');
+        }}
+      >
+        <Trash2 aria-hidden="true" />
+        Delete
+      </Menu.Item>
+    </>
+  );
+  const submit = async () => {
+    if (saving || blocked) return;
+    setSaving(true);
+    setFailure('');
+    try {
+      if (dialog === 'rename') await onRename(original, name.trim());
+      else await onDelete(asset);
+      setDialog(null);
+      toast.success(
+        dialog === 'rename' ? 'Asset renamed' : 'Asset removed from project',
+      );
+    } catch (e) {
+      setFailure(
+        e instanceof Error
+          ? e.message
+          : 'Could not update this asset. Please try again.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="media-item" ref={card}>
+      <AssetIndexControls
+        editor={editor}
+        asset={asset}
+        connection={connection}
+        readOnly={readOnly}
+        actions={actions}
+        details={
+          <>
+            <div>{asset.name}</div>
+            <div>
+              {asset.kind} · {asset.type}
+            </div>
+            {asset.kind !== 'audio' && (
+              <div>
+                {asset.width} × {asset.height}
+              </div>
+            )}
+            {asset.kind !== 'image' && (
+              <div>{formatTime(asset.durationUs)}</div>
+            )}
+            <div>{Math.ceil(asset.size / 1024)} KiB</div>
+            {asset.status === 'missing' && <div>Missing · relink file</div>}
+          </>
+        }
+      >
+        <AssetPreview editor={editor} asset={asset} {...previewProps} />
+      </AssetIndexControls>
+      <Dialog
+        open={dialog !== null}
+        onOpenChange={(open) => {
+          if (!open && !saving) setDialog(null);
+        }}
+      >
+        <DialogContent
+          finalFocus={() =>
+            card.current?.querySelector<HTMLButtonElement>(
+              '.media-actions-trigger',
+            ) ?? false
+          }
+        >
+          <DialogHeader>
+            <DialogTitle>
+              {dialog === 'rename' ? 'Rename asset' : 'Delete asset'}
+            </DialogTitle>
+            <DialogDescription>
+              {dialog === 'rename'
+                ? 'Update the media name in this browser. The original file stays unchanged.'
+                : `Remove ${asset.name} and all its timeline clips from this project? Undo can restore them. Original media and saved index runs are retained for saved versions.`}
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submit();
+            }}
+          >
+            {dialog === 'rename' && (
+              <label className="grid gap-2">
+                Asset name
+                <Input
+                  autoFocus
+                  value={name}
+                  disabled={saving || blocked}
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </label>
+            )}
+            {failure && (
+              <p role="alert" className="text-destructive">
+                {failure}
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                disabled={saving}
+                onClick={() => setDialog(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant={dialog === 'delete' ? 'destructive' : 'default'}
+                disabled={
+                  saving || blocked || (dialog === 'rename' && !name.trim())
+                }
+              >
+                {saving
+                  ? 'Saving…'
+                  : dialog === 'rename'
+                    ? 'Save name'
+                    : 'Delete asset'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 
@@ -177,16 +455,15 @@ function AssetPreview({
       type="button"
       className="media-asset-preview"
       aria-label={`Asset details for ${asset.name}`}
-      draggable={asset.kind === 'image' && asset.status === 'ready'}
-      onDragStart={(event) => {
-        event.dataTransfer.setData('application/x-localcut-image', asset.id);
-        event.dataTransfer.effectAllowed = 'copy';
-      }}
       {...props}
     >
       <span className="media-symbol">
         {url ? (
-          <img src={url} alt={`Thumbnail for ${asset.name}`} />
+          <img
+            draggable={false}
+            src={url}
+            alt={`Thumbnail for ${asset.name}`}
+          />
         ) : asset.kind === 'audio' ? (
           <Music aria-hidden="true" />
         ) : (

@@ -1,6 +1,7 @@
 import {
   lazy,
   Suspense,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -34,7 +35,8 @@ import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
 import { Tooltip } from '../components/ui/tooltip';
 import { AccordionDisclosure } from '../components/ui/accordion';
-import { downloadFile } from './helpers';
+import { downloadFile, MEDIA_DRAG_EVENT } from './helpers';
+import type { MediaDragDetail } from './helpers';
 import { errorCode, errorText } from './conversation-errors';
 import DictationButton from './DictationButton';
 import type { Asset } from '../editor';
@@ -410,44 +412,70 @@ export default function ConversationSession({
     input.style.height = 'auto';
     input.style.height = `${Math.min(180, input.scrollHeight)}px`;
   }, [prompt]);
-  const attachImages = async (files: File[], assetId?: string) => {
-    if (readOnly || attaching || runningRef.current) return;
-    setAttaching(true);
-    try {
-      const images: Asset[] = [];
-      if (assetId) images.push(await editor.assets.inspect(assetId));
-      for (const file of files) {
-        if (!file.type.startsWith('image/'))
-          throw new Error('Drag image files or image assets into the draft.');
-        images.push(await editor.assets.import(file).completion);
-      }
-      if (
-        images.some(
-          (asset) => asset.kind !== 'image' || asset.status !== 'ready',
+  const composerBox = useRef<HTMLDivElement>(null);
+  const attachImages = useCallback(
+    async (files: File[], assetId?: string) => {
+      if (!active || readOnly || attaching || runningRef.current) return;
+      setAttaching(true);
+      try {
+        const images: Asset[] = [];
+        if (assetId) images.push(await editor.assets.inspect(assetId));
+        for (const file of files) {
+          if (!file.type.startsWith('image/'))
+            throw new Error('Drag image files or image assets into the draft.');
+          images.push(await editor.assets.import(file).completion);
+        }
+        if (
+          images.some(
+            (asset) => asset.kind !== 'image' || asset.status !== 'ready',
+          )
         )
-      )
-        throw new Error('Choose a ready image asset.');
-      if (!mounted.current) return;
-      setAttachments((current) =>
-        [
-          ...new Map(
-            [...current, ...images].map((asset) => [asset.id, asset]),
-          ).values(),
-        ].slice(0, 8),
-      );
-      composer.current?.focus();
-      onDraftChange(true);
-    } catch (error) {
-      if (mounted.current)
-        setFailure(
-          error instanceof Error
-            ? error.message
-            : 'Image could not be attached.',
+          throw new Error('Choose a ready image asset.');
+        if (!mounted.current) return;
+        setAttachments((current) =>
+          [
+            ...new Map(
+              [...current, ...images].map((asset) => [asset.id, asset]),
+            ).values(),
+          ].slice(0, 8),
         );
-    } finally {
-      if (mounted.current) setAttaching(false);
-    }
-  };
+        composer.current?.focus();
+        onDraftChange(true);
+      } catch (error) {
+        if (mounted.current)
+          setFailure(
+            error instanceof Error
+              ? error.message
+              : 'Image could not be attached.',
+          );
+      } finally {
+        if (mounted.current) setAttaching(false);
+      }
+    },
+    [active, readOnly, attaching, editor, onDraftChange],
+  );
+  useEffect(() => {
+    if (!active) return;
+    const handle = (event: Event) => {
+      const detail = (event as CustomEvent<MediaDragDetail>).detail;
+      if (detail.phase === 'cancel') {
+        setDropping(false);
+        return;
+      }
+      const over =
+        !readOnly &&
+        !attaching &&
+        !runningRef.current &&
+        document
+          .elementFromPoint(detail.clientX, detail.clientY)
+          ?.closest('.chat-composer') === composerBox.current;
+      setDropping(detail.phase === 'move' && over);
+      if (detail.phase === 'drop' && over)
+        void attachImages([], detail.assetId);
+    };
+    document.addEventListener(MEDIA_DRAG_EVENT, handle);
+    return () => document.removeEventListener(MEDIA_DRAG_EVENT, handle);
+  }, [active, readOnly, attaching, attachImages]);
   return (
     <>
       <div className="conversation-transcript">
@@ -785,6 +813,7 @@ export default function ConversationSession({
           </p>
         )}
         <div
+          ref={composerBox}
           className="chat-composer"
           data-dropping={dropping || undefined}
           onDragOver={(event) => {

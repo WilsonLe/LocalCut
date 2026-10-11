@@ -109,6 +109,12 @@ This is the project record of the user's durable product and workflow choices. U
 - Provide speed adjustments with either preserved audio pitch or pitch changing with speed.
 - Provide customizable speed ramps that curve, rise/fall linearly, or step up/down. Allow direction changes and editable points.
 
+## Timeline drag feedback — 11 October 2026
+
+- Drag clip ends to shorten or extend them. Timed media repeats from its selected source beginning after reaching the end, with clear loop-back markers.
+- Drag imported media onto compatible timeline tracks; show its prospective position and duration as a placeholder before release.
+- When reordering tracks, move the entire track, including its title, with the cursor. Animate the destination placeholder and surrounding tracks into their proposed positions; respect reduced motion and commit only on release.
+
 ## Timeline seeking — 11 October 2026
 
 - Remove the separate scrub bar below the timeline tracks. Seek by dragging the top of the playhead, with a comfortable touch target and keyboard access.
@@ -130,11 +136,17 @@ This is the project record of the user's durable product and workflow choices. U
 
 ## Media cards — 11 October 2026
 
-- Show local thumbnails for uploaded images and videos. Keep asset names and actions visible; disclose dimensions, duration and other metadata, including AI indexing guidance and labels, through accessible asset tooltips instead of inline text.
+- Show local thumbnails for uploaded images and videos. Keep asset names visible; disclose dimensions, duration and other metadata, including AI indexing guidance and labels, through accessible asset tooltips instead of inline text.
+
+- Put every asset action in an absolute top-right overflow menu revealed on hover or keyboard focus, with a visible touch trigger. Use clear indexing/results icons and offer rename, delete and missing-source relink there. This supersedes visible inline card actions.
 
 ## Timeline media previews — 11 October 2026
 
 - Show image/video thumbnails inside visual timeline clips and real waveforms inside audio clips. Keep clip names, selection and touch/keyboard editing readable and usable. Generate these previews locally through the shared editor APIs.
+
+## Screen recording guidance — 11 October 2026
+
+- Show browser-specific shared-audio limitations when users enable shared audio, before choosing a capture source. Explain silent recording and a supported browser-tab audio workaround when audio is unavailable; keep microphone permission separate.
 
 ## Delivery and validation
 

@@ -85,7 +85,12 @@ import {
   saveWorkspacePreferences,
   useWorkspacePreferences,
 } from './preferences';
-import { appendAsset, downloadFile, projectDuration } from './helpers';
+import {
+  appendAsset,
+  assetClip,
+  downloadFile,
+  projectDuration,
+} from './helpers';
 
 import type { TextStyleInput } from '../core/text-library';
 import type { DialogName, Progress } from './WorkspaceDialogs';
@@ -666,6 +671,35 @@ export function Workspace() {
     restore: restoreProject,
   });
   const busy = operationBusy || navigation.blocked;
+  const [mediaDrag, setMediaDrag] = useState<{
+    assetId: string;
+    projectId: string;
+    revision: number;
+  } | null>(null);
+  const draggingAsset =
+    !busy &&
+    !browsed &&
+    mediaDrag?.projectId === project?.id &&
+    mediaDrag?.revision === project?.revision
+      ? (assets.find(
+          (asset) =>
+            asset.id === mediaDrag?.assetId && asset.status === 'ready',
+        ) ?? null)
+      : null;
+  if (mediaDrag && !draggingAsset) setMediaDrag(null);
+  const dropAsset = (trackId: string, startUs: number) => {
+    const asset = draggingAsset;
+    setMediaDrag(null);
+    if (!asset || !project) return;
+    const track = project.tracks.find((track) => track.id === trackId);
+    if (track?.kind !== (asset.kind === 'audio' ? 'audio' : 'video')) return;
+    const clip = assetClip(project, asset, startUs);
+    void action(async () => {
+      await apply([{ type: 'insertClip', trackId, clip }]);
+      setSelected(clip.id);
+      setSelection([]);
+    });
+  };
   const apply = async (operations: EditOperation[]) => {
     if (browsing.current)
       throw new Error('Return to the current version to edit.');
@@ -1527,6 +1561,45 @@ export function Workspace() {
                 setRecordingRoute(recordingRouteKey);
               }}
               onRelink={relinkMedia}
+              onRename={async (asset, name) => {
+                if (
+                  browsing.current ||
+                  busy ||
+                  !project ||
+                  project.id !== getProjectId()
+                )
+                  throw new Error('Return to the current project to edit.');
+                const engine = await ensureEditor();
+                await engine.assets.rename(asset.id, name, asset.name);
+                await refresh();
+              }}
+              onDelete={async (asset) => {
+                if (busy)
+                  throw new Error('Wait for the current operation to finish.');
+                const clips =
+                  project?.tracks
+                    .flatMap((track) => track.clips)
+                    .filter((clip) => clip.assetId === asset.id) ?? [];
+                await apply(
+                  clips.map((clip) => ({
+                    type: 'removeClip',
+                    clipId: clip.id,
+                  })),
+                );
+                setSelected(undefined);
+                setSelection([]);
+              }}
+              onAssetDrag={(assetId) =>
+                setMediaDrag(
+                  assetId && project
+                    ? {
+                        assetId,
+                        projectId: project.id,
+                        revision: project.revision,
+                      }
+                    : null,
+                )
+              }
             />
           </Suspense>
         )}
@@ -1846,6 +1919,15 @@ export function Workspace() {
                     onText={addText}
                     onAddTrack={addTrack}
                     onReorderTrack={reorderTrack}
+                    draggingAsset={draggingAsset}
+                    onDropAsset={dropAsset}
+                    onResizeClip={(clipId, durationUs) =>
+                      void action(async () => {
+                        await apply([
+                          { type: 'resizeClip', clipId, durationUs },
+                        ]);
+                      })
+                    }
                   />
                 </Suspense>
               </EditorPanels>
