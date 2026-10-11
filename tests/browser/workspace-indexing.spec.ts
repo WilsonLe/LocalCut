@@ -15,6 +15,28 @@ const label = {
   tags: ['red', 'graphic'],
   sound: 'none',
 };
+async function indexAction(page: Page, name: string, asset = 'red.png') {
+  const menu = page.getByRole('menu', {
+    name: `Actions for ${asset}`,
+    exact: true,
+  });
+  const trigger = page.getByRole('button', {
+    name: `Actions for ${asset}`,
+    exact: true,
+  });
+  if ((await trigger.getAttribute('aria-expanded')) !== 'true') {
+    await trigger.focus();
+    await trigger.click();
+  }
+  await expect(menu).toBeVisible();
+  return menu.getByRole('menuitem', { name, exact: true });
+}
+async function clickIndexAction(page: Page, name: string, asset = 'red.png') {
+  await (await indexAction(page, name, asset)).click();
+  await expect(
+    page.getByRole('menu', { name: `Actions for ${asset}`, exact: true }),
+  ).toBeHidden();
+}
 async function catalog(context: BrowserContext, audio = false) {
   await context.route('https://openrouter.ai/api/v1/models', (route) =>
     route.fulfill({
@@ -150,7 +172,7 @@ for (const base of ['/', '/LocalCut/']) {
         .getByRole('button', { name: 'Expand media', exact: true })
         .click();
       await image(page);
-      await page.getByRole('button', { name: 'Index', exact: true }).click();
+      await clickIndexAction(page, 'Index');
       await expect.poll(() => requested).toBe(true);
       await page
         .getByRole('button', { name: 'Close media', exact: true })
@@ -160,18 +182,12 @@ for (const base of ['/', '/LocalCut/']) {
       ).toBeHidden();
       release();
       await expect(
-        page.locator('.media-item').getByRole('button', {
-          name: 'Reindex',
-          exact: true,
-          includeHidden: true,
-        }),
-      ).toBeEnabled();
+        page.getByText('Asset indexed', { exact: true }),
+      ).toBeVisible();
       await page
         .getByRole('button', { name: 'Expand media', exact: true })
         .click();
-      await page
-        .getByRole('button', { name: 'Index history for red.png' })
-        .click();
+      await clickIndexAction(page, 'View index results', 'red.png');
       const history = page.getByRole('dialog', {
         name: 'Asset index',
         exact: true,
@@ -266,40 +282,33 @@ for (const base of ['/', '/LocalCut/']) {
       page.getByRole('button', { name: 'Import media', exact: true }).first(),
     ).toBeEnabled();
     await image(page);
-    await expect(
-      page.getByRole('button', { name: 'Index', exact: true }),
-    ).toHaveCount(0);
+    await expect(await indexAction(page, 'Index')).toHaveCount(0);
+    await page.keyboard.press('Escape');
     let dialog = await connect(page);
     await expect(
       dialog.getByRole('checkbox', { name: 'Allow asset indexing' }),
     ).not.toBeChecked();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-    await expect(
-      page.getByRole('button', { name: 'Index', exact: true }),
-    ).toHaveCount(0);
+    await expect(await indexAction(page, 'Index')).toHaveCount(0);
     expect(bodies).toEqual([]);
+    await page.keyboard.press('Escape');
     dialog = await settings(page);
     await dialog
       .getByRole('checkbox', { name: 'Allow asset indexing' })
       .check();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-    await page.getByRole('button', { name: 'Index', exact: true }).click();
-    await expect(
-      page.getByRole('button', { name: 'Retry indexing', exact: true }),
-    ).toBeVisible();
+    await clickIndexAction(page, 'Index');
+    await expect(await indexAction(page, 'Retry indexing')).toBeVisible();
     malformed = false;
-    await page
-      .getByRole('button', { name: 'Retry indexing', exact: true })
-      .click();
-    await expect(
-      page.getByRole('button', { name: 'Reindex', exact: true }),
-    ).toBeEnabled();
+    await clickIndexAction(page, 'Retry indexing');
+    await expect(await indexAction(page, 'Reindex')).toBeEnabled();
+    await page.screenshot({
+      path: `.artifacts/asset-actions/index-menu-${base === '/' ? 'root' : 'pages'}.png`,
+    });
     expect(bodies).toHaveLength(3);
     expect(JSON.stringify(bodies)).not.toContain('synthetic-indexing-key');
     expect(JSON.stringify(bodies)).not.toContain('red.png');
-    await page
-      .getByRole('button', { name: 'Index history for red.png' })
-      .click();
+    await clickIndexAction(page, 'View index results', 'red.png');
     const index = page.getByRole('dialog', {
       name: 'Asset index',
       exact: true,
@@ -325,13 +334,9 @@ for (const base of ['/', '/LocalCut/']) {
     expect(JSON.stringify(bodies.at(-1))).toContain('assetIndex');
     expect(JSON.stringify(bodies.at(-1))).not.toContain('data:image');
     expect(JSON.stringify(bodies.at(-1))).toContain('search_asset_index');
-    await page.getByRole('button', { name: 'Reindex', exact: true }).click();
-    await expect(
-      page.getByRole('button', { name: 'Reindex', exact: true }),
-    ).toBeEnabled();
-    await page
-      .getByRole('button', { name: 'Index history for red.png' })
-      .click();
+    await clickIndexAction(page, 'Reindex');
+    await expect(await indexAction(page, 'Reindex')).toBeEnabled();
+    await clickIndexAction(page, 'View index results', 'red.png');
     await expect(
       index.getByRole('button', { name: 'Run 2 · complete' }),
     ).toBeVisible();
@@ -342,14 +347,14 @@ for (const base of ['/', '/LocalCut/']) {
       index.getByRole('button', { name: 'Run 2 · complete' }),
     ).toHaveCount(0);
     await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
     dialog = await settings(page);
     await dialog
       .getByRole('checkbox', { name: 'Allow asset indexing' })
       .uncheck();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-    await expect(
-      page.getByRole('button', { name: 'Reindex', exact: true }),
-    ).toHaveCount(0);
+    await expect(await indexAction(page, 'Reindex')).toHaveCount(0);
+    await page.keyboard.press('Escape');
     await page
       .getByRole('textbox', { name: 'Describe your edit' })
       .fill('Describe available footage');
@@ -360,6 +365,7 @@ for (const base of ['/', '/LocalCut/']) {
     expect(JSON.stringify(bodies.at(-1))).not.toContain('assetIndex');
     expect(JSON.stringify(bodies.at(-1))).not.toContain('search_asset_index');
     await page.reload();
+    await page.keyboard.press('Escape');
     dialog = await settings(page);
     await expect(
       dialog.getByRole('checkbox', { name: 'Allow asset indexing' }),
@@ -488,6 +494,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Expand media', exact: true })
       .click();
+    await page.keyboard.press('Escape');
     let dialog = await connect(page);
     await dialog
       .getByRole('checkbox', { name: 'Allow asset indexing' })
@@ -509,11 +516,11 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Workspace settings', exact: true })
       .focus();
-    await expect(
-      page.getByRole('button', { name: 'Index', exact: true }),
-    ).toHaveCount(0);
+    await expect(await indexAction(page, 'Index', 'tone.wav')).toBeDisabled();
+    await page.keyboard.press('Escape');
     expect(bodies).toHaveLength(0);
     await catalog(context, true);
+    await page.keyboard.press('Escape');
     dialog = await settings(page);
     await dialog
       .getByRole('combobox', { name: 'AI model', exact: true })
@@ -528,18 +535,12 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('option', { name: 'Visual chat · ' + model, exact: true })
       .click();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-    await page
-      .getByRole('button', { name: 'Retry indexing', exact: true })
-      .click();
-    await expect(
-      page.getByRole('button', { name: 'Reindex', exact: true }),
-    ).toBeVisible();
+    await clickIndexAction(page, 'Retry indexing', 'tone.wav');
+    await expect(await indexAction(page, 'Reindex', 'tone.wav')).toBeVisible();
     expect(bodies).toHaveLength(2);
     expect(JSON.stringify(bodies[0])).toContain('input_audio');
     expect(JSON.stringify(bodies[0])).not.toContain('image_url');
-    await page
-      .getByRole('button', { name: 'Index history for tone.wav' })
-      .click();
+    await clickIndexAction(page, 'View index results', 'tone.wav');
     const audio = page.getByLabel('Indexed audio excerpt');
     await expect(audio).toBeVisible();
     await expect

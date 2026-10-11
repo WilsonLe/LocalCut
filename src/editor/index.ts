@@ -449,6 +449,17 @@ export async function createEditor(options: EditorOptions = {}) {
         active();
         return store.getAsset(id);
       },
+      async rename(id: string, name: string, expectedName: string) {
+        active();
+        const result = await store.renameAsset(id, name, expectedName);
+        for (const project of result.projects)
+          notify({
+            projectId: project.id,
+            revision: project.revision,
+            type: 'changed',
+          });
+        return result.asset;
+      },
       relink(
         assetId: string,
         file: Blob,

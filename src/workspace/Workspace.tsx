@@ -1494,6 +1494,34 @@ export function Workspace() {
                 setRecordingRoute(recordingRouteKey);
               }}
               onRelink={relinkMedia}
+              onRename={async (asset, name) => {
+                if (
+                  browsing.current ||
+                  busy ||
+                  !project ||
+                  project.id !== getProjectId()
+                )
+                  throw new Error('Return to the current project to edit.');
+                const engine = await ensureEditor();
+                await engine.assets.rename(asset.id, name, asset.name);
+                await refresh();
+              }}
+              onDelete={async (asset) => {
+                if (busy)
+                  throw new Error('Wait for the current operation to finish.');
+                const clips =
+                  project?.tracks
+                    .flatMap((track) => track.clips)
+                    .filter((clip) => clip.assetId === asset.id) ?? [];
+                await apply(
+                  clips.map((clip) => ({
+                    type: 'removeClip',
+                    clipId: clip.id,
+                  })),
+                );
+                setSelected(undefined);
+                setSelection([]);
+              }}
             />
           </Suspense>
         )}

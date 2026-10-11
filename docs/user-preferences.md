@@ -130,7 +130,9 @@ This is the project record of the user's durable product and workflow choices. U
 
 ## Media cards — 11 October 2026
 
-- Show local thumbnails for uploaded images and videos. Keep asset names and actions visible; disclose dimensions, duration and other metadata, including AI indexing guidance and labels, through accessible asset tooltips instead of inline text.
+- Show local thumbnails for uploaded images and videos. Keep asset names visible; disclose dimensions, duration and other metadata, including AI indexing guidance and labels, through accessible asset tooltips instead of inline text.
+
+- Put every asset action in an absolute top-right overflow menu revealed on hover or keyboard focus, with a visible touch trigger. Use clear indexing/results icons and offer rename, delete and missing-source relink there. This supersedes visible inline card actions.
 
 ## Timeline media previews — 11 October 2026
 
