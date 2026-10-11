@@ -357,6 +357,7 @@ for (const base of ['/', '/LocalCut/']) {
     }
     const cards = page.locator('.media-item');
     await expect(cards).toHaveCount(3);
+    await dismissNotifications(page);
     await page
       .getByRole('button', { name: 'Workspace settings', exact: true })
       .focus();
@@ -394,6 +395,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByRole('button', { name: 'Asset details for Cover image' }),
     ).toBeVisible();
+    await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
     await page.reload();
     await page
       .getByRole('button', { name: 'Expand media', exact: true })
@@ -467,6 +469,7 @@ for (const base of ['/', '/LocalCut/']) {
         .getByRole('button', { name: 'Delete asset', exact: true })
         .click();
       await expect(cards).toHaveCount(2);
+      await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
       expect(
         (await snapshot(page, base, 'Asset actions')).tracks.flatMap(
           (t) => t.clips,

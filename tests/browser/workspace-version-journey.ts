@@ -192,7 +192,7 @@ export async function versionJourney(page: Page, base: string) {
     await page
       .getByRole('button', { name: 'Open project', exact: true })
       .click();
-    await page.getByRole('button', { name: /Version journey/ }).click();
+    await page.getByRole('button', { name: /^Version journey / }).click();
     await openVersions(page);
     await expect(
       page.getByRole('button', { name: /Version \d+ ·.*Restored/ }),

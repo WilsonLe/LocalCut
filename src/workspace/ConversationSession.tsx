@@ -331,12 +331,12 @@ export default function ConversationSession({
           );
         onError(error);
       }
-      if (mounted.current)
-        toast.success(
-          result.kind === 'edit' || result.kind === 'history'
-            ? `Edit applied at revision ${result.receipt.appliedRevision}`
-            : 'Action completed',
-        );
+      if (
+        mounted.current &&
+        result.kind !== 'edit' &&
+        result.kind !== 'history'
+      )
+        toast.success('Action completed');
     } catch (error) {
       if (mounted.current) {
         setFailure(errorText(error));

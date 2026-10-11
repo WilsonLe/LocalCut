@@ -27,6 +27,7 @@ import {
   AudioLines,
   Film,
   Music2,
+  Magnet,
   Redo2,
   Repeat2,
   Scissors,
@@ -47,6 +48,11 @@ import {
   formatTime,
   projectDuration,
 } from './helpers';
+import { snapTimelineTime, timelineSnapPoints } from './timeline-snapping';
+import {
+  saveWorkspacePreferences,
+  useWorkspacePreferences,
+} from './preferences';
 import { SettingsSelect } from './SettingsSelect';
 import { transitionPairs, TRANSITION_TEMPLATES } from '../core/timeline';
 import type { TransitionTemplate } from '../core/timeline';
@@ -126,14 +132,17 @@ export function Timeline(props: Props) {
     touchControls.addEventListener('change', update);
     return () => touchControls.removeEventListener('change', update);
   }, []);
+  const { preferences } = useWorkspacePreferences();
   const total = projectDuration(project);
   const timelineDuration = total || 5_000_000;
+  const snapPoints = useMemo(() => timelineSnapPoints(project), [project]);
   const hasTracks = !!project?.tracks.length;
   const {
     ref: viewport,
     view,
     width,
   } = useViewport('timeline', `${project?.id}:${props.versionId}`, hasTracks);
+  const rulerElement = useRef<HTMLDivElement>(null);
   const scrubbing = useRef<{ id: number; offsetX: number } | null>(null);
   useEffect(() => {
     // Removing the captured node sends lostpointercapture to the document,
@@ -144,21 +153,16 @@ export function Timeline(props: Props) {
     };
   }, [project?.id, props.versionId, total]);
   const scrub = (clientX: number) => {
-    const element = viewport.current;
-    if (!element || !total) return;
-    const x =
-      (clientX - element.getBoundingClientRect().left) / interfaceScale() +
-      element.scrollLeft -
-      76;
-    const fraction =
-      x /
-      Math.max(
-        1,
-        (element.querySelector<HTMLElement>('.timeline-content')?.offsetWidth ??
-          element.clientWidth) - 76,
-      );
+    const ruler = rulerElement.current?.getBoundingClientRect();
+    if (!ruler || !ruler.width || !total) return;
+    const fraction = (clientX - ruler.left) / ruler.width;
+    const candidate = Math.round(
+      Math.min(total - 1, Math.max(0, fraction * total)),
+    );
     props.onTime(
-      Math.round(Math.min(total - 1, Math.max(0, fraction * total))),
+      preferences.timelineSnapping
+        ? snapTimelineTime(candidate, snapPoints, total, ruler.width)
+        : candidate,
     );
   };
   const menuFocus = useRef<{
@@ -501,6 +505,29 @@ export function Timeline(props: Props) {
           </span>
         </div>
         <div className="flex items-center gap-1">
+          {!!project && (
+            <Tooltip
+              content={
+                preferences.timelineSnapping
+                  ? 'Turn snapping off'
+                  : 'Turn snapping on'
+              }
+            >
+              <Button
+                variant={preferences.timelineSnapping ? 'secondary' : 'ghost'}
+                size="icon-sm"
+                aria-label="Snapping"
+                aria-pressed={preferences.timelineSnapping}
+                onClick={() =>
+                  saveWorkspacePreferences({
+                    timelineSnapping: !preferences.timelineSnapping,
+                  })
+                }
+              >
+                <Magnet aria-hidden="true" />
+              </Button>
+            </Tooltip>
+          )}
           {props.overlap && !clipBusy && (
             <div className="transition-picker">
               <SettingsSelect
@@ -602,6 +629,7 @@ export function Timeline(props: Props) {
               }
             >
               <div
+                ref={rulerElement}
                 className="timeline-ruler"
                 onPointerDown={(event) => {
                   if (event.button !== 0) return;
@@ -1105,20 +1133,13 @@ export function Timeline(props: Props) {
                       }}
                       onPointerDown={(event) => {
                         if (event.button !== 0 || scrubbing.current) return;
-                        const element = viewport.current;
-                        if (!element) return;
+                        const ruler =
+                          rulerElement.current?.getBoundingClientRect();
+                        if (!ruler) return;
                         event.preventDefault();
                         // Preserve where the marker was grabbed, even in its padded hit area.
                         const markerX =
-                          element.getBoundingClientRect().left +
-                          (76 +
-                            (timeUs / total) *
-                              ((element.querySelector<HTMLElement>(
-                                '.timeline-content',
-                              )?.offsetWidth ?? element.clientWidth) -
-                                76) -
-                            element.scrollLeft) *
-                            interfaceScale();
+                          ruler.left + (timeUs / total) * ruler.width;
                         scrubbing.current = {
                           id: event.pointerId,
                           offsetX: event.clientX - markerX,

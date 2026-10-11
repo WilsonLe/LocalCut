@@ -898,7 +898,6 @@ export function Workspace() {
       setSelected(undefined);
       setSelection([]);
       seek(0);
-      toast.success('Restored as a new version');
     });
   const showExport = () => {
     setExportError('');
@@ -918,7 +917,6 @@ export function Workspace() {
         project!.revision,
       );
       await refresh();
-      toast.success('Edit undone');
     });
   };
   const redo = () => {
@@ -931,7 +929,6 @@ export function Workspace() {
         project!.revision,
       );
       await refresh();
-      toast.success('Edit restored');
     });
   };
   const split = () => {
@@ -945,7 +942,6 @@ export function Workspace() {
           rightClipId: crypto.randomUUID(),
         },
       ]);
-      toast.success('Clip split');
     });
   };
   const deleteClip = () => {
@@ -955,7 +951,6 @@ export function Workspace() {
         selectedIds.map((clipId) => ({ type: 'removeClip', clipId })),
       );
       setSelection([]);
-      toast.success('Clip removed');
     });
   };
   const addText = () => {
@@ -967,16 +962,12 @@ export function Workspace() {
       await apply([
         { type: 'addTrack', track: { id: crypto.randomUUID(), kind } },
       ]);
-      toast.success(
-        kind === 'video' ? 'Video track added' : 'Audio track added',
-      );
     });
   };
   const reorderTrack = (trackId: string, index: number) => {
     if (!project || busy || browsing.current) return;
     void action(async () => {
       await apply([{ type: 'reorderTrack', trackId, index }]);
-      toast.success('Track reordered');
     });
   };
   const trackOperation = (
@@ -1092,7 +1083,6 @@ export function Workspace() {
       await apply(operations);
       setSelected(newClipIds[selectedClip.id]);
       setSelection(Object.values(newClipIds));
-      toast.success('Selection duplicated');
     });
   };
   const selectedGroups = [
@@ -1123,14 +1113,12 @@ export function Workspace() {
           clipIds: selectedIds,
         },
       ]);
-      toast.success('Clips grouped');
     });
   const ungroup = () =>
     void action(async () => {
       await apply(
         selectedGroups.map((groupId) => ({ type: 'ungroupClips', groupId })),
       );
-      toast.success('Clips ungrouped');
     });
   const canSeparate =
     !selectionLocked &&
@@ -1164,7 +1152,6 @@ export function Workspace() {
       ]);
       setSelected(audioClipId);
       setSelection([]);
-      toast.success('Audio separated');
     });
   const pairs = viewProject ? transitionPairs(viewProject) : [];
   const selectedPairs = pairs.filter(
@@ -1203,9 +1190,6 @@ export function Workspace() {
               },
             ]
           : [{ type: 'removeTransition', transitionId: activeTransition!.id }],
-      );
-      toast.success(
-        template ? 'Transition template applied' : 'Transition blend removed',
       );
     });
   const canSplit =
@@ -2060,7 +2044,6 @@ export function Workspace() {
               void action(async () => {
                 const engine = await ensureEditor();
                 await openProject(await engine.projects.create(name));
-                toast.success('Project created');
               })
             }
             onInsertText={insertText}
@@ -2068,7 +2051,6 @@ export function Workspace() {
               void action(async () => {
                 await apply(operations);
                 setDialog(null);
-                toast.success('Clip updated');
               })
             }
           />
