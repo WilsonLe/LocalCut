@@ -319,6 +319,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
           | '/key'
           | '/models'
           | '/models?output_modalities=speech'
+          | '/models?output_modalities=transcription'
           | '/models/fish-audio/s2.1-pro/endpoints'
           | '/audio/speech'
           | '/audio/transcriptions'
@@ -454,6 +455,58 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         'This endpoint uses an API key.',
       );
       return auth.complete(args, signal);
+    },
+    async listTranscriptionModels(signal) {
+      assertActive();
+      if (compatible)
+        return compatible.transcriptionModel
+          ? [
+              {
+                id: compatible.transcriptionModel,
+                name: compatible.transcriptionModel,
+              },
+            ]
+          : [];
+      const op = operation(signal);
+      try {
+        const response = await op.fetch(
+          '/models?output_modalities=transcription',
+          {
+            method: 'GET',
+            headers: key ? { Authorization: `Bearer ${key}` } : {},
+          },
+        );
+        const value = await readJson(response, op.signal);
+        aiInvariant(
+          object(value) &&
+            Array.isArray(value.data) &&
+            value.data.length <= OPENROUTER_LIMITS.models,
+          'INVALID_RESPONSE',
+          'Invalid transcription catalog.',
+        );
+        const ids = new Set<string>();
+        const result = value.data.map((item: unknown) => {
+          aiInvariant(
+            object(item) &&
+              typeof item.id === 'string' &&
+              !item.id.includes('://') &&
+              /^~?[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/.test(item.id) &&
+              !ids.has(item.id) &&
+              typeof item.name === 'string' &&
+              item.name.length <= 512,
+            'INVALID_RESPONSE',
+            'Invalid transcription model.',
+          );
+          ids.add(item.id);
+          return { id: item.id, name: item.name };
+        });
+        op.check();
+        return result;
+      } catch (error) {
+        return op.error(error);
+      } finally {
+        op.finish();
+      }
     },
     async listSpeechModels(signal) {
       assertActive();

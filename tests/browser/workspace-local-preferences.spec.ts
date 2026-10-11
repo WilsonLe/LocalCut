@@ -582,7 +582,7 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Data & analytics', exact: true })
       .click();
     await dialog
-      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
+      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
     expect((await preferences(page)).aiModel).toBe(
       '~deepseek/deepseek-pro-latest',
@@ -597,7 +597,7 @@ for (const base of ['/', '/LocalCut/']) {
       '~deepseek/deepseek-pro-latest',
     );
     await dialog
-      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
+      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     available = true;

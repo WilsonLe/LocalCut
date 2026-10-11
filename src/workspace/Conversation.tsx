@@ -1216,6 +1216,22 @@ export function Conversation(props: ConversationProps) {
             removeProvider={removeProvider}
             disconnectProvider={(id) => removeProvider(id, true, true)}
             verifyProvider={verifyProvider}
+            loadServiceModels={async (id, service, signal) => {
+              const client = providers.current.get(id)?.client;
+              if (!client?.status().connected)
+                throw new Error('Connect this provider first.');
+              const models =
+                service === 'tts'
+                  ? await client.listSpeechModels(signal)
+                  : ((await client.listTranscriptionModels?.(signal)) ?? []);
+              if (
+                signal.aborted ||
+                providers.current.get(id)?.client !== client ||
+                !client.status().connected
+              )
+                throw new Error('Connection changed during discovery.');
+              return models;
+            }}
             connecting={connecting}
             authorize={authorize}
             connect={connect}
