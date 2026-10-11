@@ -292,3 +292,16 @@ This is the project record of the user's durable product and workflow choices. U
 - Let users save an auditioned favorite voice for future scripts and manage it through selection, rename, archive and restore. A saved voice retains its original recording and matching transcript locally, then explicitly sends that reference through a supported OpenRouter cloning model on Generate. Saving settings alone does not satisfy this choice. Do not imply that a seed locks voice identity or guarantees identical generated output.
 
 - Store measured word or phrase timestamps with generated speech so later chat agents can use that context to edit. Retain the authored script and synthesis identity alongside the timing; keep transcript sharing separately controlled. Provide modest editing padding around phrases, with no overlapping ranges; continuous boundaries are acceptable.
+
+## Timeline movement and playback controls — 11 October 2026
+
+- Drag existing clips within a track and across compatible tracks with mouse or touch, with placement feedback before release.
+- Use different icons for enabled and disabled control states, including snapping and multiple selection.
+- Put first-frame and last-frame navigation in the same row as previous frame, Play/Pause and next frame.
+
+## Mobile chat and speech placement — 11 October 2026
+
+- Hide bottom navigation while the mobile chat composer is focused. Keep the active tab heading at the top while the transcript/composer fit above the keyboard. Remove the duplicate LocalCut header on mobile; retain global controls in the active tab heading.
+- Remove the inert pointer/context indicator; retain selected-clip context automatically.
+- Cap chat context at 256,000 tokens and compact older conversation automatically at 192,000 tokens. Offer OpenRouter chat models only with context strictly greater than 256,000 tokens. Use conservative local token budgeting and compaction without an extra paid request.
+- Put the text-to-speech synthesis entry point in Media, reusing the shared provider connection and explicit Generate consent. This supersedes the chat-header speech entry point.

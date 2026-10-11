@@ -526,6 +526,25 @@ for (const base of ['/', '/LocalCut/']) {
               .durationUs,
         )
         .toBe(clip.durationUs);
+      // A persisted Undo receipt can precede the refreshed UI and its busy
+      // teardown. Wait for a reachable handle before starting another gesture.
+      await expect(
+        page.getByRole('button', { name: 'Undo', exact: true }),
+      ).toBeVisible();
+      await handle.scrollIntoViewIfNeeded();
+      await expect
+        .poll(() =>
+          handle.evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+            return (
+              document.elementFromPoint(
+                rect.x + rect.width / 2,
+                rect.y + rect.height / 2,
+              ) === element
+            );
+          }),
+        )
+        .toBe(true);
       const end = (await handle.boundingBox())!;
       await page.mouse.move(end.x + end.width / 2, end.y + end.height / 2);
       await page.mouse.down();

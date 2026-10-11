@@ -22,6 +22,7 @@ import {
   Headphones,
   Plus,
   ListChecks,
+  List,
   Group,
   Ungroup,
   AudioLines,
@@ -38,7 +39,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Tooltip } from '../components/ui/tooltip';
-import type { Asset, Editor, Project } from '../editor';
+import type { Asset, Clip, Editor, Project } from '../editor';
 import { TimelinePreviews } from './timeline-previews';
 import { TimelineClipPreview } from './TimelineClipPreview';
 import {
@@ -89,6 +90,10 @@ interface Props {
   draggingAsset: Asset | null;
   onDropAsset: (trackId: string, startUs: number) => void;
   onResizeClip: (clipId: string, durationUs: number) => void;
+  onMoveClips: (
+    operations: EditOperation[],
+    scope: { projectId: string; revision: number },
+  ) => void;
   onTrackOperation: (
     operations: EditOperation[],
     scope: TrackOperationScope,
@@ -257,6 +262,39 @@ export function Timeline(props: Props) {
     clipId: string;
     durationUs: number;
   } | null>(null);
+  const clipDrag = useRef<{
+    pointerId: number;
+    clipId: string;
+    scope: string;
+    projectId: string;
+    revision: number;
+    x: number;
+    y: number;
+    offsetUs: number;
+    startUs: number;
+    moved: boolean;
+    members: { clip: Clip; trackId: string }[];
+  } | null>(null);
+  const suppressClipClick = useRef(false);
+  const [clipMove, setClipMove] = useState<{
+    clipId: string;
+    placements: { clip: Clip; trackId: string; startUs: number }[];
+  } | null>(null);
+  const cancelClipDrag = () => {
+    clipDrag.current = null;
+    setClipMove(null);
+  };
+  useEffect(() => {
+    const cancel = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !clipDrag.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      clipDrag.current = null;
+      setClipMove(null);
+    };
+    document.addEventListener('keydown', cancel, true);
+    return () => document.removeEventListener('keydown', cancel, true);
+  }, []);
   const [dropTrack, setDropTrack] = useState<string | null>(null);
   const gestureScope = `${project?.id}:${project?.revision}:${props.versionId}:${busy}`;
   const [dragScope, setDragScope] = useState(gestureScope);
@@ -266,11 +304,13 @@ export function Timeline(props: Props) {
     setTrackMotion(null);
     setMediaDrop(null);
     setResizePreview(null);
+    setClipMove(null);
   }
   useEffect(() => {
     // A changed revision, project or version retires a gesture authored on old state.
     trackDrag.current = null;
     resizeGesture.current = null;
+    clipDrag.current = null;
   }, [project?.id, project?.revision, props.versionId, busy]);
   const visibleMediaDrop =
     draggingAsset?.id === mediaDrop?.assetId && !busy ? mediaDrop : null;
@@ -392,6 +432,87 @@ export function Timeline(props: Props) {
     resizeGesture.current = null;
     setResizePreview(null);
   };
+  const clipPlacement = (event: PointerEvent) => {
+    const drag = clipDrag.current;
+    if (
+      !drag ||
+      drag.pointerId !== event.pointerId ||
+      drag.scope !== gestureScope ||
+      busy ||
+      !project
+    )
+      return null;
+    if (
+      !drag.moved &&
+      Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 4
+    )
+      return null;
+    drag.moved = true;
+    suppressClipClick.current = true;
+    const lane = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest<HTMLElement>('.track-lane');
+    const trackId =
+      lane?.closest<HTMLElement>('.timeline-track')?.dataset.trackId;
+    const target = project.tracks.find((track) => track.id === trackId);
+    const grabbed = drag.members.find(
+      (member) => member.clip.id === drag.clipId,
+    )!;
+    if (
+      !lane ||
+      !tracksElement.current?.contains(lane) ||
+      !target ||
+      target.locked ||
+      (grabbed.clip.kind === 'audio'
+        ? target.kind !== 'audio'
+        : target.kind === 'audio' ||
+          (target.kind === 'overlay' && grabbed.clip.kind === 'video'))
+    )
+      return [];
+    const rect = lane.getBoundingClientRect();
+    if (!rect.width) return [];
+    // Keep the point grabbed inside the clip under the pointer, including at
+    // different interface sizes and while the timeline is zoomed/scrolled.
+    const minimum =
+      drag.startUs - Math.min(...drag.members.map(({ clip }) => clip.startUs));
+    let startUs = Math.max(
+      minimum,
+      Math.round(
+        ((event.clientX - rect.left) / rect.width) * timelineDuration -
+          drag.offsetUs,
+      ),
+    );
+    if (preferences.timelineSnapping) {
+      const moving = new Set(drag.members.map(({ clip }) => clip.id));
+      const points = [
+        0,
+        ...project.tracks.flatMap((track) =>
+          track.clips
+            .filter((clip) => !moving.has(clip.id))
+            .flatMap((clip) => [clip.startUs, clip.startUs + clip.durationUs]),
+        ),
+      ];
+      let adjustment = 0;
+      let distance = (8 * timelineDuration) / rect.width;
+      for (const { clip } of drag.members) {
+        for (const edge of [clip.startUs, clip.startUs + clip.durationUs]) {
+          for (const point of points) {
+            const delta = point - (edge + startUs - drag.startUs);
+            if (Math.abs(delta) <= distance && startUs + delta >= minimum) {
+              adjustment = delta;
+              distance = Math.abs(delta);
+            }
+          }
+        }
+      }
+      startUs = Math.round(startUs + adjustment);
+    }
+    return drag.members.map(({ clip, trackId }) => ({
+      clip,
+      trackId: clip.id === drag.clipId ? target.id : trackId,
+      startUs: clip.startUs + startUs - drag.startUs,
+    }));
+  };
   const selectedClip = project?.tracks
     .flatMap((track) => track.clips)
     .find((clip) => clip.id === selected[0]);
@@ -493,7 +614,7 @@ export function Timeline(props: Props) {
               aria-pressed={multiSelect}
               onClick={() => setMultiSelect(!multiSelect)}
             >
-              <ListChecks />
+              {multiSelect ? <ListChecks /> : <List />}
             </Button>
           )}
           <span className="selected-label">
@@ -524,7 +645,13 @@ export function Timeline(props: Props) {
                   })
                 }
               >
-                <Magnet aria-hidden="true" />
+                {preferences.timelineSnapping ? (
+                  <Magnet aria-hidden="true" />
+                ) : (
+                  <Magnet aria-hidden="true">
+                    <path d="m3 3 18 18" />
+                  </Magnet>
+                )}
               </Button>
             </Tooltip>
           )}
@@ -618,7 +745,9 @@ export function Timeline(props: Props) {
           >
             <div
               className="timeline-content"
-              data-preview-overflow={!!visibleMediaDrop || !!resizePreview}
+              data-preview-overflow={
+                !!visibleMediaDrop || !!resizePreview || !!clipMove
+              }
               style={
                 {
                   width: width
@@ -678,7 +807,12 @@ export function Timeline(props: Props) {
                     className="timeline-track"
                     key={track.id}
                     data-track-id={track.id}
-                    data-drop-target={dropTrack === track.id}
+                    data-drop-target={
+                      dropTrack === track.id ||
+                      clipMove?.placements.some(
+                        (placement) => placement.trackId === track.id,
+                      )
+                    }
                     data-dragging={trackMotion?.trackId === track.id}
                     style={
                       trackMotion
@@ -897,6 +1031,26 @@ export function Timeline(props: Props) {
                             </span>
                           </div>
                         )}
+                      {clipMove?.placements
+                        .filter((placement) => placement.trackId === track.id)
+                        .map(({ clip, startUs }) => (
+                          <div
+                            key={clip.id}
+                            className={`timeline-clip timeline-clip-move-placeholder ${clip.kind}`}
+                            role="status"
+                            aria-label={`Move ${clipName(clip, assets)} to ${formatTime(startUs)}`}
+                            data-start-us={startUs}
+                            data-duration-us={clip.durationUs}
+                            style={{
+                              left: `${(startUs / timelineDuration) * 100}%`,
+                              width: `${(clip.durationUs / timelineDuration) * 100}%`,
+                            }}
+                          >
+                            <span className="timeline-clip-name">
+                              {clipName(clip, assets)} · {formatTime(startUs)}
+                            </span>
+                          </div>
+                        ))}
                       {track.clips.map((clip) => {
                         const durationUs =
                           resizePreview?.clipId === clip.id
@@ -912,6 +1066,12 @@ export function Timeline(props: Props) {
                           <div
                             className="timeline-clip-container"
                             key={clip.id}
+                            data-moving={
+                              clipMove?.clipId === clip.id ||
+                              clipMove?.placements.some(
+                                (placement) => placement.clip.id === clip.id,
+                              )
+                            }
                             style={{
                               left: `${(clip.startUs / timelineDuration) * 100}%`,
                               width: `${(durationUs / timelineDuration) * 100}%`,
@@ -926,15 +1086,109 @@ export function Timeline(props: Props) {
                               aria-pressed={selected.includes(clip.id)}
                               data-grouped={!!clip.groupId}
                               onDoubleClick={props.onProperties}
-                              onClick={(event) =>
+                              onPointerDown={(event) => {
+                                suppressClipClick.current = false;
+                                if (busy || track.locked || event.button !== 0)
+                                  return;
+                                const members = project.tracks.flatMap((row) =>
+                                  row.clips
+                                    .filter(
+                                      (item) =>
+                                        item.id === clip.id ||
+                                        (!!clip.groupId &&
+                                          item.groupId === clip.groupId),
+                                    )
+                                    .map((item) => ({
+                                      clip: item,
+                                      trackId: row.id,
+                                    })),
+                                );
+                                if (
+                                  members.some(
+                                    (member) =>
+                                      project.tracks.find(
+                                        (row) => row.id === member.trackId,
+                                      )?.locked,
+                                  )
+                                )
+                                  return;
+                                event.currentTarget.focus();
+                                event.currentTarget.setPointerCapture(
+                                  event.pointerId,
+                                );
+                                const lane = event.currentTarget
+                                  .closest('.track-lane')!
+                                  .getBoundingClientRect();
+                                clipDrag.current = {
+                                  pointerId: event.pointerId,
+                                  clipId: clip.id,
+                                  scope: gestureScope,
+                                  projectId: project.id,
+                                  revision: project.revision,
+                                  x: event.clientX,
+                                  y: event.clientY,
+                                  offsetUs:
+                                    ((event.clientX - lane.left) / lane.width) *
+                                      timelineDuration -
+                                    clip.startUs,
+                                  startUs: clip.startUs,
+                                  moved: false,
+                                  members,
+                                };
+                              }}
+                              onPointerMove={(event) => {
+                                const placements = clipPlacement(event);
+                                if (placements)
+                                  setClipMove({ clipId: clip.id, placements });
+                              }}
+                              onPointerUp={(event) => {
+                                const placements = clipPlacement(event);
+                                const drag = clipDrag.current;
+                                cancelClipDrag();
+                                if (!drag || !placements?.length) return;
+                                const operations: EditOperation[] = placements
+                                  .filter(
+                                    (placement) =>
+                                      placement.startUs !==
+                                        placement.clip.startUs ||
+                                      placement.trackId !==
+                                        drag.members.find(
+                                          (member) =>
+                                            member.clip.id ===
+                                            placement.clip.id,
+                                        )?.trackId,
+                                  )
+                                  .map(({ clip, trackId, startUs }) => ({
+                                    type: 'moveClip',
+                                    clipId: clip.id,
+                                    trackId,
+                                    startUs,
+                                  }));
+                                if (!operations.length) return;
+                                props.onSelect(clip.id);
+                                props.onMoveClips(operations, {
+                                  projectId: drag.projectId,
+                                  revision: drag.revision,
+                                });
+                              }}
+                              onPointerCancel={cancelClipDrag}
+                              onLostPointerCapture={cancelClipDrag}
+                              onClick={(event) => {
+                                if (
+                                  suppressClipClick.current &&
+                                  event.detail > 0
+                                ) {
+                                  suppressClipClick.current = false;
+                                  return;
+                                }
                                 props.onSelect(
                                   clip.id,
                                   multiSelect ||
                                     event.shiftKey ||
                                     event.metaKey ||
                                     event.ctrlKey,
-                                )
-                              }
+                                );
+                              }}
                               style={{ left: 0, width: '100%' }}
                               title={`${clipName(clip, assets)} · ${formatTime(clip.durationUs)}`}
                             >

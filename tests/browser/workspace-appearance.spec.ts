@@ -247,7 +247,7 @@ for (const base of ['/', '/LocalCut/']) {
             {
               id: 'test/appearance',
               name: 'Appearance model',
-              context_length: 32000,
+              context_length: 512000,
               supported_parameters: ['tools', 'tool_choice'],
             },
           ],

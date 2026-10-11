@@ -38,6 +38,216 @@ async function select(page: Page, name: RegExp) {
   await page.getByRole('option', { name }).click();
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`mobile chat keyboard keeps its heading and restores navigation; speech opens from Media ${base}`, async ({
+    page,
+    context,
+  }, info) => {
+    test.setTimeout(45000);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'localcut.openrouter-credential.v1',
+        JSON.stringify({ version: 1, key: 'synthetic-mobile-key' }),
+      );
+      localStorage.setItem(
+        'localcut.workspace-preferences.v1',
+        JSON.stringify({ version: 1, preferences: { aiModel: 'test/mobile' } }),
+      );
+    });
+    let completions = 0;
+    await context.route('https://openrouter.ai/api/v1/models', (route) =>
+      route.fulfill({
+        headers: {
+          'access-control-allow-origin': '*',
+          'access-control-allow-headers': '*',
+        },
+        json: {
+          data: [
+            {
+              id: 'test/mobile',
+              name: 'Mobile model',
+              context_length: 512000,
+              supported_parameters: ['tools', 'tool_choice'],
+            },
+            {
+              id: 'test/short',
+              name: 'Short model',
+              context_length: 256000,
+              supported_parameters: ['tools', 'tool_choice'],
+            },
+          ],
+        },
+      }),
+    );
+    await context.route(
+      'https://openrouter.ai/api/v1/chat/completions',
+      (route) => {
+        if (route.request().method() === 'OPTIONS')
+          return route.fulfill({
+            headers: {
+              'access-control-allow-origin': '*',
+              'access-control-allow-headers': '*',
+              'access-control-allow-methods': 'POST,OPTIONS',
+            },
+            body: '',
+          });
+        completions++;
+        return route.fulfill({
+          headers: {
+            'access-control-allow-origin': '*',
+            'access-control-allow-headers': '*',
+          },
+          contentType: 'text/event-stream',
+          body: 'data: {"choices":[{"index":0,"delta":{"content":"Ready."},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+        });
+      },
+    );
+    await page.goto(base);
+    await create(page);
+    const nav = page.getByRole('navigation', { name: 'Workspace sections' });
+    await nav.getByRole('button', { name: 'Chat', exact: true }).click();
+    const heading = page.locator('.conversation-heading');
+    const composer = page.getByRole('textbox', { name: 'Describe your edit' });
+    await expect(composer).toBeEnabled();
+    await expect(page.locator('.workspace-header')).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Request context' }),
+    ).toHaveCount(0);
+    await expect(
+      heading.getByRole('button', { name: 'Text to speech' }),
+    ).toHaveCount(0);
+    await expect(heading).toBeInViewport();
+    const initial = (await heading.boundingBox())!;
+    await composer.fill('Keep this draft');
+    await expect(nav).toHaveCount(0);
+    await page.evaluate(() => {
+      Object.defineProperty(window.visualViewport!, 'height', {
+        configurable: true,
+        value: 420,
+      });
+      window.visualViewport!.dispatchEvent(new Event('resize'));
+    });
+    await expect
+      .poll(async () => Math.abs((await heading.boundingBox())!.y - initial.y))
+      .toBeLessThan(1);
+    await expect
+      .poll(async () => {
+        const rect = (await composer.boundingBox())!;
+        return rect.y + rect.height;
+      })
+      .toBeLessThan(420);
+    await page.screenshot({
+      path: info.outputPath('mobile-chat-keyboard.png'),
+    });
+    await page.evaluate(() => {
+      Object.defineProperty(window.visualViewport!, 'offsetTop', {
+        configurable: true,
+        value: 35,
+      });
+      window.visualViewport!.dispatchEvent(new Event('scroll'));
+    });
+    await expect
+      .poll(async () =>
+        Math.abs((await heading.boundingBox())!.y - initial.y - 35),
+      )
+      .toBeLessThan(1);
+    await heading.getByRole('button', { name: 'Chat sessions' }).focus();
+    await expect(nav).toBeVisible();
+    await page.evaluate(() => {
+      delete (window.visualViewport as unknown as Record<string, unknown>)
+        .height;
+      delete (window.visualViewport as unknown as Record<string, unknown>)
+        .offsetTop;
+      window.visualViewport!.dispatchEvent(new Event('resize'));
+    });
+    await expect(composer).toHaveValue('Keep this draft');
+    await heading
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .click();
+    await page
+      .getByRole('menuitem', {
+        name: 'AI settings',
+        exact: true,
+      })
+      .click();
+    const settings = page.getByRole('dialog', {
+      name: 'AI connection',
+      exact: true,
+    });
+    await settings
+      .getByRole('combobox', { name: 'AI model', exact: true })
+      .click();
+    await expect(
+      page.getByRole('option', {
+        name: 'Short model · test/short',
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('option', {
+        name: 'Mobile model · test/mobile',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page
+      .getByRole('option', { name: 'Mobile model · test/mobile', exact: true })
+      .click();
+    await expect(settings).toBeVisible();
+    await settings.getByRole('button', { name: 'Done', exact: true }).click();
+    await page.locator('#mobile-media-trigger').click();
+    const media = page.locator('#workspace-media');
+    await expect(
+      media.getByRole('button', { name: 'Text to speech', exact: true }),
+    ).toBeVisible();
+    await page.screenshot({ path: info.outputPath('mobile-media-speech.png') });
+    await media
+      .getByRole('button', { name: 'Text to speech', exact: true })
+      .click();
+    const speech = page.getByRole('dialog', {
+      name: 'Text to speech',
+      exact: true,
+    });
+    await expect(speech).toBeVisible();
+    await speech.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(media).toBeVisible();
+    await expect(
+      media.getByRole('button', { name: 'Text to speech', exact: true }),
+    ).toBeFocused();
+    await page.setViewportSize({ width: 320, height: 844 });
+    for (const name of [
+      'Task queue',
+      'Text to speech',
+      'Commands',
+      'Workspace settings',
+      'Record screen',
+    ]) {
+      await expect(
+        media.getByRole('button', { name, exact: true }),
+      ).toBeInViewport();
+    }
+    await fits(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await nav.getByRole('button', { name: 'Chat', exact: true }).click();
+    await expect(composer).toHaveValue('Keep this draft');
+    expect(completions).toBe(0);
+    await expect(
+      page.getByRole('button', { name: 'Collapse chat', exact: true }),
+    ).toBeFocused();
+    await composer.focus();
+    await expect(composer).toBeFocused();
+    await expect(nav).toHaveCount(0);
+    await page
+      .getByRole('button', { name: 'Send edit request', exact: true })
+      .click();
+    await expect(
+      page.getByRole('article', { name: 'Assistant response' }),
+    ).toContainText('Ready.');
+    expect(completions).toBe(1);
+    await expect(nav).toHaveCount(0);
+    await heading.getByRole('button', { name: 'Chat sessions' }).focus();
+    await expect(nav).toBeVisible();
+  });
+
   test(`mobile active tabs preserve state and animate the selection ${base}`, async ({
     page,
   }, info) => {
@@ -197,15 +407,13 @@ for (const base of ['/', '/LocalCut/']) {
         await expect
           .poll(async () => {
             const bounds = (await media.boundingBox())!;
-            const header = (await page
-              .locator('.workspace-header')
-              .boundingBox())!;
+
             const nav = (await page
               .locator('.mobile-navigation')
               .boundingBox())!;
             return Math.max(
               Math.abs(bounds.x),
-              Math.abs(bounds.y - header.y - header.height),
+              Math.abs(bounds.y),
               Math.abs(bounds.width - viewport.width),
               Math.max(0, bounds.y + bounds.height - nav.y),
             );
@@ -257,17 +465,19 @@ for (const base of ['/', '/LocalCut/']) {
       })),
     );
     await expect(media.locator('.media-item')).toHaveCount(24);
-    const header = page.locator('.workspace-header');
-    const picker = page.getByRole('button', {
-      name: 'Open project',
+    const header = media.locator('.section-heading');
+    const commands = header.getByRole('button', {
+      name: 'Commands',
       exact: true,
     });
     const headerBounds = (await header.boundingBox())!;
-    const pickerBounds = (await picker.boundingBox())!;
-    expect(pickerBounds.y + pickerBounds.height / 2).toBeLessThan(
+    const commandsBounds = (await commands.boundingBox())!;
+    expect(commandsBounds.y + commandsBounds.height).toBeLessThanOrEqual(
       headerBounds.y + headerBounds.height,
     );
-    expect(headerBounds.height).toBeLessThan(75);
+    expect(commandsBounds.y).toBeGreaterThanOrEqual(headerBounds.y);
+    await expect(page.locator('.workspace-header')).toHaveCount(0);
+    await expect(header).toBeInViewport();
     await expect
       .poll(() =>
         media
@@ -441,7 +651,7 @@ for (const base of ['/', '/LocalCut/']) {
           .click();
         const sizing = await page
           .locator(
-            '.workspace-header button, .mobile-navigation button, .playback-controls button',
+            '.workspace-header button, .mobile-tab-header button, .mobile-navigation button, .playback-controls button',
           )
           .evaluateAll((nodes) =>
             nodes.map((n) => ({
@@ -469,7 +679,7 @@ for (const base of ['/', '/LocalCut/']) {
         await expect(media).toBeInViewport();
         const mediaBounds = (await media.boundingBox())!;
         expect(mediaBounds.x).toBeCloseTo(0, 0);
-        expect(mediaBounds.y).toBeGreaterThan(0);
+        expect(mediaBounds.y).toBeCloseTo(0, 0);
         expect(mediaBounds.width).toBeCloseTo(320, 0);
         expect(mediaBounds.y + mediaBounds.height).toBeLessThanOrEqual(
           (await nav.boundingBox())!.y,

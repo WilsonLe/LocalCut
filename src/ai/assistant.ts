@@ -42,6 +42,7 @@ import {
   toolDefinitions,
 } from './tools';
 import { availableSkills, loadSkill } from './skills';
+import { compactHistory } from './chat-context';
 import type { SkillId } from './skills';
 import type {
   AssistantMessage,
@@ -69,6 +70,7 @@ const branches = new WeakMap<
   {
     history: ChatMessage[][];
     ids: string[];
+    memory: string;
     projectId: string;
     model: string;
     policy: string;
@@ -157,8 +159,8 @@ const defaults = {
   maxToolCalls: 24,
   maxOperations: 50,
   maxProposals: 20,
-  maxHistoryTurns: 8,
-  maxContextBytes: 256 * 1024,
+  maxHistoryTurns: 50,
+  maxContextBytes: 2 * 1024 * 1024,
   maxOutputBytes: 128 * 1024,
   maxOutputTokens: 4096,
 };
@@ -280,6 +282,7 @@ export function createAssistant(options: AssistantOptions) {
   const history: ChatMessage[][] = structuredClone(checkpoint?.history ?? []);
   const historyIds: string[] = [...(checkpoint?.ids ?? [])];
   let indexScope: string | undefined = checkpoint?.indexScope;
+  let memory = checkpoint?.memory ?? '';
   let disposed = false;
   let active: { id: string; controller: AbortController } | undefined;
   let activeCompletion: Promise<AssistantResult> | undefined;
@@ -378,12 +381,14 @@ export function createAssistant(options: AssistantOptions) {
           if (indexScope !== undefined && scope !== indexScope) {
             history.length = 0;
             historyIds.length = 0;
+            memory = '';
           }
           indexScope = scope;
         }
         const user: ChatMessage = { role: 'user', content: prompt };
         const conversation: ChatMessage[] = [user];
-        const messages: ChatMessage[] = [
+        const liveConversation: ChatMessage[] = [user];
+        const prefix: ChatMessage[] = [
           { role: 'system', content: systemPrompt },
           {
             role: 'system',
@@ -406,9 +411,8 @@ export function createAssistant(options: AssistantOptions) {
               ],
             }),
           },
-          ...history.flat(),
-          user,
         ];
+        let messages = [...prefix, ...history.flat(), ...conversation];
         const loadedSkills = new Set<SkillId>();
         let declaredTools = new Set<string>();
         let permittedActions = allowedActions(capabilities, loadedSkills);
@@ -795,6 +799,18 @@ export function createAssistant(options: AssistantOptions) {
           // Freeze authority for the entire response; a load cannot authorize sibling calls.
           declaredTools = new Set(tools.map((tool) => tool.function.name));
           permittedActions = allowedActions(capabilities, loadedSkills);
+          const previousHistoryCount = history.length;
+          const compacted = compactHistory(
+            history,
+            memory,
+            prefix,
+            liveConversation,
+            tools,
+            limits.maxOutputTokens,
+          );
+          historyIds.splice(0, previousHistoryCount - history.length);
+          memory = compacted.memory;
+          messages = compacted.messages;
           boundedContext({ messages, tools }, limits.maxContextBytes);
           const request = {
             model,
@@ -848,6 +864,7 @@ export function createAssistant(options: AssistantOptions) {
           );
           const message: AssistantMessage = structuredClone(completed.message);
           messages.push(message);
+          liveConversation.push(message);
           conversation.push(message);
           if (completed.usage) {
             for (const key of [
@@ -881,14 +898,6 @@ export function createAssistant(options: AssistantOptions) {
             history.push(structuredClone(conversation));
             historyIds.push(id);
             while (history.length > limits.maxHistoryTurns) {
-              history.shift();
-              historyIds.shift();
-            }
-            // Keep whole turns and their matching tool results; never truncate a tool exchange.
-            while (
-              history.length &&
-              byteLength(history) > limits.maxContextBytes / 2
-            ) {
               history.shift();
               historyIds.shift();
             }
@@ -988,6 +997,7 @@ export function createAssistant(options: AssistantOptions) {
               content: JSON.stringify(result),
             };
             messages.push(response);
+            liveConversation.push(response);
             // Keep the tool exchange, but do not preload previous domains via history.
             if (
               name === 'load_skill' &&
@@ -1035,6 +1045,7 @@ export function createAssistant(options: AssistantOptions) {
       branches.set(retryBranch, {
         history: structuredClone(history),
         ids: [...historyIds],
+        memory,
         assetIds: [...selectedAssetIds],
         indexScope,
         projectId,
@@ -1367,6 +1378,7 @@ export function createAssistant(options: AssistantOptions) {
       branches.set(branch, {
         history: structuredClone(history.slice(0, index + 1)),
         ids: historyIds.slice(0, index + 1),
+        memory,
         projectId,
         model,
         policy: JSON.stringify(policy),
@@ -1456,6 +1468,7 @@ export function createAssistant(options: AssistantOptions) {
       );
       history.length = 0;
       historyIds.length = 0;
+      memory = '';
       proposals.clear();
     },
     dispose() {
@@ -1465,6 +1478,7 @@ export function createAssistant(options: AssistantOptions) {
       for (const controller of serviceControllers.values()) controller.abort();
       history.length = 0;
       historyIds.length = 0;
+      memory = '';
       for (const proposal of proposals.values())
         if (proposal.status === 'pending') proposal.status = 'discarded';
       disposal = Promise.allSettled([
