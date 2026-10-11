@@ -62,13 +62,14 @@ async function setup(page: Page, context: BrowserContext, base: string) {
   await page.getByRole('button', { name: 'Expand media', exact: true }).click();
 }
 for (const base of ['/', '/LocalCut/']) {
-  test(`chat navigation pauses quietly and permits an explicit follow-up ${base}`, async ({
+  test(`chat navigation pauses quietly with Resume and Send composer actions ${base}`, async ({
     page,
     context,
   }) => {
     const requests: { messages: { role: string; content: string | null }[] }[] =
       [];
     const pending: (() => void)[] = [];
+    const pausedAttempts = new Map<string, number>();
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
@@ -79,7 +80,12 @@ for (const base of ['/', '/LocalCut/']) {
         const prompt = body.messages
           .filter((message) => message.role === 'user')
           .at(-1)?.content;
-        if (prompt?.startsWith('Pause')) {
+        const attempt = pausedAttempts.get(prompt ?? '') ?? 0;
+        if (
+          prompt?.startsWith('Pause') &&
+          attempt < (prompt.endsWith('collapse') ? 2 : 1)
+        ) {
+          pausedAttempts.set(prompt, attempt + 1);
           await new Promise<void>((resolve) => pending.push(resolve));
           await route.abort('failed').catch(() => {});
         } else if (prompt === 'Fail in foreground') {
@@ -176,16 +182,88 @@ for (const base of ['/', '/LocalCut/']) {
           page.locator('[data-sonner-toast][data-type="error"]'),
         ).toHaveCount(0);
         expect(requests).toHaveLength(count + 1);
-        await input.fill(`Continue after ${navigation}`);
+        const originalRequest = requests.at(-1)!;
+        const messageCount = await page
+          .getByRole('article', { name: 'Your message' })
+          .count();
+        const responseCount = await responses.count();
+        const resume = page.getByRole('button', {
+          name: 'Resume response',
+          exact: true,
+        });
+        await expect(resume).toBeEnabled();
+        await expect(input).toHaveValue('');
+        await input.fill('New direction');
+        await expect(send).toBeEnabled();
+        await expect(resume).toHaveCount(0);
+        await input.fill(' ');
+        await expect(send).toHaveCount(0);
+        await input.press('Enter');
+        expect(requests).toHaveLength(count + 1);
+        await expect(resume).toHaveCount(0);
+        await input.fill('');
+        await expect(resume).toBeEnabled();
+        if (navigation === 'hidden tab') await input.press('Enter');
+        else await resume.click();
+        if (navigation === 'collapse') {
+          await expect.poll(() => pending.length).toBe(1);
+          await page
+            .getByRole('button', { name: 'Collapse chat', exact: true })
+            .click();
+          pending.shift()!();
+          await page
+            .getByRole('button', { name: 'Expand chat', exact: true })
+            .click();
+          await expect(responses.last()).toContainText('Paused');
+          await expect(resume).toBeEnabled();
+          await resume.click();
+        }
+        await expect(responses.last()).toContainText('Ready to continue.');
+        await expect(resume).toHaveCount(0);
+        await expect(
+          page.getByRole('article', { name: 'Your message' }),
+        ).toHaveCount(messageCount);
+        await expect(responses).toHaveCount(responseCount);
+        expect(requests.at(-1)?.messages).toEqual(originalRequest.messages);
+        expect(JSON.stringify(requests.at(-1)?.messages)).toContain(
+          'Completed context',
+        );
+        // Typing a new request after a pause must send that request, not resume the old one.
+        await input.fill(`New request after ${navigation}`);
         await expect(send).toBeEnabled();
         await send.click();
         await expect(responses.last()).toContainText('Ready to continue.');
-        expect(JSON.stringify(requests.at(-1)?.messages)).toContain(
-          'Completed context',
+        expect(requests.at(-1)?.messages.at(-1)?.content).toBe(
+          `New request after ${navigation}`,
         );
         await page.setViewportSize({ width: 1440, height: 900 });
       });
     }
+    await test.step('typed draft sends a new request instead of resuming', async () => {
+      await input.fill('Pause for a different request');
+      await send.click();
+      await expect.poll(() => pending.length).toBe(1);
+      await input.fill('Changed direction');
+      await page
+        .getByRole('button', { name: 'Collapse chat', exact: true })
+        .click();
+      pending.shift()!();
+      await page
+        .getByRole('button', { name: 'Expand chat', exact: true })
+        .click();
+      await expect(responses.last()).toContainText('Paused');
+      await expect(input).toHaveValue('Changed direction');
+      await expect(
+        page.getByRole('button', { name: 'Resume response', exact: true }),
+      ).toHaveCount(0);
+      const count = requests.length;
+      await send.click();
+      await expect(responses.last()).toContainText('Ready to continue.');
+      expect(requests).toHaveLength(count + 1);
+      expect(requests.at(-1)?.messages.at(-1)?.content).toBe(
+        'Changed direction',
+      );
+    });
     await input.fill('Fail in foreground');
     await send.click();
     await expect(responses.last()).toContainText('Incomplete response');

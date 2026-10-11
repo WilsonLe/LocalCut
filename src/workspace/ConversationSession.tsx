@@ -18,6 +18,7 @@ import {
   Info,
   X,
   Square,
+  Play,
   Terminal,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -88,6 +89,11 @@ function ToolDetails({ tool }: { tool: AssistantToolCall }) {
     </div>
   );
 }
+interface PausedRequest {
+  turnId: string;
+  prompt: string;
+  assetIds: string[];
+}
 export interface ChatBranch {
   checkpoint: AssistantBranch;
   messages: Message[];
@@ -150,6 +156,9 @@ export default function ConversationSession({
   const [cancelling, setCancelling] = useState(false);
   const [activity, setActivity] = useState('Thinking…');
   const [failure, setFailure] = useState<string | null>(null);
+  const [pausedRequest, setPausedRequest] = useState<PausedRequest | null>(
+    null,
+  );
   const [following, setFollowing] = useState(true);
   const composer = useRef<HTMLTextAreaElement>(null);
   const assistant = useRef<Assistant | null>(null);
@@ -248,53 +257,75 @@ export default function ConversationSession({
   const send = async (event: FormEvent) => {
     event.preventDefault();
     if (readOnly || !active || document.visibilityState === 'hidden') return;
+    const resuming = prompt.length === 0 ? pausedRequest : null;
     const text = prompt.trim();
-    if (!text || attaching || runningRef.current || applyingRef.current) return;
+    if (
+      (!text && !resuming) ||
+      attaching ||
+      runningRef.current ||
+      applyingRef.current
+    )
+      return;
     runningRef.current = true;
     setFailure(null);
     setActivity('Thinking…');
     setCancelling(false);
     setRunning(true);
     onBusy(true);
-    onTitle(text.slice(0, 80));
+    if (!resuming) onTitle(text.slice(0, 80));
     cancelBeforeRun.current = false;
     pausedByNavigation.current = false;
     let activeTurn: AssistantTurn | undefined;
+    let submitted: PausedRequest | undefined;
     let stop: (() => void) | undefined;
     try {
       await waitForRetired();
       if (!mounted.current || cancelBeforeRun.current) return;
       const session = ensureAssistant();
-      session.includeAssets(attachments.map((asset) => asset.id));
+      const assetIds =
+        resuming?.assetIds ?? attachments.map((asset) => asset.id);
+      session.includeAssets(assetIds);
       const context =
         (selected ? `Selected clip ID: ${selected.id}.\n\n` : '') +
         (attachments.length
           ? `Attached local image asset IDs: ${attachments.map((asset) => asset.id).join(', ')}. Inspect these assets with the declared tools; their pixels remain local.\n\n`
           : '');
-      activeTurn = session.run(context + text);
+      const requestPrompt = resuming?.prompt ?? context + text;
+      activeTurn = session.run(requestPrompt);
+      submitted = { turnId: activeTurn.id, prompt: requestPrompt, assetIds };
       turn.current = activeTurn;
-      setPrompt('');
-      setAttachments([]);
-      onDraftChange(false);
+      setPausedRequest(null);
+      if (!resuming) {
+        setPrompt('');
+        setAttachments([]);
+        onDraftChange(false);
+      }
       nearBottom.current = true;
       setFollowing(true);
-      setMessages((current) => [
-        ...current,
-        {
-          id: crypto.randomUUID(),
-          role: 'user',
-          text,
-          status: 'complete',
-          proposalIds: [],
-        },
-        {
-          id: activeTurn!.id,
-          role: 'assistant',
-          text: '',
-          status: 'streaming',
-          proposalIds: [],
-        },
-      ]);
+      const response: Message = {
+        id: activeTurn.id,
+        role: 'assistant',
+        text: '',
+        status: 'streaming',
+        proposalIds: [],
+      };
+      setMessages((current) =>
+        resuming
+          ? current.map((message) =>
+              message.id === resuming.turnId ? response : message,
+            )
+          : [
+              ...current,
+              {
+                id: crypto.randomUUID(),
+                role: 'user',
+                text,
+                status: 'complete',
+                proposalIds: [],
+              },
+              response,
+            ],
+      );
       stop = activeTurn.subscribe((event) => {
         if (!mounted.current) return;
         if (event.type === 'text')
@@ -354,6 +385,7 @@ export default function ConversationSession({
         ? 'Response stopped. No unfinished proposal was saved.'
         : errorText(error);
       setFailure(paused ? null : text);
+      if (paused && submitted) setPausedRequest(submitted);
       if (activeTurn)
         setMessages((current) =>
           current.map((message) =>
@@ -984,10 +1016,24 @@ export default function ConversationSession({
                 <Button
                   type="submit"
                   size="icon-sm"
-                  aria-label="Send edit request"
-                  disabled={readOnly || !prompt.trim() || applying || attaching}
+                  aria-label={
+                    pausedRequest && prompt.length === 0
+                      ? 'Resume response'
+                      : 'Send edit request'
+                  }
+                  disabled={
+                    readOnly ||
+                    (!prompt.trim() &&
+                      !(pausedRequest && prompt.length === 0)) ||
+                    applying ||
+                    attaching
+                  }
                 >
-                  <ArrowUp aria-hidden="true" />
+                  {pausedRequest && prompt.length === 0 ? (
+                    <Play aria-hidden="true" />
+                  ) : (
+                    <ArrowUp aria-hidden="true" />
+                  )}
                 </Button>
               )}
             </div>
