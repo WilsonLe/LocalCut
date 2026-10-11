@@ -1107,6 +1107,11 @@ export function createAssistant(options: AssistantOptions) {
       let attempts = 0;
       const kind = `assistant:${id}`;
       taskQueue.register(kind, {
+        cache: {
+          mode: 'fresh',
+          reason:
+            'A submitted turn owns current history, consent, model generation and reviewable proposals.',
+        },
         lane: `chat-${projectId}`,
         recovery: 'manual',
         sessionBound: true,

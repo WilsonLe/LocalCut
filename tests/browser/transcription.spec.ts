@@ -76,6 +76,19 @@ test('@transcription real Whisper preparation, inference and cached reload', asy
       24000,
       { language: 'english' },
     ).completion;
+    const beforeReuse = (await window.editor.tasks.list()).length;
+    const repeated = await window.editor.transcription.measure(
+      generated,
+      24000,
+      { language: 'english' },
+    ).completion;
+    const readyAgain = await window.editor.transcription.prepare().completion;
+    const reuse = {
+      before: beforeReuse,
+      after: (await window.editor.tasks.list()).length,
+      repeated,
+      ready: readyAgain.ready,
+    };
     const { retimeSpeechTranscript, padSpeechTranscript } = (await import(
       String('/LocalCut/editor.js')
     )) as typeof import('../../src/editor/index');
@@ -233,6 +246,7 @@ test('@transcription real Whisper preparation, inference and cached reload', asy
       missingTiming,
       measured,
       speech,
+      reuse,
       backupSpeech: backup.transcripts.find(
         (value: { id: string }) => value.id === speech.id,
       ),
@@ -249,6 +263,12 @@ test('@transcription real Whisper preparation, inference and cached reload', asy
   });
   expect(info.missing).toBe('MODEL_REQUIRED');
   expect(info.missingTiming).toBe('MODEL_REQUIRED');
+  expect(info.reuse).toEqual({
+    before: info.reuse.before,
+    after: info.reuse.before,
+    repeated: info.measured,
+    ready: true,
+  });
   expect(
     info.measured.cues
       .map((cue) => cue.text)

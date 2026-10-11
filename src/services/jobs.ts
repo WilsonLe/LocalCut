@@ -18,6 +18,7 @@ export interface Job<T> {
   subscribe(listener: (event: JobEvent) => void): () => void;
 }
 interface JobOptions<T> {
+  id?: string;
   /** Optional domain-safe error normalization (e.g. provider errors). */
   error?: (error: unknown) => Error & { code: string };
   /** Successful persisted commits are authoritative over a late cancellation. */
@@ -43,7 +44,7 @@ export class Jobs {
     options: JobOptions<T> = {},
   ): Job<T> {
     if (this.disposed) throw new EditorError('DISPOSED', 'Engine disposed');
-    const id = crypto.randomUUID(),
+    const id = options.id ?? crypto.randomUUID(),
       controller = new AbortController(),
       listeners = new Set<(event: JobEvent) => void>();
     let latest: JobEvent = { jobId: id, state: 'running', stage: 'queued' };
