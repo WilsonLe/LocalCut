@@ -1187,6 +1187,35 @@ describe('headless assistant boundaries', () => {
     });
     expect(f.project().revision).toBe(0);
   });
+  it('automatically compacts history without extra provider calls and clears compacted memory', async () => {
+    const f = fixture(),
+      p = provider([[final('Done')]]);
+    const assistant = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    await assistant.run('Earlier request ' + 'x'.repeat(100000)).completion;
+    await assistant.run('Current request ' + 'y'.repeat(100000)).completion;
+    expect(p.stream).toHaveBeenCalledTimes(2);
+    const request = p.stream.mock.calls[1]![0];
+    expect(
+      request.messages.some((m) => m.content?.includes('Untrusted excerpts')),
+    ).toBe(true);
+    expect(
+      request.messages.some((m) => m.content?.includes('Earlier request')),
+    ).toBe(true);
+    expect(request.messages.at(-1)?.content).toContain('Current request');
+    assistant.clearHistory();
+    await assistant.run('After clear').completion;
+    expect(
+      p.stream.mock.calls[2]![0].messages.some((m) =>
+        m.content?.includes('Earlier request'),
+      ),
+    ).toBe(false);
+    await assistant.dispose();
+  });
   it('bounds rounds, tool calls, context, output, operations and history', async () => {
     const f = fixture(),
       p = provider([[final('', [call('inspect_project', {})])]]);

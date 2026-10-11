@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { Ref } from 'react';
+import type { Ref, ReactNode } from 'react';
 import { CREDENTIAL_STORAGE_KEY } from '../ai/credential-storage-key';
 import type { WorkspaceCommand } from './commands';
 import {
@@ -71,6 +71,7 @@ export interface IndexConnection extends Connection {
   inputModalities: string[];
 }
 export interface ConversationProps {
+  headerActions?: ReactNode;
   controlsRef?: Ref<ConversationControls>;
   onSpeechAvailability?: (ready: boolean) => void;
   onIndexConnection?: (connection: IndexConnection | null) => void;
@@ -262,7 +263,13 @@ export function Conversation(props: ConversationProps) {
       const catalog = await provider.listModels(controller.signal);
       if (mounted.current && token === attempt.current) {
         const available = catalog
-          .filter((item) => item.supportsTools && item.id !== 'openrouter/auto')
+          .filter(
+            (item) =>
+              item.supportsTools &&
+              item.id !== 'openrouter/auto' &&
+              (provider.selectedProvider('llm') !== 'openrouter' ||
+                item.contextLength > 256_000),
+          )
           .sort((a, b) => a.name.localeCompare(b.name));
         setModels(available);
         const preferred =
@@ -727,7 +734,13 @@ export function Conversation(props: ConversationProps) {
     setConnectionError(null);
     try {
       const catalog = (await connection.provider.listModels(controller.signal))
-        .filter((item) => item.supportsTools && item.id !== 'openrouter/auto')
+        .filter(
+          (item) =>
+            item.supportsTools &&
+            item.id !== 'openrouter/auto' &&
+            (connection.provider.selectedProvider('llm') !== 'openrouter' ||
+              item.contextLength > 256_000),
+        )
         .sort((a, b) => a.name.localeCompare(b.name));
       if (mounted.current && token === attempt.current) {
         setModels(catalog);
@@ -954,6 +967,7 @@ export function Conversation(props: ConversationProps) {
           ) : (
             sessionTrigger
           )}
+          {props.headerActions}
         </header>
         {ready ? (
           <Suspense fallback={<div className="flex-1" />}>

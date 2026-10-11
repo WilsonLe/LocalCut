@@ -8,10 +8,10 @@ import {
 } from 'react';
 import {
   Files,
+  AudioLines,
   Music,
   Upload,
   ScreenShare,
-  AudioLines,
   Pencil,
   Trash2,
   Link,
@@ -46,6 +46,7 @@ export default function MediaLibrary({
   onImport,
   onRecord,
   onSpeech,
+  headerActions,
   onRelink,
   onRename,
   onDelete,
@@ -60,6 +61,7 @@ export default function MediaLibrary({
   onImport: () => void;
   onRecord: () => void;
   onSpeech?: () => void;
+  headerActions?: React.ReactNode;
   onRelink: (id: string) => void;
   onRename: (asset: Asset, name: string) => Promise<void>;
   onDelete: (asset: Asset) => Promise<void>;
@@ -178,6 +180,7 @@ export default function MediaLibrary({
             </Button>
           </Tooltip>
         )}
+        {headerActions}
         {canEdit && (
           <Tooltip content="Record screen">
             <Button

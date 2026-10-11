@@ -61,7 +61,7 @@ test('long assistant replies scroll inside the conversation and keep the compose
           {
             id: model,
             name: 'Long reply model',
-            context_length: 32000,
+            context_length: 512000,
             supported_parameters: ['tools', 'tool_choice'],
           },
         ],

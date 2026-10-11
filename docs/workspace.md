@@ -251,3 +251,9 @@ Projects shows a responsive card list with Active and Archived controls beside t
 Each track has a compact ellipsis menu beneath its name. Rename, enable/disable, mute/unmute, solo/unsolo, lock/unlock, duplicate, move up/down, clear clips and delete use shared engine commands. Overlay tracks omit audio mute; first/last layers omit unavailable move directions. Locked tracks omit move/clear/delete and hide selected clip edit actions while retaining inspection. State icons show disabled, muted, solo and locked tracks; custom names remain discoverable in tooltips and accessible labels.
 
 Rename and populated-track clear/delete use revision-bound dialogs; external edits invalidate an open form instead of overwriting newer state. Empty-track delete is immediate and undoable. Historical versions expose no track mutation menu. Menus support keyboard and touch, constrain scrolling to the popup and remain within mobile viewport bounds. Drag and Alt+Up/Down reordering remain available for unlocked tracks. All operations retain persistence and Undo/Redo.
+
+### Mobile chat keyboard
+
+Mobile Edit, Chat and Media own their active headings and global commands/settings; the duplicate LocalCut brand row is removed. Focusing the chat composer hides bottom navigation and fits the transcript/composer to the visual viewport while keeping the chat heading at the visible top. Blur restores navigation, and switching tabs retains drafts. Text-to-speech is available in Media through the shared AI connection.
+
+See the [controlled mobile keyboard viewport](images/workspace-mobile-chat-keyboard.png) (the top 420 px are the simulated visible area) and [Media speech entry](images/workspace-mobile-media-speech.png).

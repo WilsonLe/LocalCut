@@ -10,7 +10,7 @@ const cors = {
 const models = Array.from({ length: 120 }, (_, index) => ({
   id: `test/model-${index}`,
   name: `Editing model ${String(index).padStart(3, '0')}`,
-  context_length: 32000,
+  context_length: 512000,
   supported_parameters: ['tools', 'tool_choice'],
 }));
 
@@ -164,7 +164,7 @@ for (const base of ['/', '/LocalCut/']) {
                     {
                       id: 'test/no-tools',
                       name: 'Unsupported model',
-                      context_length: 32000,
+                      context_length: 512000,
                       supported_parameters: [],
                     },
                   ],

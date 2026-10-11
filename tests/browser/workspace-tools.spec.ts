@@ -22,7 +22,7 @@ for (const base of ['/', '/LocalCut/']) {
             {
               id: 'test/tool-details',
               name: 'Tool details model',
-              context_length: 32000,
+              context_length: 512000,
               supported_parameters: ['tools', 'tool_choice'],
             },
           ],
@@ -208,7 +208,7 @@ for (const base of ['/', '/LocalCut/']) {
             {
               id: 'test/atomic-edit',
               name: 'Atomic edit model',
-              context_length: 32000,
+              context_length: 512000,
               supported_parameters: ['tools', 'tool_choice'],
             },
           ],

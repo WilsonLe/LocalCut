@@ -12,7 +12,7 @@ import type {
 const model = {
   id: 'vendor/tool-model',
   name: 'Tool model',
-  context_length: 32000,
+  context_length: 512000,
   supported_parameters: ['tools', 'tool_choice'],
   top_provider: { max_completion_tokens: 4000 },
   pricing: { prompt: '0.000001', completion: '0.000002' },
@@ -59,6 +59,32 @@ async function collect(
 }
 
 describe('OpenRouter transport', () => {
+  it('rejects oversized chat context before any provider I/O', async () => {
+    const { client, fetch } = setup();
+    await expect(
+      collect(client, {
+        ...request(),
+        messages: [{ role: 'user', content: 'x'.repeat(256000) }],
+      }),
+    ).rejects.toMatchObject({ code: 'CONTEXT_LIMIT' });
+    expect(fetch).not.toHaveBeenCalled();
+    client.dispose();
+  });
+  it.each([128000, 256000])(
+    'rejects OpenRouter context %i before generation',
+    async (contextLength) => {
+      const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+        Response.json({ data: [{ ...model, context_length: contextLength }] }),
+      );
+      const client = createOpenRouter({ fetch });
+      client.setKey('synthetic-key');
+      await expect(collect(client)).rejects.toMatchObject({
+        code: 'MODEL_UNSUPPORTED',
+      });
+      expect(fetch).toHaveBeenCalledTimes(1);
+      client.dispose();
+    },
+  );
   it('has no eager I/O and never reveals keys in status or serialized client', () => {
     const fetch = vi.fn<typeof globalThis.fetch>();
     const client = createOpenRouter({ fetch });
@@ -183,7 +209,7 @@ describe('OpenRouter transport', () => {
     expect(fetch.mock.calls[0]![1]?.headers).toEqual({});
     expect(models[0]).toMatchObject({
       supportsTools: true,
-      contextLength: 32000,
+      contextLength: 512000,
       maxCompletionTokens: 4000,
       pricing: model.pricing,
     });
