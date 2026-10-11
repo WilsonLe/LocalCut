@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
+import { hasPendingCallback } from './oauth-callback';
 import { parseProjectRoute, projectRoutePath } from './project-route';
 import { readRecentProject } from './recent-project';
 
@@ -13,7 +14,10 @@ export function useWorkspaceRoute({
   const [startup] = useState(() => ({
     key: location.key,
     projectId:
-      restoreRecent && location.pathname === '/' && !location.search
+      restoreRecent &&
+      !hasPendingCallback() &&
+      location.pathname === '/' &&
+      !location.search
         ? readRecentProject()
         : undefined,
   }));

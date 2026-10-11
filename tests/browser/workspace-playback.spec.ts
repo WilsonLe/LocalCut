@@ -9,7 +9,9 @@ for (const base of ['/', '/LocalCut/']) {
       { num: 30, den: 1 },
       { num: 30000, den: 1001 },
     ]) {
-      const durationUs = 1_000_021;
+      // Keep native playback running long enough to observe and pause it under
+      // concurrent browser load; endpoint checks still seek to the final frame.
+      const durationUs = 10_000_021;
       const id = await page.evaluate(
         async ({ base, frameRate, durationUs }) => {
           const { createEditor } = (await import(

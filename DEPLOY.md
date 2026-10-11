@@ -67,7 +67,7 @@ A workflow configuration or successful packaging job does not prove availability
 After an authorized deployment, use a fresh Google Chrome context with generated local media:
 
 1. Verify the title and rendered workspace at the correct base, and check for missing lazy modules, worker assets, icons or fonts.
-2. On a bare URL without saved credentials, verify inert startup: no editing-storage initialization, media/inference workers, model downloads, permission prompts or AI requests before an explicit action. An explicit local project/catalog route and an explicit OAuth return have their documented behavior; saved credential restoration can load AI/catalogs in an existing profile.
+2. On a bare URL without a remembered project or saved credentials, verify inert startup: no editing-storage initialization, media/inference workers, model downloads, permission prompts or AI requests before an explicit action. An explicit local project/catalog route, remembered-project startup and an explicit OAuth return have their documented behavior; saved credential restoration can load AI/catalogs in an existing profile.
 3. Create a project, import generated media, render the preview and save a real supported export. Reopen the local project after reload and verify the selected editing change's relevant flow.
 4. Verify fresh `modules.json` discovery, the compatibility entries, and worker/font snapshot paths at the deployed base. Check grouped settings, provider controls and responsive/collapsible panels when touched by the release.
 5. Export a portable backup with originals and check import in an isolated profile when portability/storage changes are in scope. Do not test against personal media or clear unrelated browser data.
