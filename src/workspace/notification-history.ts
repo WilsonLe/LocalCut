@@ -79,7 +79,12 @@ export class NotificationHistory {
   private snapshot: NotificationSnapshot = { entries: [], saved: true };
   private loaded = false;
   private listeners = new Set<() => void>();
-  constructor(private storage: () => Pick<Storage, 'getItem' | 'setItem'>) {}
+  constructor(
+    private storage: () => Pick<Storage, 'getItem' | 'setItem'>,
+    private writeLock: (operation: () => void) => void | Promise<void> = (
+      operation,
+    ) => operation(),
+  ) {}
   getSnapshot = () => {
     if (!this.loaded) this.refresh();
     return this.snapshot;
@@ -119,8 +124,17 @@ export class NotificationHistory {
     }
     return [...entries.values()];
   }
+  private write(change: (entries: NotificationEntry[]) => NotificationEntry[]) {
+    try {
+      const pending = this.writeLock(() => this.mutate(change));
+      return pending?.catch(() => this.mutate(change, false));
+    } catch {
+      this.mutate(change, false);
+    }
+  }
   private mutate(
     change: (entries: NotificationEntry[]) => NotificationEntry[],
+    persist = true,
   ) {
     let latest = [...this.getSnapshot().entries];
     try {
@@ -140,6 +154,7 @@ export class NotificationHistory {
       const raw = encode(entries);
       if (bytes(raw) > maxBytes)
         throw new Error('Report exceeds history capacity');
+      if (!persist) throw new Error('Notification write lock unavailable');
       this.storage().setItem(notificationHistoryKey, raw);
       saved = true;
     } catch {
@@ -148,7 +163,7 @@ export class NotificationHistory {
     this.publish(entries, saved);
   }
   record(entry: Omit<NotificationEntry, 'createdAt' | 'updatedAt' | 'read'>) {
-    this.mutate((entries) => {
+    return this.write((entries) => {
       const previous = entries.find((item) => item.id === entry.id);
       const now = Date.now();
       return [
@@ -176,8 +191,6 @@ export class NotificationHistory {
     });
   }
   markRead = () =>
-    this.mutate((entries) =>
-      entries.map((entry) => ({ ...entry, read: true })),
-    );
-  clear = () => this.mutate(() => []);
+    this.write((entries) => entries.map((entry) => ({ ...entry, read: true })));
+  clear = () => this.write(() => []);
 }

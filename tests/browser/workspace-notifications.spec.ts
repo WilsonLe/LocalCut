@@ -175,6 +175,9 @@ for (const base of ['/', '/LocalCut/']) {
     await details.getByRole('button', { name: 'Close', exact: true }).click();
     await bell.click();
     await page.evaluate(() =>
+      navigator.locks.request('localcut.notifications.v1', () => {}),
+    );
+    await page.evaluate(() =>
       (
         window as unknown as { allowNotificationStorage(): void }
       ).allowNotificationStorage(),
@@ -207,6 +210,93 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await bell.click();
     await expect(log).toContainText('No notifications yet.');
+    await other.close();
+  });
+  test(`concurrent notification reports survive a shared write lock ${base}`, async ({
+    page,
+    context,
+  }) => {
+    const other = await context.newPage();
+    await Promise.all([page.goto(base), other.goto(base)]);
+    await Promise.all([
+      page.route('**/build-info.json?*', (route) =>
+        route.fulfill({ status: 500, body: 'Private body' }),
+      ),
+      other.route('**/build-info.json?*', (route) =>
+        route.fulfill({ status: 500, body: 'Private body' }),
+      ),
+    ]);
+    await page.evaluate(async () => {
+      let ready!: () => void, release!: () => void;
+      const started = new Promise<void>((resolve) => {
+        ready = resolve;
+      });
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      Object.defineProperty(window, 'releaseNotificationWriteLock', {
+        value: release,
+      });
+      void navigator.locks.request('localcut.notifications.v1', async () => {
+        ready();
+        await held;
+      });
+      await started;
+    });
+    await Promise.all([
+      page
+        .getByRole('button', { name: 'Check for update', exact: true })
+        .click(),
+      other
+        .getByRole('button', { name: 'Check for update', exact: true })
+        .click(),
+    ]);
+    await expect(
+      page.locator('[data-sonner-toast][data-type="error"]'),
+    ).toBeVisible();
+    await expect(
+      other.locator('[data-sonner-toast][data-type="error"]'),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem('localcut.notifications.v1'),
+      ),
+    ).toBeNull();
+    await page.evaluate(() =>
+      (
+        window as unknown as { releaseNotificationWriteLock(): void }
+      ).releaseNotificationWriteLock(),
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            JSON.parse(
+              localStorage.getItem('localcut.notifications.v1') ??
+                '{"entries":[]}',
+            ).entries.length,
+        ),
+      )
+      .toBe(2);
+    const records = await page.evaluate(
+      () =>
+        JSON.parse(localStorage.getItem('localcut.notifications.v1')!)
+          .entries as { report: { text: string } }[],
+    );
+    expect(
+      records.every((entry) =>
+        entry.report.text.includes('Build information unavailable'),
+      ),
+    ).toBe(true);
+    await page.reload();
+    await page.getByRole('button', { name: /^Notifications/ }).click();
+    const log = page.getByRole('dialog', {
+      name: 'Notifications',
+      exact: true,
+    });
+    await expect(
+      log.getByRole('button', { name: /^View stack trace:/ }),
+    ).toHaveCount(2);
     await other.close();
   });
 }

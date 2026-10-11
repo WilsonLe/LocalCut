@@ -5,7 +5,13 @@ import { NotificationHistory } from './notification-history';
 import type { NotificationType } from './notification-history';
 import { redactDiagnosticText } from '../core/error-diagnostics';
 
-export const notificationHistory = new NotificationHistory(() => localStorage);
+export const notificationHistory = new NotificationHistory(
+  () => localStorage,
+  (operation) => {
+    if (!navigator.locks) throw new Error('Browser write locks unavailable');
+    return navigator.locks.request('localcut.notifications.v1', operation);
+  },
+);
 const ids = new Map<string | number, string>();
 function notify(
   type: NotificationType,

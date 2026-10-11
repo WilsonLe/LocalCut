@@ -114,3 +114,72 @@ describe('persistent notification history', () => {
     expect(unavailable.getSnapshot().entries).toHaveLength(1);
   });
 });
+
+describe('concurrent notification mutation ownership', () => {
+  it('serializes simultaneous reports, read and clear against one shared saved history', async () => {
+    const { storage } = fixture();
+    let tail = Promise.resolve();
+    const lock = (operation: () => void) => {
+      const pending = tail.then(operation);
+      tail = pending.catch(() => {});
+      return pending;
+    };
+    const first = new NotificationHistory(() => storage, lock);
+    const second = new NotificationHistory(() => storage, lock);
+    await Promise.all([
+      first.record({
+        ...entry('first'),
+        type: 'error',
+        report: { summary: 'Failure', text: 'Complete first stack' },
+      }),
+      second.record({
+        ...entry('second'),
+        type: 'error',
+        report: { summary: 'Failure', text: 'Complete second stack' },
+      }),
+    ]);
+    first.refresh();
+    second.refresh();
+    expect(first.getSnapshot().entries).toHaveLength(2);
+    expect(
+      second.getSnapshot().entries.map((item) => item.report?.text),
+    ).toContain('Complete first stack');
+    expect(
+      second.getSnapshot().entries.map((item) => item.report?.text),
+    ).toContain('Complete second stack');
+    await Promise.all([first.markRead(), second.record(entry('news'))]);
+    first.refresh();
+    expect(
+      first.getSnapshot().entries.find((item) => item.id === 'news')?.read,
+    ).toBe(false);
+    expect(
+      first
+        .getSnapshot()
+        .entries.filter((item) => item.id !== 'news')
+        .every((item) => item.read),
+    ).toBe(true);
+    await Promise.all([first.clear(), second.record(entry('after-clear'))]);
+    first.refresh();
+    expect(first.getSnapshot().entries.map((item) => item.id)).toEqual([
+      'after-clear',
+    ]);
+  });
+  it('retains reports in the session if shared write ownership is unavailable', async () => {
+    const { storage } = fixture();
+    const history = new NotificationHistory(
+      () => storage,
+      async () => {
+        throw new Error('Lock unavailable');
+      },
+    );
+    await history.record({
+      ...entry('local'),
+      report: { summary: 'Failure', text: 'Complete stack' },
+    });
+    expect(history.getSnapshot().saved).toBe(false);
+    expect(history.getSnapshot().entries[0]?.report?.text).toBe(
+      'Complete stack',
+    );
+    expect(storage.setItem).not.toHaveBeenCalled();
+  });
+});
