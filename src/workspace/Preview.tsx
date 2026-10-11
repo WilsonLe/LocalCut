@@ -59,7 +59,10 @@ export function Preview({
   const frameDuration = project
     ? (1e6 * project.frameRate.den) / project.frameRate.num
     : 1e6 / 30;
-  const displayedTime = Math.min(timeUs, Math.max(0, total - frameDuration));
+  // Rational frame durations can be fractional; the engine seeks in whole µs.
+  const displayedTime = Math.round(
+    Math.min(timeUs, Math.max(0, total - frameDuration)),
+  );
   const onTimeRef = useRef(onTime);
   const onErrorRef = useRef(onError);
   useEffect(() => {
@@ -146,7 +149,7 @@ export function Preview({
     generation.current++;
     session.current?.pause();
     setPlayingIdentity(null);
-    onTime(position);
+    onTime(Math.round(position));
   };
   const play = async () => {
     if (!editor || !project || !canvas.current) return;

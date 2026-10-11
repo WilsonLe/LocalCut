@@ -88,7 +88,7 @@ The timeline text icon (Add text) opens a searchable library with Templates and 
 
 See the [text library](images/text-library.png) and [narrow text library](images/text-library-narrow.png). Gallery samples, preview and export share the same text drawing function.
 
-Preview uses the same engine compositor as export. Playback creates its audio context only from the Play action. Scrubbing supersedes pending frames; project changes stop the old playback session. Disposal releases image bitmaps, sessions, audio contexts and active jobs. No media is sent to a server.
+Preview uses the same engine compositor as export. Preview frame controls round their positions to integer microseconds, including the final-frame clamp at rational frame rates, so Play can resume after stepping. Playback creates its audio context only from the Play action. Scrubbing supersedes pending frames; project changes stop the old playback session. Disposal releases image bitmaps, sessions, audio contexts and active jobs. No media is sent to a server.
 
 Seek by dragging the top marker of the playhead with a mouse or touch. Its padded target sits above the tracks so clip selection remains available. The timeline has no separate bottom scrub bar. Focus the marker to use the shared playback shortcuts, including frame steps and Home/End. See the [mobile](images/timeline-playhead-mobile.png) and [desktop](images/timeline-playhead-desktop.png) layouts.
 
