@@ -333,7 +333,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 ## Task queue table — 11 October 2026
 
-- Render the task queue using the shadcn Base table. When columns overflow horizontally, show shaded left/right chevrons only in directions with more content; clicking moves one column in that direction.
+- Render the task queue using the shadcn Base table. When columns overflow horizontally, show shaded left/right chevrons only in directions with more content; clicking moves one column in that direction. Render standalone chevrons without visible button boxes over a shaded gradient using theme colors; retain accessible click targets and keyboard focus.
 
 ## Project switcher dialog — 11 October 2026
 
