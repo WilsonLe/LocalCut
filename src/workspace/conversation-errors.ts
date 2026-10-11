@@ -7,8 +7,30 @@ export function errorCode(error: unknown): string {
     : '';
 }
 export function errorText(error: unknown): string {
+  if (
+    errorCode(error) === 'INVALID_REQUEST' &&
+    error &&
+    typeof error === 'object' &&
+    'details' in error &&
+    error.details &&
+    typeof error.details === 'object' &&
+    'status' in error.details
+  ) {
+    const status = error.details.status;
+    if (status === 404)
+      return 'The selected model or endpoint is unavailable (HTTP 404). Refresh models or choose another tool-capable model.';
+    if (status === 413)
+      return 'The request is too large (HTTP 413). Start a new chat or shorten your message.';
+    if (
+      typeof status === 'number' &&
+      Number.isInteger(status) &&
+      status >= 400 &&
+      status < 500
+    )
+      return `The provider rejected this request (HTTP ${status}). Check the selected model and request settings.`;
+  }
   const messages: Record<string, string> = {
-    INVALID_REQUEST: 'Check the endpoint, model, voice and request settings.',
+    INVALID_REQUEST: 'Check the selected model, endpoint and request settings.',
     AUTH_STORAGE:
       'Credentials could not be saved. Allow browser storage and reconnect.',
     AUTH_REQUIRED: 'Connect a provider for this service to continue.',
