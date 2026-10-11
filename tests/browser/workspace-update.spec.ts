@@ -36,12 +36,22 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await expect(check).toBeVisible();
     expect(requests).toBe(0);
-    const checkBox = (await check.boundingBox())!;
-    const commandsBox = (await page
-      .getByRole('button', { name: 'Commands', exact: true })
-      .boundingBox())!;
-    expect(checkBox.x).toBeGreaterThan(1200);
-    expect(checkBox.x + checkBox.width).toBeLessThan(commandsBox.x);
+    // The lazy tooltip replaces its fallback trigger during startup. Sample
+    // the final layout instead of assuming a previous visibility check pins it.
+    await expect
+      .poll(async () => {
+        const checkBox = await check.boundingBox();
+        const commandsBox = await page
+          .getByRole('button', { name: 'Commands', exact: true })
+          .boundingBox();
+        return (
+          !!checkBox &&
+          !!commandsBox &&
+          checkBox.x > 1200 &&
+          checkBox.x + checkBox.width < commandsBox.x
+        );
+      })
+      .toBe(true);
 
     await test.step('pending feedback, current and older commits', async () => {
       delay = new Promise<void>((resolve) => {

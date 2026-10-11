@@ -169,6 +169,7 @@ For font or animation changes, run `pnpm test tests/unit/text-library.test.ts te
 
 ```sh
 pnpm test tests/unit/task-queue.test.ts tests/unit/assistant.test.ts tests/unit/speech.test.ts
+pnpm test:ui --grep 'task queue table'
 pnpm test:ui --grep 'chat response actions|text to speech'
 pnpm test:browser tests/browser/task-queue.spec.ts tests/browser/editor.spec.ts tests/browser/lifecycle.spec.ts
 ```

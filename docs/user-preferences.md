@@ -330,6 +330,10 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Pause unfinished assistant responses gracefully when navigating away from chat. Expected navigation interruption must not display an error; show Resume as the primary composer action on return while the draft is empty. Typing changes it to Send, and clearing the draft restores Resume. Resume explicitly restarts the paused request without requiring a follow-up message.
 
+## Task queue table — 11 October 2026
+
+- Render the task queue using the shadcn Base table. When columns overflow horizontally, show shaded left/right chevrons only in directions with more content; clicking moves one column in that direction.
+
 ## Project switcher dialog — 11 October 2026
 
 - Open the header project-name switcher in a dialog over the current editor, including on mobile. Dismissing it preserves the current route and editing state; selecting another project updates its URL. This supersedes the earlier routed-screen choice for the project-name switcher. LocalCut home and direct catalog links retain the Projects screen.
