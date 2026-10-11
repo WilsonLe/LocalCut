@@ -41,6 +41,126 @@ async function seed(page: Page, base: string) {
 const picker = (page: Page) =>
   page.getByRole('button', { name: 'Open project', exact: true });
 for (const base of ['/', '/LocalCut/']) {
+  test(`project routing reopens the recent project and keeps view icons in the header ${base}`, async ({
+    page,
+  }, info) => {
+    await page.goto(base);
+    expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
+    const ids = await seed(page, base);
+    await page.goto(`${base}#/project/${ids.first}`);
+    await expect(picker(page)).toContainText('Route first');
+    await page.goto(`${base}#/project/${ids.second}`);
+    await expect(picker(page)).toContainText('Route second');
+    await page.goto(base);
+    await expect(picker(page)).toContainText('Route second');
+    await expect(page).toHaveURL(new RegExp(`/project/${ids.second}$`));
+    // Explicit catalog and project links win over the saved selection.
+    await page.goto(`${base}#/projects`);
+    await expect(
+      page.getByRole('main', { name: 'Projects', exact: true }),
+    ).toBeVisible();
+    await page.reload();
+    await expect(page).toHaveURL(/#\/projects$/);
+    await page.goto(`${base}#/project/${ids.first}`);
+    await expect(picker(page)).toContainText('Route first');
+    const views = page.getByRole('tablist', { name: 'Project views' });
+    await expect(
+      page.locator('.workspace-header').getByRole('tablist'),
+    ).toBeVisible();
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 844 });
+      await expect(
+        page.locator('.mobile-edit-heading').getByRole('tablist'),
+      ).toBeVisible();
+      await expect(views).toHaveCount(1);
+      for (const name of ['Editor', 'Storyboard']) {
+        const tab = views.getByRole('tab', { name, exact: true });
+        await expect(tab.locator('svg')).toHaveCount(1);
+        expect(await tab.textContent()).toBe('');
+      }
+      const heading = page.locator('.mobile-edit-heading');
+      expect(
+        await heading.evaluate((el) => el.scrollWidth <= el.clientWidth),
+      ).toBe(true);
+      const bounds = await heading.locator('button').evaluateAll((buttons) =>
+        buttons.map((button) => ({
+          x: button.getBoundingClientRect().x,
+          right: button.getBoundingClientRect().right,
+          y: button.getBoundingClientRect().y,
+        })),
+      );
+      expect(bounds.every((b) => b.x >= 0 && b.right <= width)).toBe(true);
+      expect(
+        Math.max(...bounds.map((b) => b.y)) -
+          Math.min(...bounds.map((b) => b.y)),
+      ).toBeLessThan(3);
+      await views.getByRole('tab', { name: 'Editor', exact: true }).focus();
+      await page.keyboard.press('ArrowRight');
+      await expect(
+        views.getByRole('tab', { name: 'Storyboard', exact: true }),
+      ).toBeFocused();
+      await expect(
+        views.getByRole('tab', { name: 'Storyboard', exact: true }),
+      ).toHaveAttribute('aria-selected', 'true');
+      await page.keyboard.press('Home');
+      await expect(
+        views.getByRole('tab', { name: 'Editor', exact: true }),
+      ).toBeFocused();
+      await page.screenshot({
+        path: info.outputPath(`header-views-${width}.png`),
+        animations: 'disabled',
+      });
+    }
+    await page.goto(base);
+    await expect(picker(page)).toContainText('Route first');
+    await page.evaluate(() => {
+      location.hash = '/';
+    });
+    await expect(picker(page)).toContainText('Edit');
+    await expect(page).toHaveURL(/#\/$/);
+    await page.reload();
+    await expect(picker(page)).toContainText('Route first');
+    await page.evaluate(
+      async ({ base, id }) => {
+        const { createEditor } = await import(`${base}editor.js`);
+        const editor = await createEditor();
+        try {
+          await editor.projects.delete(id);
+        } finally {
+          await editor.dispose();
+        }
+      },
+      { base, id: ids.first },
+    );
+    await expect(page.getByRole('alert')).toContainText(
+      'unavailable in this browser',
+    );
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem('localcut.recent-project.v1'),
+      ),
+    ).toBeNull();
+    await page.goto(base);
+    await expect(picker(page)).toContainText('Edit');
+    await page.evaluate(() =>
+      localStorage.setItem(
+        'localcut.recent-project.v1',
+        JSON.stringify({ version: 1, projectId: 'missing-recent-project' }),
+      ),
+    );
+    await page.goto(base);
+    await expect(page.getByRole('alert')).toContainText(
+      'unavailable in this browser',
+    );
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem('localcut.recent-project.v1'),
+      ),
+    ).toBeNull();
+    await page.goto(base);
+    await expect(picker(page)).toContainText('Edit');
+  });
+
   test(`project routing captures navigation while editor panels load ${base}`, async ({
     page,
   }) => {
@@ -118,7 +238,7 @@ for (const base of ['/', '/LocalCut/']) {
       page.getByRole('button', { name: 'Saved routed title', exact: true }),
     ).toBeVisible();
     await page.goto(base);
-    await expect(picker(page)).toContainText('Untitled project');
+    await expect(picker(page)).toContainText('Route first');
     await picker(page).click();
     await catalog
       .getByRole('button', { name: 'New project', exact: true })
@@ -131,6 +251,9 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Create project', exact: true })
       .click();
+    await expect(picker(page)).toContainText('Created through routing');
+    await expect(page).toHaveURL(/#\/project\/[^/]+$/);
+    await page.goto(base);
     await expect(picker(page)).toContainText('Created through routing');
     await expect(page).toHaveURL(/#\/project\/[^/]+$/);
   });

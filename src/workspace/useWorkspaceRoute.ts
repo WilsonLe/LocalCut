@@ -1,11 +1,34 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { parseProjectRoute, projectRoutePath } from './project-route';
+import { readRecentProject } from './recent-project';
 
 /** React Router owns history; components consume validated route identity and actions. */
 export function useWorkspaceRoute() {
   const location = useLocation();
   const navigate = useNavigate();
+  const startupConsumed = useRef(false);
+  const [startup] = useState(() => ({
+    key: location.key,
+    projectId:
+      location.pathname === '/' && !location.search
+        ? readRecentProject()
+        : undefined,
+  }));
+  useEffect(() => {
+    if (startupConsumed.current) return;
+    startupConsumed.current = true;
+    if (
+      startup.projectId &&
+      location.key === startup.key &&
+      location.pathname === '/' &&
+      !location.search
+    ) {
+      void navigate(projectRoutePath('editor', startup.projectId), {
+        replace: true,
+      });
+    }
+  }, [startup, location.key, location.pathname, location.search, navigate]);
   const go = useCallback(
     (screen: 'editor' | 'projects', id?: string, replace = false) => {
       const path = projectRoutePath(screen, id);

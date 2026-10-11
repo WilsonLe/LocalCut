@@ -1,5 +1,6 @@
 import { useEffect, useReducer } from 'react';
 import type { ProjectRoute } from './project-route';
+import { forgetRecentProject } from './recent-project';
 
 interface Options {
   route: ProjectRoute;
@@ -40,6 +41,7 @@ export function useProjectNavigation({
     void restore(id, controller.signal).catch((failure: unknown) => {
       if (controller.signal.aborted) return;
       const missing = (failure as { code?: string })?.code === 'NOT_FOUND';
+      if (missing && id) forgetRecentProject(id);
       setFailure({
         key,
         message: missing

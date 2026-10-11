@@ -2190,6 +2190,13 @@
     min-height: 60px;
     border-bottom: 1px solid var(--border);
     padding: env(safe-area-inset-top) 12px 0;
+    gap: 2px;
+    .project-tabs button,
+    .header-actions > button {
+      width: 32px;
+      min-width: 32px;
+      padding-inline: 4px;
+    }
     .project-picker {
       flex: 1;
       width: 0;
@@ -2301,12 +2308,6 @@
 .storyboard .excalidraw [data-testid='button-redo'],
 .storyboard .excalidraw .default-sidebar-trigger {
   display: none;
-}
-@media (max-width: 767px) {
-  .project-tabs {
-    padding: 4px 8px;
-    border-bottom: 1px solid var(--border);
-  }
 }
 
 :root[data-workspace-narrow='true']

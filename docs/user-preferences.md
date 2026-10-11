@@ -101,7 +101,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Provide a workspace screen for navigating saved projects, alongside the existing editor.
 - Keep the current project in the URL so reload, direct project links and browser Back/Forward restore the intended local project. Use a pinned router package where useful; routes must work on root and GitHub Pages hosting.
-- Keep route, project loading and catalog state in focused React hooks consumed by components. The engine remains the canonical project owner. Explicit project URLs may reopen local editing on startup; the bare app URL remains inert. This supersedes the earlier session-only active-project navigation choice.
+- Keep route, project loading and catalog state in focused React hooks consumed by components. The engine remains the canonical project owner. Explicit project URLs may reopen local editing on startup. The 12 October recent-project choice below supersedes the inert bare-URL behavior when a recent project is saved. This supersedes the earlier session-only active-project navigation choice.
 
 ## Project creation format — 11 October 2026
 
@@ -379,3 +379,8 @@ This is the project record of the user's durable product and workflow choices. U
 ## Chat skill activity — 12 October 2026
 
 - Label skill-loading activity “Load skills” in the plural. Show the specific skill name in each tool row, such as “Load skills: Indexing · Completed”, instead of a generic completion label.
+
+## Project header and startup — 12 October 2026
+
+- Show Editor and Storyboard as accessible icon-only tabs in the top project header, including mobile; remove their separate subheader.
+- Remember the most recently opened project locally and reopen it when the app starts at its bare URL. Explicit project/catalog links retain priority; a fresh browser without a saved recent project remains inert.
