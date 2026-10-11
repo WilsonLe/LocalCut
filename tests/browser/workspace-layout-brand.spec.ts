@@ -140,11 +140,12 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
     await page
-      .getByRole('button', { name: 'Expand chat', exact: true })
+      .getByRole('navigation', { name: 'Workspace sections' })
+      .getByRole('button', { name: 'Chat', exact: true })
       .click();
-    expect((await chat.boundingBox())!.y).toBeGreaterThan(
-      (await editor.boundingBox())!.y,
-    );
+    await expect(chat).toBeVisible();
+    await expect(editor).toBeHidden();
+    await expect(media).toBeHidden();
     await openAISettings(page);
     const dialog = page.getByRole('dialog', {
       name: 'AI connection',

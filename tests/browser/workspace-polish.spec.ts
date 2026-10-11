@@ -149,8 +149,12 @@ for (const base of ['/', '/LocalCut/']) {
       .toBe(true);
     await page.getByRole('button', { name: 'Collapse media' }).click();
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.getByRole('button', { name: 'Expand media' }).click();
+    const navigation = page.getByRole('navigation', {
+      name: 'Workspace sections',
+    });
+    await navigation.getByRole('button', { name: 'Expand media' }).click();
     await expect(media).toBeInViewport();
+    await expect(editor).toBeHidden();
     await expect(
       media.getByRole('button', { name: 'Import media', exact: true }),
     ).toBeVisible();
@@ -161,6 +165,7 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeLessThanOrEqual(390);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.getByRole('button', { name: 'Close media' }).click();
+    await expect(editor).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Expand media' }),
     ).toBeInViewport();

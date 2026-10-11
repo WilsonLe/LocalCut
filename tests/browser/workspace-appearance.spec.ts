@@ -137,6 +137,9 @@ for (const base of ['/', '/LocalCut/']) {
           'data-density',
           'comfortable',
         );
+        await expect(page.locator('#editor-panel')).toBeVisible();
+        await expect(page.locator('#chat-panel')).toBeHidden();
+        await expect(page.locator('#media-panel')).toBeHidden();
         await expect
           .poll(() =>
             page.evaluate(() => {
@@ -146,13 +149,7 @@ for (const base of ['/', '/LocalCut/']) {
               const timeline = document
                 .querySelector('.timeline')!
                 .getBoundingClientRect();
-              const chat = document
-                .querySelector('.conversation-panel')!
-                .getBoundingClientRect();
-              return Math.max(
-                preview.bottom - timeline.top,
-                timeline.bottom - chat.top,
-              );
+              return preview.bottom - timeline.top;
             }),
           )
           .toBeLessThanOrEqual(1);
@@ -176,6 +173,24 @@ for (const base of ['/', '/LocalCut/']) {
           await page.evaluate(() => document.documentElement.scrollWidth),
         ).toBe(320);
         await expect(panel).toBeVisible();
+        await panel.getByRole('button', { name: 'Close appearance' }).click();
+        const navigation = page.getByRole('navigation', {
+          name: 'Workspace sections',
+        });
+        await navigation
+          .getByRole('button', { name: 'Chat', exact: true })
+          .click();
+        await expect(page.locator('#chat-panel')).toBeVisible();
+        await expect(page.locator('#editor-panel')).toBeHidden();
+        await expect(page.locator('#media-panel')).toBeHidden();
+        await expect(
+          navigation.getByRole('button', { name: 'Chat', exact: true }),
+        ).toHaveAttribute('aria-current', 'page');
+        const chatBounds = (await page.locator('#chat-panel').boundingBox())!;
+        const navBounds = (await navigation.boundingBox())!;
+        expect(chatBounds.y + chatBounds.height).toBeLessThanOrEqual(
+          navBounds.y,
+        );
       });
     },
   );

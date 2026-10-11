@@ -39,6 +39,11 @@ for (const base of ['/', '/LocalCut/']) {
           await plus.click();
         }
         await page.setViewportSize({ width: 390, height: 844 });
+        await page
+          .getByRole('navigation', { name: 'Workspace sections' })
+          .getByRole('button', { name: 'Chat', exact: true })
+          .click();
+        await expect(page.locator('#editor-panel')).toBeHidden();
         await trigger.click();
         const popup = page.getByRole('menu', {
           name: 'Chat sessions',
