@@ -9,6 +9,16 @@ export type * from '../core/asset-index';
 import { Autosave } from '../services/autosave';
 export type { ProjectVersion, ProjectVersionInfo } from '../storage/store';
 import { Jobs, checkAbort } from '../services/jobs';
+import { TaskQueue, runQueuedJob, taskTerminal } from '../services/task-queue';
+import type { TaskHandler, TaskContext } from '../services/task-queue';
+export { TaskQueue } from '../services/task-queue';
+export type {
+  TaskRecord,
+  TaskState,
+  TaskContext,
+  TaskHandler,
+  TaskQueueError,
+} from '../services/task-queue';
 import type { JobEvent } from '../services/jobs';
 import { WorkerClient } from '../services/worker-client';
 import { EditorError, invariant, asEditorError } from '../core/errors';
@@ -82,7 +92,8 @@ export interface ProjectEvent {
 export async function createEditor(options: EditorOptions = {}) {
   const namespace = options.namespace ?? 'localcut',
     store = await Store.open(namespace),
-    jobs = new Jobs();
+    jobs = new Jobs(),
+    tasks = new TaskQueue(namespace);
   let disposed = false;
   const sessions = new Set<PreviewSession>();
   const projectListeners = new Set<(event: ProjectEvent) => void>();
@@ -221,7 +232,18 @@ export async function createEditor(options: EditorOptions = {}) {
       return completion;
     });
   };
-  return {
+  const queuedRawJobs = new Set<string>();
+  const adoptQueuedJob = <T>(
+    job: import('../services/jobs').Job<T>,
+    context: TaskContext,
+  ) => {
+    queuedRawJobs.add(job.id);
+    return runQueuedJob(job, context).finally(() =>
+      queuedRawJobs.delete(job.id),
+    );
+  };
+  const api = {
+    tasks,
     workspace: {
       async snapshot(
         projectIds: string[],
@@ -793,7 +815,29 @@ export async function createEditor(options: EditorOptions = {}) {
       },
       jobs(listener: (event: JobEvent) => void) {
         active();
-        return jobs.subscribe(listener);
+        const stopRaw = jobs.subscribe((event) => {
+          if (!queuedRawJobs.has(event.jobId)) listener(event);
+        });
+        const stopTasks = tasks.subscribe((task) =>
+          listener({
+            jobId: task.id,
+            stage: task.stage,
+            progress: task.progress,
+            error: task.error,
+            state:
+              task.state === 'completed'
+                ? 'completed'
+                : task.state === 'cancelled'
+                  ? 'cancelled'
+                  : taskTerminal(task.state)
+                    ? 'failed'
+                    : 'running',
+          }),
+        );
+        return () => {
+          stopRaw();
+          stopTasks();
+        };
       },
       projects(listener: (event: ProjectEvent) => void) {
         active();
@@ -811,6 +855,7 @@ export async function createEditor(options: EditorOptions = {}) {
       } catch (error) {
         saveError = error;
       }
+      await tasks.dispose();
       await jobs.dispose();
       interactive.reset();
       background.reset();
@@ -823,5 +868,137 @@ export async function createEditor(options: EditorOptions = {}) {
       if (saveError) throw saveError;
     },
   };
+  // Public long-running operations share durable scheduling; internal preview and
+  // transcription sub-jobs keep their dedicated workers and never queue behind themselves.
+  const queued = <A extends unknown[], R>(
+    kind: string,
+    operation: (...args: A) => import('../services/jobs').Job<R>,
+    policy: Partial<Omit<TaskHandler, 'execute'>> = {},
+  ): ((...args: A) => import('../services/jobs').Job<R>) => {
+    tasks.register(kind, {
+      lane: 'media',
+      recovery: 'safe',
+      retryCodes: ['WORKER_FAILED'],
+      ...policy,
+      execute: (input, context) =>
+        adoptQueuedJob(operation(...(input as A)), context),
+    });
+    return (...args) =>
+      tasks.enqueue<R>(kind, args, { label: kind.replaceAll('.', ' ') });
+  };
+  api.assets.import = queued('media.import', api.assets.import, {
+    recovery: 'manual',
+    acceptCommittedResult: true,
+    retryCodes: [],
+  });
+  api.assets.relink = queued('media.relink', api.assets.relink, {
+    recovery: 'manual',
+    acceptCommittedResult: true,
+    retryCodes: [],
+  });
+  api.assets.analyze = queued('media.analyze', api.assets.analyze, {
+    lane: 'index',
+  });
+  api.assets.thumbnails = queued('media.thumbnails', api.assets.thumbnails, {
+    lane: 'derivatives',
+  });
+  api.assets.contactSheet = queued(
+    'media.contactSheet',
+    api.assets.contactSheet,
+    { lane: 'derivatives' },
+  );
+  api.assets.waveform = queued('media.waveform', api.assets.waveform, {
+    lane: 'derivatives',
+  });
+  api.assets.derivative = queued('media.derivative', api.assets.derivative, {
+    lane: 'derivatives',
+  });
+  api.exports.preflight = queued('export.preflight', api.exports.preflight, {
+    lane: 'export',
+  });
+  api.exports.start = queued('export.video', api.exports.start, {
+    lane: 'export',
+    recovery: 'manual',
+    retryCodes: [],
+    encodeResult: async (result) => {
+      const saved = {
+        ...(result as ExportResult & { dispose?: () => Promise<void> }),
+      };
+      delete saved.dispose;
+      // Detach the durable take from the disposable OPFS export. Streaming into
+      // a browser Blob avoids buffering a large export in a JS ArrayBuffer.
+      const blob = await new Response(saved.file.stream()).blob();
+      saved.file = new File([blob], saved.file.name, {
+        type: saved.file.type,
+        lastModified: saved.file.lastModified,
+      });
+      return saved;
+    },
+    decodeResult: (value) => {
+      const result = value as ExportResult;
+      return { ...result, dispose: () => store.remove(result.path) };
+    },
+    discard: (result) =>
+      (result as ExportResult & { dispose: () => Promise<void> }).dispose(),
+  });
+  api.workspace.export = queued('workspace.export', api.workspace.export, {
+    lane: 'transfer',
+    recovery: 'manual',
+    retryCodes: [],
+  });
+  api.workspace.import = queued('workspace.import', api.workspace.import, {
+    lane: 'transfer',
+    recovery: 'manual',
+    acceptCommittedResult: true,
+    retryCodes: [],
+  });
+  api.transcription.prepare = queued(
+    'transcription.prepare',
+    api.transcription.prepare,
+    {
+      lane: 'transcription',
+      retryCodes: ['MODEL_DOWNLOAD_FAILED', 'WORKER_FAILED'],
+    },
+  );
+  const transcribe = api.transcription.transcribe;
+  const localTranscribe = queued('transcription.local', transcribe, {
+    lane: 'transcription',
+    recovery: 'manual',
+    acceptCommittedResult: true,
+    retryCodes: [],
+  });
+  api.transcription.transcribe = (assetId, options = {}) => {
+    if (!options.provider) return localTranscribe(assetId, options);
+    const kind = `transcription.remote:${crypto.randomUUID()}`;
+    tasks.register(kind, {
+      lane: 'transcription',
+      recovery: 'manual',
+      sessionBound: true,
+      acceptCommittedResult: true,
+      execute: (_input, context) =>
+        adoptQueuedJob(transcribe(assetId, options), context),
+    });
+    const saved = { ...options };
+    delete saved.provider;
+    return tasks.enqueue<Transcript>(
+      kind,
+      { assetId, options: saved },
+      { label: 'Transcribing audio' },
+    );
+  };
+  tasks.register('speech.timing', {
+    lane: 'speech-timing',
+    recovery: 'safe',
+    execute: async (input, context) => {
+      const { renderSpeech } = await import('../ai/speech-audio');
+      const value = input as {
+        audio: import('../ai').SpeechAudio;
+        timing: import('../ai').SpeechTiming;
+      };
+      return renderSpeech(value.audio, value.timing, context.signal);
+    },
+  });
+  tasks.start();
+  return api;
 }
 export type Editor = Awaited<ReturnType<typeof createEditor>>;

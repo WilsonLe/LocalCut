@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Files, Music, Upload, ScreenShare } from 'lucide-react';
+import { Files, Music, Upload, ScreenShare, AudioLines } from 'lucide-react';
 import type { Asset, Editor } from '../editor';
 import type { IndexConnection } from './Conversation';
+const TaskQueueControl = lazy(() => import('./TaskQueueControl'));
 const AssetIndexControls = lazy(() => import('./AssetIndexControls'));
 import { Button } from '../components/ui/button';
 import { Empty, EmptyContent } from '../components/ui/empty';
@@ -10,27 +11,48 @@ import { formatTime } from './helpers';
 
 export default function MediaLibrary({
   editor,
+  queueOwner = editor,
   indexConnection,
   readOnly,
   assets,
   canEdit,
   onImport,
   onRecord,
+  onSpeech,
   onRelink,
 }: {
   editor: Editor | null;
+  queueOwner?: Pick<Editor, 'tasks'> | null;
   indexConnection: IndexConnection | null;
   readOnly: boolean;
   assets: Asset[];
   canEdit: boolean;
   onImport: () => void;
   onRecord: () => void;
+  onSpeech?: () => void;
   onRelink: (id: string) => void;
 }) {
   return (
     <section className="media-library" aria-label="Project media">
       <div className="section-heading">
         <h2>Media</h2>
+        {queueOwner && (
+          <Suspense fallback={null}>
+            <TaskQueueControl editor={queueOwner} />
+          </Suspense>
+        )}
+        {onSpeech && !readOnly && (
+          <Tooltip content="Generate a spoken narration from your script">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Text to speech"
+              onClick={onSpeech}
+            >
+              <AudioLines />
+            </Button>
+          </Tooltip>
+        )}
         {canEdit && (
           <Tooltip content="Record screen">
             <Button
@@ -155,6 +177,11 @@ function AssetPreview({
       type="button"
       className="media-asset-preview"
       aria-label={`Asset details for ${asset.name}`}
+      draggable={asset.kind === 'image' && asset.status === 'ready'}
+      onDragStart={(event) => {
+        event.dataTransfer.setData('application/x-localcut-image', asset.id);
+        event.dataTransfer.effectAllowed = 'copy';
+      }}
       {...props}
     >
       <span className="media-symbol">

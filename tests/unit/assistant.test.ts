@@ -2413,3 +2413,75 @@ it('keeps index consent independent of loaded assistant skills', () => {
   expect(names(true)).toContain('search_asset_index');
   expect(names(true)).toContain('read_asset_index');
 });
+
+describe('assistant response style and branches', () => {
+  it('branches only through the selected completed response and preserves the original history', async () => {
+    const f = fixture();
+    const requests: ChatRequest[] = [];
+    const provider = {
+      async *stream(request: ChatRequest) {
+        requests.push(structuredClone(request));
+        yield final(`Reply ${requests.length}`);
+      },
+    };
+    const options = {
+      editor: f.editor,
+      provider,
+      projectId: f.project().id,
+      model: 'test-model',
+    };
+    const original = createAssistant(options);
+    const first = await original.run('First idea').completion;
+    await original.run('Later original idea').completion;
+    const fork = createAssistant({
+      ...options,
+      branch: original.branch(first.id),
+    });
+    expect(fork.snapshot().proposals).toEqual([]);
+    await fork.run('Alternative idea').completion;
+    const branched = JSON.stringify(requests.at(-1)?.messages);
+    expect(branched).toContain('First idea');
+    expect(branched).toContain('Reply 1');
+    expect(branched).not.toContain('Later original idea');
+    expect(branched).toContain('Keep replies short and concise');
+    expect(branched).toContain('brief high-level recommendation');
+    await original.run('Continue original').completion;
+    const continued = JSON.stringify(requests.at(-1)?.messages);
+    expect(continued).toContain('Later original idea');
+    expect(continued).not.toContain('Alternative idea');
+    await fork.dispose();
+    await original.dispose();
+  });
+  it('rejects forged or mismatched branches and does not clone approval authority', async () => {
+    const f = fixture();
+    const provider = {
+      async *stream() {
+        yield final('Done');
+      },
+    };
+    const options = {
+      editor: f.editor,
+      provider,
+      projectId: f.project().id,
+      model: 'test-model',
+    };
+    const assistant = createAssistant(options);
+    const turn = await assistant.run('Idea').completion;
+    const checkpoint = assistant.branch(turn.id);
+    expect(() =>
+      createAssistant({ ...options, branch: { id: checkpoint.id } }),
+    ).toThrow('Branch context');
+    expect(() =>
+      createAssistant({
+        ...options,
+        branch: checkpoint,
+        context: { includeText: true },
+      }),
+    ).toThrow('Branch context');
+    const branch = createAssistant({ ...options, branch: checkpoint });
+    expect(branch.snapshot().proposals).toEqual([]);
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+    await branch.dispose();
+    await assistant.dispose();
+  });
+});

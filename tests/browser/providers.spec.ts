@@ -229,6 +229,9 @@ for (const base of ['/', '/LocalCut/']) {
         page.getByText('backup success', { exact: true }),
       ).toBeVisible();
       await page
+        .getByRole('button', { name: 'Expand media', exact: true })
+        .click();
+      await page
         .getByRole('button', { name: 'Text to speech', exact: true })
         .click();
       const speech = page.getByRole('dialog', {
