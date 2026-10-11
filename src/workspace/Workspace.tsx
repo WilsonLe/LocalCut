@@ -161,7 +161,9 @@ export function Workspace() {
           ?.getAttribute('data-mobile-tab') !== tab
       )
         return;
-      window.scrollTo({ top: 0, behavior: 'instant' });
+      document
+        .querySelector('.workspace-body')
+        ?.scrollTo({ top: 0, behavior: 'instant' });
       const target =
         tab === 'edit'
           ? document.getElementById('workspace-editor')
@@ -172,7 +174,7 @@ export function Workspace() {
     });
   };
   const closeMobileMedia = () => {
-    setMobileTab(previousMobileTab.current);
+    selectMobileTab(previousMobileTab.current);
     requestAnimationFrame(() =>
       document.getElementById('mobile-media-trigger')?.focus(),
     );

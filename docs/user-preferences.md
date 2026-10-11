@@ -125,7 +125,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 ## App and popup scrolling — 11 October 2026
 
-- Keep the main app anchored to the viewport. Scroll workspace content inside its panels, including the stacked mobile workspace, so dialogs and dropdowns cannot move the page behind them.
+- Keep the main app anchored to the viewport. Scroll workspace content inside its panels, including the active mobile view, so dialogs and dropdowns cannot move the page behind them.
 - Give dialogs a fixed height bounded by the viewport and scroll overflowing content inside them. Keep dropdown scrolling contained within the popup and retain hidden scrollbars.
 
 ## Media cards — 11 October 2026

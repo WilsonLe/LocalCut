@@ -136,6 +136,29 @@ for (const base of ['/', '/LocalCut/']) {
         localStorage.getItem('localcut.workspace-preferences.v1'),
       ),
     ).toBe(preferences);
+    await edit.click();
+    await page.setViewportSize({ width: 390, height: 500 });
+    await page
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .click();
+    await page
+      .getByRole('menuitem', { name: 'Appearance', exact: true })
+      .click();
+    const appearance = page.getByRole('region', {
+      name: 'Appearance customization',
+    });
+    await expect(appearance).toBeVisible();
+    const body = page.locator('.workspace-body');
+    await body.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    expect(await body.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+    await chatTab.click();
+    await expect.poll(() => body.evaluate((el) => el.scrollTop)).toBe(0);
+    await expect(
+      chat.getByRole('button', { name: 'Chat sessions' }),
+    ).toBeInViewport();
+    await appearance.getByRole('button', { name: 'Close appearance' }).click();
     await page.setViewportSize({ width: 1440, height: 900 });
     await expect(editor).toBeVisible();
     await expect(chat).toBeVisible();
