@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
-import { openAISettings } from './workspace-settings-helper';
+import {
+  openAISettings,
+  prepareOpenRouterKey,
+} from './workspace-settings-helper';
 
 for (const base of ['/', '/LocalCut/']) {
   test(`TTS connector catalog voices and compact dropdown options ${base}`, async ({
@@ -45,6 +48,7 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await page.goto(base);
     await openAISettings(page);
+    await prepareOpenRouterKey(page);
     const dialog = page.getByRole('dialog', {
       name: 'AI connection',
       exact: true,
