@@ -1,12 +1,12 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { useEffect, useState, useRef, type PointerEvent } from 'react';
 import { Files, Music, Upload, ScreenShare } from 'lucide-react';
 import type { Asset, Editor } from '../editor';
 import type { IndexConnection } from './Conversation';
-const AssetIndexControls = lazy(() => import('./AssetIndexControls'));
+import AssetIndexControls from './AssetIndexControls';
 import { Button } from '../components/ui/button';
 import { Empty, EmptyContent } from '../components/ui/empty';
 import { Tooltip } from '../components/ui/tooltip';
-import { formatTime } from './helpers';
+import { MEDIA_DRAG_EVENT, formatTime } from './helpers';
 
 export default function MediaLibrary({
   editor,
@@ -17,6 +17,7 @@ export default function MediaLibrary({
   onImport,
   onRecord,
   onRelink,
+  onAssetDrag,
 }: {
   editor: Editor | null;
   indexConnection: IndexConnection | null;
@@ -26,7 +27,90 @@ export default function MediaLibrary({
   onImport: () => void;
   onRecord: () => void;
   onRelink: (id: string) => void;
+  onAssetDrag: (id: string | null) => void;
 }) {
+  const drag = useRef<{
+    pointerId: number;
+    assetId: string;
+    x: number;
+    y: number;
+    moved: boolean;
+  } | null>(null);
+  const emit = (
+    phase: 'move' | 'drop' | 'cancel',
+    assetId: string,
+    clientX = 0,
+    clientY = 0,
+  ) =>
+    document.dispatchEvent(
+      new CustomEvent(MEDIA_DRAG_EVENT, {
+        detail: { phase, assetId, clientX, clientY },
+      }),
+    );
+  const cancel = () => {
+    if (drag.current?.moved) {
+      emit('cancel', drag.current.assetId);
+      onAssetDrag(null);
+    }
+    drag.current = null;
+  };
+  const dragProps = (asset: Asset) => ({
+    draggable: false,
+    'data-draggable': canEdit && !readOnly && asset.status === 'ready',
+    onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
+      if (
+        event.button !== 0 ||
+        !canEdit ||
+        readOnly ||
+        asset.status !== 'ready'
+      )
+        return;
+      event.preventDefault();
+      event.currentTarget.focus();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      drag.current = {
+        pointerId: event.pointerId,
+        assetId: asset.id,
+        x: event.clientX,
+        y: event.clientY,
+        moved: false,
+      };
+    },
+    onPointerMove: (event: PointerEvent<HTMLButtonElement>) => {
+      const gesture = drag.current;
+      if (!gesture || gesture.pointerId !== event.pointerId) return;
+      if (!canEdit || readOnly) {
+        cancel();
+        return;
+      }
+      if (
+        !gesture.moved &&
+        Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) < 4
+      )
+        return;
+      if (!gesture.moved) {
+        gesture.moved = true;
+        onAssetDrag(asset.id);
+      }
+      emit('move', asset.id, event.clientX, event.clientY);
+    },
+    onPointerUp: (event: PointerEvent<HTMLButtonElement>) => {
+      if (drag.current?.pointerId !== event.pointerId) return;
+      if (drag.current.moved)
+        emit('drop', asset.id, event.clientX, event.clientY);
+      drag.current = null;
+      onAssetDrag(null);
+    },
+    onPointerCancel: cancel,
+    onLostPointerCapture: cancel,
+    onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (event.key === 'Escape' && drag.current) {
+        event.preventDefault();
+        event.stopPropagation();
+        cancel();
+      }
+    },
+  });
   return (
     <section className="media-library" aria-label="Project media">
       <div className="section-heading">
@@ -47,36 +131,38 @@ export default function MediaLibrary({
       <div className="media-grid">
         {assets.map((asset) => (
           <div className="media-item" key={asset.id}>
-            <Suspense fallback={<AssetPreview editor={null} asset={asset} />}>
-              <AssetIndexControls
+            <AssetIndexControls
+              editor={editor}
+              asset={asset}
+              connection={indexConnection}
+              readOnly={readOnly}
+              details={
+                <>
+                  <div>{asset.name}</div>
+                  <div>
+                    {asset.kind} · {asset.type}
+                  </div>
+                  {asset.kind !== 'audio' && (
+                    <div>
+                      {asset.width} × {asset.height}
+                    </div>
+                  )}
+                  {asset.kind !== 'image' && (
+                    <div>{formatTime(asset.durationUs)}</div>
+                  )}
+                  <div>{Math.ceil(asset.size / 1024)} KiB</div>
+                  {asset.status === 'missing' && (
+                    <div>Missing · relink file</div>
+                  )}
+                </>
+              }
+            >
+              <AssetPreview
                 editor={editor}
                 asset={asset}
-                connection={indexConnection}
-                readOnly={readOnly}
-                details={
-                  <>
-                    <div>{asset.name}</div>
-                    <div>
-                      {asset.kind} · {asset.type}
-                    </div>
-                    {asset.kind !== 'audio' && (
-                      <div>
-                        {asset.width} × {asset.height}
-                      </div>
-                    )}
-                    {asset.kind !== 'image' && (
-                      <div>{formatTime(asset.durationUs)}</div>
-                    )}
-                    <div>{Math.ceil(asset.size / 1024)} KiB</div>
-                    {asset.status === 'missing' && (
-                      <div>Missing · relink file</div>
-                    )}
-                  </>
-                }
-              >
-                <AssetPreview editor={editor} asset={asset} />
-              </AssetIndexControls>
-            </Suspense>
+                {...dragProps(asset)}
+              />
+            </AssetIndexControls>
             {asset.status === 'missing' && canEdit && (
               <Button
                 variant="outline"
@@ -159,7 +245,11 @@ function AssetPreview({
     >
       <span className="media-symbol">
         {url ? (
-          <img src={url} alt={`Thumbnail for ${asset.name}`} />
+          <img
+            draggable={false}
+            src={url}
+            alt={`Thumbnail for ${asset.name}`}
+          />
         ) : asset.kind === 'audio' ? (
           <Music aria-hidden="true" />
         ) : (

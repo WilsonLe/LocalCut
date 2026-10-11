@@ -4,7 +4,10 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type PointerEvent,
 } from 'react';
+import { loopDurationUs } from '../core/speed';
+import { frameTimeUs } from '../core/frame-time';
 import { interfaceScale } from './appearance';
 import { useViewport } from './useViewport';
 import {
@@ -17,6 +20,7 @@ import {
   Film,
   Music2,
   Redo2,
+  Repeat2,
   Scissors,
   SlidersHorizontal,
   Trash2,
@@ -28,7 +32,13 @@ import { Tooltip } from '../components/ui/tooltip';
 import type { Asset, Editor, Project } from '../editor';
 import { TimelinePreviews } from './timeline-previews';
 import { TimelineClipPreview } from './TimelineClipPreview';
-import { clipName, formatTime, projectDuration } from './helpers';
+import {
+  MEDIA_DRAG_EVENT,
+  type MediaDragDetail,
+  clipName,
+  formatTime,
+  projectDuration,
+} from './helpers';
 import { SettingsSelect } from './SettingsSelect';
 import { transitionPairs, TRANSITION_TEMPLATES } from '../core/timeline';
 import type { TransitionTemplate } from '../core/timeline';
@@ -62,9 +72,13 @@ interface Props {
   onText: () => void;
   onAddTrack: (kind: 'video' | 'audio') => void;
   onReorderTrack: (trackId: string, index: number) => void;
+  draggingAsset: Asset | null;
+  onDropAsset: (trackId: string, startUs: number) => void;
+  onResizeClip: (clipId: string, durationUs: number) => void;
 }
 export function Timeline(props: Props) {
-  const { project, assets, selected, timeUs } = props;
+  const { project, assets, selected, timeUs, draggingAsset, onDropAsset } =
+    props;
   const busy = props.busy || props.readOnly;
   const [addingTrack, setAddingTrack] = useState(false);
   const addTrackTrigger = useRef<HTMLButtonElement>(null);
@@ -101,6 +115,7 @@ export function Timeline(props: Props) {
     return () => touchControls.removeEventListener('change', update);
   }, []);
   const total = projectDuration(project);
+  const timelineDuration = total || 5_000_000;
   const hasTracks = !!project?.tracks.length;
   const {
     ref: viewport,
@@ -123,7 +138,13 @@ export function Timeline(props: Props) {
       (clientX - element.getBoundingClientRect().left) / interfaceScale() +
       element.scrollLeft -
       76;
-    const fraction = x / Math.max(1, element.scrollWidth - 76);
+    const fraction =
+      x /
+      Math.max(
+        1,
+        (element.querySelector<HTMLElement>('.timeline-content')?.offsetWidth ??
+          element.clientWidth) - 76,
+      );
     props.onTime(
       Math.round(Math.min(total - 1, Math.max(0, fraction * total))),
     );
@@ -159,9 +180,38 @@ export function Timeline(props: Props) {
   const trackDrag = useRef<{
     id: number;
     trackId: string;
+    startX: number;
     startY: number;
+    centers: number[];
+    offsets: number[];
+    source: number;
     index: number;
     moved: boolean;
+  } | null>(null);
+  const [trackMotion, setTrackMotion] = useState<{
+    trackId: string;
+    source: number;
+    index: number;
+    x: number;
+    y: number;
+    offsets: number[];
+  } | null>(null);
+  const [mediaDrop, setMediaDrop] = useState<{
+    assetId: string;
+    trackId: string;
+    startUs: number;
+  } | null>(null);
+  const resizeGesture = useRef<{
+    pointerId: number;
+    clipId: string;
+    x: number;
+    durationUs: number;
+    usPerPixel: number;
+    minUs: number;
+  } | null>(null);
+  const [resizePreview, setResizePreview] = useState<{
+    clipId: string;
+    durationUs: number;
   } | null>(null);
   const [dropTrack, setDropTrack] = useState<string | null>(null);
   const gestureScope = `${project?.id}:${project?.revision}:${props.versionId}:${busy}`;
@@ -169,11 +219,60 @@ export function Timeline(props: Props) {
   if (dragScope !== gestureScope) {
     setDragScope(gestureScope);
     setDropTrack(null);
+    setTrackMotion(null);
+    setMediaDrop(null);
+    setResizePreview(null);
   }
   useEffect(() => {
     // A changed revision, project or version retires a gesture authored on old state.
     trackDrag.current = null;
+    resizeGesture.current = null;
   }, [project?.id, project?.revision, props.versionId, busy]);
+  const visibleMediaDrop =
+    draggingAsset?.id === mediaDrop?.assetId && !busy ? mediaDrop : null;
+  useEffect(() => {
+    const handle = (event: Event) => {
+      const detail = (event as CustomEvent<MediaDragDetail>).detail;
+      const asset = draggingAsset;
+      if (detail.phase === 'cancel') {
+        setMediaDrop(null);
+        return;
+      }
+      const lane = document
+        .elementFromPoint(detail.clientX, detail.clientY)
+        ?.closest<HTMLElement>('.track-lane');
+      const trackId =
+        lane?.closest<HTMLElement>('.timeline-track')?.dataset.trackId;
+      const track = project?.tracks.find((track) => track.id === trackId);
+      if (
+        busy ||
+        !asset ||
+        detail.assetId !== asset.id ||
+        !lane ||
+        !tracksElement.current?.contains(lane) ||
+        track?.kind !== (asset.kind === 'audio' ? 'audio' : 'video')
+      ) {
+        setMediaDrop(null);
+        return;
+      }
+      const rect = lane.getBoundingClientRect();
+      const startUs = Math.round(
+        Math.max(0, Math.min(1, (detail.clientX - rect.left) / rect.width)) *
+          timelineDuration,
+      );
+      if (detail.phase === 'drop') {
+        setMediaDrop(null);
+        onDropAsset(track.id, startUs);
+      } else setMediaDrop({ assetId: asset.id, trackId: track.id, startUs });
+    };
+    document.addEventListener(MEDIA_DRAG_EVENT, handle);
+    return () => document.removeEventListener(MEDIA_DRAG_EVENT, handle);
+  }, [draggingAsset, onDropAsset, project, busy, timelineDuration]);
+  const cancelTrackDrag = () => {
+    trackDrag.current = null;
+    setDropTrack(null);
+    setTrackMotion(null);
+  };
   const addControls = !!project && !busy && (
     <div
       className="timeline-add-track"
@@ -234,6 +333,20 @@ export function Timeline(props: Props) {
       )}
     </div>
   );
+  const resizeDuration = (event: PointerEvent) => {
+    const gesture = resizeGesture.current;
+    if (!gesture || event.pointerId !== gesture.pointerId) return null;
+    return Math.max(
+      gesture.minUs,
+      Math.round(
+        gesture.durationUs + (event.clientX - gesture.x) * gesture.usPerPixel,
+      ),
+    );
+  };
+  const cancelResize = () => {
+    resizeGesture.current = null;
+    setResizePreview(null);
+  };
   const selectedClip = project?.tracks
     .flatMap((track) => track.clips)
     .find((clip) => clip.id === selected[0]);
@@ -432,6 +545,7 @@ export function Timeline(props: Props) {
           >
             <div
               className="timeline-content"
+              data-preview-overflow={!!visibleMediaDrop || !!resizePreview}
               style={
                 {
                   width: width
@@ -466,16 +580,61 @@ export function Timeline(props: Props) {
                 }}
               >
                 {[0, 1, 2, 3].map((part) => (
-                  <span key={part}>{formatTime((total * part) / 3)}</span>
+                  <span key={part}>
+                    {formatTime((timelineDuration * part) / 3)}
+                  </span>
                 ))}
               </div>
-              <div className="timeline-tracks" ref={tracksElement}>
+              <div
+                className="timeline-tracks"
+                ref={tracksElement}
+                data-reordering={!!trackMotion}
+              >
+                {trackMotion && (
+                  <div
+                    className="timeline-track-placeholder"
+                    aria-hidden="true"
+                    style={{
+                      transform: `translateY(${trackMotion.offsets[trackMotion.index]}px)`,
+                    }}
+                  />
+                )}
                 {project?.tracks.map((track, index) => (
                   <div
                     className="timeline-track"
                     key={track.id}
                     data-track-id={track.id}
                     data-drop-target={dropTrack === track.id}
+                    data-dragging={trackMotion?.trackId === track.id}
+                    style={
+                      trackMotion
+                        ? {
+                            transform:
+                              trackMotion.trackId === track.id
+                                ? `translate(${trackMotion.x}px, ${trackMotion.y}px)`
+                                : `translateY(${
+                                    index >=
+                                      Math.min(
+                                        trackMotion.source,
+                                        trackMotion.index,
+                                      ) &&
+                                    index <=
+                                      Math.max(
+                                        trackMotion.source,
+                                        trackMotion.index,
+                                      )
+                                      ? trackMotion.offsets[
+                                          index +
+                                            (trackMotion.source <
+                                            trackMotion.index
+                                              ? -1
+                                              : 1)
+                                        ]! - trackMotion.offsets[index]!
+                                      : 0
+                                  }px)`,
+                          }
+                        : undefined
+                    }
                   >
                     <button
                       type="button"
@@ -488,8 +647,7 @@ export function Timeline(props: Props) {
                         if (event.key === 'Escape' && trackDrag.current) {
                           event.preventDefault();
                           event.stopPropagation();
-                          trackDrag.current = null;
-                          setDropTrack(null);
+                          cancelTrackDrag();
                           return;
                         }
                         if (
@@ -516,7 +674,22 @@ export function Timeline(props: Props) {
                         trackDrag.current = {
                           id: event.pointerId,
                           trackId: track.id,
+                          startX: event.clientX,
                           startY: event.clientY,
+                          centers: [
+                            ...(tracksElement.current?.querySelectorAll<HTMLElement>(
+                              '.timeline-track',
+                            ) ?? []),
+                          ].map((row) => {
+                            const rect = row.getBoundingClientRect();
+                            return rect.y + rect.height / 2;
+                          }),
+                          offsets: [
+                            ...(tracksElement.current?.querySelectorAll<HTMLElement>(
+                              '.timeline-track',
+                            ) ?? []),
+                          ].map((row) => row.offsetTop),
+                          source: index,
                           index,
                           moved: false,
                         };
@@ -530,27 +703,27 @@ export function Timeline(props: Props) {
                         )
                           return;
                         drag.moved = true;
-                        const rows = [
-                          ...(tracksElement.current?.querySelectorAll<HTMLElement>(
-                            '.timeline-track',
-                          ) ?? []),
-                        ];
-                        drag.index = rows.reduce((closest, row, i) => {
-                          const center = (item: HTMLElement) => {
-                            const box = item.getBoundingClientRect();
-                            return box.y + box.height / 2;
-                          };
-                          return Math.abs(event.clientY - center(row)) <
-                            Math.abs(event.clientY - center(rows[closest]!))
-                            ? i
-                            : closest;
-                        }, 0);
+                        drag.index = drag.centers.reduce(
+                          (closest, center, i) =>
+                            Math.abs(event.clientY - center) <
+                            Math.abs(event.clientY - drag.centers[closest]!)
+                              ? i
+                              : closest,
+                          0,
+                        );
+                        setTrackMotion({
+                          trackId: drag.trackId,
+                          source: drag.source,
+                          index: drag.index,
+                          x: (event.clientX - drag.startX) / interfaceScale(),
+                          y: (event.clientY - drag.startY) / interfaceScale(),
+                          offsets: drag.offsets,
+                        });
                         setDropTrack(project.tracks[drag.index]?.id ?? null);
                       }}
                       onPointerUp={(event) => {
                         const drag = trackDrag.current;
-                        trackDrag.current = null;
-                        setDropTrack(null);
+                        cancelTrackDrag();
                         if (
                           !busy &&
                           drag?.id === event.pointerId &&
@@ -560,12 +733,10 @@ export function Timeline(props: Props) {
                           reorder(drag.trackId, drag.index);
                       }}
                       onPointerCancel={() => {
-                        trackDrag.current = null;
-                        setDropTrack(null);
+                        cancelTrackDrag();
                       }}
                       onLostPointerCapture={() => {
-                        trackDrag.current = null;
-                        setDropTrack(null);
+                        cancelTrackDrag();
                       }}
                     >
                       {track.kind === 'audio' ? (
@@ -596,48 +767,202 @@ export function Timeline(props: Props) {
                         }
                       }}
                     >
-                      {track.clips.map((clip) => (
-                        <button
-                          key={clip.id}
-                          data-clip-id={clip.id}
-                          type="button"
-                          className={`timeline-clip ${clip.kind}`}
-                          aria-label={clipName(clip, assets)}
-                          aria-pressed={selected.includes(clip.id)}
-                          data-grouped={!!clip.groupId}
-                          onDoubleClick={props.onProperties}
-                          onClick={(event) =>
-                            props.onSelect(
-                              clip.id,
-                              multiSelect ||
-                                event.shiftKey ||
-                                event.metaKey ||
-                                event.ctrlKey,
-                            )
-                          }
-                          style={{
-                            left: `${(clip.startUs / total) * 100}%`,
-                            width: `${(clip.durationUs / total) * 100}%`,
-                          }}
-                          title={`${clipName(clip, assets)} · ${formatTime(clip.durationUs)}`}
-                        >
-                          {clip.assetId &&
-                            assets.find(
-                              (asset) => asset.id === clip.assetId,
-                            ) && (
-                              <TimelineClipPreview
-                                previews={previews}
-                                asset={assets.find(
+                      {visibleMediaDrop?.trackId === track.id &&
+                        draggingAsset && (
+                          <div
+                            className={`timeline-clip timeline-media-placeholder ${draggingAsset.kind}`}
+                            role="status"
+                            aria-label={`Drop ${draggingAsset.name} at ${formatTime(visibleMediaDrop.startUs)}`}
+                            data-start-us={visibleMediaDrop.startUs}
+                            data-duration-us={
+                              draggingAsset.kind === 'image'
+                                ? 5_000_000
+                                : draggingAsset.durationUs
+                            }
+                            style={{
+                              left: `${(visibleMediaDrop.startUs / timelineDuration) * 100}%`,
+                              width: `${((draggingAsset.kind === 'image' ? 5_000_000 : draggingAsset.durationUs) / timelineDuration) * 100}%`,
+                            }}
+                          >
+                            <span className="timeline-clip-name">
+                              {draggingAsset.name} ·{' '}
+                              {formatTime(visibleMediaDrop.startUs)}
+                            </span>
+                          </div>
+                        )}
+                      {track.clips.map((clip) => {
+                        const durationUs =
+                          resizePreview?.clipId === clip.id
+                            ? resizePreview.durationUs
+                            : clip.durationUs;
+                        const cycle = ['audio', 'video'].includes(clip.kind)
+                          ? loopDurationUs(clip)
+                          : 0;
+                        const offset = clip.loop?.offsetUs ?? 0;
+                        const boundary = cycle - offset;
+                        const looping = cycle > 0 && durationUs > boundary;
+                        return (
+                          <div
+                            className="timeline-clip-container"
+                            key={clip.id}
+                            style={{
+                              left: `${(clip.startUs / timelineDuration) * 100}%`,
+                              width: `${(durationUs / timelineDuration) * 100}%`,
+                            }}
+                          >
+                            <button
+                              key={clip.id}
+                              data-clip-id={clip.id}
+                              type="button"
+                              className={`timeline-clip ${clip.kind}`}
+                              aria-label={clipName(clip, assets)}
+                              aria-pressed={selected.includes(clip.id)}
+                              data-grouped={!!clip.groupId}
+                              onDoubleClick={props.onProperties}
+                              onClick={(event) =>
+                                props.onSelect(
+                                  clip.id,
+                                  multiSelect ||
+                                    event.shiftKey ||
+                                    event.metaKey ||
+                                    event.ctrlKey,
+                                )
+                              }
+                              style={{ left: 0, width: '100%' }}
+                              title={`${clipName(clip, assets)} · ${formatTime(clip.durationUs)}`}
+                            >
+                              {clip.assetId &&
+                                assets.find(
                                   (asset) => asset.id === clip.assetId,
-                                )!}
-                                clip={clip}
+                                ) && (
+                                  <TimelineClipPreview
+                                    previews={previews}
+                                    asset={assets.find(
+                                      (asset) => asset.id === clip.assetId,
+                                    )!}
+                                    clip={clip}
+                                  />
+                                )}
+                              {looping && (
+                                <>
+                                  <span
+                                    className="timeline-loop-boundaries"
+                                    aria-hidden="true"
+                                    style={
+                                      {
+                                        left: `${(boundary / durationUs) * 100}%`,
+                                        '--loop-width': `${(cycle / durationUs) * 100}%`,
+                                      } as CSSProperties
+                                    }
+                                  />
+                                  <span
+                                    className="timeline-loop-badge"
+                                    role="img"
+                                    aria-label="Repeats from clip beginning"
+                                  >
+                                    <Repeat2 aria-hidden="true" />
+                                  </span>
+                                </>
+                              )}
+                              <span className="timeline-clip-name">
+                                {clipName(clip, assets)}
+                              </span>
+                            </button>
+                            {!busy && (
+                              <button
+                                type="button"
+                                className="timeline-resize-handle"
+                                aria-label={`Resize end of ${clipName(clip, assets)}`}
+                                title="Drag to shorten or loop · Left/Right adjusts one frame"
+                                onKeyDown={(event) => {
+                                  if (
+                                    event.key === 'Escape' &&
+                                    resizeGesture.current
+                                  ) {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    cancelResize();
+                                  }
+                                  if (
+                                    !project ||
+                                    !['ArrowLeft', 'ArrowRight'].includes(
+                                      event.key,
+                                    )
+                                  )
+                                    return;
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  const step = frameTimeUs(
+                                    event.shiftKey ? 10 : 1,
+                                    project.frameRate,
+                                  );
+                                  props.onResizeClip(
+                                    clip.id,
+                                    Math.max(
+                                      frameTimeUs(1, project.frameRate),
+                                      clip.durationUs +
+                                        (event.key === 'ArrowLeft'
+                                          ? -step
+                                          : step),
+                                    ),
+                                  );
+                                }}
+                                onPointerDown={(event) => {
+                                  if (event.button !== 0 || !project) return;
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  event.currentTarget.focus();
+                                  event.currentTarget.setPointerCapture(
+                                    event.pointerId,
+                                  );
+                                  const lane = event.currentTarget
+                                    .closest('.track-lane')!
+                                    .getBoundingClientRect();
+                                  resizeGesture.current = {
+                                    pointerId: event.pointerId,
+                                    clipId: clip.id,
+                                    x: event.clientX,
+                                    durationUs: clip.durationUs,
+                                    usPerPixel: timelineDuration / lane.width,
+                                    minUs: Math.max(
+                                      1,
+                                      frameTimeUs(1, project.frameRate),
+                                    ),
+                                  };
+                                }}
+                                onPointerMove={(event) => {
+                                  const duration = resizeDuration(event);
+                                  if (duration !== null)
+                                    setResizePreview({
+                                      clipId: clip.id,
+                                      durationUs: duration,
+                                    });
+                                }}
+                                onPointerUp={(event) => {
+                                  const duration = resizeDuration(event);
+                                  cancelResize();
+                                  if (
+                                    duration !== null &&
+                                    duration !== clip.durationUs
+                                  )
+                                    props.onResizeClip(clip.id, duration);
+                                }}
+                                onPointerCancel={cancelResize}
+                                onLostPointerCapture={cancelResize}
                               />
                             )}
-                          <span className="timeline-clip-name">
-                            {clipName(clip, assets)}
-                          </span>
-                        </button>
-                      ))}
+                            {resizePreview?.clipId === clip.id && (
+                              <span
+                                className="timeline-resize-time"
+                                role="status"
+                              >
+                                {formatTime(durationUs)}
+                                {looping ? ' · Loop' : ''}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
                       {project &&
                         transitionPairs(project)
                           .filter((pair) => pair.trackId === track.id)
@@ -708,7 +1033,11 @@ export function Timeline(props: Props) {
                         const markerX =
                           element.getBoundingClientRect().left +
                           (76 +
-                            (timeUs / total) * (element.scrollWidth - 76) -
+                            (timeUs / total) *
+                              ((element.querySelector<HTMLElement>(
+                                '.timeline-content',
+                              )?.offsetWidth ?? element.clientWidth) -
+                                76) -
                             element.scrollLeft) *
                             interfaceScale();
                         scrubbing.current = {

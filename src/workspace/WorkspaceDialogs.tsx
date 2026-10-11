@@ -358,6 +358,7 @@ function Properties({
         const durationChanged = enteredDurationUs !== clip.durationUs;
         const durationUs =
           isTimedSource &&
+          !clip.loop &&
           !durationChanged &&
           (speed !== clip.speed ||
             JSON.stringify(ramp) !== JSON.stringify(clip.speedRamp))
@@ -373,7 +374,7 @@ function Properties({
           gain,
           ...(isTimedSource ? { pitchMode } : {}),
         };
-        if (isTimedSource && durationChanged)
+        if (isTimedSource && durationChanged && !clip.loop)
           patch.sourceOutUs =
             clip.sourceInUs +
             Math.round(durationUs * averageSpeed({ speed, speedRamp: ramp }));
@@ -403,6 +404,15 @@ function Properties({
                 }
               : { type: 'setSpeed', clipId: clip.id, speed, pitchMode },
           );
+        if (clip.loop) {
+          delete patch.durationUs;
+          if (durationChanged)
+            operations.push({
+              type: 'resizeClip',
+              clipId: clip.id,
+              durationUs: enteredDurationUs,
+            });
+        }
         onSave([...operations, { type: 'updateClip', clipId: clip.id, patch }]);
       }}
       className="flex min-h-0 flex-col gap-4 overflow-hidden"

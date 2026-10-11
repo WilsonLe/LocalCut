@@ -1,4 +1,4 @@
-import { sourcePositionUs, localTimeForSource } from './speed';
+import { sourcePositionUs, localTimeForSource, loopDurationUs } from './speed';
 import type { Clip, Keyframe, Parameter, Cue } from './model';
 export { frameTimeUs } from './frame-time';
 export function sourceTimeUs(clip: Clip, timeUs: number): number {
@@ -47,13 +47,24 @@ export function gainAt(clip: Clip, timeUs: number): number {
     gain *= Math.min(1, (envelopeDuration - envelopeLocal) / clip.fadeOutUs);
   return gain;
 }
-export function mapSourceCue(cue: Cue, clip: Clip): Cue | undefined {
+export function mapSourceCue(
+  cue: Cue,
+  clip: Clip,
+  atUs = clip.startUs,
+): Cue | undefined {
   const a = Math.max(cue.timeUs, clip.sourceInUs),
     b = Math.min(cue.endUs, clip.sourceOutUs ?? Infinity);
   if (a >= b) return undefined;
+  const shift = clip.loop
+    ? Math.floor(
+        (atUs - clip.startUs + clip.loop.offsetUs) / loopDurationUs(clip),
+      ) *
+        loopDurationUs(clip) -
+      clip.loop.offsetUs
+    : 0;
   return {
     ...cue,
-    timeUs: clip.startUs + Math.round(localTimeForSource(clip, a)),
-    endUs: clip.startUs + Math.round(localTimeForSource(clip, b)),
+    timeUs: shift + clip.startUs + Math.round(localTimeForSource(clip, a)),
+    endUs: shift + clip.startUs + Math.round(localTimeForSource(clip, b)),
   };
 }
