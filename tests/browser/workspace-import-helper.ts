@@ -6,7 +6,9 @@ export async function closeMediaImport(page: Page) {
     name: 'Import media',
     exact: true,
   });
-  await expect(dialog).toContainText('Finished');
+  // Completion is an operation wait (the test's normal action deadline),
+  // not a ten-second assertion on a potentially large queued selection.
+  await dialog.getByText(/^Finished ·/).waitFor({ state: 'visible' });
   await dialog.getByRole('button', { name: 'Okay', exact: true }).click();
   await expect(dialog).not.toBeVisible();
 }
