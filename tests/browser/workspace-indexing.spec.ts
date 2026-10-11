@@ -1,3 +1,4 @@
+import { fulfillChatTitle } from './chat-title-fixture';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { mediaVideo } from './workspace-video-fixture';
 import {
@@ -138,6 +139,7 @@ for (const base of ['/', '/LocalCut/']) {
           await route.fulfill({ headers: cors });
           return;
         }
+        if (await fulfillChatTitle(route)) return;
         const body = route.request().postDataJSON();
         bodies.push(body);
         let reply: string | null;
@@ -557,6 +559,7 @@ for (const base of ['/', '/LocalCut/']) {
           await route.fulfill({ headers: cors });
           return;
         }
+        if (await fulfillChatTitle(route)) return;
         const body = route.request().postDataJSON();
         bodies.push(body);
         const messages = body.messages as { content: unknown }[];

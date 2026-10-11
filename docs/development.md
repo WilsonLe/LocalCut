@@ -213,3 +213,7 @@ Use `pnpm test tests/unit/storyboard.test.ts tests/unit/assistant.test.ts tests/
 The same Chrome selection verifies failed drawing fonts stay local and rejects dropped files/library scenes in live and historical views. `node --test tests/tooling/storyboard-assets.test.mjs` checks the pinned development/production fallback adapter; dependency updates must preserve local-only loading or deliberately update that adapter and its evidence.
 
 `scripts/storyboard-assets.ts` publishes the pinned package's drawing fonts below `storyboard/excalidraw-0.18.1/`, with a SHA-256 inventory verified by the bundle gate. Update the package pin, asset path and inventory together on upgrade. The package includes internal Radix components; its transitive peer metadata predates React 19, so verify the real diagram interactions alongside the package's declared React 19 support.
+
+## Automatic chat title checks
+
+Run `pnpm test tests/unit/chat-title.test.ts tests/unit/providers.test.ts`, then `pnpm test:ui --grep 'chat title runs|chat navigation pauses|chat picker matches'`. These cover bounded complete text, the selected model and configured route transport, independent delayed naming, session/branch ownership, failure and retirement, searchable titles, full/reduced motion and retained conversation controls at both hosting bases. Provider interception establishes transport and lifecycle evidence; live naming quality and cost depend on the configured provider. Naming is session UI metadata and grants no editing/tool authority.
