@@ -28,6 +28,7 @@ import { Input } from '../components/ui/input';
 import { formatTime } from './helpers';
 
 interface Props {
+  embedded?: boolean;
   projects: ProjectSummary[];
   editor: Editor | null;
   onRename: (project: ProjectSummary, name: string) => Promise<void>;
@@ -50,6 +51,7 @@ interface Props {
 }
 
 export default function ProjectBrowser({
+  embedded = false,
   projects,
   editor,
   onRename,
@@ -95,14 +97,16 @@ export default function ProjectBrowser({
       aria-busy={busy || refreshing || !!changing}
     >
       <div className="project-browser-inner">
-        <Button
-          variant="ghost"
-          className="project-browser-back"
-          disabled={navigationBusy}
-          onClick={onBack}
-        >
-          <ArrowLeft /> Back to editor
-        </Button>
+        {!embedded && (
+          <Button
+            variant="ghost"
+            className="project-browser-back"
+            disabled={navigationBusy}
+            onClick={onBack}
+          >
+            <ArrowLeft /> Back to editor
+          </Button>
+        )}
         <div className="project-browser-heading">
           <div className="project-browser-title">
             <h1 ref={heading} tabIndex={-1}>

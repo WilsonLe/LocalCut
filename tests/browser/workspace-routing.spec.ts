@@ -83,7 +83,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByRole('button', { name: 'Saved routed title', exact: true }),
     ).toBeVisible();
-    await picker(page).click();
+    await page.getByRole('button', { name: 'LocalCut home' }).click();
     await expect(page).toHaveURL(
       new RegExp(`/projects\\?project=${ids.first}$`),
     );
@@ -357,5 +357,85 @@ for (const base of ['/', '/LocalCut/']) {
       page.getByRole('log', { name: 'Conversation messages' }),
     ).toContainText('Project restored.');
     expect(paid).toBe(1);
+  });
+}
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`project switcher dialog preserves editor state and switches projects ${base}`, async ({
+    page,
+  }, info) => {
+    await page.goto(base);
+    const ids = await seed(page, base);
+    await page.goto(`${base}#/project/${ids.first}`);
+    const trigger = picker(page);
+    await expect(trigger).toContainText('Route first');
+    const editor = page.getByRole('main', {
+      name: 'Video editor',
+      includeHidden: true,
+    });
+    await editor.evaluate((element) => {
+      element.dataset.switcherMount = 'preserved';
+    });
+    const playhead = page.getByRole('slider', { name: 'Playhead position' });
+    await playhead.focus();
+    await page.keyboard.press('End');
+    const position = await playhead.getAttribute('aria-valuenow');
+    const url = page.url();
+    const historyLength = await page.evaluate(() => history.length);
+    await trigger.click();
+    const dialog = page.getByRole('dialog', { name: 'Projects', exact: true });
+    await expect(dialog).toBeVisible();
+    await expect(page).toHaveURL(url);
+    expect(await page.evaluate(() => history.length)).toBe(historyLength);
+    await expect(editor).toHaveAttribute('data-switcher-mount', 'preserved');
+    await expect(
+      dialog.getByRole('button', { name: /^Route first/ }),
+    ).toContainText('Current');
+    await dialog
+      .getByRole('textbox', { name: 'Search projects' })
+      .fill('second');
+    await expect(dialog.locator('.project-browser-row')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+    await expect(playhead).toHaveAttribute('aria-valuenow', position!);
+    await trigger.click();
+    await page.screenshot({
+      path: info.outputPath('project-switcher-desktop.png'),
+      animations: 'disabled',
+    });
+    await dialog.getByRole('button', { name: /^Route first/ }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+    await expect(page).toHaveURL(url);
+    await page.setViewportSize({ width: 320, height: 800 });
+    await trigger.click();
+    await expect(dialog).toBeVisible();
+    const bounds = await dialog.boundingBox();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
+    expect(
+      await dialog.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: info.outputPath('project-switcher-mobile.png'),
+      animations: 'disabled',
+    });
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(trigger).toBeFocused();
+    await trigger.click();
+    await dialog.getByRole('button', { name: /^Route second/ }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toContainText('Route second');
+    await expect(page).toHaveURL(new RegExp(`/project/${ids.second}$`));
+    await page.goBack();
+    await expect(trigger).toContainText('Route first');
+    await expect(page).toHaveURL(url);
+    await page.goForward();
+    await expect(trigger).toContainText('Route second');
+    await page.reload();
+    await expect(trigger).toContainText('Route second');
   });
 }

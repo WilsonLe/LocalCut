@@ -2141,3 +2141,22 @@
 .composer-actions > div:last-child {
   margin-left: auto;
 }
+
+.project-switcher-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+}
+.project-switcher-dialog .project-browser {
+  padding: 24px;
+}
+.project-switcher-dialog .project-browser-heading {
+  padding-right: 32px;
+}
+@media (max-width: 700px) {
+  .project-switcher-dialog .project-browser {
+    padding: 20px 16px;
+  }
+}
