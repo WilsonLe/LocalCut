@@ -70,6 +70,22 @@ describe('voice preset persistence', () => {
       'valid voice settings',
     );
   });
+  it('preserves reference identity through rename/archive and rejects malformed reference IDs', () => {
+    const saved = { ...preset, referenceId: 'saved-voice' };
+    expect(parseVoicePresets(record([saved]))).toEqual([saved]);
+    expect(
+      parseVoicePresets(
+        record([{ ...saved, name: 'Renamed', archived: true }]),
+      ),
+    ).toEqual([{ ...saved, name: 'Renamed', archived: true }]);
+    expect(
+      parseVoicePresets(
+        record([{ ...saved, referenceId: 'https://remote.test/audio' }]),
+      ),
+    ).toEqual([]);
+    // Legacy settings survive; they are not upgraded to a fictional voice profile.
+    expect(parseVoicePresets(record([preset]))).toEqual([preset]);
+  });
   it('fails visibly on denied reads or writes without silently replacing records', () => {
     const write = vi.fn(() => {
       throw new Error('QuotaExceededError');

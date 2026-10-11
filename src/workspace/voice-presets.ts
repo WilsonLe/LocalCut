@@ -11,6 +11,7 @@ export interface VoicePreset extends VoiceSettings {
   id: string;
   name: string;
   archived: boolean;
+  referenceId?: string;
 }
 const bounded = (value: unknown, max: number): value is string =>
   typeof value === 'string' && value.length <= max;
@@ -44,6 +45,9 @@ export function parseVoicePresets(raw: string | null): VoicePreset[] {
         !bounded(p.name, 100) ||
         !p.name.trim() ||
         typeof p.archived !== 'boolean' ||
+        (p.referenceId !== undefined &&
+          (!bounded(p.referenceId, 80) ||
+            !/^[A-Za-z0-9_-]+$/.test(p.referenceId))) ||
         !validVoiceSettings(p)
       )
         continue;
@@ -56,6 +60,7 @@ export function parseVoicePresets(raw: string | null): VoicePreset[] {
         voice: p.voice,
         languages: [...new Set(p.languages)] as string[],
         instructions: p.instructions,
+        ...(p.referenceId ? { referenceId: p.referenceId } : {}),
       });
     }
     return result;

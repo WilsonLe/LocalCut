@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LoaderCircle, RefreshCw, Info } from 'lucide-react';
 import type { Editor, Job, Project } from '../editor';
-import type { SpeechAudio, SpeechModel, RenderedSpeech } from '../ai';
+import type {
+  SpeechAudio,
+  SpeechModel,
+  RenderedSpeech,
+  SpeechReference,
+} from '../ai';
+import { REFERENCE_SPEECH_MODEL, SPEECH_REFERENCE_BYTES } from '../ai/speech';
+import {
+  saveVoiceReference,
+  readVoiceReference,
+  removeVoiceReference,
+} from '../storage/voice-references';
 import type { Connection } from './Conversation';
 import { appendAsset } from './helpers';
 import { errorCode, errorText } from './conversation-errors';
@@ -146,6 +157,8 @@ export default function SpeechDialog({
   const [speed, setSpeed] = useState('1');
   const [duration, setDuration] = useState('');
   const [audio, setAudio] = useState<SpeechAudio | null>(null);
+  const [sourceScript, setSourceScript] = useState('');
+  const [draftReference, setDraftReference] = useState<SpeechReference>();
   const [rendered, setRendered] = useState<RenderedSpeech | null>(null);
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState<string | null>('Loading speech models…');
@@ -250,6 +263,7 @@ export default function SpeechDialog({
   }, [cleanup, refresh, registerSession]);
   const invalidate = () => {
     setAudio(null);
+    setSourceScript('');
     publish(null);
     setError(null);
   };
@@ -262,6 +276,8 @@ export default function SpeechDialog({
     instructions: delivery,
   };
   const canSavePreset =
+    !!audio && !!sourceScript && models.some((item) => item.referenceVoice);
+  const canUpdatePreset =
     !!selected?.voices.includes(voice) && validVoiceSettings(voiceSettings);
   const presetModified =
     preset &&
@@ -284,6 +300,73 @@ export default function SpeechDialog({
           : 'Voice preset could not be saved.',
       );
     }
+  };
+  const saveFavorite = () => {
+    if (!audio || !sourceScript || !presetName.trim()) return;
+    const captured = {
+      audio,
+      transcript: sourceScript,
+      name: presetName.trim(),
+      languages: [...selectedLanguages],
+    };
+    run('Saving voice…', async (signal) => {
+      if (captured.audio.samples.length * 2 + 44 > SPEECH_REFERENCE_BYTES)
+        throw new Error('Generate a shorter sample to save this voice.');
+      const task = editor.tasks.enqueue<RenderedSpeech>(
+        'speech.timing',
+        { audio: captured.audio, timing: { mode: 'speed', speed: 1 } },
+        { label: 'Saving voice reference', projectId: project.id },
+      );
+      const abort = () => task.cancel();
+      signal.addEventListener('abort', abort, { once: true });
+      let result: RenderedSpeech;
+      try {
+        result = await task.completion;
+      } finally {
+        signal.removeEventListener('abort', abort);
+      }
+      if (signal.aborted) return;
+      const id = crypto.randomUUID();
+      try {
+        await saveVoiceReference(id, {
+          file: result.file,
+          transcript: captured.transcript,
+        });
+        if (signal.aborted) {
+          await removeVoiceReference(id);
+          return;
+        }
+        changeVoicePresets((items) => [
+          ...items,
+          {
+            id,
+            name: captured.name,
+            archived: false,
+            referenceId: id,
+            model: REFERENCE_SPEECH_MODEL,
+            voice: 'reference',
+            languages: captured.languages,
+            instructions: '',
+          },
+        ]);
+      } catch {
+        await removeVoiceReference(id).catch(() => undefined);
+        if (active.current && !signal.aborted)
+          setPresetError(
+            'Voice preset could not be saved. Allow browser storage and try again.',
+          );
+        return;
+      }
+      if (active.current) {
+        setPresetId(id);
+        setModel(REFERENCE_SPEECH_MODEL);
+        setVoice('reference');
+        setDelivery('');
+        setDraftReference(undefined);
+        setPresetName('');
+        setPresetError(null);
+      }
+    });
   };
   const updatePreset = (id: string, patch: Partial<VoicePreset>) =>
     changeVoicePresets((items) => {
@@ -337,6 +420,7 @@ export default function SpeechDialog({
     setVoice(input.request.voice);
     setLanguages(input.request.languages);
     setDelivery(input.request.instructions ?? '');
+    setDraftReference(input.request.reference);
     setMode(input.timing.mode);
     if (input.timing.mode === 'speed') setSpeed(String(input.timing.speed));
     else setDuration(String(input.timing.durationSeconds));
@@ -352,6 +436,7 @@ export default function SpeechDialog({
       loadedSource.current = id;
       restoreRequest(input, id);
       setAudio(source);
+      setSourceScript(input.request.script);
       setBusy(null);
       try {
         connection.api.validateSpeechTiming(
@@ -374,6 +459,7 @@ export default function SpeechDialog({
       if (!active.current || selection.current !== id) return;
       loadedResult.current = id;
       setAudio(result.audio);
+      setSourceScript(input.request.script);
       restoreRequest(input, id);
       publish(result.rendered);
       setBusy(null);
@@ -441,54 +527,80 @@ export default function SpeechDialog({
     restoreSaved,
   ]);
   const generate = () => {
-    try {
-      connection.api.validateSpeechTiming(timing());
-      if (!script.trim() || !selected?.voices.includes(voice))
-        throw new Error('Choose a script, model and voice.');
-      invalidate();
-      onSelection?.(model, voice);
-      const input: SpeechTaskInput = {
-        request: {
-          model,
-          voice,
-          script,
-          languages: selectedLanguages,
-          instructions: delivery,
-        },
-        timing: timing(),
-        projectId: project.id,
-        route: speechRoute(connection),
-      };
-      const job = editor.tasks.enqueue<SpeechTaskResult>(
-        speechTaskKind(connection),
-        input,
-        { label: 'Generating speech', projectId: project.id },
-      );
-      generated.current = job;
-      selection.current = job.id;
-      setGeneration(job.id);
-      setBusy('Speech queued…');
-      void job.completion.then(
-        (result) => {
-          if (active.current && generated.current?.id === job.id) {
-            loadedResult.current = job.id;
-            setAudio(result.audio);
-            publish(result.rendered);
-            setBusy(null);
-          }
-        },
-        (error) => {
-          if (active.current && generated.current?.id === job.id) {
-            setBusy(null);
-            setError(errorText(error));
-          }
-        },
-      );
-    } catch (error) {
-      setError(
-        error instanceof Error ? error.message : 'Speech could not be queued.',
-      );
-    }
+    run('Preparing speech…', async (signal) => {
+      try {
+        connection.api.validateSpeechTiming(timing());
+        if (!script.trim() || !selected?.voices.includes(voice))
+          throw new Error('Choose a script, model and voice.');
+        let reference = draftReference;
+        if (preset?.referenceId) {
+          const stored = await readVoiceReference(preset.referenceId);
+          if (!stored)
+            throw new Error(
+              'This voice recording is unavailable. Restore it or save another voice.',
+            );
+          if (stored.file.size > SPEECH_REFERENCE_BYTES)
+            throw new Error('This voice recording is too large.');
+          const bytes = new Uint8Array(await stored.file.arrayBuffer());
+          let binary = '';
+          for (let offset = 0; offset < bytes.length; offset += 8192)
+            binary += String.fromCharCode(
+              ...bytes.subarray(offset, offset + 8192),
+            );
+          reference = { data: btoa(binary), transcript: stored.transcript };
+        }
+        if (selected.referenceVoice && !reference)
+          throw new Error('Choose a saved voice first.');
+        if (signal.aborted || !active.current) return;
+        invalidate();
+        onSelection?.(model, voice);
+        const input: SpeechTaskInput = {
+          request: {
+            model,
+            voice,
+            script,
+            languages: selectedLanguages,
+            instructions: delivery,
+            ...(reference ? { reference } : {}),
+          },
+          timing: timing(),
+          projectId: project.id,
+          route: speechRoute(connection),
+        };
+        const job = editor.tasks.enqueue<SpeechTaskResult>(
+          speechTaskKind(connection),
+          input,
+          { label: 'Generating speech', projectId: project.id },
+        );
+        generated.current = job;
+        selection.current = job.id;
+        setGeneration(job.id);
+        setBusy('Speech queued…');
+        void job.completion.then(
+          (result) => {
+            if (active.current && generated.current?.id === job.id) {
+              loadedResult.current = job.id;
+              setAudio(result.audio);
+              setSourceScript(input.request.script);
+              publish(result.rendered);
+              setBusy(null);
+            }
+          },
+          (error) => {
+            if (active.current && generated.current?.id === job.id) {
+              setBusy(null);
+              setError(errorText(error));
+            }
+          },
+        );
+      } catch (error) {
+        setError(
+          error instanceof Error
+            ? error.message
+            : 'Speech could not be queued.',
+        );
+      }
+    });
   };
   const add = () => {
     if (!rendered) return;
@@ -573,6 +685,7 @@ export default function SpeechDialog({
                     value: item.id,
                     label:
                       item.name +
+                      (item.referenceId ? '' : ' (settings only)') +
                       (presetAvailable(item) ? '' : ' (unavailable)'),
                   })),
               ]}
@@ -580,6 +693,7 @@ export default function SpeechDialog({
               onChange={(id) => {
                 if (id === 'custom') {
                   setPresetId('');
+                  setDraftReference(undefined);
                   return;
                 }
                 const item = presets.find(
@@ -599,12 +713,18 @@ export default function SpeechDialog({
                 setVoice(item.voice);
                 setLanguages([...item.languages]);
                 setDelivery(item.instructions);
+                setDraftReference(undefined);
               }}
             />
             <details className="space-y-3">
               <summary className="cursor-pointer text-sm">
                 Manage voice presets
               </summary>
+              {!audio && (
+                <p className="text-sm text-muted-foreground">
+                  Preview a generated take to save its voice.
+                </p>
+              )}
               <div className="flex flex-wrap items-end gap-2">
                 <div className="min-w-0 flex-1 space-y-1">
                   <Label htmlFor="speech-preset-name">New preset name</Label>
@@ -618,30 +738,15 @@ export default function SpeechDialog({
                 <Button
                   variant="outline"
                   disabled={!canSavePreset || !presetName.trim()}
-                  onClick={() =>
-                    managePreset(() => {
-                      const id = crypto.randomUUID();
-                      changeVoicePresets((items) => [
-                        ...items,
-                        {
-                          ...voiceSettings,
-                          id,
-                          name: presetName.trim(),
-                          archived: false,
-                        },
-                      ]);
-                      setPresetId(id);
-                      setPresetName('');
-                    })
-                  }
+                  onClick={saveFavorite}
                 >
-                  Save as new preset
+                  Save this voice
                 </Button>
               </div>
               {preset && (
                 <Button
                   variant="outline"
-                  disabled={!canSavePreset || !presetModified}
+                  disabled={!canUpdatePreset || !presetModified}
                   onClick={() =>
                     managePreset(() => updatePreset(preset.id, voiceSettings))
                   }
@@ -660,13 +765,22 @@ export default function SpeechDialog({
                     onArchive={() =>
                       managePreset(() => {
                         updatePreset(item.id, { archived: !item.archived });
-                        if (presetId === item.id) setPresetId('');
+                        if (presetId === item.id) {
+                          setPresetId('');
+                          setDraftReference(undefined);
+                        }
                       })
                     }
                   />
                 ))}
               </div>
             </details>
+            {selected?.referenceVoice && (
+              <p className="text-sm text-muted-foreground">
+                Generate sends this saved recording and its transcript to Fish
+                Audio through OpenRouter to match the voice. Delivery may vary.
+              </p>
+            )}
             {presetError && (
               <p role="alert" className="text-sm text-destructive">
                 {presetError}
@@ -691,7 +805,7 @@ export default function SpeechDialog({
             <div className="space-y-2">
               <Label>
                 Speech model{' '}
-                <Tooltip content="A new generation can vary in delivery even with the same model and voice. This speech route returns no reusable seed. Reuse a saved take for identical audio; timing changes are local.">
+                <Tooltip content="Generate and preview a take, then save this voice for future scripts. Saved voices use the same reference recording; delivery can vary. A seed does not lock a speaker across scripts.">
                   <Button
                     type="button"
                     variant="ghost"
@@ -710,6 +824,8 @@ export default function SpeechDialog({
                     invalidate();
                     setModel(item.id);
                     setVoice('');
+                    setPresetId('');
+                    setDraftReference(undefined);
                   }
                 }}
                 itemToStringLabel={(item) => item.name}
@@ -746,24 +862,26 @@ export default function SpeechDialog({
                 </ComboboxContent>
               </Combobox>
             </div>
-            <div className="space-y-2">
-              <Label>Voice</Label>
-              <SettingsSelect
-                label="Speech voice"
-                value={voice || null}
-                disabled={!!busy || !selected}
-                placeholder="Choose a voice"
-                selectedLabel={voice}
-                options={(selected?.voices ?? []).map((value) => ({
-                  value,
-                  label: value,
-                }))}
-                onChange={(value) => {
-                  invalidate();
-                  setVoice(value);
-                }}
-              />
-            </div>
+            {!selected?.referenceVoice && (
+              <div className="space-y-2">
+                <Label>Voice</Label>
+                <SettingsSelect
+                  label="Speech voice"
+                  value={voice || null}
+                  disabled={!!busy || !selected}
+                  placeholder="Choose a voice"
+                  selectedLabel={voice}
+                  options={(selected?.voices ?? []).map((value) => ({
+                    value,
+                    label: value,
+                  }))}
+                  onChange={(value) => {
+                    invalidate();
+                    setVoice(value);
+                  }}
+                />
+              </div>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Languages in script</Label>
@@ -823,6 +941,7 @@ export default function SpeechDialog({
               id="speech-delivery"
               value={delivery}
               maxLength={1500}
+              disabled={selected?.referenceVoice}
               onChange={(event) => {
                 invalidate();
                 setDelivery(event.target.value);

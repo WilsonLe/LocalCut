@@ -20,21 +20,31 @@ function tone() {
 }
 async function connect(page: Page, context: BrowserContext, base: string) {
   await context.route('https://openrouter.ai/api/v1/models**', (route) =>
-    route.fulfill({
-      headers: cors,
-      json: {
-        data: [
-          {
-            id: model,
-            name: 'Google: Gemini 3.8 Flash TTS',
-            context_length: 0,
-            supported_parameters: [],
-            architecture: { output_modalities: ['speech'] },
-            supported_voices: ['Kore', 'Puck'],
+    route.request().url().endsWith('/endpoints')
+      ? route.fulfill({
+          headers: cors,
+          json: { data: { endpoints: [{ supports_voice_cloning: true }] } },
+        })
+      : route.fulfill({
+          headers: cors,
+          json: {
+            data: [
+              {
+                id: model,
+                name: 'Google: Gemini 3.8 Flash TTS',
+                context_length: 0,
+                supported_parameters: [],
+                architecture: { output_modalities: ['speech'] },
+                supported_voices: ['Kore', 'Puck'],
+              },
+              {
+                id: 'fish-audio/s2.1-pro',
+                name: 'Fish Audio: S2.1 Pro',
+                architecture: { output_modalities: ['speech'] },
+              },
+            ],
           },
-        ],
-      },
-    }),
+        }),
   );
   await page.goto(base);
   await page
@@ -118,85 +128,93 @@ async function snapshot(page: Page, base: string): Promise<Project> {
   }, base);
 }
 for (const base of ['/', '/LocalCut/']) {
-  test(`text to speech manages voice presets and preserves drafts at ${base}`, async ({
+  test(`text to speech saves a favorite reference voice for future scripts at ${base}`, async ({
     page,
     context,
   }) => {
     const requests: Record<string, unknown>[] = [];
+    // Synthetic MPEG-1 Layer III mono silence: 80 valid empty-granule frames.
+    const mp3 = Buffer.concat(
+      Array.from({ length: 80 }, () =>
+        Buffer.concat([
+          Buffer.from([0xff, 0xfb, 0x90, 0xc0]),
+          Buffer.alloc(413),
+        ]),
+      ),
+    );
     await context.route(
       'https://openrouter.ai/api/v1/audio/speech',
       async (route) => {
         if (route.request().method() === 'OPTIONS')
           return route.fulfill({ headers: cors, status: 204 });
-        requests.push(route.request().postDataJSON());
+        const request = route.request().postDataJSON();
+        requests.push(request);
         await route.fulfill({
-          headers: { ...cors, 'content-type': 'audio/pcm' },
-          body: tone(),
+          headers: {
+            ...cors,
+            'content-type': request.input_references
+              ? 'audio/mpeg'
+              : 'audio/pcm',
+          },
+          body: request.input_references ? mp3 : tone(),
         });
       },
     );
     let dialog = await connect(page, context, base);
     await dialog
-      .getByLabel('Delivery directions')
-      .fill('Calm Australian narrator');
-    await dialog.getByText('Manage voice presets', { exact: true }).click();
-    await dialog.getByLabel('New preset name').fill('Narrator');
-    await dialog
-      .getByRole('button', { name: 'Save as new preset', exact: true })
-      .click();
-    await expect(
-      dialog.getByRole('combobox', { name: 'Voice preset', exact: true }),
-    ).toContainText('Narrator');
-    await dialog
       .getByLabel('Script', { exact: true })
-      .fill('A different script');
-    await dialog.getByLabel('Speed (×)').fill('1.25');
-    await dialog.getByLabel('Delivery directions').fill('Warm narrator');
-    await expect(
-      dialog.getByRole('combobox', { name: 'Voice preset', exact: true }),
-    ).toContainText('Narrator (modified)');
-    await dialog
-      .getByRole('button', { name: 'Save preset changes', exact: true })
-      .click();
-    await dialog
-      .getByRole('combobox', { name: 'Speech voice', exact: true })
-      .click();
-    await page.getByRole('option', { name: 'Puck', exact: true }).click();
-    await dialog
-      .getByRole('combobox', { name: 'Voice preset', exact: true })
-      .click();
-    await page.getByRole('option', { name: 'Narrator', exact: true }).click();
-    await expect(
-      dialog.getByRole('combobox', { name: 'Speech voice', exact: true }),
-    ).toContainText('Kore');
-    await expect(dialog.getByLabel('Delivery directions')).toHaveValue(
-      'Warm narrator',
-    );
-    await expect(dialog.getByLabel('Script', { exact: true })).toHaveValue(
-      'A different script',
-    );
-    await expect(dialog.getByLabel('Speed (×)')).toHaveValue('1.25');
-    expect(requests).toHaveLength(0);
+      .fill('My original favorite voice sample.');
     await dialog
       .getByRole('button', { name: 'Generate speech', exact: true })
       .click();
     await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
+    await dialog.getByText('Manage voice presets', { exact: true }).click();
+    await dialog.getByLabel('New preset name').fill('Narrator');
+    await dialog
+      .getByRole('button', { name: 'Save this voice', exact: true })
+      .click();
+    await expect(
+      dialog.getByRole('combobox', { name: 'Voice preset', exact: true }),
+    ).toContainText('Narrator');
     expect(requests).toHaveLength(1);
-    expect(requests[0]).toMatchObject({
-      model,
-      voice: 'Kore',
-      input: 'A different script',
+    await expect(
+      dialog.getByText(/Generate sends this saved recording/),
+    ).toBeVisible();
+    await dialog
+      .getByLabel('Script', { exact: true })
+      .fill('A completely different future script.');
+    await dialog.getByLabel('Speed (×)').fill('1.25');
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toMatchObject({
+      model: 'fish-audio/s2.1-pro',
+      input: 'A completely different future script.',
+      response_format: 'mp3',
     });
-    expect(requests[0]?.instructions).toContain('Warm narrator');
+    expect(requests[1]).not.toHaveProperty('voice');
+    expect(requests[1]).not.toHaveProperty('seed');
+    const reference = requests[1]!.input_references as {
+      type: string;
+      text?: string;
+      input_audio?: { data: string };
+    }[];
+    expect(reference[1]!.text).toBe('My original favorite voice sample.');
+    const wav = Buffer.from(
+      reference[0]!.input_audio!.data.split(',')[1]!,
+      'base64',
+    );
+    expect(wav.toString('ascii', 0, 4)).toBe('RIFF');
+    expect(wav.readUInt32LE(24)).toBe(24000);
+    expect(wav.readUInt32LE(40)).toBe(48000 * 2); // Original 2s, not timing-adjusted.
     await dialog
       .getByLabel('Rename Narrator', { exact: true })
       .fill('Documentary');
     await dialog
       .getByRole('button', { name: 'Save name for Narrator', exact: true })
       .click();
-    await expect(
-      dialog.getByRole('combobox', { name: 'Voice preset', exact: true }),
-    ).toContainText('Documentary');
     await dialog
       .getByRole('button', { name: 'Archive Documentary', exact: true })
       .click();
@@ -211,9 +229,6 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     dialog = await reopenSpeech(page);
     await dialog.getByText('Manage voice presets', { exact: true }).click();
-    await expect(
-      dialog.getByLabel('Rename Documentary', { exact: true }),
-    ).toHaveValue('Documentary');
     await dialog
       .getByRole('button', { name: 'Restore Documentary', exact: true })
       .click();
@@ -223,9 +238,6 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('option', { name: 'Documentary', exact: true })
       .click();
-    await expect(dialog.getByLabel('Delivery directions')).toHaveValue(
-      'Warm narrator',
-    );
     const other = await context.newPage();
     await other.goto(base);
     await other.evaluate(() => {
@@ -236,15 +248,6 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await expect(
       dialog.getByLabel('Rename Updated in another tab', { exact: true }),
-    ).toBeVisible();
-    await other.evaluate(() => {
-      const key = 'localcut.voice-presets.v1';
-      const record = JSON.parse(localStorage.getItem(key)!);
-      record.presets[0].name = 'Documentary';
-      localStorage.setItem(key, JSON.stringify(record));
-    });
-    await expect(
-      dialog.getByLabel('Rename Documentary', { exact: true }),
     ).toBeVisible();
     await other.close();
     if (base === '/') {
@@ -258,13 +261,64 @@ for (const base of ['/', '/LocalCut/']) {
       await dialog.evaluate((element) => {
         element.scrollTop = 0;
       });
-      const bounds = await dialog.boundingBox();
-      expect(bounds!.width).toBeLessThanOrEqual(375);
+      expect((await dialog.boundingBox())!.width).toBeLessThanOrEqual(375);
       await page.screenshot({
         path: 'docs/images/workspace-voice-presets-narrow.png',
       });
       await page.setViewportSize({ width: 1366, height: 900 });
     }
+    expect(requests).toHaveLength(2);
+    // Delete queue artifacts: a saved favorite owns an independent reference.
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.evaluate(async () => {
+      for (const { name } of await indexedDB.databases()) {
+        if (!name?.endsWith('-tasks-v1')) continue;
+        await new Promise<void>((resolve, reject) => {
+          const open = indexedDB.open(name);
+          open.onsuccess = () => {
+            const db = open.result;
+            const tx = db.transaction(
+              ['tasks', 'inputs', 'results'],
+              'readwrite',
+            );
+            for (const store of ['tasks', 'inputs', 'results'])
+              tx.objectStore(store).clear();
+            tx.oncomplete = () => {
+              db.close();
+              resolve();
+            };
+            tx.onerror = () => {
+              db.close();
+              reject(tx.error);
+            };
+          };
+          open.onerror = () => reject(open.error);
+        });
+      }
+    });
+    await page.reload();
+    await page
+      .getByRole('button', { name: 'Text to speech', exact: true })
+      .click();
+    dialog = page.getByRole('dialog', { name: 'Text to speech', exact: true });
+    await expect(dialog.getByText('Loading speech models…')).not.toBeVisible();
+    await dialog
+      .getByRole('combobox', { name: 'Voice preset', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'Updated in another tab', exact: true })
+      .click();
+    await dialog
+      .getByLabel('Script', { exact: true })
+      .fill('Another future script after reload.');
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
+    expect(requests).toHaveLength(3);
+    expect(requests[2]!.input_references).toEqual(reference);
+    // Storage failures preserve the old preset and do not trigger synthesis.
+    await dialog.getByText('Manage voice presets', { exact: true }).click();
     await page.evaluate(() => {
       const write = Storage.prototype.setItem;
       Storage.prototype.setItem = function (key, value) {
@@ -275,7 +329,7 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await dialog.getByLabel('New preset name').fill('Unsaved');
     await dialog
-      .getByRole('button', { name: 'Save as new preset', exact: true })
+      .getByRole('button', { name: 'Save this voice', exact: true })
       .click();
     await expect(dialog.getByRole('alert')).toContainText(
       'Allow browser storage',
@@ -283,7 +337,38 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       dialog.getByLabel('Rename Unsaved', { exact: true }),
     ).toHaveCount(0);
-    expect(requests).toHaveLength(1);
+    expect(requests).toHaveLength(3);
+    await page.evaluate(async () => {
+      await new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open('localcut-voice-references-v1', 1);
+        open.onsuccess = () => {
+          const db = open.result;
+          const tx = db.transaction('references', 'readwrite');
+          tx.objectStore('references').clear();
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          tx.onerror = () => {
+            db.close();
+            reject(tx.error);
+          };
+        };
+        open.onerror = () => reject(open.error);
+      });
+    });
+    await dialog
+      .getByLabel('Script', { exact: true })
+      .fill('A script with a missing voice reference.');
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect(
+      dialog
+        .getByRole('alert')
+        .filter({ hasText: 'voice recording is unavailable' }),
+    ).toBeVisible();
+    expect(requests).toHaveLength(3);
     await context.route('https://openrouter.ai/api/v1/models**', (route) =>
       route.fulfill({ headers: cors, json: { data: [] } }),
     );
@@ -292,12 +377,15 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('combobox', { name: 'Voice preset', exact: true })
       .click();
     await page
-      .getByRole('option', { name: 'Documentary (unavailable)', exact: true })
+      .getByRole('option', {
+        name: 'Updated in another tab (unavailable)',
+        exact: true,
+      })
       .click();
     await expect(
       dialog.getByRole('alert').filter({ hasText: 'current connection' }),
     ).toBeVisible();
-    expect(requests).toHaveLength(1);
+    expect(requests).toHaveLength(3);
   });
   test(
     '@journey ' +
