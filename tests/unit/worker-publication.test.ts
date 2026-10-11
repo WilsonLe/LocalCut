@@ -9,6 +9,10 @@ const mocks = vi.hoisted(() => ({
   preflight: vi.fn(),
   frame: vi.fn(),
   dispose: vi.fn(),
+  convertCache: vi.fn(),
+  pcmWindow: vi.fn(),
+  lock: vi.fn(),
+  getAsset: vi.fn(),
 }));
 
 vi.mock('../../src/storage/store', () => ({
@@ -19,8 +23,8 @@ vi.mock('../../src/media/assets', () => ({
   thumbnails: vi.fn(),
   contactSheet: vi.fn(),
   waveform: vi.fn(),
-  convertCache: vi.fn(),
-  pcmWindow: vi.fn(),
+  convertCache: mocks.convertCache,
+  pcmWindow: mocks.pcmWindow,
 }));
 vi.mock('../../src/media/export', () => ({
   exportProject: mocks.exportProject,
@@ -102,6 +106,8 @@ describe('media worker cancellation before result publication', () => {
       namespace: 'worker-publication',
       remove: mocks.remove,
       close: mocks.close,
+      lock: mocks.lock,
+      getAsset: mocks.getAsset,
     });
     // Keep the worker in its separately checked WebWorker scope rather than
     // merging its globals into the DOM-typed test compilation.
@@ -112,6 +118,93 @@ describe('media worker cancellation before result publication', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
+
+  it.each([false, true])(
+    'pins transcription PCM through its final read and releases on cancellation=%s',
+    async (cancelled) => {
+      const id = 'speech-reader';
+      let releaseRead!: () => void, enteredRead!: () => void;
+      const reading = new Promise<void>((resolve) => {
+        enteredRead = resolve;
+      });
+      const barrier = new Promise<void>((resolve) => {
+        releaseRead = resolve;
+      });
+      let held = false;
+      let releaseSource!: () => void;
+      const sourceReleased = new Promise<void>((resolve) => {
+        releaseSource = resolve;
+      });
+      mocks.lock.mockImplementation(
+        async (
+          key: string,
+          mode: string,
+          work: () => Promise<unknown>,
+          signal: AbortSignal,
+        ) => {
+          expect(key).toBe('asset:source');
+          expect(mode).toBe('shared');
+          expect(signal.aborted).toBe(false);
+          held = true;
+          try {
+            return await work();
+          } finally {
+            held = false;
+            order.push('source:release');
+            releaseSource();
+          }
+        },
+      );
+      mocks.convertCache.mockImplementation(async () => {
+        expect(held).toBe(true);
+        return new File(['pcm'], 'pcm');
+      });
+      mocks.getAsset.mockResolvedValue({ durationUs: 2000000 });
+      mocks.pcmWindow.mockImplementation(
+        async (_file: File, _start: number, count: number) => {
+          expect(held).toBe(true);
+          if (mocks.pcmWindow.mock.calls.length === 1) {
+            enteredRead();
+            await barrier;
+          }
+          expect(held).toBe(true);
+          return [new Float32Array(count), new Float32Array(count)];
+        },
+      );
+      dispatch({
+        id,
+        operation: 'speechAudio',
+        payload: {
+          namespace: 'worker-publication',
+          assetId: 'source',
+          jobId: id,
+          count: 32000,
+          startFrame: 0,
+        },
+      });
+      await reading;
+      // Relink's exclusive source lock cannot be granted before the reader releases.
+      let relinked = false;
+      const relink = sourceReleased.then(() => {
+        expect(held).toBe(false);
+        relinked = true;
+      });
+      expect(relinked).toBe(false);
+      if (cancelled) dispatch({ id, operation: 'cancel' });
+      releaseRead();
+      await vi.waitFor(() => expect(mocks.close).toHaveBeenCalledOnce());
+      await relink;
+      expect(mocks.lock).toHaveBeenCalledOnce();
+      expect(relinked).toBe(true);
+      expect(mocks.pcmWindow).toHaveBeenCalledTimes(cancelled ? 1 : 2);
+      expect(order.indexOf('source:release')).toBeLessThan(
+        order.indexOf('publish:' + (cancelled ? 'error' : 'result')),
+      );
+      expect(replies.at(-1)?.kind).toBe(cancelled ? 'error' : 'result');
+      if (cancelled) expect(replies.at(-1)?.error?.code).toBe('CANCELLED');
+      else expect((replies.at(-1)?.data as Float32Array).length).toBe(32000);
+    },
+  );
 
   it('removes a finalized export when cancellation wins before publication', async () => {
     const id = 'cancel-export';

@@ -175,33 +175,42 @@ self.onmessage = ({ data }: MessageEvent<Request>) => {
           break;
         }
         case 'speechAudio': {
-          const file = await convertCache(
-              store,
-              p.assetId,
-              'pcm',
-              controller.signal,
-              progress,
-              p.jobId,
-            ),
-            asset = await store.getAsset(p.assetId);
-          const start = p.startFrame ?? 0,
-            count = p.count ?? Math.ceil((asset.durationUs * 16000) / 1e6);
-          const audio = new Float32Array(count);
-          for (let offset = 0; offset < count; offset += 16000) {
-            checkAbort(controller.signal);
-            const amount = Math.min(16000, count - offset),
-              channels = await pcmWindow(
-                file,
-                (start + offset) * 3 - 32,
-                amount * 3 + 64,
-              );
-            for (let i = 0; i < amount; i++)
-              audio[offset + i] =
-                (resampleAt(channels[0]!, i * 3 + 32, 3) +
-                  resampleAt(channels[1]!, i * 3 + 32, 3)) /
-                2;
-            await new Promise((r) => setTimeout(r, 0));
-          }
+          const sourceStore = store;
+          const audio = await sourceStore.lock(
+            `asset:${p.assetId}`,
+            'shared',
+            async () => {
+              const file = await convertCache(
+                  sourceStore,
+                  p.assetId,
+                  'pcm',
+                  controller.signal,
+                  progress,
+                  p.jobId,
+                ),
+                asset = await sourceStore.getAsset(p.assetId);
+              const start = p.startFrame ?? 0,
+                count = p.count ?? Math.ceil((asset.durationUs * 16000) / 1e6);
+              const audio = new Float32Array(count);
+              for (let offset = 0; offset < count; offset += 16000) {
+                checkAbort(controller.signal);
+                const amount = Math.min(16000, count - offset),
+                  channels = await pcmWindow(
+                    file,
+                    (start + offset) * 3 - 32,
+                    amount * 3 + 64,
+                  );
+                for (let i = 0; i < amount; i++)
+                  audio[offset + i] =
+                    (resampleAt(channels[0]!, i * 3 + 32, 3) +
+                      resampleAt(channels[1]!, i * 3 + 32, 3)) /
+                    2;
+                await new Promise((r) => setTimeout(r, 0));
+              }
+              return audio;
+            },
+            controller.signal,
+          );
           result = audio;
           transfer = [audio.buffer];
           break;
