@@ -191,12 +191,9 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(responses.last()).toContainText('Incomplete response');
     await expect(page.getByRole('alert')).toContainText('could not be reached');
     await expect(
-      page
-        .locator('[data-sonner-toast][data-type="error"]')
-        .filter({
-          hasText:
-            'Assistant response: Task could not complete (NETWORK_ERROR)',
-        }),
+      page.locator('[data-sonner-toast][data-type="error"]').filter({
+        hasText: 'Assistant response: Task could not complete (NETWORK_ERROR)',
+      }),
     ).toBeVisible();
   });
   test(`chat response actions, branch isolation, dictation and image dragging ${base}`, async ({
