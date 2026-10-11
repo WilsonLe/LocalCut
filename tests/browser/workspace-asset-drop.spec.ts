@@ -230,8 +230,13 @@ for (const base of ['/', '/LocalCut/']) {
     await data.dispose();
   });
 
-  for (const cancelFrom of ['dialog', 'other tab'] as const) {
-    test(`asset drop cancellation from ${cancelFrom} retains every row on mobile ${base}`, async ({
+  for (const dismissWith of [
+    'Okay',
+    'X',
+    'Escape',
+    'task cancellation',
+  ] as const) {
+    test(`asset drop background queue with ${dismissWith} on mobile ${base}`, async ({
       page,
       context,
     }) => {
@@ -310,14 +315,10 @@ for (const base of ['/', '/LocalCut/']) {
         name: 'Import media',
         exact: true,
       });
-      await expect(dialog.getByRole('listitem').nth(0)).toHaveAttribute(
-        'data-status',
-        'importing',
+      await expect(dialog.locator('li[data-status="importing"]')).toHaveCount(
+        1,
       );
-      await expect(dialog.getByRole('listitem').nth(1)).toHaveAttribute(
-        'data-status',
-        'queued',
-      );
+      await expect(dialog.locator('li[data-status="queued"]')).toHaveCount(1);
       await expect(dialog.getByRole('progressbar')).toHaveAttribute(
         'aria-valuenow',
         '0',
@@ -330,66 +331,200 @@ for (const base of ['/', '/LocalCut/']) {
         .locator('.workspace')
         .dispatchEvent('drop', { dataTransfer: data });
       await expect(dialog.getByRole('listitem')).toHaveCount(2);
-      await page.keyboard.press('Escape');
-      await expect(dialog).toBeVisible();
-      if (cancelFrom === 'dialog') {
-        await dialog
-          .getByRole('button', { name: 'Cancel', exact: true })
-          .click();
-      } else {
-        const other = await context.newPage();
-        try {
-          await other.goto(base);
+      await expect(dialog.getByRole('button')).toHaveCount(2);
+      await expect(
+        dialog.getByRole('button', { name: 'Okay', exact: true }),
+      ).toBeVisible();
+      await expect(
+        dialog.getByRole('button', { name: 'Close', exact: true }),
+      ).toBeVisible();
+      const sourceId = new URL(page.url()).hash.split('/')[2]!;
+      const other = await context.newPage();
+      let destinationId: string | undefined;
+      try {
+        await other.goto(base);
+        // Read the durable queue while native inspection is held. Both file
+        // tasks must already exist, including the one that has not started.
+        await expect
+          .poll(() =>
+            other.evaluate(async (base) => {
+              const { createEditor } = (await import(
+                base + 'editor.js'
+              )) as typeof import('../../src/editor');
+              const engine = await createEditor();
+              try {
+                return (await engine.tasks.list())
+                  .filter((task) => task.kind === 'media.import')
+                  .map((task) => task.state)
+                  .sort();
+              } finally {
+                await engine.dispose();
+              }
+            }, base),
+          )
+          .toEqual(['queued', 'running']);
+        if (dismissWith === 'task cancellation') {
           await other.evaluate(async (base) => {
             const { createEditor } = (await import(
               base + 'editor.js'
             )) as typeof import('../../src/editor');
-            const editor = await createEditor();
+            const engine = await createEditor();
             try {
-              const task = (await editor.tasks.list()).find(
+              const task = (await engine.tasks.list()).find(
                 (task) =>
                   task.kind === 'media.import' && task.state === 'running',
               );
               if (!task) throw new Error('No active media import');
-              await editor.tasks.cancel(task.id);
+              await engine.tasks.cancel(task.id);
             } finally {
-              await editor.dispose();
+              await engine.dispose();
             }
           }, base);
-        } finally {
-          await other.close();
+          await expect
+            .poll(() =>
+              page.evaluate(
+                () =>
+                  (
+                    window as unknown as {
+                      importCancellationReceived?: boolean;
+                    }
+                  ).importCancellationReceived,
+              ),
+            )
+            .toBe(true);
+        } else {
+          if (dismissWith === 'Escape') await page.keyboard.press('Escape');
+          else
+            await dialog
+              .getByRole('button', {
+                name: dismissWith === 'X' ? 'Close' : 'Okay',
+                exact: true,
+              })
+              .click();
+          await expect(dialog).not.toBeVisible();
+          // Closing progress releases the workspace. An edit and a project
+          // switch are both allowed while the queued imports are still held.
+          await page
+            .getByRole('button', { name: 'Commands', exact: true })
+            .click();
+          const palette = page.getByRole('dialog', {
+            name: 'Commands',
+            exact: true,
+          });
+          await palette.getByRole('combobox').fill('Add text');
+          await palette.getByRole('option', { name: /Add text/ }).click();
+          await page
+            .getByRole('button', { name: 'Insert Plain text', exact: true })
+            .click();
+          await expect(
+            page.getByRole('dialog', { name: 'Clip properties', exact: true }),
+          ).toBeVisible();
+          await page
+            .getByRole('button', { name: 'Close', exact: true })
+            .click();
+          destinationId = await other.evaluate(async (base) => {
+            const { createEditor } = (await import(
+              base + 'editor.js'
+            )) as typeof import('../../src/editor');
+            const engine = await createEditor();
+            try {
+              return (await engine.projects.create('Other project')).id;
+            } finally {
+              await engine.dispose();
+            }
+          }, base);
+          await page.goto(base + '#/project/' + destinationId);
+          await page.getByRole('button', { name: 'Edit', exact: true }).click();
+          await expect(
+            page.getByRole('button', { name: 'Open project', exact: true }),
+          ).toContainText('Other project');
+          if (dismissWith === 'X') {
+            const next = await transfer(page, [
+              { name: 'following.png', type: 'image/png', bytes },
+            ]);
+            await page
+              .locator('.workspace')
+              .dispatchEvent('drop', { dataTransfer: next });
+            await expect(dialog.getByRole('listitem')).toHaveCount(1);
+            await expect(dialog).toContainText('following.png');
+            await next.dispose();
+          }
         }
+        await page.evaluate(() =>
+          (window as unknown as { releaseImport(): void }).releaseImport(),
+        );
+        if (dismissWith === 'task cancellation') {
+          await expect(
+            dialog.locator('li[data-status="cancelled"]'),
+          ).toHaveCount(1);
+          await expect(
+            dialog.locator('li[data-status="completed"]'),
+          ).toHaveCount(1);
+          await expect(dialog).toContainText('1 of 2 added');
+          await closeMediaImport(page);
+        } else if (dismissWith === 'X') {
+          await expect(dialog.getByRole('listitem')).toHaveCount(1);
+          await expect(dialog.getByRole('listitem')).toHaveAttribute(
+            'data-status',
+            'completed',
+          );
+          await expect(dialog).toContainText('following.png');
+          await closeMediaImport(page);
+          await expect(page.locator('.timeline-clip.image')).toHaveCount(1);
+        } else {
+          await expect(dialog).not.toBeVisible();
+          await expect(page.locator('.timeline-clip')).toHaveCount(0);
+        }
+        await expect
+          .poll(() =>
+            other.evaluate(
+              async ({ base, sourceId }) => {
+                const { createEditor } = (await import(
+                  base + 'editor.js'
+                )) as typeof import('../../src/editor');
+                const engine = await createEditor();
+                try {
+                  return (await engine.projects.snapshot(sourceId)).tracks
+                    .flatMap((track) => track.clips)
+                    .filter((clip) => clip.kind === 'image').length;
+                } finally {
+                  await engine.dispose();
+                }
+              },
+              { base, sourceId },
+            ),
+          )
+          .toBe(dismissWith === 'task cancellation' ? 1 : 2);
+        if (destinationId) {
+          expect(
+            await page.evaluate(
+              async ({ base, destinationId }) => {
+                const { createEditor } = (await import(
+                  base + 'editor.js'
+                )) as typeof import('../../src/editor');
+                const engine = await createEditor();
+                try {
+                  return (
+                    await engine.projects.snapshot(destinationId!)
+                  ).tracks.flatMap((track) => track.clips).length;
+                } finally {
+                  await engine.dispose();
+                }
+              },
+              { base, destinationId },
+            ),
+          ).toBe(dismissWith === 'X' ? 1 : 0);
+          await page.goto(base + '#/project/' + sourceId);
+          await page.getByRole('button', { name: 'Edit', exact: true }).click();
+          await expect(page.locator('.timeline-clip.image')).toHaveCount(2);
+          await expect(page.locator('.timeline-clip.text')).toHaveCount(1);
+          await page.reload();
+          await expect(page.locator('.timeline-clip.image')).toHaveCount(2);
+          await expect(dialog).not.toBeVisible();
+        }
+      } finally {
+        await other.close();
       }
-      await expect
-        .poll(() =>
-          page.evaluate(
-            () =>
-              (window as unknown as { importCancellationReceived?: boolean })
-                .importCancellationReceived,
-          ),
-        )
-        .toBe(true);
-      await page.evaluate(() =>
-        (window as unknown as { releaseImport(): void }).releaseImport(),
-      );
-      await expect(dialog.getByRole('listitem').nth(0)).toHaveAttribute(
-        'data-status',
-        'cancelled',
-      );
-      await expect(dialog.getByRole('listitem').nth(1)).toHaveAttribute(
-        'data-status',
-        'cancelled',
-      );
-      await expect(dialog).toContainText('0 of 2 added');
-      await closeMediaImport(page);
-      await expect(page.locator('.workspace')).toHaveAttribute(
-        'data-mobile-tab',
-        'media',
-      );
-      await expect(page.locator('.timeline-clip')).toHaveCount(0);
-      expect(
-        (await snapshot(page, base)).tracks.flatMap((track) => track.clips),
-      ).toHaveLength(0);
       await data.dispose();
     });
   }

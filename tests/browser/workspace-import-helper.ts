@@ -6,9 +6,7 @@ export async function closeMediaImport(page: Page) {
     name: 'Import media',
     exact: true,
   });
-  await dialog
-    .getByRole('button', { name: 'Close', exact: true })
-    .last()
-    .click();
+  await expect(dialog).toContainText('Finished');
+  await dialog.getByRole('button', { name: 'Okay', exact: true }).click();
   await expect(dialog).not.toBeVisible();
 }

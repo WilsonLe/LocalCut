@@ -417,6 +417,7 @@ export function Workspace() {
   const fileInput = useRef<HTMLInputElement>(null);
   const backupInput = useRef<HTMLInputElement>(null);
   const instance = useRef<Promise<Editor> | null>(null);
+  const importPlacement = useRef<Promise<void>>(Promise.resolve());
   const currentJob = useRef<{ cancel(): void } | null>(null);
   const cancelRequested = useRef(false);
   const artifactRef = useRef<Artifact | null>(null);
@@ -757,116 +758,142 @@ export function Workspace() {
   };
   const importMedia = async (files: File[]) => {
     if (!files.length || browsing.current || busy || lock.current) return false;
+    const batchId = crypto.randomUUID();
     let added = 0;
-    const updateFile = (index: number, patch: Partial<ImportProgress>) => {
+    let engine: Editor | undefined;
+    let targetProjectId: string | undefined;
+    const jobs: {
+      stop: () => void;
+      result: Promise<{ asset: Asset } | { failure: unknown }>;
+    }[] = [];
+    const updateBatch = (update: (batch: ImportBatch) => ImportBatch) => {
       if (alive.current)
-        setImportBatch(
-          (batch) =>
-            batch && {
-              ...batch,
-              files: batch.files.map((file, position) =>
-                position === index ? { ...file, ...patch } : file,
-              ),
-            },
+        setImportBatch((batch) =>
+          batch?.id === batchId ? update(batch) : batch,
         );
     };
-    const success = await action(async () => {
+    const updateFile = (index: number, patch: Partial<ImportProgress>) => {
+      updateBatch((batch) => ({
+        ...batch,
+        files: batch.files.map((file, position) =>
+          position === index ? { ...file, ...patch } : file,
+        ),
+      }));
+    };
+    const started = await action(async () => {
       setImportBatch({
+        id: batchId,
         running: true,
         files: files.map((file) => ({ name: file.name, status: 'queued' })),
       });
-      try {
-        const engine = await ensureEditor();
-        checkCancelled();
-        if (!getProjectId())
-          await openProject(await engine.projects.create('Untitled project'));
-        for (const [index, file] of files.entries()) {
-          checkCancelled();
-          updateFile(index, { status: 'importing' });
-          let committed = false;
-          try {
-            const job = engine.assets.import(file);
-            currentJob.current = job;
-            const stop = job.subscribe((event) =>
-              updateFile(index, { fraction: event.progress }),
-            );
-            let asset: Asset;
-            try {
-              asset = await job.completion;
-            } finally {
-              stop();
-              currentJob.current = null;
-            }
-            checkCancelled();
-            const snapshot = await engine.projects.snapshot(getProjectId()!);
-            const operations = appendAsset(snapshot, asset);
-            checkCancelled();
-            await engine.commands.apply({
-              projectId: snapshot.id,
-              expectedRevision: snapshot.revision,
-              requestId: crypto.randomUUID(),
-              operations,
+      engine = await ensureEditor();
+      if (!getProjectId())
+        await openProject(await engine.projects.create('Untitled project'));
+      targetProjectId = getProjectId() ?? undefined;
+      if (!targetProjectId) throw new Error('Open a project to import media.');
+      // Enqueue the entire selection before waiting. The engine owns scheduling,
+      // persistence and cancellation; closing this dialog changes only view state.
+      for (const [index, file] of files.entries()) {
+        const job = engine.assets.import(file);
+        const stop = job.subscribe((event) => {
+          if (event.state === 'running')
+            updateFile(index, {
+              status: event.stage === 'Queued' ? 'queued' : 'importing',
+              fraction: event.progress,
             });
-            added++;
-            committed = true;
-            updateFile(index, { status: 'completed', fraction: 1 });
-            await refresh();
-            const insert = operations.find(
-              (operation) => operation.type === 'insertClip',
-            );
-            if (insert?.type === 'insertClip') {
-              setSelected(insert.clip.id);
-              setSelection([]);
-            }
-          } catch (failure) {
+        });
+        const result = job.completion.then(
+          (asset) => ({ asset }),
+          (failure: unknown) => {
             const cancelled =
-              cancelRequested.current ||
               (failure as { code?: string })?.code === 'CANCELLED';
-            if (!committed)
-              updateFile(index, {
-                status: cancelled ? 'cancelled' : 'failed',
-                error: cancelled
-                  ? undefined
-                  : failure instanceof Error
-                    ? failure.message
-                    : 'Could not import this file.',
-              });
-            if (cancelled) throw failure;
-            error(failure);
-          }
-        }
-      } catch (failure) {
-        const cancelled =
-          cancelRequested.current ||
-          (failure as { code?: string })?.code === 'CANCELLED';
-        if (alive.current)
-          setImportBatch(
-            (batch) =>
-              batch && {
-                ...batch,
-                files: batch.files.map((file) =>
-                  file.status === 'queued'
-                    ? {
-                        ...file,
-                        status: cancelled ? 'cancelled' : 'failed',
-                        error: cancelled
-                          ? undefined
-                          : 'Import could not start.',
-                      }
-                    : file,
-                ),
-              },
-          );
-        throw failure;
-      } finally {
-        if (alive.current)
-          setImportBatch((batch) => batch && { ...batch, running: false });
-        if (added) {
-          setMediaOverride(true);
-        }
+            updateFile(index, {
+              status: cancelled ? 'cancelled' : 'failed',
+              error: cancelled
+                ? undefined
+                : failure instanceof Error
+                  ? failure.message
+                  : 'Could not import this file.',
+            });
+            return { failure };
+          },
+        );
+        jobs.push({ stop, result });
       }
     });
-    return success && added === files.length;
+    if (!started) {
+      updateBatch((batch) => ({
+        ...batch,
+        running: false,
+        files: batch.files.map((file) => ({
+          ...file,
+          status: 'failed',
+          error: 'Import could not start.',
+        })),
+      }));
+      for (const job of jobs) job.stop();
+      return false;
+    }
+    try {
+      for (const [index, job] of jobs.entries()) {
+        const result = await job.result;
+        if ('failure' in result) {
+          if (
+            alive.current &&
+            (result.failure as { code?: string })?.code !== 'CANCELLED'
+          )
+            error(result.failure);
+          continue;
+        }
+        // Serialize placements across batches, using the initiating project even
+        // if the user edits or navigates while media jobs run in the background.
+        let committed = false;
+        const placement = importPlacement.current.then(async () => {
+          if (!alive.current) return;
+          const snapshot = await engine!.projects.snapshot(targetProjectId!);
+          const operations = appendAsset(snapshot, result.asset);
+          if (!alive.current) return;
+          await engine!.commands.apply({
+            projectId: snapshot.id,
+            expectedRevision: snapshot.revision,
+            requestId: crypto.randomUUID(),
+            operations,
+          });
+          added++;
+          committed = true;
+          updateFile(index, { status: 'completed', fraction: 1 });
+          if (getProjectId() !== targetProjectId || browsing.current) return;
+          await refresh();
+          if (getProjectId() !== targetProjectId || browsing.current) return;
+          setMediaOverride(true);
+          const insert = operations.find(
+            (operation) => operation.type === 'insertClip',
+          );
+          if (insert?.type === 'insertClip') {
+            setSelected(insert.clip.id);
+            setSelection([]);
+          }
+        });
+        importPlacement.current = placement.catch(() => {});
+        try {
+          await placement;
+        } catch (failure) {
+          if (!committed)
+            updateFile(index, {
+              status: 'failed',
+              error:
+                failure instanceof Error
+                  ? failure.message
+                  : 'Could not add this asset.',
+            });
+          if (alive.current) error(failure);
+        }
+      }
+    } finally {
+      for (const job of jobs) job.stop();
+      updateBatch((batch) => ({ ...batch, running: false }));
+    }
+    return added === files.length;
   };
   const fileHovering = useFileDrop(!busy && !browsed, (files) => {
     if (narrow) selectMobileTab('media');
@@ -2291,7 +2318,6 @@ export function Workspace() {
         <Suspense fallback={null}>
           <ImportProgressDialog
             batch={importBatch}
-            onCancel={cancelWork}
             onClose={() => setImportBatch(null)}
           />
         </Suspense>

@@ -207,7 +207,7 @@ All canonical edit operations are available through `editing`: rename the curren
 
 ## Editing feature-access inventory
 
-App-wide file dropping and the retained per-file import dialog reuse `assets.import` and the existing timeline insertion commands. The local-file boundary below still applies: OS file access is user-owned; the assistant can discover/inspect permitted imported metadata and insert existing asset IDs through its current edit tools. No new assistant upload capability or consent is introduced. Production Chrome coverage is in `workspace-asset-drop.spec.ts`, with picker/keyboard/mobile consumers retaining explicit result dismissal.
+App-wide file dropping and the dismissible per-file import dialog enqueue the full selection through `assets.import` and the existing timeline insertion commands. Dismissal changes only view state; background placements remain tied to the initiating project. The local-file boundary below still applies: OS file access is user-owned; the assistant can discover/inspect permitted imported metadata and insert existing asset IDs through its current edit tools. No new assistant upload capability or consent is introduced. Production Chrome coverage is in `workspace-asset-drop.spec.ts`, with picker/keyboard/mobile consumers retaining explicit result dismissal.
 
 Derived-media persistence is shared by the existing editor APIs; no new edit operation, agent upload tool or consent is introduced. Assistant transcription/export actions reuse source PCM through that owner. Local previews/contact sheets remain outside remote assistant sharing, as documented in the user-owned boundaries below. See [the computation inventory](storage.md#reusable-computation-inventory) and its fresh-worker regressions.
 

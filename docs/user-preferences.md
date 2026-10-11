@@ -165,7 +165,7 @@ This is the project record of the user's durable product and workflow choices. U
 ## Asset import — 11 October 2026
 
 - Accept asset files dropped on the Media tab or anywhere over the app, with a visible acceptance indicator while files hover.
-- Show import progress and results for every asset in the batch. Keep the progress dialog open when processing finishes until the user dismisses it.
+- Show import progress and results for every asset in the batch. Enqueue all selected assets up front. The progress dialog is informational: keep it open after completion, allow dismissal while work continues, and offer only Okay and the top-right X as buttons.
 
 ## Timeline media previews — 11 October 2026
 

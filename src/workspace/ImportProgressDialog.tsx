@@ -16,17 +16,16 @@ export interface ImportProgress {
   error?: string;
 }
 export interface ImportBatch {
+  id: string;
   running: boolean;
   files: ImportProgress[];
 }
 
 export default function ImportProgressDialog({
   batch,
-  onCancel,
   onClose,
 }: {
   batch: ImportBatch;
-  onCancel: () => void;
   onClose: () => void;
 }) {
   const completed = batch.files.filter(
@@ -36,10 +35,10 @@ export default function ImportProgressDialog({
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open && !batch.running) onClose();
+        if (!open) onClose();
       }}
     >
-      <DialogContent showCloseButton={!batch.running}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Import media</DialogTitle>
           <DialogDescription aria-live="polite">
@@ -93,13 +92,7 @@ export default function ImportProgressDialog({
           ))}
         </ul>
         <DialogFooter>
-          {batch.running ? (
-            <Button variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
-          ) : (
-            <Button onClick={onClose}>Close</Button>
-          )}
+          <Button onClick={onClose}>Okay</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
