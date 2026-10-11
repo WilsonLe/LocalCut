@@ -1,3 +1,4 @@
+import { dismissNotifications } from './workspace-notifications-helper';
 import { openAISettings } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 
@@ -118,11 +119,7 @@ for (const base of ['/', '/LocalCut/']) {
     expect(requests).toBe(2);
     // On mobile the error toast covers Send; shared-browser focus can pause
     // its auto-dismiss. Close it through the same control a user can use.
-    await page
-      .getByRole('listitem')
-      .filter({ hasText: 'OpenRouter rejected the request (HTTP 404).' })
-      .getByRole('button', { name: 'Close toast', exact: true })
-      .click();
+    await dismissNotifications(page);
     reject = false;
     await composer.fill('Try again');
     await send.click();

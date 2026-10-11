@@ -753,7 +753,13 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
     await expect(
       settings.getByLabel('OpenRouter API key', { exact: true }),
-    ).toHaveCount(0);
+    ).not.toBeVisible();
+    await expect(
+      settings.getByRole('button', {
+        name: 'Reconnect OpenRouter',
+        exact: true,
+      }),
+    ).toBeVisible();
     await settings
       .getByRole('combobox', { name: 'AI model', exact: true })
       .click();
