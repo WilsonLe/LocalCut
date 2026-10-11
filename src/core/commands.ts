@@ -455,14 +455,11 @@ export function applyOperations(
         const { c } = locate(op.clipId);
         if (c.kind === 'audio' || c.kind === 'video')
           c.loop ??= { offsetUs: 0 };
+        // Retain interpolation through the cut, including its evaluated boundary.
+        if (op.durationUs < c.durationUs)
+          [c.keyframes] = splitKeys(c, op.durationUs, c.id);
         // Duration edits retain the selected source and clip-local authored timing.
         c.durationUs = op.durationUs;
-        c.keyframes = Object.fromEntries(
-          Object.entries(c.keyframes).map(([name, keys]) => [
-            name,
-            keys.filter((key) => key.timeUs <= op.durationUs),
-          ]),
-        );
         c.cues = c.cues
           .filter((cue) => cue.timeUs < op.durationUs)
           .map((cue) => ({

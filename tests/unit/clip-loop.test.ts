@@ -7,7 +7,7 @@ import {
   rampPreset,
   speedAt,
 } from '../../src/core/speed';
-import { mapSourceCue } from '../../src/core/timing';
+import { mapSourceCue, evaluateKeys } from '../../src/core/timing';
 
 const project = () => ({
   ...newProject('Loop'),
@@ -127,4 +127,45 @@ it('maps source transcript captions into the current repeat and retains trimmed 
   ).project.tracks[0]!.clips[0]!;
   expect(trimmed.loop).toBeUndefined();
   expect(trimmed.durationUs).toBe(1000000);
+});
+
+it('shortening preserves linear and hold automation through an evaluated boundary', () => {
+  const p = project();
+  const clip = p.tracks[0]!.clips[0]!;
+  clip.keyframes = {
+    opacity: [
+      { id: 'opacity-start', timeUs: 0, value: 0, interpolation: 'linear' },
+      { id: 'opacity-end', timeUs: 2000000, value: 1, interpolation: 'linear' },
+    ],
+    gain: [
+      { id: 'gain-start', timeUs: 0, value: 1, interpolation: 'hold' },
+      { id: 'gain-end', timeUs: 1500000, value: 0.4, interpolation: 'linear' },
+    ],
+  };
+  const shortened = applyOperations(p, [
+    { type: 'resizeClip', clipId: 'c', durationUs: 1000000 },
+  ]).project.tracks[0]!.clips[0]!;
+  expect(shortened.keyframes.opacity![0]!.id).toBe('opacity-start');
+  expect(shortened.keyframes.opacity!.at(-1)).toMatchObject({
+    timeUs: 1000000,
+    value: 0.5,
+  });
+  expect(shortened.keyframes.gain![0]!.id).toBe('gain-start');
+  expect(shortened.keyframes.gain!.at(-1)).toMatchObject({
+    timeUs: 1000000,
+    value: 1,
+    interpolation: 'hold',
+  });
+  for (const time of [0, 250000, 500000, 750000, 999999]) {
+    expect(
+      evaluateKeys(shortened.keyframes.opacity!, time, shortened.opacity),
+    ).toBe(time / 2000000);
+    expect(evaluateKeys(shortened.keyframes.gain!, time, shortened.gain)).toBe(
+      1,
+    );
+  }
+  const extended = applyOperations(p, [
+    { type: 'resizeClip', clipId: 'c', durationUs: 3000000 },
+  ]).project.tracks[0]!.clips[0]!;
+  expect(extended.keyframes).toEqual(clip.keyframes);
 });
