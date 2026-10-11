@@ -1,3 +1,4 @@
+import { closeMediaImport } from './workspace-import-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { Project } from '../../src/core/model';
@@ -73,13 +74,14 @@ for (const base of ['/', '/LocalCut/']) {
       mimeType: 'image/png',
       buffer: Buffer.from(png),
     });
+    await closeMediaImport(page);
     await expect(
       page.getByRole('button', { name: 'keyboard.png', exact: true }).first(),
     ).toBeVisible();
     const clips = async () =>
       (await snapshot(page, base, name)).tracks.flatMap((track) => track.clips);
     await expect.poll(async () => (await clips()).length).toBe(1);
-    // Import completion closes a modal and restores focus after its exit motion.
+    // Dismissing import results restores focus after the modal's exit motion.
     await expect(
       page.locator(
         '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]',

@@ -20,6 +20,7 @@ import {
   Scissors,
   ChevronDown,
   Files,
+  Upload,
   Settings2,
   X,
 } from 'lucide-react';
@@ -89,6 +90,9 @@ import { interfaceScale, useAppearance } from './appearance';
 import { usePageZoomGuard } from './usePageZoomGuard';
 import { useChatViewport } from './useChatViewport';
 import { hasBlockingOverlay } from './overlays';
+import { useFileDrop } from './useFileDrop';
+import type { ImportBatch, ImportProgress } from './ImportProgressDialog';
+const ImportProgressDialog = lazy(() => import('./ImportProgressDialog'));
 import {
   saveWorkspacePreferences,
   useWorkspacePreferences,
@@ -422,6 +426,8 @@ export function Workspace() {
     );
   }
   const [progress, setProgress] = useState<Progress | null>(null);
+  const [importBatch, setImportBatch] = useState<ImportBatch | null>(null);
+  const visibleImportBatch = useRef<string | null>(null);
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [exportError, setExportError] = useState('');
   const previewControls = useRef<PreviewControls>(null);
@@ -429,6 +435,7 @@ export function Workspace() {
   const fileInput = useRef<HTMLInputElement>(null);
   const backupInput = useRef<HTMLInputElement>(null);
   const instance = useRef<Promise<Editor> | null>(null);
+  const importPlacement = useRef<Promise<void>>(Promise.resolve());
   const currentJob = useRef<{ cancel(): void } | null>(null);
   const cancelRequested = useRef(false);
   const artifactRef = useRef<Artifact | null>(null);
@@ -767,41 +774,151 @@ export function Workspace() {
     });
     await refresh();
   };
-  const importMedia = (files: File[]) =>
-    action(async () => {
-      if (browsing.current) return;
-      const engine = await ensureEditor();
+  const importMedia = async (files: File[]) => {
+    if (!files.length || browsing.current || busy || lock.current) return false;
+    const batchId = crypto.randomUUID();
+    let added = 0;
+    let engine: Editor | undefined;
+    let targetProjectId: string | undefined;
+    const jobs: {
+      stop: () => void;
+      result: Promise<{ asset: Asset } | { failure: unknown }>;
+    }[] = [];
+    const updateBatch = (update: (batch: ImportBatch) => ImportBatch) => {
+      if (alive.current)
+        setImportBatch((batch) =>
+          batch?.id === batchId ? update(batch) : batch,
+        );
+    };
+    const updateFile = (index: number, patch: Partial<ImportProgress>) => {
+      updateBatch((batch) => ({
+        ...batch,
+        files: batch.files.map((file, position) =>
+          position === index ? { ...file, ...patch } : file,
+        ),
+      }));
+    };
+    const started = await action(async () => {
+      visibleImportBatch.current = batchId;
+      setImportBatch({
+        id: batchId,
+        running: true,
+        files: files.map((file) => ({ name: file.name, status: 'queued' })),
+      });
+      engine = await ensureEditor();
       if (!getProjectId())
         await openProject(await engine.projects.create('Untitled project'));
-      for (const file of files) {
-        checkCancelled();
-        const asset = await awaitJob(
-          engine.assets.import(file),
-          `Importing ${file.name}`,
-        );
-        checkCancelled();
-        const snapshot = await engine.projects.snapshot(getProjectId()!);
-        const operations = appendAsset(snapshot, asset);
-        await engine.commands.apply({
-          projectId: snapshot.id,
-          expectedRevision: snapshot.revision,
-          requestId: crypto.randomUUID(),
-          operations,
+      targetProjectId = getProjectId() ?? undefined;
+      if (!targetProjectId) throw new Error('Open a project to import media.');
+      // Enqueue the entire selection before waiting. The engine owns scheduling,
+      // persistence and cancellation; closing this dialog changes only view state.
+      for (const [index, file] of files.entries()) {
+        const job = engine.assets.import(file);
+        const stop = job.subscribe((event) => {
+          if (event.state === 'running')
+            updateFile(index, {
+              status: event.stage === 'Queued' ? 'queued' : 'importing',
+              fraction: event.progress,
+            });
         });
-        const insert = operations.find(
-          (operation) => operation.type === 'insertClip',
+        const result = job.completion.then(
+          (asset) => ({ asset }),
+          (failure: unknown) => {
+            const cancelled =
+              (failure as { code?: string })?.code === 'CANCELLED';
+            updateFile(index, {
+              status: cancelled ? 'cancelled' : 'failed',
+              error: cancelled
+                ? undefined
+                : failure instanceof Error
+                  ? failure.message
+                  : 'Could not import this file.',
+            });
+            return { failure };
+          },
         );
-        await refresh();
-        if (insert?.type === 'insertClip') {
-          setSelected(insert.clip.id);
-          setSelection([]);
+        jobs.push({ stop, result });
+      }
+    });
+    if (!started) {
+      updateBatch((batch) => ({
+        ...batch,
+        running: false,
+        files: batch.files.map((file) => ({
+          ...file,
+          status: 'failed',
+          error: 'Import could not start.',
+        })),
+      }));
+      for (const job of jobs) job.stop();
+      return false;
+    }
+    try {
+      for (const [index, job] of jobs.entries()) {
+        const result = await job.result;
+        if ('failure' in result) {
+          if (
+            alive.current &&
+            (result.failure as { code?: string })?.code !== 'CANCELLED'
+          )
+            error(result.failure);
+          continue;
+        }
+        // Serialize placements across batches, using the initiating project even
+        // if the user edits or navigates while media jobs run in the background.
+        let committed = false;
+        const placement = importPlacement.current.then(async () => {
+          if (!alive.current) return;
+          const snapshot = await engine!.projects.snapshot(targetProjectId!);
+          const operations = appendAsset(snapshot, result.asset);
+          if (!alive.current) return;
+          await engine!.commands.apply({
+            projectId: snapshot.id,
+            expectedRevision: snapshot.revision,
+            requestId: crypto.randomUUID(),
+            operations,
+          });
+          added++;
+          committed = true;
+          updateFile(index, { status: 'completed', fraction: 1 });
+          if (getProjectId() !== targetProjectId || browsing.current) return;
+          await refresh();
+          if (getProjectId() !== targetProjectId || browsing.current) return;
+          if (visibleImportBatch.current !== batchId) return;
+          setMediaOverride(true);
+          const insert = operations.find(
+            (operation) => operation.type === 'insertClip',
+          );
+          if (insert?.type === 'insertClip') {
+            setSelected(insert.clip.id);
+            setSelection([]);
+          }
+        });
+        importPlacement.current = placement.catch(() => {});
+        try {
+          await placement;
+        } catch (failure) {
+          if (!committed)
+            updateFile(index, {
+              status: 'failed',
+              error:
+                failure instanceof Error
+                  ? failure.message
+                  : 'Could not add this asset.',
+            });
+          if (alive.current) error(failure);
         }
       }
-      setMediaOverride(true);
-      toast.success(
-        `${files.length} ${files.length === 1 ? 'file' : 'files'} added to the timeline`,
-      );
-    });
+    } finally {
+      for (const job of jobs) job.stop();
+      updateBatch((batch) => ({ ...batch, running: false }));
+    }
+    return added === files.length;
+  };
+  const fileHovering = useFileDrop(!busy && !browsed, (files) => {
+    if (narrow) selectMobileTab('media');
+    void importMedia(files);
+  });
   const relinkMedia = (assetId: string) => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -1809,6 +1926,14 @@ export function Workspace() {
       data-mobile-editor={narrow && !projectsOpen}
       data-composer-focused={composerFocused}
     >
+      {fileHovering && (
+        <div className="asset-drop-overlay" role="status">
+          <div className="asset-drop-indicator">
+            <Upload aria-hidden="true" />
+            <span>Drop assets to import</span>
+          </div>
+        </div>
+      )}
       {(!narrow || projectsOpen) && (
         <header ref={header} className="workspace-header">
           {busy ? (
@@ -2275,6 +2400,17 @@ export function Workspace() {
                 setDialog(null);
               })
             }
+          />
+        </Suspense>
+      )}
+      {importBatch && (
+        <Suspense fallback={null}>
+          <ImportProgressDialog
+            batch={importBatch}
+            onClose={() => {
+              visibleImportBatch.current = null;
+              setImportBatch(null);
+            }}
           />
         </Suspense>
       )}
