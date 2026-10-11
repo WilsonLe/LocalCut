@@ -15,6 +15,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
   AudioLines,
+  PlugZap,
 } from 'lucide-react';
 import type { Editor, Project } from '../editor';
 import type { ContextPolicy, OpenRouter, OpenRouterModel } from '../ai';
@@ -30,7 +31,13 @@ import type {
 } from './provider-preferences';
 import type { ProviderConnection, ChatGPTClient } from '../ai';
 import { Button } from '../components/ui/button';
-import { Empty, EmptyContent, EmptyDescription } from '../components/ui/empty';
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyContent,
+  EmptyDescription,
+} from '../components/ui/empty';
 import type { ChatSession } from './ChatSessionPicker';
 const AIConnectionDialog = lazy(() => import('./AIConnectionDialog'));
 const ChatSessionPicker = lazy(() => import('./ChatSessionPicker'));
@@ -963,22 +970,26 @@ export function Conversation(props: ConversationProps) {
             ))}
           </Suspense>
         ) : (
-          <div className="conversation-session">
-            <div className="min-h-0 flex-1" />
+          <div className="conversation-session conversation-empty-session">
             <Empty
               className="chat-provider-empty flex-none gap-3"
               role="status"
             >
-              {chatProviderAvailable && (
-                <EmptyDescription>
-                  {!selectedModel
-                    ? 'Choose a chat model'
-                    : 'Open a project to chat'}
-                </EmptyDescription>
-              )}
+              <EmptyHeader>
+                <EmptyMedia variant="icon" className="chat-provider-symbol">
+                  <PlugZap aria-hidden="true" />
+                </EmptyMedia>
+                {chatProviderAvailable && (
+                  <EmptyDescription>
+                    {!selectedModel
+                      ? 'Choose a chat model'
+                      : 'Open a project to chat'}
+                  </EmptyDescription>
+                )}
+              </EmptyHeader>
               <EmptyContent>
                 <Button
-                  variant="outline"
+                  variant={!chatProviderAvailable ? 'default' : 'outline'}
                   size="sm"
                   onClick={(event) => {
                     settingsReturnFocus.current = event.currentTarget;

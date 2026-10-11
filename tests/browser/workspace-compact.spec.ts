@@ -22,6 +22,21 @@ for (const base of ['/', '/LocalCut/']) {
     const providerEmpty = chat.locator('.chat-provider-empty');
     await expect(providerEmpty).toHaveAttribute('data-slot', 'empty');
     await expect(providerEmpty).toHaveText('Connect provider');
+    await expect(
+      providerEmpty.locator('.chat-provider-symbol svg'),
+    ).toBeVisible();
+    const stateBounds = (await providerEmpty.boundingBox())!;
+    const sessionBounds = (await chat
+      .locator('.conversation-empty-session')
+      .boundingBox())!;
+    expect(
+      Math.abs(
+        stateBounds.y +
+          stateBounds.height / 2 -
+          sessionBounds.y -
+          sessionBounds.height / 2,
+      ),
+    ).toBeLessThan(2);
     await expect(chat.getByRole('textbox')).toHaveCount(0);
     await expect(
       chat.getByRole('button', { name: 'Send edit request' }),
@@ -87,7 +102,8 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(media.locator('.media-grid > :last-child')).toHaveClass(
       /(?:^|\s)media-import-card(?:\s|$)/,
     );
-    await expect(card.locator('span')).toHaveClass('sr-only');
+    await expect(card.locator('.sr-only')).toHaveText('Import media');
+    await expect(card.locator('.media-import-symbol')).toBeVisible();
     const importEmpty = media.locator('.media-import-card');
     await expect(importEmpty).toHaveAttribute('data-slot', 'empty');
     expect(

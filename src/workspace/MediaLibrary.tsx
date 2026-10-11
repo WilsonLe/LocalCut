@@ -97,7 +97,9 @@ export default function MediaLibrary({
                   className="media-import-action"
                   onClick={onImport}
                 >
-                  <Upload aria-hidden="true" />
+                  <span className="media-import-symbol" aria-hidden="true">
+                    <Upload />
+                  </span>
                   <span className="sr-only">Import media</span>
                 </Button>
               </Tooltip>
