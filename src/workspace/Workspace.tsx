@@ -1637,7 +1637,7 @@ export function Workspace() {
         {busy ? (
           <span className="brand">
             <Scissors aria-hidden="true" />
-            LocalCut
+            <span className="brand-name">LocalCut</span>
           </span>
         ) : (
           <button
@@ -1647,7 +1647,7 @@ export function Workspace() {
             onClick={showProjects}
           >
             <Scissors aria-hidden="true" />
-            LocalCut
+            <span className="brand-name">LocalCut</span>
           </button>
         )}
         {!busy && !projectsOpen && (

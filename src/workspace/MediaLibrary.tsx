@@ -101,9 +101,11 @@ export default function MediaLibrary({
         asset.status !== 'ready'
       )
         return;
-      event.preventDefault();
-      event.currentTarget.focus();
-      event.currentTarget.setPointerCapture(event.pointerId);
+      if (event.pointerType !== 'touch') {
+        event.preventDefault();
+        event.currentTarget.focus();
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
       drag.current = {
         pointerId: event.pointerId,
         assetId: asset.id,
@@ -125,7 +127,15 @@ export default function MediaLibrary({
       )
         return;
       if (!gesture.moved) {
+        // Let vertical touch gestures pan the library, including on thumbnails.
+        if (
+          event.pointerType === 'touch' &&
+          Math.abs(event.clientY - gesture.y) >=
+            Math.abs(event.clientX - gesture.x)
+        )
+          return;
         gesture.moved = true;
+        event.currentTarget.setPointerCapture(event.pointerId);
         onAssetDrag(asset.id);
       }
       emit('move', asset.id, event.clientX, event.clientY);
