@@ -337,6 +337,229 @@ for (const base of ['/', '/LocalCut/']) {
     expect(errors).toEqual([]);
   });
 
+  test(`workspace asset menus rename and undo deletion ${base}`, async ({
+    page,
+  }) => {
+    await page.goto(base);
+    page.setDefaultTimeout(15000);
+    await createProject(page, 'Asset actions');
+    for (const fixture of [
+      await redPng(page),
+      toneWav(),
+      await greenVideo(page),
+    ]) {
+      await page
+        .getByLabel('Import media', { exact: true })
+        .setInputFiles(fixture);
+      await expect(
+        page.getByRole('button', { name: fixture.name, exact: true }),
+      ).toBeVisible();
+    }
+    const cards = page.locator('.media-item');
+    await expect(cards).toHaveCount(3);
+    await page
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .focus();
+    await page.mouse.move(0, 0);
+    const trigger = page.getByRole('button', {
+      name: 'Actions for red.png',
+      exact: true,
+    });
+    await expect(trigger).toHaveCSS('opacity', '0');
+    await page
+      .getByRole('button', { name: 'Asset details for red.png' })
+      .hover();
+    await expect(trigger).toHaveCSS('opacity', '1');
+    await page.screenshot({
+      path: test.info().outputPath('asset-card-hover.png'),
+    });
+    await page.mouse.move(0, 0);
+    await trigger.focus();
+    await expect(trigger).toHaveCSS('opacity', '1');
+    await page.keyboard.press('ArrowDown');
+    await expect(
+      page.getByRole('menuitem', { name: 'Rename', exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press('Enter');
+    const rename = page.getByRole('dialog', {
+      name: 'Rename asset',
+      exact: true,
+    });
+    await rename.getByLabel('Asset name').fill('   ');
+    await expect(rename.getByRole('button', { name: 'Save name' })).toHaveCount(
+      0,
+    );
+    await rename.getByLabel('Asset name').fill('  Cover image  ');
+    await rename.getByRole('button', { name: 'Save name' }).click();
+    await expect(
+      page.getByRole('button', { name: 'Asset details for Cover image' }),
+    ).toBeVisible();
+    await page.reload();
+    await page
+      .getByRole('button', { name: 'Expand media', exact: true })
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'Asset details for Cover image' }),
+    ).toBeVisible();
+    const openActions = async (name: string) => {
+      const button = page.getByRole('button', {
+        name: `Actions for ${name}`,
+        exact: true,
+      });
+      await page
+        .getByRole('button', { name: `Asset details for ${name}`, exact: true })
+        .hover();
+      await button.click();
+    };
+    await openActions('Cover image');
+    await page.getByRole('menuitem', { name: 'Rename', exact: true }).click();
+    await rename.getByLabel('Asset name').fill('Stale rename');
+    await page.evaluate(async (base) => {
+      const { createEditor } = await import(base + 'editor.js');
+      const editor = await createEditor();
+      try {
+        const project = (await editor.projects.list()).find(
+          (p: { name: string }) => p.name === 'Asset actions',
+        );
+        const snapshot = await editor.projects.snapshot(project.id);
+        const assetId = snapshot.tracks
+          .flatMap((t: { clips: { assetId?: string }[] }) => t.clips)
+          .find((c: { assetId?: string }) => c.assetId).assetId;
+        await editor.assets.rename(
+          assetId,
+          'Renamed in another tab',
+          'Cover image',
+        );
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    await rename.getByRole('button', { name: 'Save name' }).click();
+    await expect(rename.getByRole('alert')).toContainText('Asset name changed');
+    await rename.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(rename).toBeHidden();
+    await expect(
+      page.getByRole('button', {
+        name: 'Asset details for Renamed in another tab',
+      }),
+    ).toBeVisible();
+    for (const name of ['tone.wav', 'green.webm']) {
+      await openActions(name);
+      await expect(
+        page.getByRole('menuitem', { name: 'Rename', exact: true }),
+      ).toBeEnabled();
+      await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
+      const deletion = page.getByRole('dialog', {
+        name: 'Delete asset',
+        exact: true,
+      });
+      await expect(deletion).toContainText(
+        'Original media and saved index runs are retained',
+      );
+      await deletion
+        .getByRole('button', { name: 'Cancel', exact: true })
+        .click();
+      await expect(deletion).toBeHidden();
+      await expect(cards).toHaveCount(3);
+      await openActions(name);
+      await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
+      await deletion
+        .getByRole('button', { name: 'Delete asset', exact: true })
+        .click();
+      await expect(cards).toHaveCount(2);
+      expect(
+        (await snapshot(page, base, 'Asset actions')).tracks.flatMap(
+          (t) => t.clips,
+        ),
+      ).toHaveLength(2);
+      await page.getByRole('button', { name: 'Undo', exact: true }).click();
+      await expect(cards).toHaveCount(3);
+    }
+    await openActions('Renamed in another tab');
+    await page.screenshot({
+      path: test.info().outputPath('asset-card-menu.png'),
+    });
+    await page.keyboard.press('Escape');
+    await expect(
+      page.getByRole('button', {
+        name: 'Actions for Renamed in another tab',
+        exact: true,
+      }),
+    ).toBeFocused();
+  });
+
+  test(`workspace asset menus relink missing sources and protect saved versions ${base}`, async ({
+    page,
+  }) => {
+    await page.goto(base);
+    page.setDefaultTimeout(15000);
+    await createProject(page, 'Missing actions');
+    const fixture = await redPng(page);
+    await page
+      .getByLabel('Import media', { exact: true })
+      .setInputFiles(fixture);
+    await expect(
+      page.getByRole('button', { name: 'red.png', exact: true }),
+    ).toBeVisible();
+    const copyId = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const project = (await editor.projects.list()).find(
+          (p) => p.name === 'Missing actions',
+        )!;
+        return (
+          await editor.projects.importJSON(
+            await editor.projects.exportJSON(project.id),
+          )
+        ).id;
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    await page.goto(`${base}#/project/${copyId}`);
+    await page.reload();
+    await page
+      .getByRole('button', { name: 'Expand media', exact: true })
+      .click();
+    const trigger = page.getByRole('button', {
+      name: 'Actions for red.png',
+      exact: true,
+    });
+    await trigger.focus();
+    await trigger.click();
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('menuitem', { name: 'Relink', exact: true }).click();
+    await (await chooser).setFiles(fixture);
+    await expect(
+      page.getByRole('img', { name: 'Thumbnail for red.png' }),
+    ).toBeVisible();
+    await page
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .click();
+    await page.getByRole('menuitem', { name: 'Project', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Versions', exact: true }).click();
+    await page
+      .getByRole('group', { name: 'Saved versions' })
+      .getByRole('button')
+      .first()
+      .click();
+    await expect(page.getByText(/Version \d+ · Read-only/)).toBeVisible();
+    await trigger.focus();
+    await trigger.click();
+    await expect(
+      page.getByRole('menuitem', { name: 'Rename', exact: true }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole('menuitem', { name: 'Delete', exact: true }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole('menuitem', { name: 'Relink', exact: true }),
+    ).toHaveCount(0);
+  });
+
   test(`workspace media thumbnails and asset tooltips ${base}`, async ({
     page,
   }) => {
@@ -1184,3 +1407,39 @@ for (const base of ['/', '/LocalCut/']) {
     expect(constant.speedRamp).toBeUndefined();
   });
 }
+
+test.describe('touch media menu', () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  for (const base of ['/', '/LocalCut/']) {
+    test(`workspace asset actions stay visible on touch ${base}`, async ({
+      page,
+    }) => {
+      await page.goto(base);
+      await createProject(page, 'Touch assets');
+      await page
+        .getByRole('button', { name: 'Expand media', exact: true })
+        .click();
+      await page
+        .getByLabel('Import media', { exact: true })
+        .setInputFiles(await redPng(page));
+      const trigger = page.getByRole('button', {
+        name: 'Actions for red.png',
+        exact: true,
+      });
+      await expect(trigger).toHaveCSS('opacity', '1');
+      await trigger.tap();
+      await expect(
+        page.getByRole('menuitem', { name: 'Rename', exact: true }),
+      ).toBeVisible();
+      await page.getByRole('menuitem', { name: 'Rename', exact: true }).tap();
+      await page.getByLabel('Asset name').fill('Touch image');
+      await page.getByRole('button', { name: 'Save name' }).tap();
+      await expect(
+        page.getByRole('button', {
+          name: 'Actions for Touch image',
+          exact: true,
+        }),
+      ).toBeVisible();
+    });
+  }
+});

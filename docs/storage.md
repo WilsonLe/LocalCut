@@ -22,6 +22,8 @@ Restoration verifies the authored current revision and receipt content, preserve
 
 Rollback to older application code retains the current project and media, but that older writer does not preserve the additive version field when committing edits. Export a current JSON backup and retain an origin-storage backup before such a rollback; do not run old writers against projects whose version history must be retained.
 
+Asset display-name changes compare the expected stored name and commit metadata in one IndexedDB transaction; they do not advance project revisions or rewrite originals. Metadata is shared by current projects and saved versions. Removing current-project clip references retains originals and saved index evidence for undo and version restoration.
+
 Looping clips add optional loop offsets to the version-one clip document; project versions, backups and history retain them without an IndexedDB migration. Older strict readers cannot read those clips. Retain a compatible reader or export rendered media before rolling back to an older app.
 
 Original media is immutable OPFS content identified by asset ID. An import journal precedes file mutation. An asset becomes ready only after the file finishes; failure removes partial content. Relink accepts a missing original with matching metadata; it does not overwrite a ready source.
