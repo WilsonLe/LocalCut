@@ -108,6 +108,41 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 describe('durable task queue', () => {
+  it('isolates reusable cache values from public result reads, retry completion and retained handler objects', async () => {
+    const storage = new MemoryStore(),
+      q = queue(storage);
+    const produced = { samples: new Float32Array([0.25]) };
+    let calls = 0;
+    q.register('pure', {
+      cache: pureTaskCache('v1'),
+      lane: 'local',
+      recovery: 'safe',
+      execute: async () => {
+        if (++calls === 1) throw new Error('Retry needed');
+        return produced;
+      },
+    });
+    const failed = q.enqueue('pure', {}, { label: 'Initial' });
+    await failed.completion.catch(() => {});
+    const retry = await q.retry(failed.id);
+    const retried = (await retry.completion) as typeof produced;
+    retried.samples[0] = 0.75;
+    const exposed = await q.result<typeof produced>(failed.id);
+    expect([...exposed.samples]).toEqual([0.25]);
+    exposed.samples[0] = 0.9;
+    produced.samples[0] = 1;
+    const repeat = await q.enqueue<typeof produced>(
+      'pure',
+      {},
+      { label: 'Reusable hit' },
+    ).completion;
+    expect([...repeat.samples]).toEqual([0.25]);
+    expect([
+      ...((await storage.result(failed.id)) as typeof produced).samples,
+    ]).toEqual([0.25]);
+    expect(calls).toBe(2);
+    expect(await q.list()).toHaveLength(1);
+  });
   it('falls through a stale memory claim to newer work admitted by another owner', async () => {
     const storage = new MemoryStore(),
       lock = locks(),

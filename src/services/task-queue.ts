@@ -271,9 +271,13 @@ export class TaskQueue {
     const task = await this.get(id);
     if (task?.state !== 'completed')
       throw new Error('Task has no completed result.');
-    if (this.results.has(id)) return this.results.get(id) as T;
+    if (this.results.has(id)) {
+      const result = this.results.get(id);
+      return (task.cacheKey ? structuredClone(result) : result) as T;
+    }
     const saved = await this.storage.result(id);
-    return (this.handlers.get(task.kind)?.decodeResult?.(saved) ?? saved) as T;
+    const result = this.handlers.get(task.kind)?.decodeResult?.(saved) ?? saved;
+    return (task.cacheKey ? structuredClone(result) : result) as T;
   }
   subscribeErrors(listener: (error: TaskQueueError) => void) {
     this.errorListeners.add(listener);
@@ -862,7 +866,7 @@ export class TaskQueue {
         throw error;
       }
       if (!handler.encodeResult || !handler.decodeResult)
-        this.results.set(id, result);
+        this.results.set(id, task.cacheKey ? structuredClone(result) : result);
       this.publish(completed);
     } catch (error) {
       await progressWrites;
