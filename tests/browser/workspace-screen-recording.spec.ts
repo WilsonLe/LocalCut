@@ -479,7 +479,7 @@ for (const base of ['/', '/LocalCut/']) {
     const queue = page.getByRole('dialog', { name: 'Task queue', exact: true });
     await expect(
       queue
-        .getByRole('article', { name: 'Screen recording', exact: true })
+        .getByRole('row', { name: 'Screen recording', exact: true })
         .getByRole('status'),
     ).toContainText('cancelled');
     await queue.getByRole('button', { name: 'Close', exact: true }).click();

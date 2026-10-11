@@ -839,7 +839,7 @@ for (const base of ['/', '/LocalCut/']) {
     let queue = page.getByRole('dialog', { name: 'Task queue', exact: true });
     await expect(
       queue
-        .getByRole('article', { name: 'Generating speech', exact: true })
+        .getByRole('row', { name: 'Generating speech', exact: true })
         .getByRole('status'),
     ).toContainText('completed');
     await queue.getByRole('button', { name: 'Close', exact: true }).click();
@@ -886,7 +886,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page.getByRole('button', { name: 'Task queue', exact: true }).click();
     queue = page.getByRole('dialog', { name: 'Task queue', exact: true });
     const interrupted = queue
-      .getByRole('article', { name: 'Generating speech', exact: true })
+      .getByRole('row', { name: 'Generating speech', exact: true })
       .filter({ hasText: 'interrupted' });
     await expect(interrupted).toContainText('outcome is unknown');
     expect(calls).toBe(3);
@@ -896,7 +896,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(interrupted).not.toBeVisible();
     await expect(
       queue
-        .getByRole('article', { name: 'Generating speech', exact: true })
+        .getByRole('row', { name: 'Generating speech', exact: true })
         .getByRole('status')
         .filter({ hasText: 'completed' }),
     ).toHaveCount(2);
@@ -992,7 +992,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
     await page.getByRole('button', { name: 'Task queue', exact: true }).click();
     const queue = page.getByRole('dialog', { name: 'Task queue', exact: true });
-    const failed = queue.getByRole('article', {
+    const failed = queue.getByRole('row', {
       name: 'Generating speech',
       exact: true,
     });
@@ -1160,7 +1160,7 @@ for (const base of ['/', '/LocalCut/']) {
     const queue = page.getByRole('dialog', { name: 'Task queue', exact: true });
     await expect(
       queue
-        .getByRole('article', { name: 'Generating speech', exact: true })
+        .getByRole('row', { name: 'Generating speech', exact: true })
         .filter({ hasText: 'cancelled' }),
     ).toHaveCount(1);
     releases[1]!();
