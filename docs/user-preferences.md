@@ -268,3 +268,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Keep source assets immutable editing inputs. Each timeline placement is a separate instance with its own authored properties and keyframes; editing one placement must not change other placements of the same asset. Commands create new document snapshots and preserve earlier snapshots.
 - Provide keyframe animation for individual timeline objects through the shared engine, with the same result in preview and export.
+
+## Complete agent editing access — 11 October 2026
+
+- Every new editing feature must be accessible to the assistant when delivered. Keep discovery, inspection, domain guidance, canonical validation/proposals, explicit approval and regression coverage aligned with the UI/shared engine. Audit existing features exhaustively and maintain the [feature-access inventory](ai.md#editing-feature-access-inventory) and [development requirement](development.md#keep-agent-access-complete) with future changes. Preserve immutable asset/instance ownership, sharing consent and the existing user-owned file/service boundaries.

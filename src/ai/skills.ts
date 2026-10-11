@@ -5,7 +5,7 @@ export const skillCatalog = [
   {
     id: 'editing',
     description:
-      'Track operations, timeline edits, clips, audio, text, captions, effects, groups and transitions.',
+      'Project naming, tracks, timeline edits, object keyframes, audio, searchable fonts/text templates, animated text, captions, effects, groups and transitions.',
   },
   {
     id: 'export',

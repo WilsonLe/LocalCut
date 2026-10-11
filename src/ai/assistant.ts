@@ -37,6 +37,8 @@ import {
   parseTool,
   proposalBatch,
   supportedEditOperations,
+  editingProperties,
+  searchTextLibrary,
   toolDefinitions,
 } from './tools';
 import { availableSkills, loadSkill } from './skills';
@@ -482,10 +484,23 @@ export function createAssistant(options: AssistantOptions) {
             case 'inspect_capabilities':
               return {
                 editOperations: supportedEditOperations,
+                properties: editingProperties,
+                textLibrary: {
+                  tool: 'search_text_library',
+                  kinds: ['fonts', 'templates'],
+                  pagination: 'offset/limit; empty query browses all entries',
+                },
                 rules: {
                   timeUnit: 'integer_microseconds',
                   intervals: 'half_open',
                   keyframes: 'clip_local_timeline',
+                  animation:
+                    'Each timeline placement owns its attributes and curves; source assets and other placements remain unchanged. Points have stable unique IDs, strictly increasing integer timeUs from 0 through durationUs inclusive, values within the parameter schema, and linear/hold interpolation to the next point. Empty curves use the base value. updateClip replaces the supplied keyframes map; preserve unrelated curves. Apply curve edits before timing commands so the engine retimes them.',
+                  patches:
+                    'Only supplied top-level fields change. Supplied text/crop/keyframes/cues replace that whole field; preserve existing members. Hidden text requires sharing consent to inspect, never guess it.',
+                  crop: 'normalized source coordinates; x+width and y+height <= 1',
+                  looping:
+                    'resizeClip loops timed media to the requested duration; loop.offsetUs is within the source cycle. trimClip trims source endpoints; splitClip preserves keyframes, captions, fades and speed provenance.',
                   speed: {
                     min: 0.25,
                     max: 4,
@@ -518,9 +533,16 @@ export function createAssistant(options: AssistantOptions) {
                   'choose_or_relink_local_files',
                   'create_or_open_projects',
                   'save_export_artifacts',
+                  'project_versions_backups_and_library_administration',
+                  'capture_generate_speech_and_start_asset_indexing',
+                  'playback_selection_view_and_provider_settings',
                 ],
                 privacy: { rawMediaAvailable: false, ...policy },
               };
+            case 'search_text_library':
+              return searchTextLibrary(
+                args as Parameters<typeof searchTextLibrary>[0],
+              );
             case 'inspect_proposals':
               return [...proposals.values()].map((proposal) => ({
                 id: proposal.id,

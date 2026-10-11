@@ -3,8 +3,19 @@ import { createAssistant } from '../../src/ai/assistant';
 import type { AssistantEditor, AssistantEvent } from '../../src/ai/assistant';
 import type { ChatRequest, ProviderEvent, ToolCall } from '../../src/ai/types';
 import { AiError } from '../../src/ai/errors';
-import { newProject, clipSchema, assetSchema } from '../../src/core/model';
-import type { Project } from '../../src/core/model';
+import {
+  newProject,
+  clipSchema,
+  assetSchema,
+  clipPatchSchema,
+  trackPatchSchema,
+  textStyleSchema,
+  parameterSchema,
+} from '../../src/core/model';
+import type { Project, Parameter } from '../../src/core/model';
+import { TEXT_FONTS, TEXT_TEMPLATES } from '../../src/core/text-library';
+import { valueAt } from '../../src/core/timing';
+import { z } from 'zod';
 import type { CommandBatch, EditReceipt } from '../../src/core/commands';
 import {
   applyOperations,
@@ -13,7 +24,13 @@ import {
 } from '../../src/core/commands';
 import { EditorError } from '../../src/core/errors';
 import { Jobs } from '../../src/services/jobs';
-import { supportedEditOperations, toolDefinitions } from '../../src/ai/tools';
+import {
+  supportedEditOperations,
+  toolDefinitions,
+  editingProperties,
+  parseTool,
+  searchTextLibrary,
+} from '../../src/ai/tools';
 import { assistantCapabilities } from '../../src/ai/actions';
 import type { EditOperation } from '../../src/core/commands';
 
@@ -226,6 +243,7 @@ function provider(rounds: ProviderEvent[][], loadDomains = true) {
               'inspect_asset',
               'inspect_timeline',
               'inspect_capabilities',
+              'search_text_library',
               'validate_edits',
               'propose_edits',
             ].includes(name)
@@ -2079,6 +2097,11 @@ describe('incremental assistant skills', () => {
         final('', [
           load('editing'),
           call(
+            'search_text_library',
+            { kind: 'fonts', query: 'Space Mono' },
+            'unloaded-search',
+          ),
+          call(
             'propose_edits',
             {
               summary: 'Move',
@@ -2099,6 +2122,11 @@ describe('incremental assistant skills', () => {
     ]);
     expect((await f.assistant.run('Edit').completion).proposalIds).toEqual([]);
     expect(f.editor.commands.validate).not.toHaveBeenCalled();
+    const searchResponse = f.provider.requests[1]!.messages.find(
+      (message) =>
+        message.role === 'tool' && message.tool_call_id === 'unloaded-search',
+    );
+    expect(searchResponse?.content).toContain('TOOL_NOT_ALLOWED');
     expect(f.provider.requests[1]!.messages.at(-1)!.content).toContain(
       'TOOL_NOT_ALLOWED',
     );
@@ -2434,4 +2462,313 @@ it('keeps index consent independent of loaded assistant skills', () => {
   expect(names(false)).not.toContain('read_asset_index');
   expect(names(true)).toContain('search_asset_index');
   expect(names(true)).toContain('read_asset_index');
+});
+
+describe('complete assistant editing access', () => {
+  it('advertises every canonical patch field and parameter in both edit tools', () => {
+    const tools = toolDefinitions(
+      false,
+      assistantCapabilities(fixture().editor),
+      new Set(['editing']),
+    );
+    for (const name of ['validate_edits', 'propose_edits']) {
+      const schema = tools.find((tool) => tool.function.name === name)!.function
+        .parameters as {
+        properties: {
+          operations: {
+            items: {
+              oneOf: {
+                properties: { type: { const: string }; patch?: unknown };
+              }[];
+            };
+          };
+        };
+      };
+      const variants = schema.properties.operations.items.oneOf;
+      expect(variants.map((variant) => variant.properties.type.const)).toEqual(
+        supportedEditOperations,
+      );
+      for (const [type, canonicalSchema] of [
+        ['updateClip', clipPatchSchema],
+        ['updateTrack', trackPatchSchema],
+      ] as const) {
+        const expected = z.toJSONSchema(canonicalSchema, { io: 'input' });
+        delete expected.$schema;
+        expect(
+          variants.find((variant) => variant.properties.type.const === type)!
+            .properties.patch,
+        ).toEqual(expected);
+      }
+    }
+    expect(editingProperties.clip).toEqual(Object.keys(clipPatchSchema.shape));
+    expect(editingProperties.track).toEqual(
+      Object.keys(trackPatchSchema.shape),
+    );
+    expect(editingProperties.textStyle).toEqual(
+      Object.keys(textStyleSchema.shape),
+    );
+    expect(editingProperties.keyframes.parameters).toEqual(
+      parameterSchema.options,
+    );
+    expect(editingProperties.keyframes.interpolation).toEqual([
+      'linear',
+      'hold',
+    ]);
+  });
+
+  it('makes the entire shared font and template catalogs reachable in bounded pages', () => {
+    for (const kind of ['fonts', 'templates'] as const) {
+      const ids: string[] = [];
+      let offset: number | null = 0;
+      do {
+        const page = searchTextLibrary({ kind, query: '', offset, limit: 20 });
+        expect(page.items.length).toBeLessThanOrEqual(20);
+        ids.push(...page.items.map((item) => item.id));
+        offset = page.nextOffset;
+      } while (offset !== null);
+      expect(ids).toEqual(
+        (kind === 'fonts' ? TEXT_FONTS : TEXT_TEMPLATES).map((item) => item.id),
+      );
+    }
+    const font = searchTextLibrary({
+      kind: 'fonts',
+      query: 'Space Mono',
+      offset: 0,
+      limit: 20,
+    });
+    expect(font.items.map((item) => item.id)).toContain('font-space-mono');
+    expect(
+      searchTextLibrary({
+        kind: 'fonts',
+        query: 'no-such-font-12345',
+        offset: 0,
+        limit: 20,
+      }).items,
+    ).toEqual([]);
+    for (const bad of [
+      { limit: 21 },
+      { offset: -1 },
+      { query: 'x'.repeat(257) },
+      { url: 'https://untrusted.example' },
+    ])
+      expect(() =>
+        parseTool(
+          'search_text_library',
+          JSON.stringify({ kind: 'fonts', ...bad }),
+        ),
+      ).toThrow(AiError);
+    const detached = searchTextLibrary({
+      kind: 'templates',
+      query: 'typewriter',
+      offset: 0,
+      limit: 1,
+    });
+    detached.items[0]!.name = 'mutated';
+    expect(TEXT_TEMPLATES[0]!.name).toBe('Typewriter');
+  });
+
+  it('discovers and proposes complete styled/animated text, captions and looping through approval', async () => {
+    const f = fixture();
+    const style = {
+      text: 'A newly authored title',
+      fontSize: 44,
+      color: '#abcdef',
+      background: '#123456',
+      align: 'left' as const,
+      fontFamily: 'font-space-mono' as const,
+      fontWeight: 'bold' as const,
+      italic: true,
+      animation: {
+        kind: 'handmade' as const,
+        stepMs: 120,
+        loop: true,
+        frames: 3,
+        variations: ['ONE', 'TWO', 'THREE'],
+      },
+      letterSpacing: 2,
+      curve: 30,
+      outlineColor: '#000000',
+      outlineWidth: 2,
+      shadow: { color: '#ffffff', blur: 3, offsetX: 4, offsetY: 5 },
+    };
+    expect(Object.keys(style).sort()).toEqual(
+      Object.keys(textStyleSchema.shape).sort(),
+    );
+    const operations: EditOperation[] = [
+      { type: 'updateClip', clipId: 'title', patch: { text: style } },
+      {
+        type: 'insertClip',
+        trackId: 'overlay',
+        clip: {
+          id: 'captions',
+          kind: 'caption',
+          startUs: 0,
+          durationUs: 4e6,
+          transcriptId: 'transcript',
+          text: { ...style, animation: undefined },
+          cues: [
+            { id: 'caption-new', timeUs: 0, endUs: 1e6, text: 'New caption' },
+          ],
+        },
+      },
+      { type: 'resizeClip', clipId: 'video', durationUs: 8e6 },
+      {
+        type: 'updateClip',
+        clipId: 'video',
+        patch: { loop: { offsetUs: 1e6 } },
+      },
+    ];
+    const p = provider([
+      [
+        final('', [
+          call('search_text_library', { kind: 'fonts', query: 'Space Mono' }),
+          call(
+            'search_text_library',
+            { kind: 'templates', query: 'handmade' },
+            'template',
+          ),
+        ]),
+      ],
+      [final('', [call('validate_edits', { operations })])],
+      [proposal(operations)],
+      [final()],
+    ]);
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    const before = structuredClone(f.project());
+    try {
+      const result = await a.run(
+        'Add animated text and captions and loop the video',
+      ).completion;
+      expect(f.project()).toEqual(before);
+      const discovery = p.requests
+        .flatMap((request) => request.messages)
+        .filter((message) => message.role === 'tool')
+        .map((message) => JSON.parse(message.content));
+      expect(discovery).toContainEqual(
+        expect.objectContaining({
+          kind: 'fonts',
+          items: expect.arrayContaining([
+            expect.objectContaining({ id: 'font-space-mono' }),
+          ]),
+        }),
+      );
+      expect(discovery).toContainEqual(
+        expect.objectContaining({
+          kind: 'templates',
+          items: expect.arrayContaining([
+            expect.objectContaining({
+              style: expect.objectContaining({
+                animation: expect.objectContaining({ kind: 'handmade' }),
+              }),
+            }),
+          ]),
+        }),
+      );
+      expect(JSON.stringify(p.requests)).not.toMatch(
+        /Private overlay text|Private cue text|Private transcript phrase|Private client project/,
+      );
+      await a.approveProposal(result.proposalIds[0]!);
+      expect(f.project().tracks[1]!.clips[0]!.text).toEqual(style);
+      expect(f.project().tracks[1]!.clips[1]).toMatchObject({
+        kind: 'caption',
+        transcriptId: 'transcript',
+        cues: [{ text: 'New caption' }],
+      });
+      expect(f.project().tracks[0]!.clips[0]).toMatchObject({
+        durationUs: 8e6,
+        loop: { offsetUs: 1e6 },
+      });
+    } finally {
+      await a.dispose();
+    }
+  });
+
+  const targets: Record<Parameter, number> = {
+    x: 100,
+    y: 100,
+    width: 640,
+    height: 360,
+    rotation: 45,
+    opacity: 0.5,
+    gain: 0.5,
+    brightness: 1.2,
+    contrast: 0.8,
+    saturation: 1.4,
+    grayscale: 0.2,
+    blur: 4,
+  };
+  it.each(parameterSchema.options)(
+    'approves %s keyframes on one immutable placement and evaluates the curve',
+    async (parameter) => {
+      const f = fixture();
+      const original = f.project().tracks[0]!.clips[0]!;
+      f.project().tracks[0]!.clips.push(
+        clipSchema.parse({ ...original, id: 'repeated', startUs: 5e6 }),
+      );
+      const before = structuredClone(f.project());
+      const oldReference = f.project();
+      const keys = [
+        {
+          id: 'point-start',
+          timeUs: 0,
+          value: original[parameter],
+          interpolation: 'linear' as const,
+        },
+        {
+          id: 'point-end',
+          timeUs: 4e6,
+          value: targets[parameter],
+          interpolation: 'hold' as const,
+        },
+      ];
+      const operations: EditOperation[] = [
+        {
+          type: 'updateClip',
+          clipId: 'video',
+          patch: { keyframes: { [parameter]: keys } },
+        },
+      ];
+      const p = provider([
+        [
+          final('', [
+            call('inspect_capabilities', {}),
+            call('validate_edits', { operations }, 'validate'),
+          ]),
+        ],
+        [proposal(operations)],
+        [final()],
+      ]);
+      const a = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test/model',
+      });
+      try {
+        const result = await a.run(
+          `Animate ${parameter} on the first placement only`,
+        ).completion;
+        expect(f.project()).toEqual(before);
+        expect(f.editor.commands.apply).not.toHaveBeenCalled();
+        await a.approveProposal(result.proposalIds[0]!);
+        const edited = f.project().tracks[0]!.clips[0]!;
+        expect(edited.keyframes[parameter]).toEqual(keys);
+        expect(valueAt(edited, parameter, 2e6)).toBeCloseTo(
+          (original[parameter] + targets[parameter]) / 2,
+        );
+        expect(f.project().tracks[0]!.clips[1]).toEqual(
+          before.tracks[0]!.clips[1],
+        );
+        expect(oldReference).toEqual(before);
+        expect(edited.assetId).toBe(original.assetId);
+      } finally {
+        await a.dispose();
+      }
+    },
+  );
 });
