@@ -232,6 +232,7 @@ describe('track operations', () => {
     expect(reused.tracks[3]!.clips[0]!.assetId).toBe('image');
   });
   const forbidden: EditOperation[] = [
+    { type: 'resizeClip', clipId: 'a', durationUs: 1000000 },
     { type: 'clearTrack', trackId: 'visual' },
     { type: 'removeTrack', trackId: 'visual' },
     { type: 'reorderTrack', trackId: 'visual', index: 1 },

@@ -123,6 +123,9 @@ for (const base of ['/', '/LocalCut/']) {
       }
       await page.locator('[data-clip-id="clip"]').click();
       await expect(
+        page.locator('[data-track-id="v"] .timeline-resize-handle'),
+      ).toHaveCount(0);
+      await expect(
         page.getByRole('button', { name: 'Delete clip', exact: true }),
       ).toHaveCount(0);
       await page
