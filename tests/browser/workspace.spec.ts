@@ -1019,6 +1019,13 @@ for (const base of ['/', '/LocalCut/']) {
       .setInputFiles(toneWav(4 * 48000));
     const track = page.getByRole('button', { name: 'tone.wav', exact: true });
     const properties = async () => {
+      // A success toast can cover the scrolled mobile track and pause when
+      // hovered. Use its real close control before selecting the next edit.
+      for (const close of await page
+        .getByRole('button', { name: 'Close toast', exact: true })
+        .all())
+        await close.click();
+      await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
       await track.click();
       await page
         .getByRole('button', { name: 'Clip properties', exact: true })
