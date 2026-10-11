@@ -1,5 +1,17 @@
 # Validation
 
+## Mobile media fixes — 11 October 2026
+
+Runtime candidate `04c232a52dd57871c744f2aaebe6de6e5e6daccd`, based on `0c3e8661b0c1efa073f8b4bf6bcd6ff5a9c6189d`, passed `pnpm check`: 559 unit tests, 22 tooling regressions, all 288 production stable-Chrome scenarios at `/` and `/LocalCut/`, formatting, lint, types, both verified builds and bundle budgets, without skips or retries. Initial JavaScript is 140,411–140,417 bytes gzip and CSS is 16,905 bytes, within unchanged budgets.
+
+The mobile regressions measure full-width Media at three interface sizes in portrait and short landscape, verify the inline project picker, and send real touch swipes starting on thumbnails. Thumbnail checks verify image/video pixels, a native WebM fixture whose first presentation timestamp is explicitly verified as delayed, and decoded previews after reload. A real loading notification is positioned beneath the menu; the test asserts it covers the tested point and that the menu receives the hit. Indexing cases cover passive progress/completion status, video-input clip labeling, image-input video-frame labeling, retained evidence, reload, deletion and incompatible-model guidance. Provider replies are controlled protocol fixtures, not paid inference evidence.
+
+The single independent review inspected `d1626b1bfee4a0f56fe6f62c6e15bc10128ccab4` against the base above. Its P2 evidence finding (the initial layering test never established overlap) and P3 guidance finding (the video tooltip retained the old modality requirement) were accepted and fixed. Eight affected Chrome cases and the complete final check passed on the resulting runtime candidate above. Those corrections received author validation without a second independent review.
+
+Native disk-backed 1080p30 exports passed on the resulting runtime candidate: two minutes in 16.12 seconds and five minutes in 38.31 seconds, with steady native RSS growth of 31.11 MiB below the unchanged 128 MiB limit. Local indexing scanned 1,200 frames in 12.25 seconds and generated scene evidence in 0.24 seconds. Installed stable Chrome was 155.0.8059.40, with Node 24.19.0 on an 18-CPU, 48-GiB Mac. Frame-only remote labeling retains the existing local AVC/AAC excerpt-generation requirement.
+
+Real pinned Whisper preparation, inference and fresh-worker cached replay passed on the reviewed runtime candidate. The later tooltip and regression-test fixes did not change transcription, media-worker execution, inference pins or its acceptance ownership; that evidence remains scoped to those unchanged inputs. Physical phones and paid-provider understanding remain unverified. The final record commit changes documentation only. Exact final head, review disposition and release state are recorded in [draft PR #131](https://github.com/WilsonLe/LocalCut/pull/131), linked both ways with [issue #128](https://github.com/WilsonLe/LocalCut/issues/128). No merge or Pages deployment is established by these local results.
+
 ## Shared Chrome full check — 11 October 2026
 
 Runtime candidate `029af9a26096ccb1b8f5309c99b0b969f957df37`, based on `9f0ac850599d267ae0d4b9a6ec1b73f656b7ba54`, passed the complete normal `pnpm check` in **92.18 seconds**. All 201 production Chrome cases at `/` and `/LocalCut/`, 474 unit tests, 21 tooling regressions, formatting, lint, types, both production builds and bundle budgets passed without skipped or retried cases. Both build stamps were removed before this run, so both production outputs were rebuilt; dependencies, model caches and OS caches were retained.
