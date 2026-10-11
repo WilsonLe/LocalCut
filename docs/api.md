@@ -94,6 +94,14 @@ Project JSON export returns a version-one backup envelope containing referenced 
 
 Preview play() resolves after initial scheduling and presentation succeed, and rejects startup failures such as MISSING_ASSET or PLAYBACK_BLOCKED. The first audio block is prepared before the playback clock starts. If a later decode exhausts queued audio, the timeline holds at the scheduled audio boundary and resumes consecutive blocks when decoding finishes; video presentation uses that same adjusted time. session.onError(listener) observes structured errors during playback, including a worker crash; failures stop the session. Unsubscribe and dispose the session when finished. Superseded asynchronous seeks cannot overwrite newer presentation or position.
 
+## Clip duration and loops
+
+`resizeClip { clipId, durationUs }` changes a positive integer-microsecond timeline duration, preserving selected source bounds. Audio/video clips gain optional `loop: { offsetUs }` timing; their cycle is the selected source span divided by average speed, using the existing integer rounding contract. `offsetUs` is inside that cycle and defaults to zero. Source ranges below one millisecond cannot loop. Playback wraps within the half-open selected source range; speed ramps repeat their complete selected curve on each cycle. Images/text extend their content without timed-source loops. Shortening clips removes local keyframes/cues beyond the new end and clamps fades.
+
+Splitting a looping clip retains the source range and rebases the right clip's loop offset, preserving playback phase and fade continuity. Speed/ramp commands scale duration and loop offset by the new cycle length. Explicit source `trimClip` removes looping and restores a normal source-derived duration. Audio separation, duplicate/history/version/backup flows preserve loop fields. Source transcript captions follow the current playback cycle; authored clip-local keyframes and captions retain their timeline-local behavior.
+
+The optional field leaves existing documents unchanged, but older strict readers cannot open new looping clips. Keep this reader when rolling back, or export media before using an older application. Frozen legacy receipt normalization is unchanged; new commands use the current receipt schema.
+
 ## Immutable project versions
 
 `projects.versions.list(projectId)` returns newest-first metadata (`id`, `number`, `createdAt`, `kind`, `revision`, optional `restoredFrom`). `projects.versions.snapshot(projectId, versionId)` returns that metadata and the complete saved project, detached from persisted data. There is no update/delete operation for individual versions. `projects.versions.save(projectId)` flushes pending autosave and deduplicates the current revision. `projects.open(id)` checkpoints a recovered working revision; ordinary snapshot reads do not create an autosave version.

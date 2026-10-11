@@ -1,5 +1,6 @@
 import { openVersions } from './workspace-settings-helper';
 import { dismissNotifications } from './workspace-notifications-helper';
+import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { Project } from '../../src/editor';
@@ -166,6 +167,7 @@ for (const base of ['/', '/LocalCut/']) {
     expect((await p()).tracks).toEqual(saved.tracks);
 
     await test.step('drag and keyboard reorder saved layers with history', async () => {
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
       const label = lanes
         .last()
         .getByRole('button', { name: 'Reorder Video 3' });
@@ -174,9 +176,32 @@ for (const base of ['/', '/LocalCut/']) {
       await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
       await page.mouse.down();
       await page.mouse.move(to.x + 20, to.y + to.height / 2, { steps: 8 });
+      const floating = page.locator('.timeline-track[data-dragging="true"]');
+      await expect(floating).toHaveAttribute(
+        'data-track-id',
+        saved.tracks[2]!.id,
+      );
+      const floatingBox = (await floating.boundingBox())!;
+      expect(
+        Math.abs(
+          floatingBox.y + floatingBox.height / 2 - (to.y + to.height / 2),
+        ),
+      ).toBeLessThan(2);
+      await expect(floating.locator('.track-label')).toContainText('Video 3');
+      await expect(page.locator('.timeline-track-placeholder')).toBeVisible();
+      await expect
+        .poll(async () => (await lanes.first().boundingBox())!.y)
+        .toBeGreaterThan(to.y + 20);
+      expect((await p()).tracks).toEqual(saved.tracks);
+      await page.screenshot({
+        path: testInfo.outputPath('track-reorder-hover.png'),
+      });
       await page.keyboard.press('Escape');
+      await expect(page.locator('.timeline-track-placeholder')).toHaveCount(0);
+      await expect(floating).toHaveCount(0);
       await page.mouse.up();
       expect((await p()).tracks).toEqual(saved.tracks);
+      await page.emulateMedia({ reducedMotion: 'reduce' });
       await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
       await page.mouse.down();
       await page.mouse.move(to.x + 20, to.y + to.height / 2, { steps: 8 });
@@ -259,6 +284,10 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await expect(page.getByText(/Version \d+ · Read-only/)).toBeVisible();
     await expect(add).toHaveCount(0);
+    await expect(page.locator('.timeline-resize-handle')).toHaveCount(0);
+    await expect(
+      page.locator('.media-asset-preview[data-draggable="true"]'),
+    ).toHaveCount(0);
     await page
       .getByRole('button', { name: 'Return to current', exact: true })
       .click();
@@ -286,6 +315,253 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await expect(lanes).toHaveCount(4);
     expect((await p()).tracks.at(-1)?.kind).toBe('audio');
+  });
+
+  test(`timeline media drag previews position before release and preserves history ${base}`, async ({
+    page,
+  }, testInfo) => {
+    page.setDefaultTimeout(10000);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(base);
+    const video = Buffer.from(await videoSource(page, base));
+    const image = Buffer.from(
+      await page.evaluate(async () => {
+        const canvas = new OffscreenCanvas(32, 32);
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#ee4488';
+        ctx.fillRect(0, 0, 32, 32);
+        return [
+          ...new Uint8Array(await (await canvas.convertToBlob()).arrayBuffer()),
+        ];
+      }),
+    );
+    const main = page.getByRole('main', { name: 'Video editor', exact: true });
+    await main.focus();
+    await page.keyboard.press('n');
+    await page.getByLabel('Project name', { exact: true }).fill('Media drag');
+    await page
+      .getByRole('button', { name: 'Create project', exact: true })
+      .click();
+    const chooser = page.waitForEvent('filechooser');
+    await main.focus();
+    await page.keyboard.press('ControlOrMeta+i');
+    await (
+      await chooser
+    ).setFiles([
+      { name: 'drag.png', mimeType: 'image/png', buffer: image },
+      { name: 'drag.mp4', mimeType: 'video/mp4', buffer: video },
+      {
+        name: 'jfk.wav',
+        mimeType: 'audio/wav',
+        buffer: await readFile('tests/fixtures/jfk.wav'),
+      },
+    ]);
+    const p = () => snapshot(page, base, 'Media drag');
+    await expect
+      .poll(async () => (await p()).tracks.flatMap((t) => t.clips).length)
+      .toBe(3);
+    await dismissNotifications(page);
+    await page
+      .getByRole('button', { name: 'Collapse chat', exact: true })
+      .click();
+    await page.getByRole('button', { name: 'Add track', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Video track', exact: true })
+      .click();
+    const lanes = page.locator('.track-lane');
+    const ghost = page.locator('.timeline-media-placeholder');
+    const begin = async (name: string, laneIndex: number, fraction = 0.25) => {
+      const expand = page.getByRole('button', {
+        name: 'Expand media',
+        exact: true,
+      });
+      if (await expand.isVisible()) await expand.click();
+      await lanes.nth(laneIndex).scrollIntoViewIfNeeded();
+      const source = (await page
+        .getByRole('button', { name: `Asset details for ${name}`, exact: true })
+        .boundingBox())!;
+      const lane = (await lanes.nth(laneIndex).boundingBox())!;
+      const viewport = (await page
+        .getByLabel('Timeline view', { exact: true })
+        .boundingBox())!;
+      const targetX = Math.min(
+        viewport.x + viewport.width - 20,
+        Math.max(viewport.x + 90, lane.x + lane.width * fraction),
+      );
+      await page.mouse.move(source.x + source.width / 2, source.y + 25);
+      await page.mouse.down();
+      await page.mouse.move(source.x + source.width / 2 + 12, source.y + 25, {
+        steps: 3,
+      });
+      await page.mouse.move(targetX, lane.y + lane.height / 2, { steps: 12 });
+      await page.mouse.move(targetX + 0.25, lane.y + lane.height / 2);
+      return lane;
+    };
+    const before = await p();
+    const total = Math.max(
+      ...before.tracks.flatMap((t) =>
+        t.clips.map((c) => c.startUs + c.durationUs),
+      ),
+    );
+    const lane = await begin('drag.png', 2);
+    await expect(ghost).toBeVisible();
+    expect((await p()).revision).toBe(before.revision);
+    expect(Number(await ghost.getAttribute('data-start-us'))).toBeCloseTo(
+      total * 0.25,
+      -4,
+    );
+    await page.mouse.move(lane.x + lane.width * 0.5, lane.y + lane.height / 2, {
+      steps: 5,
+    });
+    const start = Number(await ghost.getAttribute('data-start-us'));
+    expect(start).toBeGreaterThan(total * 0.49);
+    expect(Number(await ghost.getAttribute('data-duration-us'))).toBe(
+      5_000_000,
+    );
+    expect((await ghost.boundingBox())!.width / lane.width).toBeCloseTo(
+      5_000_000 / total,
+      2,
+    );
+    await page.screenshot({
+      path: testInfo.outputPath('media-drop-hover.png'),
+    });
+    await page.mouse.up();
+    await expect(ghost).toHaveCount(0);
+    await expect.poll(async () => (await p()).tracks[2]!.clips.length).toBe(1);
+    const placed = (await p()).tracks[2]!.clips[0]!;
+    expect(placed.startUs).toBe(start);
+    expect(placed.assetId).toBe(before.tracks[0]!.clips[0]!.assetId);
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect.poll(async () => (await p()).tracks[2]!.clips.length).toBe(0);
+    await page.getByRole('button', { name: 'Redo', exact: true }).click();
+    await expect
+      .poll(async () => (await p()).tracks[2]!.clips)
+      .toEqual([placed]);
+    await page.reload();
+    await expect(lanes).toHaveCount(3);
+    expect((await p()).tracks[2]!.clips).toEqual([placed]);
+    // Pointer cancellation and incompatible lanes never author revisions.
+    const unchanged = (await p()).revision;
+    await begin('jfk.wav', 0);
+    await expect(ghost).toHaveCount(0);
+    await page.mouse.up();
+    expect((await p()).revision).toBe(unchanged);
+    await begin('jfk.wav', 1);
+    await expect(ghost).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.mouse.up();
+    await expect(ghost).toHaveCount(0);
+    expect((await p()).revision).toBe(unchanged);
+    // Zoom and interface scaling use rendered lane coordinates.
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.evaluate(() => {
+      localStorage.setItem(
+        'localcut.appearance.v1',
+        JSON.stringify({ version: 1, preferences: { interfaceSize: 'large' } }),
+      );
+    });
+    await page.reload();
+    await expect(lanes).toHaveCount(3);
+    const view = page.getByLabel('Timeline view', { exact: true });
+    await view.hover();
+    await page.keyboard.down('Control');
+    await page.mouse.wheel(0, -80);
+    await page.keyboard.up('Control');
+    const beforeAudio = await p();
+    await begin('jfk.wav', 1, 0.15);
+    await expect(ghost).toBeVisible();
+    const audioStart = Number(await ghost.getAttribute('data-start-us'));
+    await page.mouse.up();
+    await expect.poll(async () => (await p()).tracks[1]!.clips.length).toBe(2);
+    expect((await p()).tracks[1]!.clips.at(-1)!.startUs).toBe(audioStart);
+    expect((await p()).revision).toBe(beforeAudio.revision + 1);
+    await begin('drag.mp4', 2, 0.2);
+    await expect(ghost).toBeVisible();
+    const videoStart = Number(await ghost.getAttribute('data-start-us'));
+    await page.mouse.up();
+    await expect.poll(async () => (await p()).tracks[2]!.clips.length).toBe(2);
+    expect((await p()).tracks[2]!.clips.at(-1)!.startUs).toBe(videoStart);
+    await test.step('clip end previews shortening and repetition, cancellation and history', async () => {
+      const original = await p();
+      const clip = original.tracks[0]!.clips.find((c) => c.kind === 'video')!;
+      const handle = page
+        .getByRole('button', { name: 'Resize end of drag.mp4', exact: true })
+        .first();
+      const box = (await handle.boundingBox())!;
+      const lane = (await lanes.first().boundingBox())!;
+      const duration = Math.max(
+        ...original.tracks.flatMap((t) =>
+          t.clips.map((c) => c.startUs + c.durationUs),
+        ),
+      );
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(
+        box.x + box.width / 2 - (lane.width * 500000) / duration,
+        box.y + box.height / 2,
+        { steps: 5 },
+      );
+      await expect(page.locator('.timeline-resize-time')).toContainText(
+        '00:01.50',
+      );
+      expect((await p()).revision).toBe(original.revision);
+      await page.keyboard.press('Escape');
+      await page.mouse.up();
+      await expect(page.locator('.timeline-resize-time')).toHaveCount(0);
+      expect((await p()).revision).toBe(original.revision);
+      // Keyboard retains access when a clip end is outside the scrolled viewport.
+      await handle.press('ArrowLeft');
+      await expect
+        .poll(
+          async () =>
+            (await p()).tracks[0]!.clips.find((c) => c.id === clip.id)!
+              .durationUs,
+        )
+        .toBeLessThan(clip.durationUs);
+      await page.getByRole('button', { name: 'Undo', exact: true }).click();
+      await expect
+        .poll(
+          async () =>
+            (await p()).tracks[0]!.clips.find((c) => c.id === clip.id)!
+              .durationUs,
+        )
+        .toBe(clip.durationUs);
+      const end = (await handle.boundingBox())!;
+      await page.mouse.move(end.x + end.width / 2, end.y + end.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(
+        end.x + end.width / 2 + (lane.width * 2200000) / duration,
+        end.y + end.height / 2,
+        { steps: 8 },
+      );
+      await expect(page.locator('.timeline-resize-time')).toContainText('Loop');
+      await expect(
+        page.getByRole('img', { name: 'Repeats from clip beginning' }),
+      ).toBeVisible();
+      await page.screenshot({
+        path: testInfo.outputPath('clip-resize-loop-hover.png'),
+      });
+      await page.mouse.up();
+      await expect
+        .poll(
+          async () =>
+            (await p()).tracks[0]!.clips.find((c) => c.id === clip.id)!
+              .durationUs,
+        )
+        .toBeGreaterThan(4000000);
+      const looped = (await p()).tracks[0]!.clips.find(
+        (c) => c.id === clip.id,
+      )!;
+      expect(looped.loop).toEqual({ offsetUs: 0 });
+      expect(looped.sourceOutUs).toBe(clip.sourceOutUs);
+      await page.reload();
+      await expect(
+        page.getByRole('img', { name: 'Repeats from clip beginning' }),
+      ).toBeVisible();
+      expect(
+        (await p()).tracks[0]!.clips.find((c) => c.id === clip.id),
+      ).toEqual(looped);
+    });
   });
 
   test(`timeline audio separation, grouping and editable overlap templates ${base}`, async ({
