@@ -181,7 +181,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(lanes).toHaveCount(3);
     await expect(
       page.getByRole('slider', { name: 'Playhead position' }),
-    ).toHaveValue('0');
+    ).toHaveAttribute('aria-valuenow', '0');
     expect((await p()).tracks.map((track) => track.clips.length)).toEqual([
       1, 0, 0,
     ]);

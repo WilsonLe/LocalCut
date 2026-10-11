@@ -72,7 +72,9 @@ export async function versionJourney(page: Page, base: string) {
       page.getByRole('button', { name: 'Apply properties' }),
     ).not.toBeVisible();
     await page.getByRole('button', { name: 'Close', exact: true }).click();
-    await page.getByLabel('Playhead position').fill('500000');
+    await page.getByLabel('Playhead position').press('Home');
+    for (let frame = 0; frame < 15; frame++)
+      await page.getByLabel('Playhead position').press('ArrowRight');
     await page.evaluate(async (base) => {
       const { createEditor } = (await import(
         base + 'editor.js'
@@ -99,7 +101,10 @@ export async function versionJourney(page: Page, base: string) {
       }
     }, base);
     // A live update must not clamp the historical playhead to the current duration.
-    await expect(page.getByLabel('Playhead position')).toHaveValue('500000');
+    await expect(page.getByLabel('Playhead position')).toHaveAttribute(
+      'aria-valuenow',
+      '500000',
+    );
     await page
       .getByRole('button', { name: 'Play preview', exact: true })
       .click();

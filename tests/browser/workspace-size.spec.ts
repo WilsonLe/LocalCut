@@ -1,3 +1,4 @@
+import { dragPlayhead } from './workspace-playhead-helper';
 import { openAISettings } from './workspace-settings-helper';
 import { expect, test, type Page } from '@playwright/test';
 
@@ -277,16 +278,15 @@ for (const base of ['/', '/LocalCut/']) {
             .click();
           await expect(exportDialog).not.toBeVisible();
           await page.getByLabel('Timeline view', { exact: true }).press('0');
-          const scrubber = page.locator('.timeline-scrubber');
-          const rect = (await scrubber.boundingBox())!;
-          await page.mouse.click(
-            rect.x + rect.width / 2,
-            rect.y + rect.height / 2,
-          );
+          await dragPlayhead(page, 0.5);
           await expect
-            .poll(async () => Number(await slider.inputValue()))
+            .poll(async () =>
+              Number(await slider.getAttribute('aria-valuenow')),
+            )
             .toBeGreaterThan(2_400_000);
-          expect(Number(await slider.inputValue())).toBeLessThan(2_600_000);
+          expect(
+            Number(await slider.getAttribute('aria-valuenow')),
+          ).toBeLessThan(2_600_000);
           const resize = page.getByRole('separator', {
             name: 'Resize workspace chat',
           });
@@ -458,7 +458,7 @@ test.describe('scaled touch layouts', () => {
             exact: true,
           });
           await slider.press('Home');
-          await expect(slider).toHaveValue('0');
+          await expect(slider).toHaveAttribute('aria-valuenow', '0');
           await play.tap();
           const pause = page.getByRole('button', {
             name: 'Pause preview',
@@ -475,7 +475,9 @@ test.describe('scaled touch layouts', () => {
           await next.scrollIntoViewIfNeeded();
           await next.tap();
           await expect
-            .poll(async () => Number(await slider.inputValue()))
+            .poll(async () =>
+              Number(await slider.getAttribute('aria-valuenow')),
+            )
             .toBeGreaterThan(0);
           await page.screenshot({
             path: `.artifacts/interface-${size}-${viewport.width}-touch-${base === '/' ? 'root' : 'pages'}.png`,

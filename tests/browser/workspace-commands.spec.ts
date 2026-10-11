@@ -94,7 +94,7 @@ for (const base of ['/', '/LocalCut/']) {
     await run(page, 'Forward ten frames');
     await expect(
       page.getByRole('slider', { name: 'Playhead position', exact: true }),
-    ).toHaveValue('333333');
+    ).toHaveAttribute('aria-valuenow', '333333');
     await run(page, 'Split clip at playhead');
     await expect(
       page.getByRole('button', { name: 'Palette edit', exact: true }),

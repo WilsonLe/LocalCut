@@ -1,3 +1,4 @@
+import { dragPlayhead } from './workspace-playhead-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { Project } from '../../src/editor';
@@ -66,7 +67,7 @@ async function prepare(page: Page, base: string, overlap = false) {
     page.getByRole('main', { name: 'Projects', exact: true }),
   ).not.toBeVisible();
   await expect(page.locator('.timeline-clip')).toHaveCount(2);
-  await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   return id;
 }
 async function snapshot(
@@ -165,7 +166,7 @@ for (const base of ['/', '/LocalCut/']) {
             Number(
               await page
                 .getByRole('slider', { name: 'Playhead position' })
-                .inputValue(),
+                .getAttribute('aria-valuenow'),
             ),
           )
           .toBeGreaterThan(1_900_000);
@@ -174,10 +175,56 @@ for (const base of ['/', '/LocalCut/']) {
             Number(
               await page
                 .getByRole('slider', { name: 'Playhead position' })
-                .inputValue(),
+                .getAttribute('aria-valuenow'),
             ),
           )
           .toBeLessThan(2_100_000);
+        const playhead = page.getByRole('slider', {
+          name: 'Playhead position',
+          exact: true,
+        });
+        await expect(
+          page.locator('.timeline-scrubber, .timeline input[type="range"]'),
+        ).toHaveCount(0);
+        await playhead.press('Home');
+        await expect(playhead).toHaveAttribute('aria-valuenow', '0');
+        await playhead.press('ArrowRight');
+        await expect(playhead).toHaveAttribute('aria-valuenow', '33333');
+        await playhead.press('Shift+ArrowRight');
+        await expect(playhead).toHaveAttribute('aria-valuenow', '366667');
+        await dragPlayhead(page, 0.75);
+        await expect
+          .poll(async () =>
+            Number(await playhead.getAttribute('aria-valuenow')),
+          )
+          .toBeCloseTo(3_000_000, -4);
+        await expect(
+          page.locator('.timeline-clip[aria-pressed="true"]'),
+        ).toHaveCount(0);
+        // Zoom and scroll, then seek through the same coordinate mapping.
+        await timeline.press('=');
+        await timeline.evaluate((element) => {
+          element.scrollLeft = 80;
+        });
+        await dragPlayhead(page, 0.5);
+        await expect
+          .poll(async () =>
+            Number(await playhead.getAttribute('aria-valuenow')),
+          )
+          .toBeCloseTo(2_000_000, -4);
+        await timeline.press('0');
+        // Capture keeps dragging active beyond the ruler; both ends clamp.
+        await dragPlayhead(page, -0.1);
+        await expect(playhead).toHaveAttribute('aria-valuenow', '0');
+        await dragPlayhead(page, 1.1);
+        await expect(playhead).toHaveAttribute('aria-valuenow', '3999999');
+        expect(await timeline.evaluate((e) => e.scrollWidth)).toBe(
+          initialWidth,
+        );
+        await playhead.press('Home');
+        await playhead.press('End');
+        await expect(playhead).toHaveAttribute('aria-valuenow', '3966667');
+        await dragPlayhead(page, 0.5);
         const pbox = (await preview.boundingBox())!;
         const px = Math.round(pbox.x + pbox.width * 0.65) - pbox.x,
           py = Math.round(pbox.y + pbox.height * 0.4) - pbox.y;
@@ -280,7 +327,7 @@ for (const base of ['/', '/LocalCut/']) {
             .evaluate((element) => element.scrollWidth),
         ).toBe(modalViewWidth);
         await page.keyboard.press('Escape');
-        await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+        await expect(page.getByRole('dialog')).toHaveCount(0);
         const initial = await page
           .locator('.timeline-viewport')
           .evaluate((e) => e.scrollWidth);
@@ -368,7 +415,7 @@ for (const base of ['/', '/LocalCut/']) {
             .getByRole('combobox', { name: 'Search commands' })
             .fill(label);
           await page.getByRole('option', { name: label, exact: false }).click();
-          await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+          await expect(page.getByRole('dialog')).toHaveCount(0);
         };
         await run('Zoom timeline in');
         await expect.poll(width).toBeGreaterThan(initial);
@@ -482,15 +529,15 @@ for (const base of ['/', '/LocalCut/']) {
     await page.keyboard.press('ArrowDown');
     await expect(
       page.getByRole('slider', { name: 'Playhead position' }),
-    ).toHaveValue('1000000');
+    ).toHaveAttribute('aria-valuenow', '1000000');
     await page.keyboard.press('ArrowDown');
     await expect(
       page.getByRole('slider', { name: 'Playhead position' }),
-    ).toHaveValue('3000000');
+    ).toHaveAttribute('aria-valuenow', '3000000');
     await page.keyboard.press('ArrowUp');
     await expect(
       page.getByRole('slider', { name: 'Playhead position' }),
-    ).toHaveValue('1000000');
+    ).toHaveAttribute('aria-valuenow', '1000000');
     await page.locator('.timeline-clip').first().click();
     await main.focus();
     await page.keyboard.press('Home');
@@ -525,3 +572,106 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
   });
 }
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`playhead dragging recovers after deleting and restoring tracks ${base}`, async ({
+    page,
+  }) => {
+    const id = await prepare(page, base);
+    const original = (await snapshot(page, base, id)).tracks;
+    const main = page.getByRole('main', { name: 'Video editor', exact: true });
+    const handle = page.getByRole('slider', {
+      name: 'Playhead position',
+      exact: true,
+    });
+    await main.press('ControlOrMeta+a');
+    await expect(
+      page.locator('.timeline-clip[aria-pressed="true"]'),
+    ).toHaveCount(2);
+    const hit = (await handle.boundingBox())!;
+    await page.mouse.move(hit.x + hit.width / 2, hit.y + hit.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(hit.x + hit.width / 2 + 10, hit.y + hit.height / 2);
+    // Deleting while capture is held removes the slider before pointerup.
+    await page.keyboard.press('Delete');
+    await expect(handle).toHaveCount(0);
+    await page.mouse.up();
+    await main.press('ControlOrMeta+z');
+    await expect(page.locator('.timeline-clip')).toHaveCount(2);
+    await handle.press('Home');
+    await dragPlayhead(page, 0.5);
+    await expect
+      .poll(async () => Number(await handle.getAttribute('aria-valuenow')))
+      .toBeCloseTo(2_000_000, -4);
+    expect((await snapshot(page, base, id)).tracks).toEqual(original);
+  });
+}
+
+test.describe('touch playhead dragging', () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  for (const base of ['/', '/LocalCut/']) {
+    test(`playhead marker seeks with touch and cancels without editing ${base}`, async ({
+      page,
+    }, testInfo) => {
+      const id = await prepare(page, base);
+      const revision = (await snapshot(page, base, id)).revision;
+      const handle = page.getByRole('slider', {
+        name: 'Playhead position',
+        exact: true,
+      });
+      await handle.press('Home');
+      await handle.scrollIntoViewIfNeeded();
+      const hit = (await handle.boundingBox())!;
+      expect(hit.width).toBeGreaterThanOrEqual(44);
+      expect(hit.height).toBeGreaterThanOrEqual(44);
+      await expect(page.locator('.timeline-scrubber')).toHaveCount(0);
+      const ruler = (await page.locator('.timeline-ruler').boundingBox())!;
+      const client = await page.context().newCDPSession(page);
+      const start = { x: hit.x + hit.width / 2 + 8, y: hit.y + hit.height / 2 };
+      const touch = async (
+        type: 'touchStart' | 'touchMove' | 'touchEnd' | 'touchCancel',
+        x = start.x,
+        y = start.y,
+      ) => {
+        await client.send('Input.dispatchTouchEvent', {
+          type,
+          touchPoints:
+            type === 'touchEnd' || type === 'touchCancel'
+              ? []
+              : [{ x, y, id: 1 }],
+        });
+      };
+      await touch('touchStart');
+      await expect(handle).toHaveAttribute('aria-valuenow', '0');
+      // Move off the top handle into a clip: pointer capture must retain seeking.
+      await touch('touchMove', start.x + ruler.width / 4, start.y + 60);
+      await touch('touchEnd');
+      await expect
+        .poll(async () => Number(await handle.getAttribute('aria-valuenow')))
+        .toBeCloseTo(1_000_000, -4);
+      await expect(
+        page.locator('.timeline-clip[aria-pressed="true"]'),
+      ).toHaveCount(0);
+      await handle.press('Home');
+      await touch('touchStart');
+      await touch('touchMove', start.x + ruler.width / 8, start.y);
+      await touch('touchCancel');
+      const cancelled = await handle.getAttribute('aria-valuenow');
+      // A hover/move after cancellation cannot keep scrubbing.
+      await page.mouse.move(start.x + ruler.width / 2, start.y);
+      await expect(handle).toHaveAttribute('aria-valuenow', cancelled!);
+      await handle.press('Home');
+      await touch('touchStart');
+      await touch('touchMove', start.x + ruler.width / 4, start.y);
+      await touch('touchEnd');
+      await expect
+        .poll(async () => Number(await handle.getAttribute('aria-valuenow')))
+        .toBeCloseTo(1_000_000, -4);
+      expect((await snapshot(page, base, id)).revision).toBe(revision);
+      await page.screenshot({
+        path: testInfo.outputPath('mobile-playhead.png'),
+      });
+      await client.detach();
+    });
+  }
+});

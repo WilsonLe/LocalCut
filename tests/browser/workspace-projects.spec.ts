@@ -169,7 +169,7 @@ for (const base of ['/', '/LocalCut/']) {
             Number(
               await page
                 .getByRole('slider', { name: 'Playhead position' })
-                .inputValue(),
+                .getAttribute('aria-valuenow'),
             ),
           )
           .toBeGreaterThan(0);
@@ -198,9 +198,9 @@ for (const base of ['/', '/LocalCut/']) {
         const playhead = page.getByRole('slider', {
           name: 'Playhead position',
         });
-        const stopped = await playhead.inputValue();
+        const stopped = await playhead.getAttribute('aria-valuenow');
         await page.waitForTimeout(150);
-        expect(await playhead.inputValue()).toBe(stopped);
+        expect(await playhead.getAttribute('aria-valuenow')).toBe(stopped);
         await expect(page.getByLabel('Describe your edit')).toHaveValue(
           'Preserve this draft',
         );
@@ -209,13 +209,13 @@ for (const base of ['/', '/LocalCut/']) {
         ).toBe(selected);
         await playhead.focus();
         await page.keyboard.press('End');
-        const scrubbed = await playhead.inputValue();
+        const scrubbed = await playhead.getAttribute('aria-valuenow');
         expect(Number(scrubbed)).toBeGreaterThan(Number(stopped));
         await page
           .getByRole('button', { name: 'Open project', exact: true })
           .click();
         await browser.getByRole('button', { name: /Zebra film/ }).click();
-        await expect(playhead).toHaveValue(scrubbed);
+        await expect(playhead).toHaveAttribute('aria-valuenow', scrubbed!);
         await expect(page.getByLabel('Describe your edit')).toHaveValue(
           'Preserve this draft',
         );
