@@ -47,8 +47,14 @@ self.onmessage = ({ data }: MessageEvent<Request>) => {
       self.postMessage({ id: data.id, kind: 'progress', data: p });
     try {
       checkAbort(controller.signal);
-      const { importAsset, thumbnails, waveform, convertCache, pcmWindow } =
-        await import('../media/assets');
+      const {
+        importAsset,
+        thumbnails,
+        contactSheet,
+        waveform,
+        convertCache,
+        pcmWindow,
+      } = await import('../media/assets');
       const { Renderer } = await import('../media/composition');
       const { exportProject, preflight } = await import('../media/export');
       checkAbort(controller.signal);
@@ -88,6 +94,15 @@ self.onmessage = ({ data }: MessageEvent<Request>) => {
             p.width,
           );
           break;
+        case 'contactSheet':
+          result = await contactSheet(
+            store,
+            p.assetId,
+            p.timesUs,
+            controller.signal,
+            p.width,
+          );
+          break;
         case 'waveform':
           result = await waveform(
             store,
@@ -98,16 +113,24 @@ self.onmessage = ({ data }: MessageEvent<Request>) => {
             p.bins,
           );
           break;
-        case 'derivative':
-          result = await convertCache(
-            store,
-            p.assetId,
-            p.kind,
+        case 'derivative': {
+          const sourceStore = store;
+          result = await store.lock(
+            `asset:${p.assetId}`,
+            'shared',
+            () =>
+              convertCache(
+                sourceStore,
+                p.assetId,
+                p.kind,
+                controller.signal,
+                progress,
+                p.jobId,
+              ),
             controller.signal,
-            progress,
-            p.jobId,
           );
           break;
+        }
         case 'preflight':
           result = await preflight(p.project, p.options);
           break;

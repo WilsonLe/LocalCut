@@ -17,6 +17,7 @@ vi.mock('../../src/storage/store', () => ({
 vi.mock('../../src/media/assets', () => ({
   importAsset: vi.fn(),
   thumbnails: vi.fn(),
+  contactSheet: vi.fn(),
   waveform: vi.fn(),
   convertCache: vi.fn(),
   pcmWindow: vi.fn(),
