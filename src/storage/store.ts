@@ -574,6 +574,41 @@ export class Store {
     invariant(asset, 'MISSING_ASSET', `Asset ${id} missing`);
     return asset;
   }
+  async renameAsset(id: string, name: string, expectedName: string) {
+    invariant(
+      typeof name === 'string' && !!name.trim(),
+      'INVALID_COMMAND',
+      'Asset name is required',
+    );
+    const tx = this.db.transaction(['assets', 'projects'], 'readwrite');
+    try {
+      const asset = (await tx.objectStore('assets').get(id)) as
+        Asset | undefined;
+      invariant(asset, 'MISSING_ASSET', `Asset ${id} missing`);
+      invariant(
+        asset.name === expectedName,
+        'REVISION_CONFLICT',
+        'Asset name changed. Close and reopen Rename to try again.',
+      );
+      const renamed = { ...asset, name: name.trim() };
+      await tx.objectStore('assets').put(renamed);
+      const projects = (
+        (await tx.objectStore('projects').getAll()) as RecordState[]
+      )
+        .filter((state) => assetIds(state.project).includes(id))
+        .map(({ project }) => ({ id: project.id, revision: project.revision }));
+      await tx.done;
+      return { asset: renamed, projects };
+    } catch (error) {
+      try {
+        tx.abort();
+      } catch {
+        /* Transaction already finished. */
+      }
+      await tx.done.catch(() => {});
+      throw asEditorError(error);
+    }
+  }
   async file(path: string): Promise<File> {
     try {
       return await (await this.root.getFileHandle(path)).getFile();

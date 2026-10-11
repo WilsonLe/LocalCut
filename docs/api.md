@@ -54,17 +54,17 @@ await artifact.dispose();
 await editor.dispose();
 ```
 
-| Family        | Methods                                                                                   |
-| ------------- | ----------------------------------------------------------------------------------------- |
-| workspace     | snapshot, export, import                                                                  |
-| projects      | create, list, open, snapshot, delete, exportJSON, importJSON                              |
-| assets        | import, inspect, relink, thumbnails, contactSheet, waveform, derivative, analyze, indexes |
-| commands      | validate, apply, undo, redo                                                               |
-| preview       | frame, session                                                                            |
-| exports       | preflight, start                                                                          |
-| transcription | status, prepare, transcribe, transcript, clearModelCache                                  |
-| events        | projects, jobs                                                                            |
-| lifecycle     | job.cancel, session.dispose, artifact.dispose, editor.dispose                             |
+| Family        | Methods                                                                                           |
+| ------------- | ------------------------------------------------------------------------------------------------- |
+| workspace     | snapshot, export, import                                                                          |
+| projects      | create, list, open, snapshot, delete, exportJSON, importJSON                                      |
+| assets        | import, inspect, rename, relink, thumbnails, contactSheet, waveform, derivative, analyze, indexes |
+| commands      | validate, apply, undo, redo                                                                       |
+| preview       | frame, session                                                                                    |
+| exports       | preflight, start                                                                                  |
+| transcription | status, prepare, transcribe, transcript, clearModelCache                                          |
+| events        | projects, jobs                                                                                    |
+| lifecycle     | job.cancel, session.dispose, artifact.dispose, editor.dispose                                     |
 
 The source facade exports inferred Editor, EditorOptions, persisted project/clip/track types, command/receipt types, Job/Progress/events, preview types, export types, subtitle helpers, and EditorError. Generated declarations preserve transitive type references.
 
@@ -93,6 +93,10 @@ Stable error codes include INVALID_DOCUMENT, INVALID_COMMAND, REVISION_CONFLICT,
 Project JSON export returns a version-one backup envelope containing referenced asset metadata and source transcripts. Import validates and restores these atomically with fresh IDs; originals are retained separately and supplied through assets.relink using the imported clip asset IDs. Legacy bare documents remain accepted in a namespace with existing metadata.
 
 Preview play() resolves after initial scheduling and presentation succeed, and rejects startup failures such as MISSING_ASSET or PLAYBACK_BLOCKED. The first audio block is prepared before the playback clock starts. If a later decode exhausts queued audio, the timeline holds at the scheduled audio boundary and resumes consecutive blocks when decoding finishes; video presentation uses that same adjusted time. session.onError(listener) observes structured errors during playback, including a worker crash; failures stop the session. Unsubscribe and dispose the session when finished. Superseded asynchronous seeks cannot overwrite newer presentation or position.
+
+### Asset names and project removal
+
+`editor.assets.rename(assetId, name, expectedName)` trims and validates a nonempty display name and atomically compares `expectedName` to the stored name. A stale form fails with `REVISION_CONFLICT`. It updates shared asset metadata and emits project notifications for current projects referencing the asset without changing their authored revision. Original bytes, index source identities and explicit clip-name overrides remain unchanged. Removing an asset from a project uses one revision-aware batch of `removeClip` operations for its references; undo and saved versions retain access to the original.
 
 ## Immutable project versions
 
