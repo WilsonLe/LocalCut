@@ -380,3 +380,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Every error toast offers a stack-trace icon opening the full available stack and relevant session diagnostics. Include an icon-only copy action with a temporary check mark after successful copying.
 - Keep a persistent local history of all notifications, including informational toasts. Use a standalone bell icon at the top right of the main header, without a visible button box, and a dot for unread notifications. Opening history clears the dot; dismissed errors remain available with their original full report.
+
+## Chat skill activity — 12 October 2026
+
+- Label skill-loading activity “Load skills” in the plural. Show the specific skill name in each tool row, such as “Load skills: Indexing · Completed”, instead of a generic completion label.

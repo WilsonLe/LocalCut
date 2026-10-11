@@ -1,3 +1,4 @@
+import { fulfillChatTitle } from './chat-title-fixture';
 import {
   prepareOpenRouterKey,
   openAISettings,
@@ -32,6 +33,10 @@ for (const base of ['/', '/LocalCut/']) {
         },
       }),
     );
+    let releaseInspection!: () => void;
+    const inspectionReady = new Promise<void>((resolve) => {
+      releaseInspection = resolve;
+    });
     let rounds = 0;
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
@@ -40,6 +45,7 @@ for (const base of ['/', '/LocalCut/']) {
           await route.fulfill({ headers: cors, body: '' });
           return;
         }
+        if (await fulfillChatTitle(route)) return;
         const requestTools = (
           route.request().postDataJSON() as {
             tools: { function: { name: string } }[];
@@ -56,6 +62,7 @@ for (const base of ['/', '/LocalCut/']) {
           return;
         }
         rounds++;
+        if (rounds === 1) await inspectionReady;
         const tool = (
           index: number,
           id: string,
@@ -130,6 +137,10 @@ for (const base of ['/', '/LocalCut/']) {
       })
       .click();
     await connection.getByRole('button', { name: 'Done', exact: true }).click();
+    if (base === '/LocalCut/') {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.getByRole('button', { name: 'Chat', exact: true }).click();
+    }
     await page
       .getByLabel('Describe your edit', { exact: true })
       .fill('Inspect twice and check removing the missing clip.');
@@ -140,6 +151,30 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'Assistant response',
       exact: true,
     });
+    await response
+      .getByRole('button', { name: 'Load skills', exact: true })
+      .click();
+    const loadedSkill = response.locator('[data-tool-name="load_skill"]');
+    await loadedSkill
+      .getByRole('button', {
+        name: 'Load skills: Editing · Completed',
+        exact: true,
+      })
+      .click();
+    await expect(loadedSkill.locator('pre').nth(0)).toContainText(
+      '"skillId": "editing"',
+    );
+    await expect(loadedSkill.locator('pre').nth(1)).toContainText(
+      '"skillId": "editing"',
+    );
+    await testInfo.attach('named skill load', {
+      body: await page.screenshot(),
+      contentType: 'image/png',
+    });
+    await response
+      .getByRole('button', { name: 'Load skills', exact: true })
+      .click();
+    releaseInspection();
     await expect(
       response.getByText(
         'Checked the project. The requested clip does not exist.',

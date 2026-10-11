@@ -65,6 +65,14 @@ export interface Message {
   usage?: Usage;
   tools?: AssistantToolCall[];
 }
+function toolLabel(tool: AssistantToolCall, includeSkill = false): string {
+  if (tool.name !== 'load_skill') return tool.name.replaceAll('_', ' ');
+  const skillId = tool.input?.skillId;
+  if (!includeSkill || typeof skillId !== 'string' || !skillId.trim())
+    return 'Load skills';
+  const skillName = skillId.trim();
+  return `Load skills: ${skillName[0]!.toUpperCase()}${skillName.slice(1)}`;
+}
 function ToolDetails({ tool }: { tool: AssistantToolCall }) {
   return (
     <div className="space-y-3 rounded-xl bg-muted p-3 text-xs">
@@ -660,7 +668,7 @@ export default function ConversationSession({
                     <span className="flex items-center gap-2">
                       <Terminal className="size-3.5" />
                       {message.tools.length === 1
-                        ? message.tools[0]!.name.replaceAll('_', ' ')
+                        ? toolLabel(message.tools[0]!)
                         : `${message.tools.filter((tool) => tool.phase === 'completed').length} of ${message.tools.length} tools completed`}
                     </span>
                   }
@@ -673,7 +681,7 @@ export default function ConversationSession({
                         data-tool-name={tool.name}
                       >
                         <AccordionDisclosure
-                          summary={`${tool.name.replaceAll('_', ' ')} · ${
+                          summary={`${toolLabel(tool, true)} · ${
                             tool.phase === 'started'
                               ? message.status === 'streaming'
                                 ? 'Running'
