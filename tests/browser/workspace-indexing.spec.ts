@@ -193,7 +193,9 @@ for (const base of ['/', '/LocalCut/']) {
         .focus();
       await page.keyboard.press('Shift+Tab');
       await page.keyboard.press('Tab');
-      await expect(page.getByRole('tooltip')).toContainText('red.png');
+      await expect(
+        page.getByRole('tooltip', { name: /^red\.png / }),
+      ).toContainText('red.png');
       await page.keyboard.press('Escape');
       await expect(
         page.getByRole('complementary', { name: 'Media library', exact: true }),
@@ -499,7 +501,9 @@ for (const base of ['/', '/LocalCut/']) {
       .focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
-    await expect(page.getByRole('tooltip')).toContainText(
+    await expect(
+      page.getByRole('tooltip', { name: /^tone\.wav / }),
+    ).toContainText(
       'Choose a chat model supporting audio inputs to index this asset.',
     );
     await page
