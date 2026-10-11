@@ -346,3 +346,8 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Persist expensive reusable computed results locally once produced; refreshing or reopening must reuse valid results instead of recomputing, including audio waveforms. Audit other derived media/analysis values too.
 - Enforce this principle in development documentation and agent guidance, with versioned source/parameter identity, correct invalidation and refresh regression evidence.
+
+## Connector dropdowns — 11 October 2026
+
+- Use a dropdown of the selected TTS model's catalog voices in AI connector settings, rather than a raw voice text field.
+- Remove blank space above populated dropdown options across the app; empty-result messages retain their normal readable spacing.
