@@ -185,6 +185,192 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
   });
 
+  test(`assistant tool budgets finish with approval and durable queue success ${base}`, async ({
+    page,
+    context,
+  }) => {
+    await mockCatalog(context);
+    let step = 0;
+    let scenario = '';
+    const requests: {
+      scenario: string;
+      tools: unknown[];
+      messages: { role: string; content: string; tool_call_id?: string }[];
+    }[] = [];
+    await context.route(
+      'https://openrouter.ai/api/v1/chat/completions',
+      async (route) => {
+        const body = route.request().postDataJSON();
+        const prompt = body.messages.findLast(
+          (message: { role: string }) => message.role === 'user',
+        ).content as string;
+        if (prompt !== scenario) {
+          scenario = prompt;
+          step = 0;
+        }
+        step++;
+        requests.push({ scenario, tools: body.tools, messages: body.messages });
+        const tool = (name: string, args: unknown, index = 0) => ({
+          index,
+          id: `call-${step}-${index}`,
+          type: 'function',
+          function: { name, arguments: JSON.stringify(args) },
+        });
+        let calls;
+        if (step === 1) calls = [tool('load_skill', { skillId: 'editing' })];
+        else if (scenario === 'long' && step < 9)
+          calls = [tool('inspect_project', {})];
+        else if (step === (scenario === 'long' ? 9 : 2))
+          calls = [
+            tool('propose_edits', {
+              summary: 'Add a track',
+              operations: [
+                {
+                  type: 'addTrack',
+                  track: { id: `track-${scenario}`, kind: 'video' },
+                },
+              ],
+            }),
+          ];
+        else if (scenario === 'overflow' && step === 3)
+          calls = [tool('inspect_project', {}), tool('inspect_project', {}, 1)];
+        await route.fulfill({
+          headers,
+          contentType: 'text/event-stream',
+          body: sse([
+            {
+              choices: [
+                {
+                  index: 0,
+                  delta: calls
+                    ? { tool_calls: calls }
+                    : {
+                        content:
+                          'Track pending approval. Request the next step when ready.',
+                      },
+                  finish_reason: calls ? 'tool_calls' : 'stop',
+                },
+              ],
+            },
+          ]),
+        });
+      },
+    );
+    await page.goto(base);
+    const result = await page.evaluate(
+      async ({ path, key, model }) => {
+        const { createEditor } = (await import(
+          path + 'editor.js'
+        )) as typeof import('../../src/editor');
+        const { createAssistant, createOpenRouter } = (await import(
+          path + 'ai.js'
+        )) as typeof import('../../src/ai');
+        const namespace = 'test-tool-budget-' + crypto.randomUUID();
+        let editor = await createEditor({ namespace });
+        const provider = createOpenRouter();
+        provider.setKey(key);
+        const project = await editor.projects.create('Budget regression');
+        const outcomes = [];
+        try {
+          for (const scenario of ['long', 'rounds', 'calls', 'overflow']) {
+            const assistant = createAssistant({
+              editor,
+              provider,
+              projectId: project.id,
+              model,
+              limits:
+                scenario === 'rounds'
+                  ? { maxRounds: 2 }
+                  : scenario === 'calls'
+                    ? { maxToolCalls: 2 }
+                    : scenario === 'overflow'
+                      ? { maxToolCalls: 3 }
+                      : undefined,
+            });
+            try {
+              const before = (await editor.projects.snapshot(project.id))
+                .revision;
+              const response = await assistant.run(scenario).completion;
+              const unchanged =
+                (await editor.projects.snapshot(project.id)).revision ===
+                before;
+              const task = (await editor.tasks.list()).find(
+                (task) => task.kind === `assistant:${response.id}`,
+              );
+              const proposal = assistant.getProposal(response.proposalIds[0]!);
+              await assistant.applyProposal(proposal.id);
+              outcomes.push({
+                scenario,
+                text: response.text,
+                proposals: response.proposalIds.length,
+                status: proposal.status,
+                unchanged,
+                taskState: task?.state,
+                attempts: task?.attempts,
+              });
+            } finally {
+              await assistant.dispose();
+            }
+          }
+          await editor.dispose();
+          editor = await createEditor({ namespace });
+          await editor.projects.open(project.id);
+          const saved = await editor.projects.snapshot(project.id);
+          return {
+            outcomes,
+            revision: saved.revision,
+            tracks: saved.tracks.map((track) => track.id),
+          };
+        } finally {
+          await provider.dispose();
+          await editor.dispose();
+        }
+      },
+      { path: base, key: syntheticKey, model },
+    );
+    expect(result.outcomes).toEqual(
+      ['long', 'rounds', 'calls', 'overflow'].map((scenario) => ({
+        scenario,
+        text: 'Track pending approval. Request the next step when ready.',
+        proposals: 1,
+        status: 'pending',
+        unchanged: true,
+        taskState: 'completed',
+        attempts: 1,
+      })),
+    );
+    expect(result.revision).toBe(4);
+    expect(result.tracks).toEqual([
+      'track-long',
+      'track-rounds',
+      'track-calls',
+      'track-overflow',
+    ]);
+    expect(
+      requests.filter((request) => request.scenario === 'long'),
+    ).toHaveLength(10);
+    for (const scenario of ['rounds', 'calls', 'overflow']) {
+      const final = requests
+        .filter((request) => request.scenario === scenario)
+        .at(-1)!;
+      expect(final.tools).toEqual([]);
+      expect(
+        final.messages.some(
+          (message) =>
+            message.role === 'system' &&
+            message.content.includes('tool budget'),
+        ),
+      ).toBe(true);
+      if (scenario === 'overflow')
+        expect(
+          final.messages
+            .filter((message) => message.role === 'tool')
+            .slice(-2)
+            .map((message) => JSON.parse(message.content).error.code),
+        ).toEqual(['TOOL_LIMIT', 'TOOL_LIMIT']);
+    }
+  });
+
   test(`AI proposal uses real persisted engine, explicit apply and Undo ${base}`, async ({
     page,
     context,

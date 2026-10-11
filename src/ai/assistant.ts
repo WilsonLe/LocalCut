@@ -55,6 +55,7 @@ import type {
 } from './types';
 
 export interface AssistantLimits {
+  /** Tool-enabled rounds; exhaustion permits one additional tool-free response. */
   maxRounds?: number;
   maxToolCalls?: number;
   maxOperations?: number;
@@ -163,8 +164,8 @@ export interface AssistantTurn {
 }
 
 const defaults = {
-  maxRounds: 6,
-  maxToolCalls: 24,
+  maxRounds: 12,
+  maxToolCalls: 48,
   maxOperations: 50,
   maxProposals: 20,
   maxHistoryTurns: 50,
@@ -837,15 +838,19 @@ export function createAssistant(options: AssistantOptions) {
               throw new AiError('TOOL_NOT_ALLOWED', 'Unknown assistant tool.');
           }
         };
-        for (let round = 0; round < limits.maxRounds; round++) {
+        let callBudgetReached = false;
+        for (let round = 0; round <= limits.maxRounds; round++) {
           check();
+          const finishing = round === limits.maxRounds || callBudgetReached;
           capabilities.indexing = canIndex();
-          const tools = toolDefinitions(
-            !!policy.includeTranscripts,
-            capabilities,
-            loadedSkills,
-            !!policy.includeAssetIndexes && !!editor.assets.indexes,
-          );
+          const tools = finishing
+            ? []
+            : toolDefinitions(
+                !!policy.includeTranscripts,
+                capabilities,
+                loadedSkills,
+                !!policy.includeAssetIndexes && !!editor.assets.indexes,
+              );
           // Freeze authority for the entire response; a load cannot authorize sibling calls.
           declaredTools = new Set(tools.map((tool) => tool.function.name));
           permittedActions = allowedActions(capabilities, loadedSkills);
@@ -853,7 +858,16 @@ export function createAssistant(options: AssistantOptions) {
           const compacted = compactHistory(
             history,
             memory,
-            prefix,
+            finishing
+              ? [
+                  ...prefix,
+                  {
+                    role: 'system' as const,
+                    content:
+                      'This turn has reached its tool budget. No further tools are available. Give a concise final response using only completed tool results. Distinguish pending proposals requiring user approval from work still unfinished. Never claim edits were applied. If more work is needed, explain the next useful request. Do not call tools.',
+                  },
+                ]
+              : prefix,
             liveConversation,
             tools,
             limits.maxOutputTokens,
@@ -964,11 +978,21 @@ export function createAssistant(options: AssistantOptions) {
             emit({ type: 'completed', result }, local);
             return structuredClone(result);
           }
-          aiInvariant(
-            toolCount + calls.length <= limits.maxToolCalls,
-            'TOOL_LIMIT',
-            'Assistant tool call limit reached.',
-          );
+          if (finishing)
+            throw new AiError(
+              'TOOL_LIMIT',
+              'The model requested more tools after the turn budget was exhausted. Try a smaller request.',
+              {
+                limit: callBudgetReached ? 'toolCalls' : 'rounds',
+                maxRounds: limits.maxRounds,
+                maxToolCalls: limits.maxToolCalls,
+                toolCalls: toolCount,
+                rounds: round,
+              },
+            );
+          const overCallBudget = toolCount + calls.length > limits.maxToolCalls;
+          callBudgetReached =
+            overCallBudget || toolCount + calls.length === limits.maxToolCalls;
           const ids = new Set<string>();
           for (const call of calls) {
             aiInvariant(
@@ -977,7 +1001,7 @@ export function createAssistant(options: AssistantOptions) {
               'Tool calls require distinct IDs.',
             );
             ids.add(call.id);
-            toolCount++;
+            if (!overCallBudget) toolCount++;
             check();
             const name = call.function.name;
             const activity = {
@@ -990,6 +1014,11 @@ export function createAssistant(options: AssistantOptions) {
             let started = false;
             let result: unknown;
             try {
+              aiInvariant(
+                !overCallBudget,
+                'TOOL_LIMIT',
+                'This batch exceeds the remaining tool budget. No calls in this batch were executed. Summarize completed work without further tools.',
+              );
               aiInvariant(
                 declaredTools.has(name),
                 'TOOL_NOT_ALLOWED',
@@ -1070,7 +1099,7 @@ export function createAssistant(options: AssistantOptions) {
             } else conversation.push(response);
           }
         }
-        throw new AiError('TOOL_LIMIT', 'Assistant round limit reached.');
+        throw new AiError('TOOL_LIMIT', 'Assistant turn could not finish.');
       } catch (error) {
         const safe = signal.aborted
           ? new AiError('CANCELLED', 'Assistant turn cancelled.')
