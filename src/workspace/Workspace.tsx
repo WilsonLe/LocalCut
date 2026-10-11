@@ -2035,6 +2035,7 @@ export function Workspace() {
             exportError={exportError}
             progress={progress}
             total={total}
+            timeUs={timeUs}
             onDialogChange={setDialog}
             onCloseExport={closeExport}
             onStartExport={startExport}
