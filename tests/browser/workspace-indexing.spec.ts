@@ -1,3 +1,4 @@
+import { dismissNotifications } from './workspace-notifications-helper';
 import { mediaVideo } from './workspace-video-fixture';
 import { openAISettings } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
@@ -124,6 +125,8 @@ for (const base of ['/', '/LocalCut/']) {
     const bodies: Record<string, unknown>[] = [];
     let chatRound = 0;
     let evidenceRequests = 0;
+    let sceneRequests = 0;
+    let failSummary = true;
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
@@ -137,6 +140,11 @@ for (const base of ['/', '/LocalCut/']) {
         let tool_calls: unknown[] | undefined;
         if (body.tools) {
           const scope = JSON.parse(body.messages[1].content);
+          if (
+            body.messages.at(-1).role === 'user' &&
+            String(body.messages.at(-1).content).endsWith('Reindex from chat')
+          )
+            chatRound = 0;
           const permitted = scope.skillCatalog.some(
             (skill: { id: string }) => skill.id === 'indexing',
           );
@@ -195,7 +203,12 @@ for (const base of ['/', '/LocalCut/']) {
             Array.isArray(part) && part.length > 1
               ? /"sceneId":"(scene-\d+)"/.exec(String(part[0].text))?.[1]
               : undefined;
-          reply = JSON.stringify(sceneId ? { sceneId, label } : label);
+          if (sceneId) sceneRequests++;
+          reply =
+            !sceneId && failSummary
+              ? '{invalid-summary'
+              : JSON.stringify(sceneId ? { sceneId, label } : label);
+          if (!sceneId) failSummary = false;
         }
         await route.fulfill({
           headers: cors,
@@ -225,6 +238,7 @@ for (const base of ['/', '/LocalCut/']) {
     let dialog = await connect(page);
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     const send = async (text: string) => {
+      await dismissNotifications(page);
       await page
         .getByRole('textbox', { name: 'Describe your edit' })
         .fill(text);
@@ -257,8 +271,34 @@ for (const base of ['/', '/LocalCut/']) {
       path: test.info().outputPath('chat-indexing-approval.png'),
     });
     await approve.click();
-    await expect(page.getByText('Completed', { exact: true })).toBeVisible();
+    await expect(approve).toBeEnabled();
     expect(evidenceRequests).toBe(2);
+    expect(sceneRequests).toBe(1);
+    const runs = () =>
+      page.evaluate(async (base) => {
+        const { createEditor } = (await import(
+          base + 'editor.js'
+        )) as typeof import('../../src/editor');
+        const engine = await createEditor();
+        try {
+          return (await engine.assets.indexes.list()).map((run) => ({
+            id: run.id,
+            status: run.status,
+          }));
+        } finally {
+          await engine.dispose();
+        }
+      }, base);
+    const failedRuns = await runs();
+    expect(failedRuns).toHaveLength(1);
+    expect(failedRuns[0]!.status).toBe('failed');
+    await approve.click();
+    await expect(page.getByText('Completed', { exact: true })).toBeVisible();
+    expect(evidenceRequests).toBe(3);
+    expect(sceneRequests).toBe(1);
+    expect(await runs()).toEqual([
+      { id: failedRuns[0]!.id, status: 'complete' },
+    ]);
     await expect(await indexAction(page, 'Reindex')).toBeEnabled();
     await page.keyboard.press('Escape');
     await send('Find the red image');
@@ -278,6 +318,17 @@ for (const base of ['/', '/LocalCut/']) {
       saved.getByText(label.summary, { exact: true }).first(),
     ).toBeVisible();
     await page.keyboard.press('Escape');
+    await send('Reindex from chat');
+    await expect(approve).toBeEnabled();
+    await approve.click();
+    await expect(page.getByText('Completed', { exact: true })).toHaveCount(2);
+    const reindexed = await runs();
+    expect(reindexed).toHaveLength(2);
+    expect(reindexed.filter((run) => run.id !== failedRuns[0]!.id)).toEqual([
+      { id: expect.any(String), status: 'complete' },
+    ]);
+    expect(sceneRequests).toBe(2);
+    expect(evidenceRequests).toBe(5);
     await page.reload();
     await page
       .getByRole('button', { name: 'Expand media', exact: true })
@@ -293,7 +344,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByText('Enable asset indexing to continue.', { exact: true }),
     ).toBeVisible();
-    expect(evidenceRequests).toBe(2);
+    expect(evidenceRequests).toBe(5);
     expect(JSON.stringify(bodies.at(-1))).not.toContain(label.summary);
     expect(JSON.stringify(bodies.at(-1))).not.toContain('index_asset');
   });

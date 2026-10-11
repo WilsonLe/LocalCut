@@ -3115,7 +3115,10 @@ describe('approved chat asset indexing', () => {
         assetId: 'asset',
         sceneCount: 1,
       });
-      expect(f.execute).toHaveBeenCalledExactlyOnceWith('asset');
+      expect(f.execute).toHaveBeenCalledExactlyOnceWith(
+        'asset',
+        proposal.batch.requestId,
+      );
       expect(
         events.some(
           (e) => e.type === 'proposal_progress' && e.progress.stage === 'label',
@@ -3126,6 +3129,39 @@ describe('approved chat asset indexing', () => {
         result,
       );
       expect(f.execute).toHaveBeenCalledTimes(1);
+    } finally {
+      await f.assistant.dispose();
+      await f.jobs.dispose();
+    }
+  });
+  it('retains the request identity only for explicit reapproval of the failed proposal', async () => {
+    const f = setup();
+    f.execute.mockImplementationOnce(() =>
+      f.jobs.start(async () => {
+        throw new EditorError('WORKER_FAILED', 'Controlled failure');
+      }),
+    );
+    try {
+      const turn = await f.assistant.run('Index').completion;
+      const proposal = f.assistant.getProposal(turn.proposalIds[0]!);
+      await expect(
+        f.assistant.approveProposal(proposal.id),
+      ).rejects.toHaveProperty('code');
+      expect(f.assistant.getProposal(proposal.id).status).toBe('pending');
+      expect(f.execute).toHaveBeenCalledTimes(1);
+      await expect(
+        f.assistant.approveProposal(proposal.id),
+      ).resolves.toMatchObject({ kind: 'indexing' });
+      expect(f.execute).toHaveBeenNthCalledWith(
+        1,
+        'asset',
+        proposal.batch.requestId,
+      );
+      expect(f.execute).toHaveBeenNthCalledWith(
+        2,
+        'asset',
+        proposal.batch.requestId,
+      );
     } finally {
       await f.assistant.dispose();
       await f.jobs.dispose();

@@ -98,7 +98,7 @@ export interface AssistantOptions {
   };
   /** Trusted selected-model indexer; permission is checked again on approval. */
   indexing?: {
-    run: (assetId: string) => Job<AssetIndexRun>;
+    run: (assetId: string, requestId: string) => Job<AssetIndexRun>;
     consent: () => boolean;
     disclosure: string;
   };
@@ -1304,7 +1304,9 @@ export function createAssistant(options: AssistantOptions) {
                 'TOOL_NOT_ALLOWED',
                 'Asset was not selected or referenced by this project.',
               );
-              const run = await runJob(indexing.run(action.assetId));
+              const run = await runJob(
+                indexing.run(action.assetId, proposal.batch.requestId),
+              );
               result = {
                 kind: 'indexing',
                 runId: run.id,

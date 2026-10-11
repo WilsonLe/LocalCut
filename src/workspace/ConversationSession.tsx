@@ -233,6 +233,7 @@ export default function ConversationSession({
   }, [messages, proposals, activity]);
   const ensureAssistant = () => {
     if (!assistant.current) {
+      const indexRuns = new Map<string, string>();
       assistant.current = connection.api.createAssistant({
         editor,
         tasks: editor.tasks,
@@ -250,14 +251,15 @@ export default function ConversationSession({
             ? {
                 consent: getIndexConsent,
                 disclosure: `Indexing sends generated stills${indexConnection.inputModalities.includes('video') ? ', video clips with sound' : ' (video frames only; motion and sound are not assessed)'}${indexConnection.inputModalities.includes('audio') ? ', and audio excerpts' : ''} to OpenRouter model ${indexConnection.model}. This may incur cost. Original source files remain local.`,
-                run: (assetId) => {
+                run: (assetId, requestId) => {
                   const indexer = indexConnection.api.createAssetIndexer({
                     editor,
                     provider: indexConnection.provider,
                     model: indexConnection.model,
                     consent: getIndexConsent,
+                    onRunId: (runId) => indexRuns.set(requestId, runId),
                   });
-                  const job = indexer.run(assetId);
+                  const job = indexer.run(assetId, indexRuns.get(requestId));
                   return {
                     ...job,
                     completion: job.completion.finally(() => indexer.dispose()),

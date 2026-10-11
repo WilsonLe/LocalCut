@@ -13,6 +13,8 @@ export interface AssetIndexerOptions {
   model: string;
   /** Must check live consent; revocation must also dispose/cancel active jobs. */
   consent: () => boolean;
+  /** Trusted host checkpoint for explicit retries of the same approved request. */
+  onRunId?: (runId: string) => void;
 }
 const shape =
   '{"summary":"...","subjects":["..."],"scene":"...","style":"...","tags":["..."],"sound":"..."}';
@@ -63,6 +65,7 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
           try {
             run = await local.completion;
             check(signal);
+            options.onRunId?.(run.id);
           } finally {
             signal.removeEventListener('abort', abort);
             unsubscribe();
