@@ -274,3 +274,5 @@ This is the project record of the user's durable product and workflow choices. U
 - Retain completed speech audio so identical takes can be reused and retimed locally. Do not imply that a preset voice or unavailable provider seed guarantees identical regeneration.
 
 - Let users save an auditioned favorite voice for future scripts and manage it through selection, rename, archive and restore. A saved voice retains its original recording and matching transcript locally, then explicitly sends that reference through a supported OpenRouter cloning model on Generate. Saving settings alone does not satisfy this choice. Do not imply that a seed locks voice identity or guarantees identical generated output.
+
+- Store measured word or phrase timestamps with generated speech so later chat agents can use that context to edit. Retain the authored script and synthesis identity alongside the timing; keep transcript sharing separately controlled. Provide modest editing padding around phrases, with no overlapping ranges; continuous boundaries are acceptable.

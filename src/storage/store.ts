@@ -10,6 +10,7 @@ import {
   validateProject,
   validateBackup,
   transcriptSchema,
+  validateSpeechTranscriptTiming,
 } from '../core/model';
 import { commitWithSignal } from './transaction';
 import type { Asset, Project, Transcript, ProjectBackup } from '../core/model';
@@ -835,6 +836,7 @@ export class Store {
       const asset = (await tx.objectStore('assets').get(value.assetId)) as
         Asset | undefined;
       invariant(asset, 'MISSING_ASSET', 'Transcript source asset missing');
+      validateSpeechTranscriptTiming(parsed.data, asset.durationUs);
       let previous = -1;
       const ids = new Set<string>();
       for (const cue of value.cues) {

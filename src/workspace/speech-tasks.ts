@@ -5,16 +5,25 @@ import type {
   RenderedSpeech,
 } from '../ai';
 import type { Connection } from './Conversation';
+import type { SpeechTranscript } from '../editor';
 export interface SpeechTaskInput {
   request: SpeechRequest;
   timing: SpeechTiming;
   projectId: string;
   route: string;
+  timingProvider?: 'local' | 'configured';
+  timingRoute?: string;
 }
 export interface SpeechTaskResult {
   audio: SpeechAudio;
   rendered: RenderedSpeech;
+  transcript?: SpeechTranscript;
 }
+export interface SpeechCheckpoint extends SpeechAudio {
+  transcript?: SpeechTranscript;
+}
+export const speechTimingRoute = (connection: Connection) =>
+  connection.transcriptionRoute ?? connection.provider.transcriptionDisclosure;
 export const speechRoute = (connection: Connection) =>
   connection.speechRoute ?? connection.provider.selectedProvider('tts') ?? '';
 export function speechTaskKind(connection: Connection) {

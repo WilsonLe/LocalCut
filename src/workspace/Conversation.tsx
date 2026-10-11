@@ -55,6 +55,7 @@ export interface Connection {
   api: AiModule;
   id: number;
   speechRoute?: string;
+  transcriptionRoute?: string;
   transcription?: {
     execute: import('../editor').TranscriptionExecutor;
     disclosure: string;
@@ -245,6 +246,14 @@ export function Conversation(props: ConversationProps) {
           execute: provider.transcribe,
           disclosure: provider.transcriptionDisclosure,
         },
+        transcriptionRoute: JSON.stringify({
+          routes: configuration.current.routes.stt,
+          profiles: configuration.current.profiles.filter((profile) =>
+            configuration.current.routes.stt.some(
+              (route) => route.providerId === profile.id,
+            ),
+          ),
+        }),
       });
       setModels([]);
       setModel('');

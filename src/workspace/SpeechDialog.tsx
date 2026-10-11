@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LoaderCircle, RefreshCw, Info } from 'lucide-react';
-import type { Editor, Job, Project } from '../editor';
+import type {
+  Editor,
+  Job,
+  Project,
+  SpeechTranscript,
+  SpeechMetadata,
+} from '../editor';
+import {
+  retimeSpeechTranscript,
+  padSpeechTranscript,
+} from '../core/transcript-timing';
 import type {
   SpeechAudio,
   SpeechModel,
@@ -39,8 +49,12 @@ import {
 } from '../components/ui/combobox';
 import { SettingsSelect } from './SettingsSelect';
 import { Tooltip } from '../components/ui/tooltip';
-import { speechTaskKind, speechRoute } from './speech-tasks';
-import type { SpeechTaskInput, SpeechTaskResult } from './speech-tasks';
+import { speechTaskKind, speechRoute, speechTimingRoute } from './speech-tasks';
+import type {
+  SpeechTaskInput,
+  SpeechTaskResult,
+  SpeechCheckpoint,
+} from './speech-tasks';
 import {
   changeVoicePresets,
   useVoicePresets,
@@ -158,6 +172,18 @@ export default function SpeechDialog({
   const [duration, setDuration] = useState('');
   const [audio, setAudio] = useState<SpeechAudio | null>(null);
   const [sourceScript, setSourceScript] = useState('');
+  const [transcript, setTranscript] = useState<SpeechTranscript>();
+  const [sourceMetadata, setSourceMetadata] =
+    useState<
+      Pick<
+        SpeechMetadata,
+        'script' | 'model' | 'voice' | 'languages' | 'instructions'
+      >
+    >();
+  const [timingProvider, setTimingProvider] = useState<'local' | 'configured'>(
+    'local',
+  );
+  const [timingReady, setTimingReady] = useState(false);
   const [draftReference, setDraftReference] = useState<SpeechReference>();
   const [rendered, setRendered] = useState<RenderedSpeech | null>(null);
   const [url, setUrl] = useState('');
@@ -233,6 +259,8 @@ export default function SpeechDialog({
     () =>
       run('Loading speech models…', async (signal) => {
         const catalog = await connection.provider.listSpeechModels(signal);
+        const readiness = await editor.transcription.status();
+        if (active.current && !signal.aborted) setTimingReady(readiness.ready);
         if (!active.current || signal.aborted) return;
         setModels(catalog);
         setModel((id) => (catalog.some((item) => item.id === id) ? id : ''));
@@ -244,7 +272,7 @@ export default function SpeechDialog({
             'No supported speech models are available. Refresh to try again.',
           );
       }),
-    [connection.provider, run],
+    [connection.provider, editor, run],
   );
   useEffect(() => {
     active.current = true;
@@ -264,6 +292,8 @@ export default function SpeechDialog({
   const invalidate = () => {
     setAudio(null);
     setSourceScript('');
+    setTranscript(undefined);
+    setSourceMetadata(undefined);
     publish(null);
     setError(null);
   };
@@ -276,7 +306,10 @@ export default function SpeechDialog({
     instructions: delivery,
   };
   const canSavePreset =
-    !!audio && !!sourceScript && models.some((item) => item.referenceVoice);
+    !!audio &&
+    !!sourceScript &&
+    !!transcript &&
+    models.some((item) => item.referenceVoice);
   const canUpdatePreset =
     !!selected?.voices.includes(voice) && validVoiceSettings(voiceSettings);
   const presetModified =
@@ -302,10 +335,11 @@ export default function SpeechDialog({
     }
   };
   const saveFavorite = () => {
-    if (!audio || !sourceScript || !presetName.trim()) return;
+    if (!audio || !sourceScript || !transcript || !presetName.trim()) return;
     const captured = {
       audio,
       transcript: sourceScript,
+      timing: transcript,
       name: presetName.trim(),
       languages: [...selectedLanguages],
     };
@@ -331,6 +365,7 @@ export default function SpeechDialog({
         await saveVoiceReference(id, {
           file: result.file,
           transcript: captured.transcript,
+          ...(captured.timing ? { timing: captured.timing } : {}),
         });
         if (signal.aborted) {
           await removeVoiceReference(id);
@@ -416,6 +451,14 @@ export default function SpeechDialog({
   const restoreRequest = useCallback((input: SpeechTaskInput, id: string) => {
     if (generated.current?.id !== id) setPresetId('');
     setScript(input.request.script);
+    setTimingProvider(input.timingProvider ?? 'local');
+    setSourceMetadata({
+      script: input.request.script,
+      model: input.request.model,
+      voice: input.request.voice,
+      languages: input.request.languages,
+      instructions: input.request.instructions,
+    });
     setModel(input.request.model);
     setVoice(input.request.voice);
     setLanguages(input.request.languages);
@@ -429,13 +472,14 @@ export default function SpeechDialog({
     async (id: string) => {
       if (loadedSource.current === id) return;
       const source = (await editor.tasks.checkpoint(id)) as
-        SpeechAudio | undefined;
+        SpeechCheckpoint | undefined;
       if (!source) return;
       const input = (await editor.tasks.input(id)) as SpeechTaskInput;
       if (!active.current || selection.current !== id) return;
       loadedSource.current = id;
       restoreRequest(input, id);
       setAudio(source);
+      setTranscript(source.transcript);
       setSourceScript(input.request.script);
       setBusy(null);
       try {
@@ -459,6 +503,7 @@ export default function SpeechDialog({
       if (!active.current || selection.current !== id) return;
       loadedResult.current = id;
       setAudio(result.audio);
+      setTranscript(result.transcript);
       setSourceScript(input.request.script);
       restoreRequest(input, id);
       publish(result.rendered);
@@ -530,6 +575,16 @@ export default function SpeechDialog({
     run('Preparing speech…', async (signal) => {
       try {
         connection.api.validateSpeechTiming(timing());
+        if (
+          (timingProvider === 'local' ||
+            connection.provider.transcriptionDisclosure.includes(
+              'runs locally',
+            )) &&
+          !(await editor.transcription.status()).ready
+        )
+          throw new Error(
+            'Prepare phrase timing before generating speech, or choose a configured remote STT route.',
+          );
         if (!script.trim() || !selected?.voices.includes(voice))
           throw new Error('Choose a script, model and voice.');
         let reference = draftReference;
@@ -566,6 +621,10 @@ export default function SpeechDialog({
           timing: timing(),
           projectId: project.id,
           route: speechRoute(connection),
+          timingProvider,
+          ...(timingProvider === 'configured'
+            ? { timingRoute: speechTimingRoute(connection) }
+            : {}),
         };
         const job = editor.tasks.enqueue<SpeechTaskResult>(
           speechTaskKind(connection),
@@ -581,7 +640,15 @@ export default function SpeechDialog({
             if (active.current && generated.current?.id === job.id) {
               loadedResult.current = job.id;
               setAudio(result.audio);
+              setTranscript(result.transcript);
               setSourceScript(input.request.script);
+              setSourceMetadata({
+                script: input.request.script,
+                model: input.request.model,
+                voice: input.request.voice,
+                languages: input.request.languages,
+                instructions: input.request.instructions,
+              });
               publish(result.rendered);
               setBusy(null);
             }
@@ -603,7 +670,7 @@ export default function SpeechDialog({
     });
   };
   const add = () => {
-    if (!rendered) return;
+    if (!rendered || !audio || !transcript || !sourceMetadata) return;
     // Capture the authored project before asynchronous import; commands reject drift.
     const captured = project;
     run('Adding speech to timeline…', async (signal) => {
@@ -611,11 +678,38 @@ export default function SpeechDialog({
       importing.current = job;
       const asset = await job.completion;
       if (!active.current || signal.aborted) return;
+      const originalDurationUs = Math.round(
+        (audio.samples.length / audio.sampleRate) * 1e6,
+      );
+      const measured = retimeSpeechTranscript(
+        transcript,
+        originalDurationUs,
+        asset.durationUs,
+      );
+      const saved = await editor.transcription.attach(
+        asset.id,
+        padSpeechTranscript(measured, asset.durationUs),
+        {
+          ...sourceMetadata,
+          originalDurationUs,
+          measuredCues: measured.cues,
+          paddingUs: 80_000,
+        },
+      );
+      if (!active.current || signal.aborted) return;
+      const operations = appendAsset(captured, asset).map((operation) =>
+        operation.type === 'insertClip'
+          ? {
+              ...operation,
+              clip: { ...operation.clip, transcriptId: saved.id },
+            }
+          : operation,
+      );
       await editor.commands.apply({
         projectId: captured.id,
         expectedRevision: captured.revision,
         requestId: crypto.randomUUID(),
-        operations: appendAsset(captured, asset),
+        operations,
       });
       // A committed edit remains authoritative even if dismissal happens afterward.
       await onApplied();
@@ -647,6 +741,7 @@ export default function SpeechDialog({
             'Speech queued…',
             'Generating speech…',
             'Adjusting speech…',
+            'Measuring phrase timing…',
             'Queued',
             'Starting',
             'Retry scheduled',
@@ -1040,6 +1135,110 @@ export default function SpeechDialog({
             </p>
           </div>
         )}
+        <div className="space-y-2">
+          <Label htmlFor="speech-phrase-timing">Phrase timing</Label>
+          <SettingsSelect
+            id="speech-phrase-timing"
+            selectedLabel={
+              timingProvider === 'local'
+                ? 'Local Whisper'
+                : 'Configured STT route'
+            }
+            label="Phrase timing"
+            disabled={!!busy}
+            value={timingProvider}
+            onChange={(value) =>
+              setTimingProvider(value as 'local' | 'configured')
+            }
+            options={[
+              { value: 'local', label: 'Local Whisper' },
+              { value: 'configured', label: 'Configured STT route' },
+            ]}
+          />
+          <p className="text-xs text-muted-foreground">
+            {timingProvider === 'local'
+              ? 'Measure phrases locally for later edits.'
+              : connection.provider.transcriptionDisclosure.replace(
+                  'Approving may send the selected source audio',
+                  'Generate may send this new audio',
+                )}
+          </p>
+          {!timingReady &&
+            (timingProvider === 'local' ||
+              connection.provider.transcriptionDisclosure.includes(
+                'runs locally',
+              )) && (
+              <Button
+                variant="outline"
+                disabled={!!busy}
+                onClick={() =>
+                  run('Preparing phrase timing…', async (signal) => {
+                    const job = editor.transcription.prepare();
+                    const abort = () => job.cancel();
+                    signal.addEventListener('abort', abort, { once: true });
+                    try {
+                      const result = await job.completion;
+                      if (active.current && !signal.aborted)
+                        setTimingReady(result.ready);
+                    } finally {
+                      signal.removeEventListener('abort', abort);
+                    }
+                  })
+                }
+              >
+                Prepare local phrase timing (68 MB)
+              </Button>
+            )}
+          {transcript && (
+            <p className="text-xs text-muted-foreground">
+              {transcript.cues.length} timed phrases saved · up to 80 ms editing
+              padding, without overlaps.
+            </p>
+          )}
+          {audio && !transcript && !busy && (
+            <Button
+              variant="outline"
+              onClick={() =>
+                run('Measuring phrase timing…', async (signal) => {
+                  const job = editor.transcription.measure(
+                    audio.samples,
+                    audio.sampleRate,
+                    timingProvider === 'configured'
+                      ? { provider: connection.provider.transcribe }
+                      : {},
+                  );
+                  const abort = () => job.cancel();
+                  signal.addEventListener('abort', abort, { once: true });
+                  try {
+                    const result = await job.completion;
+                    if (active.current && !signal.aborted) {
+                      if (generation) {
+                        const task = await editor.tasks.get(generation);
+                        // Checkpoints share the result store. Preserve a legacy
+                        // completed take's WAV/result shape while adding timing.
+                        const saved =
+                          task?.state === 'completed'
+                            ? {
+                                ...(await editor.tasks.result<SpeechTaskResult>(
+                                  generation,
+                                )),
+                                transcript: result,
+                              }
+                            : { ...audio, transcript: result };
+                        await editor.tasks.saveCheckpoint(generation, saved);
+                      }
+                      setTranscript(result);
+                    }
+                  } finally {
+                    signal.removeEventListener('abort', abort);
+                  }
+                })
+              }
+            >
+              Measure phrase timing
+            </Button>
+          )}
+        </div>
         <div className="flex flex-wrap justify-end gap-2">
           {busy ? (
             <Button
@@ -1082,7 +1281,9 @@ export default function SpeechDialog({
                     {audio ? 'Regenerate speech' : 'Generate speech'}
                   </Button>
                 )}
-              {rendered && <Button onClick={add}>Add to timeline</Button>}
+              {rendered && transcript && (
+                <Button onClick={add}>Add to timeline</Button>
+              )}
             </>
           )}
         </div>

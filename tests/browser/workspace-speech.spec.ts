@@ -46,6 +46,46 @@ async function connect(page: Page, context: BrowserContext, base: string) {
           },
         }),
   );
+  // Controlled remote alignment; production UI/native audio/storage remain real Chrome.
+  await context.addInitScript(() => {
+    if (!localStorage.getItem('localcut.workspace-preferences.v1'))
+      localStorage.setItem(
+        'localcut.workspace-preferences.v1',
+        JSON.stringify({
+          version: 1,
+          preferences: {
+            aiProviders: JSON.stringify({
+              profiles: [
+                { id: 'openrouter', name: 'OpenRouter', kind: 'openrouter' },
+              ],
+              routes: {
+                llm: [{ providerId: 'openrouter', model: '' }],
+                tts: [{ providerId: 'openrouter', model: '' }],
+                stt: [
+                  {
+                    providerId: 'openrouter',
+                    model: 'openai/whisper-large-v3',
+                  },
+                ],
+              },
+            }),
+          },
+        }),
+      );
+  });
+  await context.route(
+    'https://openrouter.ai/api/v1/audio/transcriptions',
+    (route) =>
+      route.fulfill({
+        headers: cors,
+        json: {
+          segments: [
+            { text: 'Hello!', start: 0.1, end: 0.9 },
+            { text: 'Xin chào!', start: 1.0, end: 1.85 },
+          ],
+        },
+      }),
+  );
   await page.goto(base);
   await page
     .getByRole('button', { name: 'Workspace settings', exact: true })
@@ -98,6 +138,12 @@ async function configureSpeech(
   page: Page,
   dialog: ReturnType<Page['getByRole']>,
 ) {
+  await dialog
+    .getByRole('combobox', { name: 'Phrase timing', exact: true })
+    .click();
+  await page
+    .getByRole('option', { name: 'Configured STT route', exact: true })
+    .click();
   await dialog.getByLabel('Script', { exact: true }).fill('Hello! Xin chào!');
   await dialog.getByLabel('Speed (×)').fill('1');
   await dialog
@@ -307,6 +353,12 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await page
       .getByRole('option', { name: 'Updated in another tab', exact: true })
+      .click();
+    await dialog
+      .getByRole('combobox', { name: 'Phrase timing', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'Configured STT route', exact: true })
       .click();
     await dialog
       .getByLabel('Script', { exact: true })
@@ -596,6 +648,28 @@ for (const base of ['/', '/LocalCut/']) {
               (await snapshot(page, base)).tracks[0]?.clips[0]?.durationUs,
           )
           .toBe(1250000);
+        const metadata = await page.evaluate(
+          async ({ base, id }) => {
+            const { createEditor } = (await import(
+              base + 'editor.js'
+            )) as typeof import('../../src/editor');
+            const editor = await createEditor();
+            try {
+              return JSON.parse(await editor.projects.exportJSON(id))
+                .transcripts[0];
+            } finally {
+              await editor.dispose();
+            }
+          },
+          { base, id: project.id },
+        );
+        expect(project.tracks[0]!.clips[0]!.transcriptId).toBe(metadata.id);
+        expect(metadata.speech.script).toBe('Hello! Xin chào!');
+        expect(metadata.speech.voice).toBe('Kore');
+        expect(metadata.speech.measuredCues[0].timeUs).toBe(62500);
+        expect(metadata.cues[0].timeUs).toBe(0);
+        expect(metadata.cues[0].endUs).toBe(metadata.cues[1].timeUs);
+        expect(metadata.cues[1].endUs).toBeLessThanOrEqual(1250000);
         // Native export actually consumes the generated asset, not just the dialog preview.
         const exported = await page.evaluate(
           async ({ base, projectId }) => {
@@ -814,7 +888,10 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await expect(interrupted).not.toBeVisible();
     await expect(
-      queue.getByRole('status').filter({ hasText: 'completed' }),
+      queue
+        .getByRole('article', { name: 'Generating speech', exact: true })
+        .getByRole('status')
+        .filter({ hasText: 'completed' }),
     ).toHaveCount(2);
     expect(calls).toBe(4);
   });
@@ -839,6 +916,179 @@ async function reopenSpeech(page: Page) {
   return page.getByRole('dialog', { name: 'Text to speech', exact: true });
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`text to speech retains measured phrases and retries alignment without regenerating ${base}`, async ({
+    page,
+    context,
+  }) => {
+    let synthesis = 0,
+      alignment = 0;
+    await context.route(
+      'https://openrouter.ai/api/v1/audio/speech',
+      (route) => {
+        synthesis++;
+        return route.fulfill({
+          headers: cors,
+          contentType: 'audio/pcm',
+          body: tone(),
+        });
+      },
+    );
+    const dialog = await connect(page, context, base);
+    await dialog
+      .getByRole('combobox', { name: 'Phrase timing', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'Local Whisper', exact: true })
+      .click();
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect(dialog.getByRole('alert')).toContainText(
+      'Prepare phrase timing',
+    );
+    expect(synthesis).toBe(0);
+    await dialog
+      .getByRole('combobox', { name: 'Phrase timing', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'Configured STT route', exact: true })
+      .click();
+    await context.route(
+      'https://openrouter.ai/api/v1/audio/transcriptions',
+      (route) => {
+        alignment++;
+        return route.fulfill({
+          headers: cors,
+          json:
+            alignment === 1
+              ? { text: 'Untimed output' }
+              : {
+                  segments: [
+                    { text: 'Hello!', start: 0.1, end: 0.9 },
+                    { text: 'Xin chào!', start: 1.0, end: 1.85 },
+                  ],
+                },
+        });
+      },
+    );
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect(
+      dialog.getByRole('button', {
+        name: 'Measure phrase timing',
+        exact: true,
+      }),
+    ).toBeVisible();
+    expect(synthesis).toBe(1);
+    expect(alignment).toBe(1);
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: 'Task queue', exact: true }).click();
+    const queue = page.getByRole('dialog', { name: 'Task queue', exact: true });
+    const failed = queue.getByRole('article', {
+      name: 'Generating speech',
+      exact: true,
+    });
+    await expect(failed).toContainText('failed');
+    await failed
+      .getByRole('button', { name: 'Retry task', exact: true })
+      .click();
+    await expect(failed.getByRole('status')).toContainText('completed');
+    expect(synthesis).toBe(1);
+    expect(alignment).toBe(2);
+    await queue.getByRole('button', { name: 'Close', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Text to speech', exact: true })
+      .click();
+    await expect(dialog).toContainText('2 timed phrases saved');
+    const before = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const task = (await editor.tasks.list()).find(
+          (item) => item.label === 'Generating speech',
+        )!;
+        const result = await editor.tasks.result<
+          import('../../src/workspace/speech-tasks').SpeechTaskResult
+        >(task.id);
+        return result.transcript;
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    expect(before?.cues[0]?.timeUs).toBe(100000);
+    // An older completed result has audio/WAV but no annotation. Adding timing
+    // must preserve that completed result rather than replacing it with raw PCM.
+    await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const task = (await editor.tasks.list()).find(
+          (item) => item.label === 'Generating speech',
+        )!;
+        const result = await editor.tasks.result<
+          import('../../src/workspace/speech-tasks').SpeechTaskResult
+        >(task.id);
+        delete result.transcript;
+        await editor.tasks.saveCheckpoint(task.id, result);
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    await page.reload();
+    await page
+      .getByRole('button', { name: 'Text to speech', exact: true })
+      .click();
+    await dialog
+      .getByRole('button', { name: 'Measure phrase timing', exact: true })
+      .click();
+    await expect(dialog).toContainText('2 timed phrases saved');
+    expect(synthesis).toBe(1);
+    expect(alignment).toBe(3);
+    await page.reload();
+    await page
+      .getByRole('button', { name: 'Text to speech', exact: true })
+      .click();
+    await expect(dialog).toContainText('2 timed phrases saved');
+    await dialog
+      .getByRole('button', { name: 'Add to timeline', exact: true })
+      .click();
+    await expect(dialog).not.toBeVisible();
+    const saved = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const project = (await editor.projects.list())[0]!;
+        return JSON.parse(await editor.projects.exportJSON(project.id))
+          .transcripts[0];
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    expect(
+      saved.speech.measuredCues.map((cue: import('../../src/editor').Cue) => ({
+        timeUs: cue.timeUs,
+        endUs: cue.endUs,
+        text: cue.text,
+      })),
+    ).toEqual(
+      before?.cues.map((cue) => ({
+        timeUs: cue.timeUs,
+        endUs: cue.endUs,
+        text: cue.text,
+      })),
+    );
+    expect(saved.cues[0].timeUs).toBe(20000);
+    expect(saved.cues[0].endUs).toBe(saved.cues[1].timeUs);
+    expect(synthesis).toBe(1);
+    expect(alignment).toBe(3);
+  });
   test(`restored speech cancels its saved pending task ${base}`, async ({
     page,
     context,

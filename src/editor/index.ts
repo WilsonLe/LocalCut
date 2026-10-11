@@ -22,9 +22,16 @@ export type {
 import type { JobEvent } from '../services/jobs';
 import { WorkerClient } from '../services/worker-client';
 import { EditorError, invariant, asEditorError } from '../core/errors';
-import { newProject, validateProject } from '../core/model';
+import { newProject, validateProject, transcriptSchema } from '../core/model';
+import { resampleAt } from '../core/resample';
 import { outputAssetIds } from '../core/timeline';
-import type { Asset, Project, Transcript } from '../core/model';
+import type {
+  Asset,
+  Project,
+  Transcript,
+  SpeechTranscript,
+  SpeechMetadata,
+} from '../core/model';
 import { applyOperations, parseBatch } from '../core/commands';
 import { repairLegacyIdentities } from '../core/legacy-identities';
 import type { CommandBatch } from '../core/commands';
@@ -47,6 +54,10 @@ export type {
   EditReceipt,
 } from '../core/commands';
 export { importCaptions, exportCaptions } from '../core/captions';
+export {
+  retimeSpeechTranscript,
+  padSpeechTranscript,
+} from '../core/transcript-timing';
 export { EditorError } from '../core/errors';
 export type { Job, JobEvent, Progress } from '../services/jobs';
 export type { ExportOptions, ExportResult } from '../media/export';
@@ -730,6 +741,117 @@ export async function createEditor(options: EditorOptions = {}) {
           {},
         );
       },
+      /** Explicit generated-audio measurement; no import, upload or download by default. */
+      measure(
+        samples: Float32Array,
+        sampleRate: number,
+        options: { language?: string; provider?: TranscriptionExecutor } = {},
+      ) {
+        active();
+        options = { ...options };
+        return jobs.start<SpeechTranscript>(async (signal, progress) => {
+          invariant(
+            samples instanceof Float32Array &&
+              samples.length > 0 &&
+              samples.length <= 12_000_000 &&
+              [16000, 24000, 48000].includes(sampleRate),
+            'INVALID_COMMAND',
+            'Invalid generated speech audio',
+          );
+          const endUs = Math.round((samples.length / sampleRate) * 1e6);
+          const audio = new Float32Array(
+            Math.ceil((samples.length * 16000) / sampleRate),
+          );
+          for (let i = 0; i < samples.length; i++)
+            invariant(
+              Number.isFinite(samples[i]) && Math.abs(samples[i]!) <= 1,
+              'INVALID_COMMAND',
+              'Invalid generated speech sample',
+            );
+          for (let i = 0; i < audio.length; i++) {
+            audio[i] = resampleAt(
+              samples,
+              (i * sampleRate) / 16000,
+              sampleRate / 16000,
+            );
+            if (i % 65536 === 0) {
+              checkAbort(signal);
+              await new Promise<void>((resolve) => setTimeout(resolve, 0));
+            }
+          }
+          const assetId = crypto.randomUUID();
+          const local = async () => {
+            invariant(
+              (await modelStatus(namespace)).ready,
+              'MODEL_REQUIRED',
+              'Prepare transcription before measuring speech timing',
+            );
+            const job = speechRun<Transcript>('transcribe', {
+              audio,
+              assetId,
+              startUs: 0,
+              endUs,
+              language: options.language,
+            });
+            const abort = () => job.cancel();
+            signal.addEventListener('abort', abort, { once: true });
+            const unsubscribe = job.subscribe((event) => progress(event));
+            try {
+              checkAbort(signal);
+              return await job.completion;
+            } finally {
+              unsubscribe();
+              signal.removeEventListener('abort', abort);
+            }
+          };
+          checkAbort(signal);
+          const result = options.provider
+            ? await options.provider(
+                audio,
+                { assetId, startUs: 0, endUs, language: options.language },
+                local,
+                signal,
+              )
+            : await local();
+          checkAbort(signal);
+          const parsed = transcriptSchema.safeParse(result);
+          invariant(
+            parsed.success &&
+              result.assetId === assetId &&
+              result.cues.every((cue) => cue.endUs <= endUs),
+            'INVALID_DOCUMENT',
+            'Invalid measured speech transcript',
+          );
+          // The same validation used on attachment also verifies identities/order here.
+          const { retimeSpeechTranscript } =
+            await import('../core/transcript-timing');
+          return retimeSpeechTranscript(
+            {
+              model: result.model,
+              revision: result.revision,
+              ...(result.language ? { language: result.language } : {}),
+              cues: result.cues,
+            },
+            endUs,
+            endUs,
+          );
+        });
+      },
+      async attach(
+        assetId: string,
+        timing: SpeechTranscript,
+        speech?: SpeechMetadata,
+      ) {
+        active();
+        const value: Transcript = {
+          ...timing,
+          id: crypto.randomUUID(),
+          assetId,
+          ...(speech ? { speech } : {}),
+        };
+        await store.saveTranscript(value);
+        return value;
+      },
       transcribe(
         assetId: string,
         options: {
@@ -991,6 +1113,33 @@ export async function createEditor(options: EditorOptions = {}) {
       retryCodes: ['MODEL_DOWNLOAD_FAILED', 'WORKER_FAILED'],
     },
   );
+  const measure = api.transcription.measure;
+  const localMeasure = queued('transcription.measure', measure, {
+    lane: 'transcription',
+    recovery: 'safe',
+    retryCodes: ['WORKER_FAILED'],
+  });
+  api.transcription.measure = (audio, sampleRate, options = {}) => {
+    if (!options.provider) return localMeasure(audio, sampleRate, options);
+    audio = audio.slice();
+    options = { ...options };
+    const kind = `transcription.measure.remote:${crypto.randomUUID()}`;
+    tasks.register(kind, {
+      lane: 'transcription',
+      recovery: 'manual',
+      sessionBound: true,
+      retryCodes: [],
+      execute: (_input, context) =>
+        adoptQueuedJob(measure(audio, sampleRate, options), context),
+    });
+    const saved = { ...options };
+    delete saved.provider;
+    return tasks.enqueue<SpeechTranscript>(
+      kind,
+      { audio, sampleRate, options: saved },
+      { label: 'Measuring speech timing' },
+    );
+  };
   const transcribe = api.transcription.transcribe;
   const localTranscribe = queued('transcription.local', transcribe, {
     lane: 'transcription',

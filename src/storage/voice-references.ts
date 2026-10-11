@@ -1,9 +1,11 @@
 import { openDB } from 'idb';
 import type { DBSchema } from 'idb';
+import type { SpeechTranscript } from '../core/model';
 
 export interface VoiceReference {
   file: Blob;
   transcript: string;
+  timing?: SpeechTranscript;
 }
 interface VoiceReferenceDatabase extends DBSchema {
   references: { key: string; value: VoiceReference };

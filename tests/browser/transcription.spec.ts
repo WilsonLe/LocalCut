@@ -47,6 +47,22 @@ test('@transcription real Whisper preparation, inference and cached reload', asy
     const asset = await window.editor.assets.import(
       new File([file], 'jfk.wav', { type: 'audio/wav' }),
     ).completion;
+    const audioContext = new AudioContext({ sampleRate: 24000 });
+    let generated: Float32Array;
+    try {
+      const decoded = await audioContext.decodeAudioData(
+        await file.arrayBuffer(),
+      );
+      generated = decoded.getChannelData(0).slice();
+    } finally {
+      await audioContext.close();
+    }
+    const missingTiming = await window.editor.transcription
+      .measure(generated, 24000)
+      .completion.then(
+        () => '',
+        (error: { code: string }) => error.code,
+      );
     const missing = await window.editor.transcription
       .transcribe(asset.id, { language: 'english' })
       .completion.then(
@@ -55,6 +71,34 @@ test('@transcription real Whisper preparation, inference and cached reload', asy
       );
     const prepared = await window.editor.transcription.prepare().completion;
     if (!prepared.ready) throw new Error(JSON.stringify(prepared));
+    const measured = await window.editor.transcription.measure(
+      generated,
+      24000,
+      { language: 'english' },
+    ).completion;
+    const { retimeSpeechTranscript, padSpeechTranscript } = (await import(
+      String('/LocalCut/editor.js')
+    )) as typeof import('../../src/editor/index');
+    const originalDurationUs = Math.round((generated.length / 24000) * 1e6);
+    const retimed = retimeSpeechTranscript(
+      measured,
+      originalDurationUs,
+      asset.durationUs,
+    );
+    const speech = await window.editor.transcription.attach(
+      asset.id,
+      padSpeechTranscript(retimed, asset.durationUs),
+      {
+        script:
+          'And so my fellow Americans, ask not what your country can do for you.',
+        model: 'attributed-fixture',
+        voice: 'JFK fixture',
+        languages: ['English'],
+        originalDurationUs,
+        measuredCues: retimed.cues,
+        paddingUs: 80_000,
+      },
+    );
     const transcript = await window.editor.transcription.transcribe(asset.id, {
       language: 'english',
     }).completion;
@@ -159,12 +203,39 @@ test('@transcription real Whisper preparation, inference and cached reload', asy
         },
       ],
     });
+    const current = await window.editor.projects.snapshot(project.id);
+    await window.editor.commands.apply({
+      projectId: project.id,
+      expectedRevision: current.revision,
+      requestId: 'link-generated-timing',
+      operations: [
+        {
+          type: 'insertClip',
+          trackId: 'speech',
+          clip: {
+            id: 'generated-speech',
+            kind: 'audio',
+            assetId: asset.id,
+            transcriptId: speech.id,
+            startUs: asset.durationUs,
+            durationUs: asset.durationUs,
+            sourceOutUs: asset.durationUs,
+          },
+        },
+      ],
+    });
     const backup = JSON.parse(
       await window.editor.projects.exportJSON(project.id),
     );
     await window.editor.dispose();
     return {
       missing,
+      missingTiming,
+      measured,
+      speech,
+      backupSpeech: backup.transcripts.find(
+        (value: { id: string }) => value.id === speech.id,
+      ),
       assetId: asset.id,
       durationUs: asset.durationUs,
       transcript,
@@ -177,9 +248,22 @@ test('@transcription real Whisper preparation, inference and cached reload', asy
     };
   });
   expect(info.missing).toBe('MODEL_REQUIRED');
+  expect(info.missingTiming).toBe('MODEL_REQUIRED');
+  expect(
+    info.measured.cues
+      .map((cue) => cue.text)
+      .join(' ')
+      .toLowerCase(),
+  ).toContain('ask not what your country can do for you');
+  expect(info.backupSpeech).toEqual(info.speech);
+  for (let i = 1; i < info.speech.cues.length; i++)
+    expect(info.speech.cues[i]!.timeUs).toBeGreaterThanOrEqual(
+      info.speech.cues[i - 1]!.endUs,
+    );
+  expect(info.speech.speech?.measuredCues.length).toBeGreaterThan(0);
   expect(info.cancelled).toBe('CANCELLED');
   expect(info.afterCancel).toBe(info.beforeCancel);
-  expect(info.backupTranscriptCount).toBe(1);
+  expect(info.backupTranscriptCount).toBe(2);
   expect(info.ranged.cues.length).toBeGreaterThan(0);
   for (const cue of info.ranged.cues) {
     expect(cue.timeUs).toBeGreaterThanOrEqual(1);
