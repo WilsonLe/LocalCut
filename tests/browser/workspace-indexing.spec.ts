@@ -271,6 +271,21 @@ for (const base of ['/', '/LocalCut/']) {
       exact: true,
     });
     await expect(approve).toBeEnabled();
+    const response = page
+      .getByRole('article', { name: 'Assistant response', exact: true })
+      .last();
+    await response
+      .getByRole('button', { name: '3 of 3 tools completed', exact: true })
+      .click();
+    await expect(
+      response.getByRole('button', {
+        name: 'Load skills: Indexing · Completed',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await response
+      .getByRole('button', { name: '3 of 3 tools completed', exact: true })
+      .click();
     await expect(
       page.getByText(/Indexing sends generated stills.*may incur cost/),
     ).toBeVisible();

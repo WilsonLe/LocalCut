@@ -375,3 +375,7 @@ This is the project record of the user's durable product and workflow choices. U
 ## Chat asset indexing — 11 October 2026
 
 - Let the chat agent index assets through the existing shared indexer. Keep remembered indexing consent and explicit proposal approval, disclose derived-evidence sharing and possible cost, and reuse progress/cancellation and saved local results.
+
+## Chat skill activity — 12 October 2026
+
+- Label skill-loading activity “Load skills” in the plural. Show the specific skill name in each tool row, such as “Load skills: Indexing · Completed”, instead of a generic completion label.
