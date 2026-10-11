@@ -98,13 +98,14 @@ export class StoryboardSession {
         expectedRevision: authored.revision,
         operations: [{ type: 'setStoryboard', storyboard: scene }],
       });
-      if (this.project.revision <= receipt.appliedRevision)
+      if (this.project.revision <= receipt.appliedRevision) {
         this.project = {
           ...authored,
           storyboard: scene,
           revision: receipt.appliedRevision,
         };
-      this.baseline = scene;
+        this.baseline = scene;
+      }
       if (!this.closed) this.saved();
       return true;
     } catch (error) {

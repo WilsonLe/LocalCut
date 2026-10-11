@@ -293,3 +293,5 @@ The project header offers **Editor** and **Storyboard** tabs. Editor retains the
 Drawings save through revision-aware project commands. Undo/Redo in the storyboard use shared project history, so they can also undo an earlier timeline edit. Canvas drawing shortcuts stay inside the diagram. Historical project versions display their storyboard in read-only mode. Project/workspace backups include diagrams. Source images and web embeds are outside the vector/text canvas; use the media library and timeline for original media. No Excalidraw account, collaboration or cloud save is used.
 
 Klip's `storyboard` skill inspects paginated diagram elements and proposes element creation, partial updates or removal for approval. Existing text-sharing consent independently controls disclosure of labels and frame names. Geometry patches preserve omitted labels. Drawing fonts are served from the same origin and loaded only when needed.
+
+See the [desktop storyboard](images/workspace-storyboard.png) and [mobile storyboard](images/workspace-storyboard-narrow.png) from the production Chrome regression.

@@ -209,4 +209,46 @@ describe('project storyboard', () => {
     expect(failed).toHaveBeenCalledOnce();
     session.close();
   });
+  it('keeps a newer external scene as the baseline when an older own receipt arrives late', async () => {
+    const original = newProject('Film');
+    let finish!: (
+      receipt: Awaited<ReturnType<Editor['commands']['apply']>>,
+    ) => void;
+    const apply = vi.fn(
+      () =>
+        new Promise<Awaited<ReturnType<Editor['commands']['apply']>>>(
+          (resolve) => {
+            finish = resolve;
+          },
+        ),
+    );
+    const editor = { commands: { apply } } as unknown as Editor;
+    const session = new StoryboardSession(
+      editor,
+      original,
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+    );
+    session.change(board(original).storyboard!, true);
+    const writing = session.flush();
+    const external = board(original);
+    external.revision = 2;
+    external.storyboard!.elements[0]!.x = 900;
+    session.reconcile(external);
+    session.acknowledgeReset(external.storyboard!);
+    finish({
+      projectId: original.id,
+      appliedRevision: 1,
+      requestId: 'own',
+      affectedIds: [],
+      warnings: [],
+    });
+    expect(await writing).toBe(true);
+    expect(session.project.revision).toBe(2);
+    session.change(external.storyboard!, true);
+    expect(await session.flush()).toBe(true);
+    expect(apply).toHaveBeenCalledOnce();
+    session.close();
+  });
 });
