@@ -1,3 +1,4 @@
+import { closeMediaImport } from './workspace-import-helper';
 import { mediaVideo } from './workspace-video-fixture';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { dragPlayhead } from './workspace-playhead-helper';
@@ -249,6 +250,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByLabel('Import media', { exact: true })
       .setInputFiles(await redPng(page));
+    await closeMediaImport(page);
     const thumbnail = page
       .getByRole('region', { name: 'Video timeline' })
       .getByRole('button', { name: 'red.png', exact: true })
@@ -295,6 +297,7 @@ for (const base of ['/', '/LocalCut/']) {
         toneWav(96000, 48000, 12000),
         await greenVideo(page),
       ]);
+    await closeMediaImport(page);
     const timeline = page.getByRole('region', { name: 'Video timeline' });
     const image = timeline.getByRole('button', {
       name: 'red.png',
@@ -420,6 +423,7 @@ for (const base of ['/', '/LocalCut/']) {
       await page
         .getByLabel('Import media', { exact: true })
         .setInputFiles(fixture);
+      await closeMediaImport(page);
       await expect(
         page.getByRole('button', { name: fixture.name, exact: true }),
       ).toBeVisible();
@@ -570,6 +574,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByLabel('Import media', { exact: true })
       .setInputFiles(fixture);
+    await closeMediaImport(page);
     await expect(
       page.getByRole('button', { name: 'red.png', exact: true }),
     ).toBeVisible();
@@ -647,6 +652,7 @@ for (const base of ['/', '/LocalCut/']) {
       await page
         .getByLabel('Import media', { exact: true })
         .setInputFiles(fixture);
+      await closeMediaImport(page);
       await expect(
         page.getByRole('button', { name: fixture.name, exact: true }),
       ).toBeVisible();
@@ -777,6 +783,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByLabel('Import media', { exact: true })
       .setInputFiles(await redPng(page));
+    await closeMediaImport(page);
     const clipButton = page.getByRole('button', {
       name: 'red.png',
       exact: true,
@@ -1057,6 +1064,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByLabel('Import media', { exact: true })
       .setInputFiles(await redPng(page));
+    await closeMediaImport(page);
     await page.getByRole('button', { name: 'red.png', exact: true }).click();
     const initial = await snapshot(page, base, name);
     clipId = initial.tracks[0]!.clips[0]!.id;
@@ -1186,6 +1194,7 @@ test('workspace imports image, audio and video, handles invalid input and cancel
     await greenVideo(page),
   ]) {
     await input.setInputFiles(fixture);
+    await closeMediaImport(page);
     await expect(
       page.getByRole('button', { name: fixture.name, exact: true }),
     ).toBeVisible();
@@ -1227,6 +1236,7 @@ test('workspace imports image, audio and video, handles invalid input and cancel
     mimeType: 'video/mp4',
     buffer: Buffer.from('invalid media contents'),
   });
+  await closeMediaImport(page);
   await expect(
     page.locator('[data-sonner-toast][data-type="error"]').last(),
   ).toContainText(/format|media|invalid|unsupported|parse|could not/i);
@@ -1274,6 +1284,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByLabel('Import media', { exact: true })
       .setInputFiles(toneWav(48001));
+    await closeMediaImport(page);
     const track = page.getByRole('button', { name: 'tone.wav', exact: true });
     await expect(track).toBeVisible();
     const originalProject = await snapshot(page, base, name);
@@ -1354,6 +1365,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByLabel('Import media', { exact: true })
       .setInputFiles(toneWav(4 * 48000));
+    await closeMediaImport(page);
     const track = page.getByRole('button', { name: 'tone.wav', exact: true });
     const properties = async () => {
       // A success toast can cover the scrolled mobile track and pause when
@@ -1518,6 +1530,7 @@ test.describe('touch media menu', () => {
       await page
         .getByLabel('Import media', { exact: true })
         .setInputFiles(await redPng(page));
+      await closeMediaImport(page);
       const trigger = page.getByRole('button', {
         name: 'Actions for red.png',
         exact: true,

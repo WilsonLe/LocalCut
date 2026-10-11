@@ -1,5 +1,6 @@
 import { fulfillChatTitle } from './chat-title-fixture';
 import { dismissNotifications } from './workspace-notifications-helper';
+import { closeMediaImport } from './workspace-import-helper';
 import { mediaVideo } from './workspace-video-fixture';
 import {
   prepareOpenRouterKey,
@@ -119,6 +120,7 @@ async function image(page: Page) {
     mimeType: 'image/png',
     buffer: Buffer.from(bytes),
   });
+  await closeMediaImport(page);
   await expect(page.locator('.media-item')).toHaveCount(1);
 }
 for (const base of ['/', '/LocalCut/']) {
@@ -782,6 +784,7 @@ for (const base of ['/', '/LocalCut/']) {
       mimeType: 'audio/wav',
       buffer: bytes,
     });
+    await closeMediaImport(page);
     await expect(page.locator('.media-item')).toHaveCount(1);
     // Simulate interruption after deterministic analysis, before the first label.
     await page.evaluate(async (base) => {
@@ -927,6 +930,7 @@ for (const base of ['/', '/LocalCut/']) {
       await page
         .getByLabel('Import media', { exact: true })
         .setInputFiles(await mediaVideo(page));
+      await closeMediaImport(page);
       const thumbnail = page.getByRole('img', {
         name: 'Thumbnail for green.webm',
       });

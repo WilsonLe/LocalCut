@@ -14,6 +14,7 @@ import {
   Scissors,
   ChevronDown,
   Files,
+  Upload,
   Settings2,
   X,
 } from 'lucide-react';
@@ -83,6 +84,9 @@ import { interfaceScale, useAppearance } from './appearance';
 import { usePageZoomGuard } from './usePageZoomGuard';
 import { useChatViewport } from './useChatViewport';
 import { hasBlockingOverlay } from './overlays';
+import { useFileDrop } from './useFileDrop';
+import type { ImportBatch, ImportProgress } from './ImportProgressDialog';
+const ImportProgressDialog = lazy(() => import('./ImportProgressDialog'));
 import {
   saveWorkspacePreferences,
   useWorkspacePreferences,
@@ -406,6 +410,7 @@ export function Workspace() {
     );
   }
   const [progress, setProgress] = useState<Progress | null>(null);
+  const [importBatch, setImportBatch] = useState<ImportBatch | null>(null);
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [exportError, setExportError] = useState('');
   const previewControls = useRef<PreviewControls>(null);
@@ -750,41 +755,122 @@ export function Workspace() {
     });
     await refresh();
   };
-  const importMedia = (files: File[]) =>
-    action(async () => {
-      if (browsing.current) return;
-      const engine = await ensureEditor();
-      if (!getProjectId())
-        await openProject(await engine.projects.create('Untitled project'));
-      for (const file of files) {
-        checkCancelled();
-        const asset = await awaitJob(
-          engine.assets.import(file),
-          `Importing ${file.name}`,
+  const importMedia = async (files: File[]) => {
+    if (!files.length || browsing.current || busy || lock.current) return false;
+    let added = 0;
+    const updateFile = (index: number, patch: Partial<ImportProgress>) => {
+      if (alive.current)
+        setImportBatch(
+          (batch) =>
+            batch && {
+              ...batch,
+              files: batch.files.map((file, position) =>
+                position === index ? { ...file, ...patch } : file,
+              ),
+            },
         );
+    };
+    const success = await action(async () => {
+      setImportBatch({
+        running: true,
+        files: files.map((file) => ({ name: file.name, status: 'queued' })),
+      });
+      try {
+        const engine = await ensureEditor();
         checkCancelled();
-        const snapshot = await engine.projects.snapshot(getProjectId()!);
-        const operations = appendAsset(snapshot, asset);
-        await engine.commands.apply({
-          projectId: snapshot.id,
-          expectedRevision: snapshot.revision,
-          requestId: crypto.randomUUID(),
-          operations,
-        });
-        const insert = operations.find(
-          (operation) => operation.type === 'insertClip',
-        );
-        await refresh();
-        if (insert?.type === 'insertClip') {
-          setSelected(insert.clip.id);
-          setSelection([]);
+        if (!getProjectId())
+          await openProject(await engine.projects.create('Untitled project'));
+        for (const [index, file] of files.entries()) {
+          checkCancelled();
+          updateFile(index, { status: 'importing' });
+          let committed = false;
+          try {
+            const job = engine.assets.import(file);
+            currentJob.current = job;
+            const stop = job.subscribe((event) =>
+              updateFile(index, { fraction: event.progress }),
+            );
+            let asset: Asset;
+            try {
+              asset = await job.completion;
+            } finally {
+              stop();
+              currentJob.current = null;
+            }
+            checkCancelled();
+            const snapshot = await engine.projects.snapshot(getProjectId()!);
+            const operations = appendAsset(snapshot, asset);
+            checkCancelled();
+            await engine.commands.apply({
+              projectId: snapshot.id,
+              expectedRevision: snapshot.revision,
+              requestId: crypto.randomUUID(),
+              operations,
+            });
+            added++;
+            committed = true;
+            updateFile(index, { status: 'completed', fraction: 1 });
+            await refresh();
+            const insert = operations.find(
+              (operation) => operation.type === 'insertClip',
+            );
+            if (insert?.type === 'insertClip') {
+              setSelected(insert.clip.id);
+              setSelection([]);
+            }
+          } catch (failure) {
+            const cancelled =
+              cancelRequested.current ||
+              (failure as { code?: string })?.code === 'CANCELLED';
+            if (!committed)
+              updateFile(index, {
+                status: cancelled ? 'cancelled' : 'failed',
+                error: cancelled
+                  ? undefined
+                  : failure instanceof Error
+                    ? failure.message
+                    : 'Could not import this file.',
+              });
+            if (cancelled) throw failure;
+            error(failure);
+          }
+        }
+      } catch (failure) {
+        if (alive.current)
+          setImportBatch(
+            (batch) =>
+              batch && {
+                ...batch,
+                files: batch.files.map((file) =>
+                  file.status === 'queued'
+                    ? {
+                        ...file,
+                        status: cancelRequested.current
+                          ? 'cancelled'
+                          : 'failed',
+                        error: cancelRequested.current
+                          ? undefined
+                          : 'Import could not start.',
+                      }
+                    : file,
+                ),
+              },
+          );
+        throw failure;
+      } finally {
+        if (alive.current)
+          setImportBatch((batch) => batch && { ...batch, running: false });
+        if (added) {
+          setMediaOverride(true);
         }
       }
-      setMediaOverride(true);
-      toast.success(
-        `${files.length} ${files.length === 1 ? 'file' : 'files'} added to the timeline`,
-      );
     });
+    return success && added === files.length;
+  };
+  const fileHovering = useFileDrop(!busy && !browsed, (files) => {
+    if (narrow) selectMobileTab('media');
+    void importMedia(files);
+  });
   const relinkMedia = (assetId: string) => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -1767,6 +1853,14 @@ export function Workspace() {
       data-mobile-editor={narrow && !projectsOpen}
       data-composer-focused={composerFocused}
     >
+      {fileHovering && (
+        <div className="asset-drop-overlay" role="status">
+          <div className="asset-drop-indicator">
+            <Upload aria-hidden="true" />
+            <span>Drop assets to import</span>
+          </div>
+        </div>
+      )}
       {(!narrow || projectsOpen) && (
         <header ref={header} className="workspace-header">
           {busy ? (
@@ -2189,6 +2283,15 @@ export function Workspace() {
                 setDialog(null);
               })
             }
+          />
+        </Suspense>
+      )}
+      {importBatch && (
+        <Suspense fallback={null}>
+          <ImportProgressDialog
+            batch={importBatch}
+            onCancel={cancelWork}
+            onClose={() => setImportBatch(null)}
           />
         </Suspense>
       )}
