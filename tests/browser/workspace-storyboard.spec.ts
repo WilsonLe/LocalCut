@@ -152,6 +152,9 @@ for (const base of ['/', '/LocalCut/']) {
         return { canceled, reachedCanvas };
       }, library);
       expect(result).toEqual({ canceled: true, reachedCanvas: false });
+      await expect(
+        page.getByRole('dialog', { name: 'Import media' }),
+      ).toHaveCount(0);
       expect(await snapshot(page, base, id)).toEqual(before);
       expect(
         await page
