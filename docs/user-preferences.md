@@ -353,6 +353,10 @@ This is the project record of the user's durable product and workflow choices. U
 - After the first submitted message in a new chat, generate its title asynchronously through the same configured chat model and provider routes. Sending that first message authorizes this additional naming request; never name chats on startup, reconnect or navigation.
 - Animate the returned title as a polished text replacement, respecting reduced motion. Keep the reply independent, retain a first-message fallback on failure and name each fresh chat only once.
 
+## Empty provider setup — 11 October 2026
+
+- Start AI provider settings empty, without a default OpenRouter placeholder. After adding OpenRouter, ask whether the user already has an API key or wants to log in and generate one. Reveal the key input only after choosing the existing-key path.
+
 ## Connector dropdowns — 11 October 2026
 
 - Use a dropdown of the selected TTS model's catalog voices in AI connector settings, rather than a raw voice text field.

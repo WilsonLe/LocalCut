@@ -1,5 +1,8 @@
 import { fulfillChatTitle } from './chat-title-fixture';
-import { openAISettings } from './workspace-settings-helper';
+import {
+  prepareOpenRouterKey,
+  openAISettings,
+} from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 const cors = {
   'access-control-allow-origin': '*',
@@ -34,7 +37,9 @@ for (const base of ['/', '/LocalCut/']) {
       await page
         .getByRole('button', { name: 'Add OpenRouter account', exact: true })
         .click();
-      await expect(dialog.getByText(name, { exact: true })).toBeVisible();
+      await expect(
+        dialog.getByRole('group', { name: `${name} connection`, exact: true }),
+      ).toBeVisible();
     }
     const profiles = await page.evaluate(
       () =>
@@ -44,11 +49,10 @@ for (const base of ['/', '/LocalCut/']) {
         ).profiles as { id: string; name: string }[],
     );
     expect(profiles.map((profile) => profile.name)).toEqual([
-      'OpenRouter',
       'OpenRouter work',
       'OpenRouter personal',
     ]);
-    expect(new Set(profiles.map((profile) => profile.id)).size).toBe(3);
+    expect(new Set(profiles.map((profile) => profile.id)).size).toBe(2);
   });
   test(`provider endpoints and service ordering survive reload without credentials ${base}`, async ({
     page,
@@ -84,7 +88,12 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog.getByLabel('Local server llm route model').fill('test-model');
     await dialog.getByLabel('Local server llm route model').press('Tab');
     await expect(dialog.getByRole('alert')).toHaveCount(0);
-    await expect(dialog).toContainText('Local server → OpenRouter');
+    await expect(
+      dialog.getByRole('combobox', { name: 'LLM provider 1', exact: true }),
+    ).toContainText('Local server');
+    await expect(dialog.getByText('OpenRouter', { exact: true })).toHaveCount(
+      0,
+    );
     await expect(dialog).toContainText('STT · Transcription');
     await expect(dialog).toContainText('Local Whisper');
     await dialog.getByText('STT · Transcription', { exact: true }).click();
@@ -112,7 +121,12 @@ for (const base of ['/', '/LocalCut/']) {
     await page.reload();
     await openAISettings(page);
     await dialog.getByText('Providers & services', { exact: true }).click();
-    await expect(dialog).toContainText('Local server → OpenRouter');
+    await expect(
+      dialog.getByRole('combobox', { name: 'LLM provider 1', exact: true }),
+    ).toContainText('Local server');
+    await expect(dialog.getByText('OpenRouter', { exact: true })).toHaveCount(
+      0,
+    );
     await dialog
       .getByRole('button', { name: 'STT · Transcription', exact: true })
       .click();
@@ -239,6 +253,7 @@ for (const base of ['/', '/LocalCut/']) {
         exact: true,
       });
       if (outage) {
+        await prepareOpenRouterKey(page);
         await dialog
           .getByLabel('OpenRouter API key', { exact: true })
           .fill('synthetic');

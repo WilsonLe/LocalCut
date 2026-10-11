@@ -1,4 +1,7 @@
-import { openAISettings } from './workspace-settings-helper';
+import {
+  prepareOpenRouterKey,
+  openAISettings,
+} from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 import type { Page, BrowserContext } from '@playwright/test';
 import type { Project } from '../../src/editor';
@@ -111,6 +114,7 @@ async function connect(page: Page, context: BrowserContext, base: string) {
     name: 'AI connection',
     exact: true,
   });
+  await prepareOpenRouterKey(page);
   await connection
     .getByLabel('OpenRouter API key')
     .fill('synthetic-speech-key');

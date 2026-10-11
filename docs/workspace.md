@@ -287,3 +287,7 @@ The main header's right action group begins with Task queue. Media actions, incl
 Empty chats show centered editing guidance. Dictation sits immediately before Send on the right; it occupies the final position while a new draft is empty. A paused response retains Resume as the primary action, with dictation directly beside it.
 
 ![Empty chat guidance with inline media actions and the task queue in the main header](images/chat-empty-controls.png)
+
+### Empty provider setup
+
+Fresh provider settings show a shadcn Empty state with Add provider; no remote account or LLM/TTS route is created by default. Local Whisper remains available independently. Adding an OpenRouter account presents I have an API key and Log in and generate a key. The first reveals the password field with a Back action that clears the draft; the second starts the existing OpenRouter authorization flow explicitly. Saved accounts/routes remain compatible, including legacy saved credentials without a provider configuration. Credential setup remains user-owned and does not authorize paid inference.

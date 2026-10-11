@@ -1,6 +1,10 @@
 import { fulfillChatTitle } from './chat-title-fixture';
 import { dismissNotifications } from './workspace-notifications-helper';
-import { openAISettings } from './workspace-settings-helper';
+import {
+  addOpenRouter,
+  prepareOpenRouterKey,
+  openAISettings,
+} from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 import type { BrowserContext, Page, Route } from '@playwright/test';
 import type { Project } from '../../src/core/model';
@@ -97,6 +101,7 @@ async function connect(page: Page) {
     name: 'AI connection',
     exact: true,
   });
+  await prepareOpenRouterKey(page);
   await dialog.getByLabel('OpenRouter API key', { exact: true }).fill(key);
   await dialog
     .getByRole('button', { name: 'Use API key', exact: true })
@@ -396,8 +401,9 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
     const originalHash = new URL(page.url()).hash;
     if (openProject) expect(originalHash).toMatch(/^#\/project\//);
     await openAISettings(page);
+    await addOpenRouter(page);
     await page
-      .getByRole('button', { name: 'Connect with OpenRouter', exact: true })
+      .getByRole('button', { name: 'Log in and generate a key', exact: true })
       .click();
     await expect(
       page.getByRole('link', { name: 'Authorize LocalCut', exact: true }),
@@ -485,7 +491,7 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
     await expect(
-      page.getByLabel('OpenRouter API key', { exact: true }),
+      page.getByRole('button', { name: 'I have an API key', exact: true }),
     ).toBeVisible();
     // Forget the disconnected profile through its replacement account control.
     await page
@@ -495,7 +501,7 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
       page.getByLabel('OpenRouter API key', { exact: true }),
     ).toHaveCount(0);
     await expect(
-      page.getByRole('button', { name: 'Add OpenRouter', exact: true }),
+      page.getByRole('button', { name: 'Add provider', exact: true }),
     ).toBeVisible();
     expect(
       await page.evaluate(() =>
@@ -610,7 +616,7 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await openAISettings(page);
     await expect(
-      dialog.getByLabel('OpenRouter API key', { exact: true }),
+      dialog.getByRole('button', { name: 'I have an API key', exact: true }),
     ).toBeVisible();
     await page.reload();
     await openAISettings(page);
@@ -747,6 +753,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
+    await prepareOpenRouterKey(page);
     await dialog.getByLabel('OpenRouter API key', { exact: true }).fill(key);
     await dialog
       .getByRole('button', { name: 'Use API key', exact: true })

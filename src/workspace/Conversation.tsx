@@ -594,9 +594,17 @@ export function Conversation(props: ConversationProps) {
         const api = moduleRef.current ?? (await import('../ai'));
         moduleRef.current = api;
         if (!current()) return;
-        const profile = configuration.current.profiles.find(
-          (p) => p.id === accountId,
-        );
+        const profile =
+          configuration.current.profiles.find((p) => p.id === accountId) ??
+          (kind === 'saved' &&
+          accountId === 'openrouter' &&
+          !getWorkspacePreferences().preferences.aiProviders
+            ? {
+                id: 'openrouter',
+                name: 'OpenRouter',
+                kind: 'openrouter' as const,
+              }
+            : undefined);
         if (!profile || profile.kind !== 'openrouter')
           throw new api.AiError(
             'AUTH_FLOW_INVALID',
@@ -643,17 +651,9 @@ export function Conversation(props: ConversationProps) {
             name: profile.name,
             kind: 'openrouter',
           });
-        if (
-          added &&
-          kind !== 'saved' &&
-          !next.routes.llm.some((r) => r.providerId === accountId)
-        )
+        if (added && !next.routes.llm.some((r) => r.providerId === accountId))
           next.routes.llm.push({ providerId: accountId, model: '' });
-        if (
-          added &&
-          kind !== 'saved' &&
-          !next.routes.tts.some((r) => r.providerId === accountId)
-        )
+        if (added && !next.routes.tts.some((r) => r.providerId === accountId))
           next.routes.tts.push({ providerId: accountId, model: '' });
         configuration.current = next;
         setProviderConfiguration(next);
@@ -719,6 +719,13 @@ export function Conversation(props: ConversationProps) {
             window.sessionStorage.removeItem(OPENROUTER_ACCOUNT_PENDING);
             await connect('callback', callback, accountId);
           }
+          if (
+            !getWorkspacePreferences().preferences.aiProviders &&
+            window.localStorage.getItem(
+              accountCredentialKey({ id: 'openrouter', kind: 'openrouter' }),
+            ) !== null
+          )
+            await connect('saved', '', 'openrouter');
           for (const profile of configuration.current.profiles) {
             if (!active) return;
             if (

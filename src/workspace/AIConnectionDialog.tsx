@@ -4,13 +4,13 @@ import type { ProviderProfile } from './provider-preferences';
 import {
   ChartNoAxesColumn,
   KeyRound,
+  ArrowLeft,
   LoaderCircle,
   Unplug,
 } from 'lucide-react';
 import type { ContextPolicy, OpenRouterModel } from '../ai';
 import { Button } from '../components/ui/button';
 import { Checkbox } from '../components/ui/checkbox';
-import { CollapsibleDisclosure } from '../components/ui/collapsible';
 import {
   Dialog,
   DialogContent,
@@ -117,7 +117,7 @@ export default function AIConnectionDialog({
             refreshCatalog={refreshCatalog}
             openRouterControls={(profile, management) => (
               <OpenRouterConnection
-                key={profile.id}
+                key={`${profile.id}:${providerProps.connectedProviders.includes(profile.id)}`}
                 profile={profile}
                 management={management}
                 connected={providerProps.connectedProviders.includes(
@@ -241,22 +241,16 @@ function OpenRouterConnection({
   remove: (id: string) => void;
 }) {
   const [apiKey, setApiKey] = useState('');
+  const [method, setMethod] = useState<'choice' | 'key'>('choice');
   return (
-    <div className="space-y-4 rounded-lg border p-4">
+    <div
+      role="group"
+      aria-label={`${profile.name} connection`}
+      className="space-y-4 rounded-lg border p-4"
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="min-w-0 truncate text-sm font-medium">{profile.name}</p>
         <div className="flex items-center gap-2">
-          {!connected && (
-            <Button
-              disabled={connecting}
-              onClick={() => {
-                setApiKey('');
-                void authorize(profile.id);
-              }}
-            >
-              Connect with OpenRouter
-            </Button>
-          )}
           {management}
           {!connected && (
             <Button
@@ -276,36 +270,72 @@ function OpenRouterConnection({
         </div>
       </div>
       {!connected && (
-        <CollapsibleDisclosure summary="Use an API key instead" defaultOpen>
-          <form
-            className="space-y-3 pt-3"
-            onSubmit={(event: FormEvent) => {
-              event.preventDefault();
-              const key = apiKey;
-              setApiKey('');
-              void connect('key', key, profile.id);
-            }}
-          >
-            <Label htmlFor={`key-${profile.id}`}>{profile.name} API key</Label>
-            <Input
-              id={`key-${profile.id}`}
-              type="password"
-              autoComplete="off"
-              spellCheck={false}
-              value={apiKey}
-              disabled={connecting}
-              onChange={(event) => setApiKey(event.target.value)}
-            />
+        <div className="space-y-3">
+          {method === 'choice' && (
+            <p className="text-sm">Do you already have an API key?</p>
+          )}
+          <div className="flex flex-wrap gap-2">
             <Button
-              type="submit"
-              variant="outline"
-              disabled={connecting || !apiKey.trim()}
+              variant={method === 'choice' ? 'outline' : 'ghost'}
+              disabled={connecting}
+              onClick={() => {
+                setApiKey('');
+                setMethod(method === 'choice' ? 'key' : 'choice');
+              }}
             >
-              <KeyRound aria-hidden="true" />
-              Use API key
+              {method === 'choice' ? (
+                <KeyRound aria-hidden="true" />
+              ) : (
+                <ArrowLeft aria-hidden="true" />
+              )}
+              {method === 'choice' ? 'I have an API key' : 'Back'}
             </Button>
-          </form>
-        </CollapsibleDisclosure>
+            {method === 'choice' && (
+              <Button
+                disabled={connecting}
+                onClick={() => {
+                  setApiKey('');
+                  void authorize(profile.id);
+                }}
+              >
+                Log in and generate a key
+              </Button>
+            )}
+          </div>
+          {method === 'key' && (
+            <form
+              className="space-y-3 pt-3"
+              onSubmit={(event: FormEvent) => {
+                event.preventDefault();
+                const key = apiKey;
+                setApiKey('');
+                void connect('key', key, profile.id);
+              }}
+            >
+              <Label htmlFor={`key-${profile.id}`}>
+                {profile.name} API key
+              </Label>
+              <Input
+                id={`key-${profile.id}`}
+                type="password"
+                autoFocus
+                autoComplete="off"
+                spellCheck={false}
+                value={apiKey}
+                disabled={connecting}
+                onChange={(event) => setApiKey(event.target.value)}
+              />
+              <Button
+                type="submit"
+                variant="outline"
+                disabled={connecting || !apiKey.trim()}
+              >
+                <KeyRound aria-hidden="true" />
+                Use API key
+              </Button>
+            </form>
+          )}
+        </div>
       )}
     </div>
   );

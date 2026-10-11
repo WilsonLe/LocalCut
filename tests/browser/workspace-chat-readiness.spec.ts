@@ -1,6 +1,9 @@
 import { fulfillChatTitle } from './chat-title-fixture';
 import { expect, test } from '@playwright/test';
-import { openAISettings } from './workspace-settings-helper';
+import {
+  prepareOpenRouterKey,
+  openAISettings,
+} from './workspace-settings-helper';
 
 const cors = {
   'access-control-allow-origin': '*',
@@ -61,6 +64,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
+    await prepareOpenRouterKey(page);
     await settings
       .getByLabel('OpenRouter API key', { exact: true })
       .fill('synthetic-readiness-key');

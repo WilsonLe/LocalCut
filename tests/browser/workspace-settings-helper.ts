@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 
 export async function openAISettings(page: Page) {
   await page
@@ -30,4 +30,45 @@ export async function openVideoExport(page: Page) {
   await group
     .getByRole('menuitem', { name: 'Export video', exact: true })
     .click();
+}
+
+export async function addOpenRouter(page: Page) {
+  const dialog = page.getByRole('dialog', {
+    name: 'AI connection',
+    exact: true,
+  });
+  await dialog
+    .getByRole('button', { name: 'Add provider', exact: true })
+    .click();
+  await page
+    .getByRole('combobox', { name: 'Provider type', exact: true })
+    .click();
+  await page.getByRole('option', { name: 'OpenRouter', exact: true }).click();
+  await page.getByLabel('Account name', { exact: true }).fill('');
+  await page
+    .getByRole('button', { name: 'Add OpenRouter account', exact: true })
+    .click();
+}
+
+export async function prepareOpenRouterKey(page: Page) {
+  const dialog = page.getByRole('dialog', {
+    name: 'AI connection',
+    exact: true,
+  });
+  await expect(
+    dialog.getByRole('button', { name: 'Add provider', exact: true }),
+  ).toBeVisible();
+  if (
+    (await dialog
+      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
+      .count()) === 0
+  )
+    await addOpenRouter(page);
+  await dialog
+    .getByRole('group', { name: 'OpenRouter connection', exact: true })
+    .getByRole('button', { name: 'I have an API key', exact: true })
+    .click();
+  await expect(
+    dialog.getByLabel('OpenRouter API key', { exact: true }),
+  ).toBeVisible();
 }

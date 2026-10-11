@@ -1,4 +1,7 @@
-import { openAISettings } from './workspace-settings-helper';
+import {
+  prepareOpenRouterKey,
+  openAISettings,
+} from './workspace-settings-helper';
 import { test, expect } from '@playwright/test';
 
 for (const base of ['/', '/LocalCut/']) {
@@ -106,6 +109,7 @@ for (const base of ['/', '/LocalCut/']) {
           name: 'AI connection',
           exact: true,
         });
+        await prepareOpenRouterKey(page);
         await settings
           .getByLabel('OpenRouter API key')
           .fill('synthetic-chat-controls-key');
