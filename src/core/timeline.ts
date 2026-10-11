@@ -91,3 +91,23 @@ export function trackName(track: Track, index: number) {
     `${track.kind === 'audio' ? 'Audio' : track.kind === 'overlay' ? 'Text' : 'Video'} ${index + 1}`
   );
 }
+
+/** Originals actually consumed by the shared compositor, unlike backup references. */
+export function outputAssetIds(project: Project): string[] {
+  return [
+    ...new Set(
+      (['visual', 'audio'] as const).flatMap((kind) =>
+        outputTracks(project, kind).flatMap((track) =>
+          track.clips.flatMap((clip) =>
+            clip.assetId &&
+            (kind === 'visual'
+              ? ['video', 'image'].includes(clip.kind)
+              : ['video', 'audio'].includes(clip.kind) && !clip.muted)
+              ? [clip.assetId]
+              : [],
+          ),
+        ),
+      ),
+    ),
+  ];
+}

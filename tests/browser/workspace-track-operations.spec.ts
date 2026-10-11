@@ -633,6 +633,82 @@ for (const base of ['/', '/LocalCut/']) {
         const final = await editor.projects.snapshot(p.id);
         await editor.commands.undo(p.id, 'undo', final.revision);
         const undone = await editor.projects.snapshot(p.id);
+        const restored = await createEditor({
+          namespace: 'test-track-missing-' + crypto.randomUUID(),
+        });
+        const missing: { state: string; format: string; code: string }[] = [];
+        try {
+          const copy = await restored.projects.importJSON(
+            await editor.projects.exportJSON(p.id),
+          );
+          ctx.fillStyle = 'red';
+          ctx.fillRect(0, 0, 128, 72);
+          await restored.assets.relink(
+            copy.tracks[0]!.clips[0]!.assetId!,
+            new File([await ctx.canvas.convertToBlob()], 'red.png', {
+              type: 'image/png',
+            }),
+          ).completion;
+          for (const state of ['disabled', 'excluded', 'visual', 'audio']) {
+            const current = await restored.projects.snapshot(copy.id);
+            await restored.commands.apply({
+              projectId: copy.id,
+              expectedRevision: current.revision,
+              requestId: 'missing-' + state,
+              operations: [
+                {
+                  type: 'updateTrack',
+                  trackId: 'lower',
+                  patch: { solo: state === 'excluded' },
+                },
+                {
+                  type: 'updateTrack',
+                  trackId: 'upper',
+                  patch: {
+                    disabled: state === 'disabled' || state === 'audio',
+                    solo: false,
+                    muted: state === 'visual',
+                  },
+                },
+                {
+                  type: 'updateTrack',
+                  trackId: 'music',
+                  patch: {
+                    muted: state !== 'audio',
+                    solo: state === 'excluded',
+                  },
+                },
+              ],
+            });
+            if (state === 'disabled' || state === 'excluded') {
+              const frame = await restored.preview.frame(copy.id, 300000)
+                .completion;
+              ctx.drawImage(frame.image, 0, 0);
+              frame.image.close();
+              if (ctx.getImageData(40, 40, 1, 1).data[0]! < 200)
+                throw new Error('Excluded missing source changed preview');
+            }
+            for (const format of ['mp4', 'webm'] as const) {
+              const code = await restored.exports
+                .start(copy.id, { format })
+                .completion.then(
+                  async (artifact) => {
+                    try {
+                      if (artifact.file.size === 0)
+                        throw new Error('Empty export');
+                      return 'exported';
+                    } finally {
+                      await artifact.dispose();
+                    }
+                  },
+                  (error: { code: string }) => error.code,
+                );
+              missing.push({ state, format, code });
+            }
+          }
+        } finally {
+          await restored.dispose();
+        }
         return {
           initial,
           beforeApproval,
@@ -640,6 +716,7 @@ for (const base of ['/', '/LocalCut/']) {
           outputs,
           exposed,
           undone,
+          missing,
         };
       } finally {
         await assistant?.dispose();
@@ -677,5 +754,12 @@ for (const base of ['/', '/LocalCut/']) {
       }
     }
     expect(result.undone.tracks[1]!.muted).toBe(false);
+    expect(result.missing).toHaveLength(8);
+    for (const output of result.missing)
+      expect(output.code).toBe(
+        ['disabled', 'excluded'].includes(output.state)
+          ? 'exported'
+          : 'MISSING_ASSET',
+      );
   });
 }
