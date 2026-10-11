@@ -5,7 +5,7 @@ import {
   ChartNoAxesColumn,
   KeyRound,
   LoaderCircle,
-  Trash2,
+  Unplug,
 } from 'lucide-react';
 import type { ContextPolicy, OpenRouterModel } from '../ai';
 import { Button } from '../components/ui/button';
@@ -257,22 +257,24 @@ function OpenRouterConnection({
               Connect with OpenRouter
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={connecting}
-            aria-label={`Remove ${profile.name}`}
-            title={`Remove ${profile.name}`}
-            onClick={() => {
-              setApiKey('');
-              remove(profile.id);
-            }}
-          >
-            <Trash2 aria-hidden="true" />
-          </Button>
+          {management}
+          {!connected && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              disabled={connecting}
+              aria-label={`Disconnect ${profile.name}`}
+              title="Forget disconnected account"
+              onClick={() => {
+                setApiKey('');
+                remove(profile.id);
+              }}
+            >
+              <Unplug />
+            </Button>
+          )}
         </div>
       </div>
-      {management}
       {!connected && (
         <CollapsibleDisclosure summary="Use an API key instead" defaultOpen>
           <form

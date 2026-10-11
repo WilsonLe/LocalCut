@@ -108,6 +108,10 @@ export interface OpenRouterClient {
     routeModel?: string,
   ): Promise<OpenRouterModel[]>;
   listSpeechModels(signal?: AbortSignal): Promise<SpeechModel[]>;
+  /** Discover transcription choices without uploading audio or starting inference. */
+  listTranscriptionModels?(
+    signal?: AbortSignal,
+  ): Promise<{ id: string; name: string }[]>;
   synthesizeSpeech(
     request: SpeechRequest,
     signal: AbortSignal,

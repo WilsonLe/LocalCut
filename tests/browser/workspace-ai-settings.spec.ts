@@ -63,8 +63,11 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Add provider', exact: true })
       .click();
-    const name = dialog.getByLabel('Name', { exact: true });
+    const name = page.getByLabel('Name', { exact: true });
     await name.fill('Unsaved provider');
+    await page.keyboard.press('Escape');
+    await expect(name).not.toBeVisible();
+    await expect(dialog).toBeVisible();
     const keyPanel = dialog.getByRole('button', {
       name: 'Use an API key instead',
       exact: true,
@@ -80,7 +83,11 @@ for (const base of ['/', '/LocalCut/']) {
     await keyPanel.press('Space');
     await expect(key).toHaveValue('synthetic-unsaved-key');
     await expect(key).toBeVisible();
+    await dialog
+      .getByRole('button', { name: 'Add provider', exact: true })
+      .click();
     await expect(name).toHaveValue('Unsaved provider');
+    await page.keyboard.press('Escape');
     const service = dialog.getByRole('button', {
       name: 'STT · Transcription',
       exact: true,
@@ -91,8 +98,8 @@ for (const base of ['/', '/LocalCut/']) {
       between: true,
     });
     await expect(
-      dialog.getByRole('textbox', { name: 'Local Whisper stt route model' }),
-    ).toBeDisabled();
+      dialog.getByLabel('Local Whisper stt route model', { exact: true }),
+    ).toHaveCount(0);
     expect(await toggleAnimation(service)).toEqual({
       animated: true,
       between: true,
@@ -186,10 +193,31 @@ for (const base of ['/', '/LocalCut/']) {
     let paid = 0;
     let exchanges = 0;
     const verified: string[] = [];
+    const discoveryAccounts: string[] = [];
     await context.route('https://openrouter.ai/api/v1/**', (route) => {
       const path = new URL(route.request().url()).pathname;
       if (route.request().method() === 'OPTIONS')
         return route.fulfill({ headers: cors, body: '' });
+      if (
+        new URL(route.request().url()).searchParams.get('output_modalities') ===
+        'transcription'
+      ) {
+        const account = route.request().headers().authorization ?? '';
+        discoveryAccounts.push(account);
+        return route.fulfill({
+          headers: cors,
+          json: {
+            data: [
+              {
+                id: 'openai/whisper-1',
+                name: account.includes('secondary')
+                  ? 'Work Whisper'
+                  : 'Personal Whisper',
+              },
+            ],
+          },
+        });
+      }
       if (path.endsWith('/models'))
         return route.fulfill({
           headers: cors,
@@ -284,7 +312,7 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Verify OpenRouter', exact: true })
       .click();
     await expect(
-      dialog.getByText('Credentials verified with provider.', { exact: true }),
+      dialog.getByRole('img', { name: 'OpenRouter verified', exact: true }),
     ).toBeVisible();
     await dialog
       .getByRole('button', { name: 'Add provider', exact: true })
@@ -292,14 +320,14 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       dialog.getByLabel('LLM model (must support tools)', { exact: true }),
     ).toHaveCount(0);
-    await dialog
+    await page
       .getByRole('combobox', { name: 'Provider type', exact: true })
       .click();
     await page.getByRole('option', { name: 'OpenRouter', exact: true }).click();
-    await dialog
+    await page
       .getByLabel('Account name', { exact: true })
       .fill('OpenRouter work');
-    await dialog
+    await page
       .getByRole('button', { name: 'Add OpenRouter account', exact: true })
       .click();
     await dialog
@@ -365,6 +393,27 @@ for (const base of ['/', '/LocalCut/']) {
           .click();
       }
     }
+    for (const account of ['OpenRouter work', 'OpenRouter']) {
+      await dialog
+        .getByRole('combobox', {
+          name: `${account} stt route model`,
+          exact: true,
+        })
+        .click();
+      await expect(
+        page.getByRole('option', {
+          name: `${account === 'OpenRouter work' ? 'Work' : 'Personal'} Whisper · openai/whisper-1`,
+          exact: true,
+        }),
+      ).toBeVisible();
+      await page
+        .getByRole('combobox', { name: 'Search models', exact: true })
+        .press('Escape');
+    }
+    expect(discoveryAccounts).toEqual([
+      'Bearer synthetic-secondary-account',
+      'Bearer synthetic-first-account',
+    ]);
     await page.setViewportSize({ width: 390, height: 844 });
     await dialog
       .getByRole('button', { name: 'Provider connections', exact: true })
@@ -410,7 +459,10 @@ for (const base of ['/', '/LocalCut/']) {
         exact: true,
       }),
     ).toHaveCount(0);
-    await page.keyboard.press('Escape');
+    await page
+      .getByRole('combobox', { name: 'Search models', exact: true })
+      .press('Escape');
+    await expect(dialog).toBeVisible();
     await dialog
       .getByRole('combobox', { name: 'LLM provider 1', exact: true })
       .click();
@@ -430,7 +482,7 @@ for (const base of ['/', '/LocalCut/']) {
       dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toHaveCount(0);
     await dialog
-      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
+      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
     const saved = await page.evaluate(() => ({
       config: JSON.parse(

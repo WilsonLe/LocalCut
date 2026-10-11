@@ -96,6 +96,7 @@ import {
 import type { TextStyleInput } from '../core/text-library';
 import type { DialogName, Progress } from './WorkspaceDialogs';
 const MediaLibrary = lazy(() => import('./MediaLibrary'));
+const TaskQueueControl = lazy(() => import('./TaskQueueControl'));
 const TaskQueueNotifications = lazy(() => import('./TaskQueueNotifications'));
 const ScreenRecordingDialog = lazy(() => import('./ScreenRecordingDialog'));
 const MobileNavigation = lazy(() => import('./MobileNavigation'));
@@ -1534,6 +1535,11 @@ export function Workspace() {
   );
   const headerActions = (
     <div className="header-actions">
+      {queueOwner && (
+        <Suspense fallback={null}>
+          <TaskQueueControl editor={queueOwner} />
+        </Suspense>
+      )}
       {!busy && (
         <Button
           id="workspace-command-trigger"
@@ -1638,7 +1644,6 @@ export function Workspace() {
               editor={editor}
               indexConnection={indexConnection}
               readOnly={!!browsed || navigation.blocked}
-              queueOwner={queueOwner}
               assets={browsed ? versionAssets : assets}
               canEdit={!busy && !browsed}
               onImport={() => fileInput.current?.click()}

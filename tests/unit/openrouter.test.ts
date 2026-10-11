@@ -59,6 +59,53 @@ async function collect(
 }
 
 describe('OpenRouter transport', () => {
+  it('discovers bounded transcription choices without inference and rejects stale credentials', async () => {
+    let resolve!: (response: Response) => void;
+    const fetch = vi.fn<typeof globalThis.fetch>(
+      () =>
+        new Promise<Response>((done) => {
+          resolve = done;
+        }),
+    );
+    const client = createOpenRouter({ fetch });
+    client.setKey('synthetic-key');
+    const catalog = client.listTranscriptionModels!();
+    expect(String(fetch.mock.calls[0]![0])).toBe(
+      'https://openrouter.ai/api/v1/models?output_modalities=transcription',
+    );
+    resolve(
+      Response.json({ data: [{ id: 'openai/whisper-1', name: 'Whisper' }] }),
+    );
+    await expect(catalog).resolves.toEqual([
+      { id: 'openai/whisper-1', name: 'Whisper' },
+    ]);
+    const stale = client.listTranscriptionModels!();
+    client.disconnect();
+    resolve(
+      Response.json({ data: [{ id: 'openai/whisper-1', name: 'Whisper' }] }),
+    );
+    await expect(stale).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    client.dispose();
+  });
+  it('rejects duplicate or unsafe transcription catalog entries', async () => {
+    for (const data of [
+      [{ id: 'https://unsafe/model', name: 'Unsafe' }],
+      [
+        { id: 'whisper', name: 'Whisper' },
+        { id: 'whisper', name: 'Duplicate' },
+      ],
+    ]) {
+      const client = createOpenRouter({
+        fetch: async () => Response.json({ data }),
+      });
+      client.setKey('synthetic-key');
+      await expect(client.listTranscriptionModels!()).rejects.toMatchObject({
+        code: 'INVALID_RESPONSE',
+      });
+      client.dispose();
+    }
+  });
   it('rejects oversized chat context before any provider I/O', async () => {
     const { client, fetch } = setup();
     await expect(

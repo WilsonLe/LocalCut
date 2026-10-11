@@ -19,19 +19,29 @@ export function ModelPicker({
   onChange,
   loading,
   refresh,
+  label = 'AI model',
+  disabled = false,
+  onOpen,
 }: {
-  models: OpenRouterModel[];
+  models: Pick<OpenRouterModel, 'id' | 'name'>[];
   model: string;
   onChange: (id: string) => void;
   loading: boolean;
   refresh: () => Promise<void>;
+  label?: string;
+  disabled?: boolean;
+  onOpen?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const search = useRef<HTMLInputElement>(null);
   return (
     <Combobox
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(value) => {
+        setOpen(value);
+        if (value) onOpen?.();
+      }}
+      disabled={disabled}
       items={models}
       value={models.find((item) => item.id === model) ?? null}
       onValueChange={(item) => {
@@ -46,9 +56,9 @@ export function ModelPicker({
           .includes(query.trim().toLowerCase())
       }
     >
-      <ComboboxTrigger aria-label="AI model">
+      <ComboboxTrigger aria-label={label}>
         <span className="truncate">
-          <ComboboxValue placeholder="Choose a model" />
+          <ComboboxValue placeholder={model || 'Choose a model'} />
         </span>
       </ComboboxTrigger>
       <ComboboxContent
@@ -103,7 +113,7 @@ export function ModelPicker({
                 : 'No models loaded. Try refreshing.'}
             </ComboboxEmpty>
             <ComboboxList>
-              {(item: OpenRouterModel) => (
+              {(item: Pick<OpenRouterModel, 'id' | 'name'>) => (
                 <ComboboxItem
                   key={item.id}
                   value={item}

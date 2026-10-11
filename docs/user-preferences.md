@@ -314,3 +314,10 @@ This is the project record of the user's durable product and workflow choices. U
 - Choose LLM models inside service configuration; do not ask for a duplicate model in connection setup.
 - Allow multiple named accounts for each provider type, including OpenRouter and ChatGPT. Isolate each account's credentials and service routes.
 - Keep ChatGPT callback instructions in an accessible tooltip. Label saved-account activation Connect.
+
+## Compact media, provider and chat controls — 11 October 2026
+
+- Put the task queue first in the main header's right action group. Keep speech generation inline in the media header's right action group.
+- Keep provider Verify and Disconnect as icons at the right of each connection row; use a green check beside Verify for success and omit the removal icon and success prose. Open the Add provider form in a popover.
+- Offer searchable provider-specific STT and TTS model choices instead of route model text fields; omit redundant STT provider/transport metadata from settings.
+- Put dictation directly before Send at the right of the composer; an empty composer shows dictation in Send's position. Center useful initial guidance in an empty chat.
