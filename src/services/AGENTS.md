@@ -1,6 +1,7 @@
 # Runtime services
 
 - `jobs.ts` owns job progress, completion, cancellation, and listener isolation; `worker-client.ts` owns request correlation and worker reset/recovery.
+- `task-queue.ts` owns durable scheduling, polling, retry policy and escalation. Preserve lane/task/owner locks, session-bound consent and atomic cancellation at result publication; queue handlers delegate to the existing operation owner.
 - Keep exactly one terminal job event. Suppress progress after cancellation and isolate exceptions thrown by consumer subscriptions.
 - Distinguish successful persisted commits from disposable results: use `acceptCommittedResult` only at a real commit boundary and provide `discard` for undelivered native resources.
 - A worker crash rejects pending requests and permits a fresh worker on the next call. Close late/unclaimed bitmaps and remove abort listeners on settlement.

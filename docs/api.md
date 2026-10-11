@@ -62,7 +62,7 @@ await editor.dispose();
 | commands      | validate, apply, undo, redo                                                                       |
 | preview       | frame, session                                                                                    |
 | exports       | preflight, start                                                                                  |
-| transcription | status, prepare, transcribe, transcript, clearModelCache                                          |
+| transcription | status, prepare, measure, attach, transcribe, transcript, clearModelCache                         |
 | events        | projects, jobs                                                                                    |
 | lifecycle     | job.cancel, session.dispose, artifact.dispose, editor.dispose                                     |
 
@@ -156,7 +156,33 @@ Keep pitch uses bounded, stereo-coherent WSOLA in shared preview/export PCM comp
 
 `text.animation` optionally accepts `{ kind: 'typewriter' | 'handmade', stepMs: 40..2000, loop: boolean, frames?: 3..5, variations?: string[] }`. Variations contain three to five non-empty strings and override the handmade frame count and main text, including when the main text is empty. Typewriter reveals Unicode graphemes at each step; a looping reveal holds the completed text for eight steps. Handmade text uses deterministic discrete poses and optionally cycles the variations. Timing is relative to the clip start, identical on seeking, samples, preview and export. Static styles remain unchanged. History and backups retain animation without a storage migration; old parsers cannot read animation fields.
 
-### Project catalog management
+## Durable task queue
+
+`editor.tasks` is the namespace-local queue for long-running operations. Import/relink, asset analysis/derivatives, exports, transcription preparation/inference and workspace transfers retain their existing `Job<T>` return shape but run through this queue. Preview frame/audio scheduling and atomic commands remain immediate. The assistant uses `editor.tasks` by default when passed a full editor, with an optional `tasks` override; the workspace also queues speech, dictation, screen capture and provider labeling. Capture starts from an explicit browser gesture and cannot restart itself after refresh.
+
+```ts
+const tasks = await editor.tasks.list();
+const status = await editor.tasks.get(tasks[0].id);
+await editor.tasks.poll(); // Refresh status subscribers and dispatch ready tasks.
+const unsubscribe = editor.tasks.subscribe((task) => console.log(task.state));
+if (await editor.tasks.canRetry(tasks[0].id)) {
+  const retry = await editor.tasks.retry(tasks[0].id);
+  await retry.completion;
+}
+await editor.tasks.cancel(tasks[0].id);
+const saved = await editor.tasks.result(completedTaskId);
+await editor.tasks.remove(completedTaskId);
+```
+
+States are `queued`, `running`, `retrying`, `completed`, `failed`, `interrupted` and `cancelled`. Status includes ID, kind, label, lane, optional project ID, stage/progress, attempt count/budget, retry time and a sanitized error with an actionable escalation. `subscribeErrors(listener)` reports sanitized scheduler/storage failures even when browser storage cannot persist an error record. Status never includes credentials, media bytes or provider error bodies. Inputs and results are separate records. `result<T>(id)` is available only after completion; completed results and original inputs survive reload. Export results contain the saved file and metadata; the editor reconstructs their `dispose` function when reopening a result from storage or another tab. `events.jobs` uses the same ID as each returned queued `Job`.
+
+`TaskQueue` is exported from `editor.js` for other explicit consumers. Construction is inert. Register a named handler with `execute(input, { id, signal, progress })`, a resource `lane`, `recovery: 'safe' | 'manual'`, optional `retryCodes`, `maxAttempts`, `retryable`, `sessionBound`, result encoding/decoding and committed-result/discard policy. `enqueue(kind, input, { label, projectId? })` persists structured-cloneable input before dispatch and returns a `Job`. `start()` enables polling; `dispose()` stops dispatch, aborts running work and marks outstanding owned work interrupted. A handler must preserve its underlying commit/cleanup contract.
+
+Cross-tab Web Locks serialize each lane and guard each task. Safe local derivative/analysis/model-download failures use bounded exponential backoff; exhausted attempts escalate. Remote speech retries only an explicit rate-limit rejection; unknown network/timeout outcomes, invalid inputs, authentication/credit/storage problems and non-idempotent publications require explicit action. Retry retains the task ID and input, resets the attempt budget and uses a saved speech checkpoint when available. Reconfiguration/disconnection cannot redirect a speech task to another route. Session-bound handlers retain an owner Web Lock so another tab cannot steal their callbacks. Abandoned session-bound tasks escalate even if they never started. An absent handler or capture gesture cannot be replayed: reopen the owning workflow and reconnect/review consent, or submit a new request. Edit approval is never queued for automatic replay.
+
+`assistant.branch(turnId)` creates an opaque checkpoint through a retained completed turn. Pass it as `branch` to `createAssistant` with the same project/model/context policy. The fork copies bounded protocol history and matching tool exchanges, excludes later turns, and carries no proposals, artifacts or approval authority. Forged/mismatched checkpoints are rejected. `canBranch(turnId)` reports availability. `includeAssets(ids)` explicitly extends the local asset allowlist while idle; it sends metadata under the existing sharing policy, never source pixels.
+
+## Project catalog management
 
 `projects.catalog()` returns entries with `project`, catalog `revision`, `archived`, optional local `thumbnail` Blob, and `thumbnailPosition: { x, y }` (0–100). Existing records default to active, revision zero and centered automatic previews. `projects.list()` still returns every document, including archived projects.
 
@@ -175,3 +201,11 @@ Tracks optionally persist `name` (trimmed, 1–1000 characters), `disabled`, `so
 `duplicateTrack { trackId, newTrackId }` inserts a copy immediately after its source, reuses original asset references and placement, copies state with `locked: false`, and gives the track a copy name. Clip, keyframe, cue, group and transition IDs are freshly and deterministically derived from the new track ID; retries preserve identities. Groups with two or more members inside the source track become independent groups; lone members of cross-track groups become ungrouped. Internal transitions are preserved. `clearTrack { trackId }` removes its clips/transitions while keeping the track. `removeTrack` removes the track and its clips/transitions. Both dissolve singleton groups atomically and retain original library assets. Existing `addTrack` and zero-based `reorderTrack` remain available.
 
 These optional fields use existing document/history/backup serialization without a database migration. Older application revisions cannot read documents with the new fields; use the compatible reader when restoring such projects.
+
+## Generated speech timing
+
+`transcription.measure(samples, sampleRate, { language?, provider? })` queues measurement of mono normalized PCM at 16, 24 or 48 kHz (at most 12 million finite samples). It anti-aliases to 16 kHz through the shared resampler, then uses the existing transcription worker or explicitly supplied `TranscriptionExecutor`. Default measurement requires already prepared local Whisper; it never downloads weights or uploads audio. Results are `SpeechTranscript` records with model/revision/language and recognized phrase cues in safe integer microseconds, independent of imported assets. Remote callbacks remain session-bound; abandoned requests escalate for explicit retry.
+
+`retimeSpeechTranscript(timing, originalDurationUs, renderedDurationUs)` proportionally maps measured phrases to the rendered WAV, retaining IDs and pauses. `padSpeechTranscript(timing, durationUs, paddingUs = 80000)` expands editing ranges, clipped to source endpoints and neighboring midpoint boundaries so they never overlap. `transcription.attach(assetId, timing, speech?)` validates and commits a canonical transcript and returns its ID for an `insertClip` operation. Metadata stores the original script, TTS model/voice/languages/directions, original duration, rendered-source measured cues and padding. Keep recognized text distinct from the authored script: transcription is an estimate, not forced alignment. Retimed boundaries are proportional estimates, with the same small timing uncertainty as ASR/WSOLA. Attachment is a short canonical commit; measurement is durable queued work.
+
+The speech task checkpoints normalized audio before measurement, and timing before rendering. Timing failure preserves the take; explicit retry does not synthesize it again. Completed result/input/checkpoint records and saved voice references retain measured phrases. Legacy takes without timing remain readable and offer explicit measurement. Imported clips link `transcriptId`, and project/workspace backups preserve the transcript metadata. `read_transcript` exposes both measured boundaries and padded editing ranges only after transcript-sharing consent. No raw audio or reference bytes are included in that tool.

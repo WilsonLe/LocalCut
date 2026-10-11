@@ -1,16 +1,25 @@
-import { useEffect, useState, useRef, type PointerEvent } from 'react';
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useState,
+  useRef,
+  type PointerEvent,
+} from 'react';
 import {
   Files,
   Music,
   Upload,
   ScreenShare,
+  AudioLines,
   Pencil,
   Trash2,
   Link,
 } from 'lucide-react';
 import type { Asset, Editor } from '../editor';
 import type { IndexConnection } from './Conversation';
-import AssetIndexControls from './AssetIndexControls';
+const TaskQueueControl = lazy(() => import('./TaskQueueControl'));
+const AssetIndexControls = lazy(() => import('./AssetIndexControls'));
 import { Menu } from '@base-ui/react/menu';
 import { assetMenuItemClass } from './AssetMenu';
 import { Input } from '../components/ui/input';
@@ -21,6 +30,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '../components/ui/dialog';
+
 import { Button } from '../components/ui/button';
 import { Empty, EmptyContent } from '../components/ui/empty';
 import { Tooltip } from '../components/ui/tooltip';
@@ -28,24 +38,28 @@ import { MEDIA_DRAG_EVENT, formatTime } from './helpers';
 
 export default function MediaLibrary({
   editor,
+  queueOwner = editor,
   indexConnection,
   readOnly,
   assets,
   canEdit,
   onImport,
   onRecord,
+  onSpeech,
   onRelink,
   onRename,
   onDelete,
   onAssetDrag,
 }: {
   editor: Editor | null;
+  queueOwner?: Pick<Editor, 'tasks'> | null;
   indexConnection: IndexConnection | null;
   readOnly: boolean;
   assets: Asset[];
   canEdit: boolean;
   onImport: () => void;
   onRecord: () => void;
+  onSpeech?: () => void;
   onRelink: (id: string) => void;
   onRename: (asset: Asset, name: string) => Promise<void>;
   onDelete: (asset: Asset) => Promise<void>;
@@ -137,6 +151,23 @@ export default function MediaLibrary({
     <section className="media-library" aria-label="Project media">
       <div className="section-heading">
         <h2>Media</h2>
+        {queueOwner && (
+          <Suspense fallback={null}>
+            <TaskQueueControl editor={queueOwner} />
+          </Suspense>
+        )}
+        {onSpeech && !readOnly && (
+          <Tooltip content="Generate a spoken narration from your script">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Text to speech"
+              onClick={onSpeech}
+            >
+              <AudioLines />
+            </Button>
+          </Tooltip>
+        )}
         {canEdit && (
           <Tooltip content="Record screen">
             <Button

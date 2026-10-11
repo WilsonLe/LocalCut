@@ -2,6 +2,7 @@ import type { Editor } from '../editor';
 import type { AssetIndexRun, IndexLabel } from '../core/asset-index';
 import { parseIndexLabel, indexSceneResponseSchema } from '../core/asset-index';
 import { Jobs, checkAbort } from '../services/jobs';
+import { runQueuedJob } from '../services/task-queue';
 import { asEditorError } from '../core/errors';
 import { AiError, aiInvariant } from './errors';
 import type { OpenRouter, IndexLabelRequest } from './types';
@@ -32,7 +33,7 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
       'Connect AI before indexing.',
     );
   };
-  return {
+  const indexer = {
     run(assetId: string, runId?: string) {
       return jobs.start<AssetIndexRun>(
         async (signal, progress) => {
@@ -255,4 +256,22 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
       await jobs.dispose();
     },
   };
+  if (!options.editor.tasks) return indexer;
+  const run = indexer.run;
+  indexer.run = (assetId, runId) => {
+    const kind = `index.labels:${crypto.randomUUID()}`;
+    options.editor.tasks.register(kind, {
+      lane: 'labels',
+      recovery: 'manual',
+      sessionBound: true,
+      maxAttempts: 1,
+      execute: (_input, context) => runQueuedJob(run(assetId, runId), context),
+    });
+    return options.editor.tasks.enqueue<AssetIndexRun>(
+      kind,
+      { assetId, runId, model: options.model },
+      { label: 'Indexing asset' },
+    );
+  };
+  return indexer;
 }

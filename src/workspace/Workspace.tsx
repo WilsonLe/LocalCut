@@ -95,6 +95,7 @@ import {
 import type { TextStyleInput } from '../core/text-library';
 import type { DialogName, Progress } from './WorkspaceDialogs';
 const MediaLibrary = lazy(() => import('./MediaLibrary'));
+const TaskQueueNotifications = lazy(() => import('./TaskQueueNotifications'));
 const ScreenRecordingDialog = lazy(() => import('./ScreenRecordingDialog'));
 const MobileNavigation = lazy(() => import('./MobileNavigation'));
 const WorkspaceDialogs = lazy(() => import('./WorkspaceDialogs'));
@@ -292,6 +293,12 @@ export function Workspace() {
   };
   const [editor, setEditor] = useState<Editor | null>(null);
   const editorRef = useRef<Editor | null>(null);
+  const captureQueue = useRef<Promise<Editor['tasks']> | null>(null);
+  const [captureOwner, setCaptureOwner] = useState<Pick<
+    Editor,
+    'tasks'
+  > | null>(null);
+  const queueOwner = editor ?? captureOwner;
   const {
     project,
     assets,
@@ -308,6 +315,7 @@ export function Workspace() {
   const [versionAssets, setVersionAssets] = useState<Asset[]>([]);
   const browsing = useRef(false);
   const viewProject = browsed?.project ?? project;
+  const [speechAvailable, setSpeechAvailable] = useState(false);
   const [indexConnection, setIndexConnection] =
     useState<IndexConnection | null>(null);
   const [selected, setSelected] = useState<string>();
@@ -442,6 +450,22 @@ export function Workspace() {
       );
     }
   }, [refreshProject, setTimeUs, setSelection, setSelected]);
+  const ensureTasks = useCallback(async () => {
+    if (editorRef.current) return editorRef.current.tasks;
+    captureQueue.current ??= import('../editor')
+      .then(({ TaskQueue }) => {
+        const tasks = new TaskQueue('localcut');
+        if (!alive.current) throw new Error('Workspace closed');
+        tasks.start();
+        setCaptureOwner({ tasks });
+        return tasks;
+      })
+      .catch((failure) => {
+        captureQueue.current = null;
+        throw failure;
+      });
+    return captureQueue.current;
+  }, []);
   const ensureEditor = useCallback(async () => {
     instance.current ??= import('../editor')
       .then(async ({ createEditor }) => {
@@ -496,6 +520,9 @@ export function Workspace() {
       void (async () => {
         await disposeAssistant.current?.();
         await editorRef.current?.dispose().catch(() => {});
+        await captureQueue.current
+          ?.then((tasks) => tasks.dispose())
+          .catch(() => {});
       })();
     },
     [],
@@ -1541,9 +1568,15 @@ export function Workspace() {
               editor={editor}
               indexConnection={indexConnection}
               readOnly={!!browsed || navigation.blocked}
+              queueOwner={queueOwner}
               assets={browsed ? versionAssets : assets}
               canEdit={!busy && !browsed}
               onImport={() => fileInput.current?.click()}
+              onSpeech={
+                speechAvailable
+                  ? () => conversationControls.current?.openSpeech()
+                  : undefined
+              }
               onRecord={() => {
                 previewControls.current?.pause();
                 setRecordingRoute(recordingRouteKey);
@@ -1771,6 +1804,7 @@ export function Workspace() {
               <Conversation
                 controlsRef={registerConversationControls}
                 onIndexConnection={setIndexConnection}
+                onSpeechAvailability={setSpeechAvailable}
                 editor={editor}
                 project={project}
                 readOnly={!!browsed || navigation.blocked}
@@ -2004,11 +2038,17 @@ export function Workspace() {
             });
         }}
       />
+      {queueOwner && (
+        <Suspense fallback={null}>
+          <TaskQueueNotifications editor={queueOwner} />
+        </Suspense>
+      )}
       {recordingRoute === recordingRouteKey &&
         !browsed &&
         !navigation.blocked && (
           <Suspense fallback={null}>
             <ScreenRecordingDialog
+              getTasks={ensureTasks}
               onClose={() => setRecordingRoute(null)}
               onAdd={async (file) => {
                 setRecordingAdding(true);

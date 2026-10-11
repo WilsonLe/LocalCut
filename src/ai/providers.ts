@@ -349,6 +349,13 @@ export function createServiceRouter(
           if (op.signal.aborted)
             throw new AiError('CANCELLED', 'Speech request cancelled.');
           const client = clients.get(route.providerId);
+          // Keep a saved speaker and its audio on the catalog-owning route.
+          if (
+            request.reference &&
+            route.providerId !==
+              (catalogOwner.tts ?? selected.tts[0]?.providerId)
+          )
+            continue;
           if (!client?.status().connected) {
             failure = new AiError(
               'AUTH_REQUIRED',
