@@ -21,11 +21,22 @@ for (const root of ['dist', 'dist-root']) {
     (v) => v.isEntry && v.src === 'index.html',
   );
   assert(entry, 'App manifest entry missing');
+  const optionalEntries = new Set(['editor.js', 'ai.js']);
   for (const name of ['editor', 'ai']) {
     const moduleEntry = Object.values(manifest).find(
       (v) => v.isEntry && v.src === `src/${name}/index.ts`,
     );
-    assert(moduleEntry?.file === `${name}.js`, `Stable ${name} entry missing`);
+    assert(
+      moduleEntry?.file.startsWith(`assets/${name}-`) &&
+        moduleEntry.file.endsWith('.js'),
+      `Hashed ${name} entry missing`,
+    );
+    optionalEntries.add(moduleEntry.file);
+    assert.equal(
+      await readFile(`${root}/${name}.js`, 'utf8'),
+      `export * from './${moduleEntry.file}';\n`,
+      `Stable ${name} alias does not match its manifest entry`,
+    );
     await stat(`${root}/types/${name}/index.d.ts`);
   }
   const graph = new Set();
@@ -60,9 +71,7 @@ for (const root of ['dist', 'dist-root']) {
   assert(css <= 30 * 1024, `Initial CSS ${css}`);
   assert(total <= 5 * 1024 * 1024, `Aggregate JS/CSS ${total}`);
   assert(
-    ![...graph].some(
-      (p) => p === 'editor.js' || p === 'ai.js' || p.includes('worker'),
-    ),
+    ![...graph].some((p) => optionalEntries.has(p) || p.includes('worker')),
     'Engine or AI eagerly loaded',
   );
   console.log(

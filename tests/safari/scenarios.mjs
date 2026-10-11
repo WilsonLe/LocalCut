@@ -1,5 +1,70 @@
-/* global AudioContext, OffscreenCanvas, File, indexedDB, navigator, localStorage, window, StorageEvent, requestAnimationFrame, document, innerHeight, innerWidth */
+/* global Response, location, sessionStorage, AudioContext, OffscreenCanvas, File, indexedDB, navigator, localStorage, window, StorageEvent, requestAnimationFrame, document, innerHeight, innerWidth */
 // Self-contained functions run inside the real Safari production page via WebDriver.
+export async function openRouterAuthorization(base) {
+  const manifest = await (
+    await globalThis.fetch(base + '.vite/manifest.json')
+  ).json();
+  const entry = manifest['src/ai/index.ts'].file;
+  if (!/^assets\/ai-[^/]+\.js$/.test(entry))
+    throw new Error('AI entry is not versioned');
+  const api = await import(base + 'ai.js');
+  const versioned = await import(base + entry);
+  if (api.createOpenRouter !== versioned.createOpenRouter)
+    throw new Error('Public alias does not expose the versioned API');
+  const target = new URL(
+    base + '?campaign=safari#/project/test-safari-oauth',
+    location.origin,
+  ).href;
+  const first = api.createOpenRouter();
+  let second;
+  let exchanges = 0;
+  try {
+    const flow = await first.beginAuthorization({ callbackUrl: target });
+    const authorization = new URL(flow.authorizationUrl);
+    const callback = new URL(authorization.searchParams.get('callback_url'));
+    if (
+      callback.hash ||
+      !/^[A-Za-z0-9_-]{43}$/.test(callback.searchParams.get('state'))
+    )
+      throw new Error('Invalid outbound callback');
+    callback.searchParams.set('code', 'synthetic-safari-code');
+    second = versioned.createOpenRouter({
+      fetch: async (url, options) => {
+        if (url !== 'https://openrouter.ai/api/v1/auth/keys')
+          throw new Error('Unexpected provider endpoint');
+        const body = JSON.parse(options.body);
+        if (
+          body.code !== 'synthetic-safari-code' ||
+          !/^[A-Za-z0-9_-]{43}$/.test(body.code_verifier) ||
+          body.code_challenge_method !== 'S256'
+        )
+          throw new Error('Invalid PKCE exchange');
+        exchanges++;
+        return Response.json({ key: 'synthetic-safari-key' });
+      },
+    });
+    const result = await second.completeAuthorization({
+      callbackUrl: callback.href,
+    });
+    if (
+      !result.connected ||
+      result.sanitizedCallbackUrl !== target ||
+      exchanges !== 1 ||
+      sessionStorage.getItem('localcut-openrouter-oauth-v1') !== null
+    )
+      throw new Error('Authorization return or one-use storage failed');
+    return {
+      entry,
+      connected: result.connected,
+      exchanges,
+      projectRestored: true,
+    };
+  } finally {
+    first.dispose();
+    second?.dispose();
+  }
+}
+
 export async function textFonts(base, namespace) {
   const { createEditor } = await import(base + 'editor.js');
   const editor = await createEditor({ namespace });

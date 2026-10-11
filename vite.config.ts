@@ -22,12 +22,32 @@ function externalInferenceAssets(): Plugin {
     },
   };
 }
+// Workspace imports follow content hashes; public headless URLs remain aliases.
+function publicModuleAliases(): Plugin {
+  return {
+    name: 'localcut-public-module-aliases',
+    generateBundle(_options, bundle) {
+      for (const name of ['editor', 'ai']) {
+        const entry = Object.values(bundle).find(
+          (output) =>
+            output.type === 'chunk' && output.isEntry && output.name === name,
+        );
+        if (!entry) throw new Error(`Missing ${name} module entry`);
+        this.emitFile({
+          type: 'asset',
+          fileName: `${name}.js`,
+          source: `export * from './${entry.fileName}';\n`,
+        });
+      }
+    },
+  };
+}
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { resolve } from 'node:path';
 export default defineConfig({
   base: process.env.LOCALCUT_BASE_PATH || '/LocalCut/',
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), publicModuleAliases()],
   resolve: { alias: { '@': resolve(import.meta.dirname, 'src') } },
   worker: { format: 'es', plugins: () => [externalInferenceAssets()] },
   build: {
@@ -42,10 +62,7 @@ export default defineConfig({
         ai: resolve(import.meta.dirname, 'src/ai/index.ts'),
       },
       output: {
-        entryFileNames: (chunk) =>
-          chunk.name === 'editor' || chunk.name === 'ai'
-            ? `${chunk.name}.js`
-            : 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
       },
     },
   },
