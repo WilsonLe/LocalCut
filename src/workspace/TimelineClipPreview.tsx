@@ -39,6 +39,7 @@ export function TimelineClipPreview({
     if (!previews || !element || request.status !== 'ready') return;
     let lease: ReturnType<TimelinePreviews['acquire']> | undefined;
     let generation = 0;
+    const root = element.closest('.timeline-viewport');
     const observer = new IntersectionObserver(
       ([intersection]) => {
         if (intersection?.isIntersecting && !lease) {
@@ -59,11 +60,20 @@ export function TimelineClipPreview({
           setLoaded(undefined);
         }
       },
-      { root: element.closest('.timeline-viewport'), rootMargin: '80px' },
+      { root, rootMargin: '80px' },
     );
     observer.observe(element);
+    // Import/resize can leave Chrome's observation of an absolute clip stale.
+    // Request fresh geometry without retiring a still-visible preview lease.
+    const resize = new ResizeObserver(() => {
+      observer.unobserve(element);
+      observer.observe(element);
+    });
+    resize.observe(element);
+    if (root) resize.observe(root);
     return () => {
       generation++;
+      resize.disconnect();
       observer.disconnect();
       lease?.release();
     };
