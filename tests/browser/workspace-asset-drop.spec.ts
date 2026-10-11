@@ -230,17 +230,19 @@ for (const base of ['/', '/LocalCut/']) {
     await data.dispose();
   });
 
-  test(`asset drop cancellation retains every row on mobile ${base}`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    // Pause inspection inside the real worker, not the main browser realm.
-    await page.route('**/media.worker-*.js', async (route) => {
-      const response = await route.fetch();
-      await route.fulfill({
-        response,
-        body:
-          `
+  for (const cancelFrom of ['dialog', 'other tab'] as const) {
+    test(`asset drop cancellation from ${cancelFrom} retains every row on mobile ${base}`, async ({
+      page,
+      context,
+    }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      // Pause inspection inside the real worker, not the main browser realm.
+      await page.route('**/media.worker-*.js', async (route) => {
+        const response = await route.fetch();
+        await route.fulfill({
+          response,
+          body:
+            `
         const originalBitmap = self.createImageBitmap.bind(self);
         let releaseBitmap;
         const bitmapBarrier = new Promise(resolve => { releaseBitmap = resolve; });
@@ -255,81 +257,140 @@ for (const base of ['/', '/LocalCut/']) {
           }
         }, true);
       ` + (await response.text()),
+        });
       });
-    });
-    await page.goto(base);
-    const bytes = await png(page);
-    await page.evaluate(() => {
-      const NativeWorker = window.Worker;
-      const workers: Worker[] = [];
-      window.Worker = class extends NativeWorker {
-        constructor(url: string | URL, options?: WorkerOptions) {
-          super(url, options);
-          workers.push(this);
+      await page.goto(base);
+      const bytes = await png(page);
+      await page.evaluate(() => {
+        const NativeWorker = window.Worker;
+        const workers: Worker[] = [];
+        window.Worker = class extends NativeWorker {
+          private importId?: string;
+          constructor(url: string | URL, options?: WorkerOptions) {
+            super(url, options);
+            workers.push(this);
+          }
+          postMessage(message: unknown, transfer: Transferable[]): void;
+          postMessage(
+            message: unknown,
+            options?: StructuredSerializeOptions,
+          ): void;
+          postMessage(
+            message: unknown,
+            options: Transferable[] | StructuredSerializeOptions = [],
+          ) {
+            const command = message as { operation?: string; id?: string };
+            if (command.operation === 'import') this.importId = command.id;
+            if (
+              command.operation === 'cancel' &&
+              this.importId &&
+              command.id === this.importId
+            ) {
+              Object.assign(window, { importCancellationReceived: true });
+            }
+            if (Array.isArray(options)) super.postMessage(message, options);
+            else super.postMessage(message, options);
+          }
+        };
+        Object.assign(window, {
+          releaseImport: () => {
+            for (const worker of workers)
+              worker.postMessage({ operation: 'release-test-import' });
+          },
+        });
+      });
+      const data = await transfer(page, [
+        { name: 'held.png', type: 'image/png', bytes },
+        { name: 'queued.png', type: 'image/png', bytes },
+      ]);
+      await page
+        .locator('.workspace')
+        .dispatchEvent('drop', { dataTransfer: data });
+      const dialog = page.getByRole('dialog', {
+        name: 'Import media',
+        exact: true,
+      });
+      await expect(dialog.getByRole('listitem').nth(0)).toHaveAttribute(
+        'data-status',
+        'importing',
+      );
+      await expect(dialog.getByRole('listitem').nth(1)).toHaveAttribute(
+        'data-status',
+        'queued',
+      );
+      await expect(dialog.getByRole('progressbar')).toHaveAttribute(
+        'aria-valuenow',
+        '0',
+      );
+      await page
+        .locator('.workspace')
+        .dispatchEvent('dragover', { dataTransfer: data });
+      await expect(page.locator('.asset-drop-overlay')).toHaveCount(0);
+      await page
+        .locator('.workspace')
+        .dispatchEvent('drop', { dataTransfer: data });
+      await expect(dialog.getByRole('listitem')).toHaveCount(2);
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeVisible();
+      if (cancelFrom === 'dialog') {
+        await dialog
+          .getByRole('button', { name: 'Cancel', exact: true })
+          .click();
+      } else {
+        const other = await context.newPage();
+        try {
+          await other.goto(base);
+          await other.evaluate(async (base) => {
+            const { createEditor } = (await import(
+              base + 'editor.js'
+            )) as typeof import('../../src/editor');
+            const editor = await createEditor();
+            try {
+              const task = (await editor.tasks.list()).find(
+                (task) =>
+                  task.kind === 'media.import' && task.state === 'running',
+              );
+              if (!task) throw new Error('No active media import');
+              await editor.tasks.cancel(task.id);
+            } finally {
+              await editor.dispose();
+            }
+          }, base);
+        } finally {
+          await other.close();
         }
-      };
-      Object.assign(window, {
-        releaseImport: () => {
-          for (const worker of workers)
-            worker.postMessage({ operation: 'release-test-import' });
-        },
-      });
+      }
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () =>
+              (window as unknown as { importCancellationReceived?: boolean })
+                .importCancellationReceived,
+          ),
+        )
+        .toBe(true);
+      await page.evaluate(() =>
+        (window as unknown as { releaseImport(): void }).releaseImport(),
+      );
+      await expect(dialog.getByRole('listitem').nth(0)).toHaveAttribute(
+        'data-status',
+        'cancelled',
+      );
+      await expect(dialog.getByRole('listitem').nth(1)).toHaveAttribute(
+        'data-status',
+        'cancelled',
+      );
+      await expect(dialog).toContainText('0 of 2 added');
+      await closeMediaImport(page);
+      await expect(page.locator('.workspace')).toHaveAttribute(
+        'data-mobile-tab',
+        'media',
+      );
+      await expect(page.locator('.timeline-clip')).toHaveCount(0);
+      expect(
+        (await snapshot(page, base)).tracks.flatMap((track) => track.clips),
+      ).toHaveLength(0);
+      await data.dispose();
     });
-    const data = await transfer(page, [
-      { name: 'held.png', type: 'image/png', bytes },
-      { name: 'queued.png', type: 'image/png', bytes },
-    ]);
-    await page
-      .locator('.workspace')
-      .dispatchEvent('drop', { dataTransfer: data });
-    const dialog = page.getByRole('dialog', {
-      name: 'Import media',
-      exact: true,
-    });
-    await expect(dialog.getByRole('listitem').nth(0)).toHaveAttribute(
-      'data-status',
-      'importing',
-    );
-    await expect(dialog.getByRole('listitem').nth(1)).toHaveAttribute(
-      'data-status',
-      'queued',
-    );
-    await expect(dialog.getByRole('progressbar')).toHaveAttribute(
-      'aria-valuenow',
-      '0',
-    );
-    await page
-      .locator('.workspace')
-      .dispatchEvent('dragover', { dataTransfer: data });
-    await expect(page.locator('.asset-drop-overlay')).toHaveCount(0);
-    await page
-      .locator('.workspace')
-      .dispatchEvent('drop', { dataTransfer: data });
-    await expect(dialog.getByRole('listitem')).toHaveCount(2);
-    await page.keyboard.press('Escape');
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
-    await page.evaluate(() =>
-      (window as unknown as { releaseImport(): void }).releaseImport(),
-    );
-    await expect(dialog.getByRole('listitem').nth(0)).toHaveAttribute(
-      'data-status',
-      'cancelled',
-    );
-    await expect(dialog.getByRole('listitem').nth(1)).toHaveAttribute(
-      'data-status',
-      'cancelled',
-    );
-    await expect(dialog).toContainText('0 of 2 added');
-    await closeMediaImport(page);
-    await expect(page.locator('.workspace')).toHaveAttribute(
-      'data-mobile-tab',
-      'media',
-    );
-    await expect(page.locator('.timeline-clip')).toHaveCount(0);
-    expect(
-      (await snapshot(page, base)).tracks.flatMap((track) => track.clips),
-    ).toHaveLength(0);
-    await data.dispose();
-  });
+  }
 }

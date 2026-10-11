@@ -836,6 +836,9 @@ export function Workspace() {
           }
         }
       } catch (failure) {
+        const cancelled =
+          cancelRequested.current ||
+          (failure as { code?: string })?.code === 'CANCELLED';
         if (alive.current)
           setImportBatch(
             (batch) =>
@@ -845,10 +848,8 @@ export function Workspace() {
                   file.status === 'queued'
                     ? {
                         ...file,
-                        status: cancelRequested.current
-                          ? 'cancelled'
-                          : 'failed',
-                        error: cancelRequested.current
+                        status: cancelled ? 'cancelled' : 'failed',
+                        error: cancelled
                           ? undefined
                           : 'Import could not start.',
                       }
