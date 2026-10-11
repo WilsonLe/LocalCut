@@ -1,3 +1,4 @@
+import { mediaVideo } from './workspace-video-fixture';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { dragPlayhead } from './workspace-playhead-helper';
 import { openAISettings, openVideoExport } from './workspace-settings-helper';
@@ -568,7 +569,12 @@ for (const base of ['/', '/LocalCut/']) {
   }) => {
     await page.goto(base);
     await createProject(page, 'Media previews');
-    const fixtures = [await redPng(page), toneWav(), await greenVideo(page)];
+    const fixtures = [
+      await redPng(page),
+      toneWav(),
+      await greenVideo(page),
+      await mediaVideo(page, 0.25),
+    ];
     for (const fixture of fixtures) {
       await page
         .getByLabel('Import media', { exact: true })
@@ -578,11 +584,12 @@ for (const base of ['/', '/LocalCut/']) {
       ).toBeVisible();
     }
     const cards = page.locator('.media-item');
-    await expect(cards).toHaveCount(3);
+    await expect(cards).toHaveCount(4);
     await expect(cards).not.toContainText(['128 × 72', 'Connect AI', '0.50']);
     for (const [name, expected] of [
       ['red.png', [255, 0, 0]],
       ['green.webm', [0, 255, 0]],
+      ['delayed.webm', [0, 255, 0]],
     ] as const) {
       const image = page.getByRole('img', { name: `Thumbnail for ${name}` });
       await expect

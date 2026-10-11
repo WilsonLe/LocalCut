@@ -1,3 +1,4 @@
+import { mediaVideo } from './workspace-video-fixture';
 import { openAISettings } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 import type { BrowserContext, Page } from '@playwright/test';
@@ -42,7 +43,7 @@ async function clickIndexAction(page: Page, name: string, asset = 'red.png') {
     page.getByRole('menu', { name: `Actions for ${asset}`, exact: true }),
   ).toBeHidden();
 }
-async function catalog(context: BrowserContext, audio = false) {
+async function catalog(context: BrowserContext, audio = false, video = true) {
   await context.route('https://openrouter.ai/api/v1/models', (route) =>
     route.fulfill({
       headers: cors,
@@ -57,7 +58,7 @@ async function catalog(context: BrowserContext, audio = false) {
               input_modalities: [
                 'text',
                 'image',
-                'video',
+                ...(video ? ['video'] : []),
                 ...(audio ? ['audio'] : []),
               ],
             },
@@ -179,6 +180,50 @@ for (const base of ['/', '/LocalCut/']) {
       await image(page);
       await clickIndexAction(page, 'Index');
       await expect.poll(() => requested).toBe(true);
+      await expect(
+        page.getByRole('status', { name: 'Indexing', exact: true }),
+      ).toBeVisible();
+      const cancel = await indexAction(page, 'Cancel indexing');
+      const popup = page.getByRole('menu', {
+        name: 'Actions for red.png',
+        exact: true,
+      });
+      const popupBounds = (await popup.boundingBox())!;
+      const toast = page.locator('[data-sonner-toast]').first();
+      await expect(toast).toBeVisible();
+      const originalStyle = await toast.evaluate((el, box) => {
+        const element = el as HTMLElement;
+        const original = element.getAttribute('style');
+        element.style.setProperty('position', 'fixed', 'important');
+        element.style.setProperty('transform', 'none', 'important');
+        element.style.setProperty('top', `${box.y}px`, 'important');
+        element.style.setProperty('left', `${box.x}px`, 'important');
+        element.style.setProperty('width', `${box.width}px`, 'important');
+        element.style.setProperty('height', `${box.height}px`, 'important');
+        return original;
+      }, popupBounds);
+      const cancelBounds = (await cancel.boundingBox())!;
+      expect(
+        await page.evaluate(
+          ({ x, y }) =>
+            document
+              .elementFromPoint(x, y)
+              ?.closest('[role="menu"]')
+              ?.getAttribute('aria-label'),
+          {
+            x: cancelBounds.x + cancelBounds.width / 2,
+            y: cancelBounds.y + cancelBounds.height / 2,
+          },
+        ),
+      ).toBe('Actions for red.png');
+      await page.screenshot({
+        path: test.info().outputPath('menu-over-live-toast.png'),
+      });
+      await toast.evaluate((el, style) => {
+        if (style) el.setAttribute('style', style);
+        else el.removeAttribute('style');
+      }, originalStyle);
+      await page.keyboard.press('Escape');
       await page
         .getByRole('button', { name: 'Close media', exact: true })
         .click();
@@ -192,6 +237,9 @@ for (const base of ['/', '/LocalCut/']) {
       await page
         .getByRole('button', { name: 'Expand media', exact: true })
         .click();
+      await expect(
+        page.getByRole('status', { name: 'Indexed', exact: true }),
+      ).toBeVisible();
       await clickIndexAction(page, 'View index results', 'red.png');
       const history = page.getByRole('dialog', {
         name: 'Asset index',
@@ -552,4 +600,119 @@ for (const base of ['/', '/LocalCut/']) {
       .poll(() => audio.evaluate((el) => (el as HTMLAudioElement).duration))
       .toBe(1);
   });
+}
+
+for (const base of ['/', '/LocalCut/']) {
+  for (const framesOnly of [false, true]) {
+    test(`workspace indexing video ${framesOnly ? 'frames with image model' : 'clips with video model'} ${base}`, async ({
+      page,
+      context,
+    }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await catalog(context, false, !framesOnly);
+      const bodies: { messages: { content: unknown }[] }[] = [];
+      await context.route(
+        'https://openrouter.ai/api/v1/chat/completions',
+        async (route) => {
+          if (route.request().method() === 'OPTIONS') {
+            await route.fulfill({ headers: cors });
+            return;
+          }
+          const body = route.request().postDataJSON();
+          bodies.push(body);
+          const content = body.messages.at(-1).content;
+          const prompt = Array.isArray(content) ? content[0].text : content;
+          const sceneId =
+            Array.isArray(content) && content.length > 1
+              ? /"sceneId":"(scene-\d+)"/.exec(prompt)?.[1]
+              : undefined;
+          await route.fulfill({
+            headers: cors,
+            contentType: 'text/event-stream',
+            body: `data: ${JSON.stringify({ choices: [{ delta: { content: JSON.stringify(sceneId ? { sceneId, label } : label) }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+          });
+        },
+      );
+      await page.goto(base);
+      await page
+        .getByRole('button', { name: 'Workspace settings', exact: true })
+        .click();
+      await page
+        .getByRole('menuitem', { name: 'Project', exact: true })
+        .click();
+      await page
+        .getByRole('menuitem', { name: 'New project', exact: true })
+        .click();
+      await page
+        .getByLabel('Project name', { exact: true })
+        .fill('Video indexing');
+      await page
+        .getByRole('button', { name: 'Create project', exact: true })
+        .click();
+      const dialog = await connect(page);
+      await dialog
+        .getByRole('checkbox', { name: 'Allow asset indexing' })
+        .check();
+      await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+      await page.locator('#mobile-media-trigger').click();
+      await page
+        .getByLabel('Import media', { exact: true })
+        .setInputFiles(await mediaVideo(page));
+      const thumbnail = page.getByRole('img', {
+        name: 'Thumbnail for green.webm',
+      });
+      await expect(thumbnail).toBeVisible();
+      await expect
+        .poll(() =>
+          thumbnail.evaluate((el) => (el as HTMLImageElement).naturalWidth),
+        )
+        .toBeGreaterThan(0);
+      const action = framesOnly ? 'Index video frames' : 'Index';
+      if (framesOnly) {
+        await indexAction(page, action, 'green.webm');
+        await expect(
+          page.getByText('Labels use still frames.', { exact: false }),
+        ).toBeVisible();
+      }
+      await clickIndexAction(page, action, 'green.webm');
+      await expect(
+        page.getByRole('status', { name: 'Indexed', exact: true }),
+      ).toBeVisible();
+      expect(bodies).toHaveLength(2);
+      const request = JSON.stringify(bodies[0]);
+      expect(request).toContain('image_url');
+      if (framesOnly) {
+        expect(request).not.toContain('video_url');
+        expect(request).toContain('do not infer motion or sound');
+      } else expect(request).toContain('video_url');
+      await clickIndexAction(page, 'View index results', 'green.webm');
+      const history = page.getByRole('dialog', {
+        name: 'Asset index',
+        exact: true,
+      });
+      await expect(
+        history.getByRole('img', { name: 'Indexed representative frame' }),
+      ).toBeVisible();
+      await expect(history.locator('video')).toBeVisible();
+      if (framesOnly)
+        await expect(
+          history.getByText('Not assessed from still frames', { exact: true }),
+        ).toBeVisible();
+      await page.keyboard.press('Escape');
+      await page.reload();
+      await page.locator('#mobile-media-trigger').click();
+      await expect(
+        page.getByRole('status', { name: 'Indexed', exact: true }),
+      ).toBeVisible();
+      await expect(thumbnail).toBeVisible();
+      await clickIndexAction(page, 'View index results', 'green.webm');
+      await history
+        .getByRole('button', { name: 'Delete this run', exact: true })
+        .click();
+      await page.keyboard.press('Escape');
+      await expect(
+        page.getByRole('status', { name: 'Indexed', exact: true }),
+      ).toHaveCount(0);
+    });
+  }
 }

@@ -142,7 +142,10 @@ This is the project record of the user's durable product and workflow choices. U
 
 ## Mobile media — 11 October 2026
 
-- Open the mobile Media tab as a full-screen page or sheet, with a clear close control, rather than a small floating dialog.
+- Media uses the full width and available height between the existing header and tab bar. Keep the project selector inline in that header, without a separate row.
+- Allow vertical touch scrolling directly over media cards and thumbnails. Keep image/video thumbnails visible and show a passive indicator for indexed assets.
+- Include videos in manual indexing. Image-input models can explicitly index representative video frames; video-input models can label generated clips with motion and sound.
+- Dropdowns and other interactive popups appear above Sonner notifications.
 
 ## App and popup scrolling — 11 October 2026
 

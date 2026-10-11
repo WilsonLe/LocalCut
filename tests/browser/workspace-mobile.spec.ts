@@ -257,7 +257,54 @@ for (const base of ['/', '/LocalCut/']) {
       })),
     );
     await expect(media.locator('.media-item')).toHaveCount(24);
+    const header = page.locator('.workspace-header');
+    const picker = page.getByRole('button', {
+      name: 'Open project',
+      exact: true,
+    });
+    const headerBounds = (await header.boundingBox())!;
+    const pickerBounds = (await picker.boundingBox())!;
+    expect(pickerBounds.y + pickerBounds.height / 2).toBeLessThan(
+      headerBounds.y + headerBounds.height,
+    );
+    expect(headerBounds.height).toBeLessThan(75);
+    await expect
+      .poll(() =>
+        media
+          .locator('.media-symbol img')
+          .evaluateAll(
+            (els) =>
+              els.filter((el) => (el as HTMLImageElement).naturalWidth > 0)
+                .length,
+          ),
+      )
+      .toBe(24);
     const content = media.locator('.media-content');
+    const cdp = await page.context().newCDPSession(page);
+    const bounds = (await media
+      .locator('.media-asset-preview')
+      .first()
+      .boundingBox())!;
+    const x = bounds.x + bounds.width / 2;
+    const y = bounds.y + bounds.height / 2;
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x, y }],
+    });
+    for (let step = 1; step <= 8; step++) {
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ x, y: y - step * 12 }],
+      });
+    }
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchEnd',
+      touchPoints: [],
+    });
+    await expect
+      .poll(() => content.evaluate((el) => el.scrollTop))
+      .toBeGreaterThan(40);
+    await cdp.detach();
     expect(await content.evaluate((el) => el.scrollHeight)).toBeGreaterThan(
       await content.evaluate((el) => el.clientHeight),
     );

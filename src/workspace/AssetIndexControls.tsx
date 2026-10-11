@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import {
   LoaderCircle,
+  CircleCheck,
+  TriangleAlert,
   Scan,
   FileSearch,
   Trash2,
@@ -181,9 +183,18 @@ export default function AssetIndexControls({
     connection.provider.status().connected &&
     (asset.kind === 'audio'
       ? connection.inputModalities.includes('audio')
-      : connection.inputModalities.includes('image') &&
-        (asset.kind === 'image' ||
-          connection.inputModalities.includes('video')));
+      : connection.inputModalities.includes('image'));
+  const framesOnly =
+    asset.kind === 'video' &&
+    compatible &&
+    !connection?.inputModalities.includes('video');
+  const status = busy
+    ? 'Indexing'
+    : latest
+      ? 'Indexed'
+      : retry
+        ? 'Index incomplete'
+        : undefined;
   return (
     <>
       <Tooltip
@@ -209,6 +220,21 @@ export default function AssetIndexControls({
       >
         {children}
       </Tooltip>
+      {status && (
+        <span className="media-index-status" role="status" aria-label={status}>
+          {busy ? (
+            <LoaderCircle
+              aria-hidden="true"
+              className="motion-safe:animate-spin"
+            />
+          ) : latest ? (
+            <CircleCheck aria-hidden="true" />
+          ) : (
+            <TriangleAlert aria-hidden="true" />
+          )}
+          {status}
+        </span>
+      )}
       <AssetMenu name={asset.name} triggerRef={trigger}>
         {allowed && editor && (
           <>
@@ -227,8 +253,23 @@ export default function AssetIndexControls({
               ) : (
                 <Scan aria-hidden="true" />
               )}
-              {latest ? 'Reindex' : 'Index'}
+              {framesOnly
+                ? latest
+                  ? 'Reindex video frames'
+                  : 'Index video frames'
+                : latest
+                  ? 'Reindex'
+                  : 'Index'}
             </Menu.Item>
+            {(!compatible || framesOnly) && !readOnly && (
+              <div className="px-3 py-2 text-xs text-muted-foreground">
+                {framesOnly
+                  ? 'Labels use still frames. Choose a video-input model to label motion and sound from clips.'
+                  : connection
+                    ? `Choose a chat model supporting ${asset.kind === 'audio' ? 'audio' : 'image'} inputs to index this asset.`
+                    : 'Connect AI and choose a compatible model to index this asset.'}
+              </div>
+            )}
             {busy && (
               <Menu.Item
                 className={assetMenuItemClass}

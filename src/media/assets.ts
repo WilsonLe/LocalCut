@@ -403,13 +403,13 @@ export async function thumbnails(
   );
   const file = await store.file(assetId),
     asset = await store.getAsset(assetId),
-    input = asset.kind === 'image' ? undefined : inputFile(file),
-    sink = input
-      ? new VideoSampleSink((await input.getPrimaryVideoTrack())!)
-      : undefined;
+    input = asset.kind === 'image' ? undefined : inputFile(file);
   const height = Math.max(1, Math.round((width * asset.height) / asset.width));
   const results: { timeUs: number; blob: Blob }[] = [];
   try {
+    const track = await input?.getPrimaryVideoTrack();
+    const sink = track ? new VideoSampleSink(track) : undefined;
+    const firstTimestamp = track ? await track.getFirstTimestamp() : 0;
     for (const timeUs of timesUs) {
       checkAbort(signal);
       const canvas = new OffscreenCanvas(width, height),
@@ -419,7 +419,10 @@ export async function thumbnails(
         ctx.drawImage(bitmap, 0, 0, width, height);
         bitmap.close();
       } else {
-        const sample = await sink!.getSample(timeUs / 1e6);
+        // Camera/recording containers may begin after timestamp zero.
+        const sample = await sink!.getSample(
+          Math.max(firstTimestamp, timeUs / 1e6),
+        );
         invariant(sample, 'MISSING_ASSET', 'No frame at requested time');
         sample.draw(ctx, 0, 0, width, height);
         sample.close();
