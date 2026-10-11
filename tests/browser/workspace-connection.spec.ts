@@ -1,3 +1,4 @@
+import { fulfillChatTitle } from './chat-title-fixture';
 import {
   prepareOpenRouterKey,
   openAISettings,
@@ -57,6 +58,7 @@ for (const base of ['/', '/LocalCut/']) {
             await route.fulfill({ headers: cors, body: '' });
             return;
           }
+          if (await fulfillChatTitle(route)) return;
           requests++;
           const body = route.request().postDataJSON();
           expect(body.model).toBe(models[0]!.id);

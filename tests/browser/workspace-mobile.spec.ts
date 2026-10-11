@@ -1,3 +1,4 @@
+import { fulfillChatTitle } from './chat-title-fixture';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test, type Page } from '@playwright/test';
 
@@ -81,7 +82,7 @@ for (const base of ['/', '/LocalCut/']) {
     );
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
-      (route) => {
+      async (route) => {
         if (route.request().method() === 'OPTIONS')
           return route.fulfill({
             headers: {
@@ -91,6 +92,7 @@ for (const base of ['/', '/LocalCut/']) {
             },
             body: '',
           });
+        if (await fulfillChatTitle(route)) return;
         completions++;
         return route.fulfill({
           headers: {

@@ -183,6 +183,8 @@ export default function ConversationSession({
   const cancelBeforeRun = useRef(false);
   const pausedByNavigation = useRef(false);
   const runningRef = useRef(false);
+  const titleAttempted = useRef(!!initialBranch?.messages.length);
+  const titleRequest = useRef<AbortController | null>(null);
   const applyingRef = useRef(false);
   const selected = project.tracks
     .flatMap((track) => track.clips)
@@ -215,6 +217,7 @@ export default function ConversationSession({
   useEffect(() => {
     mounted.current = true;
     const cleanup = async () => {
+      titleRequest.current?.abort();
       pauseResponse();
       turn.current?.cancel();
       unsubscribe.current?.();
@@ -223,6 +226,7 @@ export default function ConversationSession({
     const unregister = registerSession(cleanup);
     return () => {
       mounted.current = false;
+      titleRequest.current?.abort();
       retireSession(cleanup);
       unregister();
     };
@@ -310,7 +314,6 @@ export default function ConversationSession({
     setCancelling(false);
     setRunning(true);
     onBusy(true);
-    if (!resuming) onTitle(text.slice(0, 80));
     cancelBeforeRun.current = false;
     pausedByNavigation.current = false;
     let activeTurn: AssistantTurn | undefined;
@@ -330,6 +333,24 @@ export default function ConversationSession({
           : '');
       const requestPrompt = resuming?.prompt ?? context + text;
       activeTurn = session.run(requestPrompt);
+      if (!resuming && !titleAttempted.current) {
+        titleAttempted.current = true;
+        onTitle(text.slice(0, 80));
+        const controller = new AbortController();
+        titleRequest.current = controller;
+        void connection.api
+          .generateChatTitle({
+            provider: connection.provider,
+            model,
+            message: text,
+            signal: controller.signal,
+          })
+          .then((title) => {
+            if (mounted.current && !controller.signal.aborted) onTitle(title);
+          })
+          // Naming is optional: preserve the fallback without interrupting the reply.
+          .catch(() => {});
+      }
       submitted = { turnId: activeTurn.id, prompt: requestPrompt, assetIds };
       turn.current = activeTurn;
       setPausedRequest(null);

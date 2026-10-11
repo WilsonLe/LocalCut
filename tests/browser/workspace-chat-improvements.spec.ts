@@ -66,6 +66,227 @@ async function setup(page: Page, context: BrowserContext, base: string) {
   await page.getByRole('button', { name: 'Expand media', exact: true }).click();
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`chat title runs asynchronously once with animated scoped replacement ${base}`, async ({
+    page,
+    context,
+  }, testInfo) => {
+    const naming: {
+      model: string;
+      tools: unknown[];
+      messages: { role: string; content: string }[];
+    }[] = [];
+    const pending: (() => void)[] = [];
+    const reply = (text: string) =>
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: text }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`;
+    await context.route(
+      'https://openrouter.ai/api/v1/chat/completions',
+      async (route) => {
+        const body = route.request().postDataJSON() as (typeof naming)[number];
+        if (!body.tools.length) {
+          naming.push(body);
+          const first = body.messages.at(-1)!.content;
+          if (first === 'Fail naming') {
+            await route.fulfill({
+              headers: cors,
+              status: 500,
+              body: 'unavailable',
+            });
+            return;
+          }
+          await new Promise<void>((resolve) => pending.push(resolve));
+          await route
+            .fulfill({
+              headers: cors,
+              contentType: 'text/event-stream',
+              body: reply(
+                first === 'Second chat message'
+                  ? 'Second cinematic edit'
+                  : 'Beach trip highlights',
+              ),
+            })
+            .catch(() => {});
+        } else {
+          await route.fulfill({
+            headers: cors,
+            contentType: 'text/event-stream',
+            body: reply('Ready to edit.'),
+          });
+        }
+      },
+    );
+    await setup(page, context, base);
+    expect(naming).toHaveLength(0);
+    const input = page.getByRole('textbox', {
+      name: 'Describe your edit',
+      exact: true,
+    });
+    const trigger = page.getByRole('button', {
+      name: 'Chat sessions',
+      exact: true,
+    });
+    const responses = page.getByRole('article', { name: 'Assistant response' });
+    const create = async () => {
+      await trigger.click();
+      await page
+        .getByRole('menuitem', { name: 'New conversation', exact: true })
+        .click();
+    };
+    await input.fill('Make a short video of my beach trip');
+    await input.press('Enter');
+    await expect(responses.last()).toContainText('Ready to edit.');
+    await expect.poll(() => pending.length).toBe(1);
+    await expect(trigger).toContainText('Make a short video of my beach trip');
+    expect(naming[0]!.model).toBe(model);
+    expect(naming[0]!.tools).toEqual([]);
+    expect(naming[0]!.messages).toHaveLength(2);
+    expect(naming[0]!.messages[1]).toEqual({
+      role: 'user',
+      content: 'Make a short video of my beach trip',
+    });
+    expect(JSON.stringify(naming[0])).not.toContain('Chat improvements');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await trigger.click();
+    await expect(
+      page.getByRole('menu', { name: 'Chat sessions', exact: true }),
+    ).toBeVisible();
+    await page.evaluate(() => {
+      const records: { name: string; duration: string; oldHidden: boolean }[] =
+        [];
+      Object.assign(window, { titleAnimations: records });
+      const observer = new MutationObserver(() => {
+        document.querySelectorAll('.chat-title-in').forEach((element) => {
+          const style = getComputedStyle(element);
+          records.push({
+            name: style.animationName,
+            duration: style.animationDuration,
+            oldHidden:
+              element
+                .parentElement!.querySelector('.chat-title-out')
+                ?.getAttribute('aria-hidden') === 'true',
+          });
+        });
+      });
+      observer.observe(document.body, { subtree: true, childList: true });
+      Object.assign(window, { titleObserver: observer });
+    });
+    pending.shift()!();
+    await expect(trigger).toContainText('Beach trip highlights');
+    await expect(
+      page.getByRole('menuitemradio', {
+        name: 'Beach trip highlights',
+        exact: true,
+      }),
+    ).toBeVisible();
+    const animations = await page.evaluate(
+      () =>
+        (
+          window as unknown as {
+            titleAnimations: {
+              name: string;
+              duration: string;
+              oldHidden: boolean;
+            }[];
+          }
+        ).titleAnimations,
+    );
+    expect(
+      animations.some(
+        (entry) =>
+          entry.name === 'chat-title-in' &&
+          entry.duration === '0.42s' &&
+          entry.oldHidden,
+      ),
+    ).toBe(true);
+    await page
+      .getByRole('textbox', { name: 'Search sessions by title', exact: true })
+      .fill('Beach trip');
+    await expect(page.getByRole('menuitemradio')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.chat-title-out')).toHaveCount(0);
+    await page.screenshot({
+      path: testInfo.outputPath('generated-chat-title.png'),
+    });
+    await input.fill('Another request in the same chat');
+    await input.press('Enter');
+    await expect(responses).toHaveCount(2);
+    await expect(responses.last()).toContainText('Ready to edit.');
+    expect(naming).toHaveLength(1);
+    // Branches already own their inherited conversation and title.
+    await responses.last().hover();
+    await responses
+      .last()
+      .getByRole('button', { name: 'Branch response', exact: true })
+      .click();
+    await expect(trigger).toContainText('Branch of Beach trip highlights');
+    await input.fill('Continue the branch');
+    await input.press('Enter');
+    await expect(responses.last()).toContainText('Ready to edit.');
+    expect(naming).toHaveLength(1);
+    await create();
+    await input.fill('Second chat message');
+    await input.press('Enter');
+    await expect(responses.last()).toContainText('Ready to edit.');
+    await expect.poll(() => pending.length).toBe(1);
+    await trigger.click();
+    await page
+      .getByRole('menuitemradio', {
+        name: 'Beach trip highlights',
+        exact: true,
+      })
+      .click();
+    pending.shift()!();
+    await expect(trigger).toHaveText('Beach trip highlights');
+    await trigger.click();
+    await expect(
+      page.getByRole('menuitemradio', {
+        name: 'Second cinematic edit',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page
+      .getByRole('menuitemradio', {
+        name: 'Second cinematic edit',
+        exact: true,
+      })
+      .click();
+    await expect(trigger).toHaveText('Second cinematic edit');
+    await expect(trigger.locator('.chat-title-in')).toHaveCount(0);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await create();
+    await input.fill('Reduced motion message');
+    await input.press('Enter');
+    await expect(responses.last()).toContainText('Ready to edit.');
+    await expect.poll(() => pending.length).toBe(1);
+    pending.shift()!();
+    await expect(trigger).toContainText('Beach trip highlights');
+    const reduced = await page.evaluate(
+      () =>
+        (window as unknown as { titleAnimations: { name: string }[] })
+          .titleAnimations,
+    );
+    expect(reduced.some((entry) => entry.name === 'none')).toBe(true);
+    await create();
+    await input.fill('Fail naming');
+    await input.press('Enter');
+    await expect(responses.last()).toContainText('Ready to edit.');
+    await expect.poll(() => naming.length).toBe(4);
+    await expect(trigger).toHaveText('Fail naming');
+    await input.fill('Still works after naming failure');
+    await input.press('Enter');
+    await expect(responses.last()).toContainText('Ready to edit.');
+    expect(naming).toHaveLength(4);
+    await expect(trigger).toHaveText('Fail naming');
+    // Retiring the scope prevents delayed naming from updating its replacement.
+    await create();
+    await input.fill('Retired request');
+    await input.press('Enter');
+    await expect(responses.last()).toContainText('Ready to edit.');
+    await expect.poll(() => pending.length).toBe(1);
+    await page.reload();
+    pending.shift()!();
+    await expect(trigger).toHaveText('New chat');
+    expect(naming).toHaveLength(5);
+  });
   test(`chat navigation pauses quietly with Resume and Send composer actions ${base}`, async ({
     page,
     context,

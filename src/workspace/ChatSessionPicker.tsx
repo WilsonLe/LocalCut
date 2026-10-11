@@ -3,6 +3,7 @@ import { Menu } from '@base-ui/react/menu';
 import { ChevronDown, Plus } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import ChatSessionTitle from './ChatSessionTitle';
 
 export interface ChatSession {
   id: number;
@@ -53,10 +54,13 @@ export default function ChatSessionPicker({
           />
         }
       >
-        <span>
-          {sessions.find((session) => session.id === selected)?.title ??
-            'New chat'}
-        </span>
+        <ChatSessionTitle
+          sessionId={selected}
+          title={
+            sessions.find((session) => session.id === selected)?.title ??
+            'New chat'
+          }
+        />
         <ChevronDown aria-hidden="true" />
       </Menu.Trigger>
       <Menu.Portal>
@@ -117,9 +121,10 @@ export default function ChatSessionPicker({
                     key={session.id}
                     value={session.id}
                   >
-                    <span className="line-clamp-2 break-words">
-                      {session.title}
-                    </span>
+                    <ChatSessionTitle
+                      sessionId={session.id}
+                      title={session.title}
+                    />
                   </Menu.RadioItem>
                 ))}
               </Menu.RadioGroup>

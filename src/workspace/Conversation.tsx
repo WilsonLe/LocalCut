@@ -1,3 +1,4 @@
+import ChatSessionTitle from './ChatSessionTitle';
 import {
   accountStorage,
   accountCredentialKey,
@@ -1004,10 +1005,13 @@ export function Conversation(props: ConversationProps) {
       disabled={sessionBusy}
       onClick={openSessionPicker}
     >
-      <span>
-        {chatSessions.find((session) => session.id === conversationNumber)
-          ?.title ?? 'New chat'}
-      </span>
+      <ChatSessionTitle
+        sessionId={conversationNumber}
+        title={
+          chatSessions.find((session) => session.id === conversationNumber)
+            ?.title ?? 'New chat'
+        }
+      />
       <ChevronDown />
     </Button>
   );
@@ -1132,7 +1136,7 @@ export function Conversation(props: ConversationProps) {
                   onTitle={(title) =>
                     setChatSessions((sessions) =>
                       sessions.map((item) =>
-                        item.id === session.id && !item.hasMessages
+                        item.id === session.id
                           ? { ...item, title, hasMessages: true }
                           : item,
                       ),
