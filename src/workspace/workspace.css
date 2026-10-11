@@ -2160,3 +2160,62 @@
     padding: 20px 16px;
   }
 }
+
+.project-tabs {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.project-tabs [aria-selected='true'] {
+  background: var(--muted);
+  box-shadow: inset 0 -2px var(--primary);
+}
+.project-view-panel {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.project-view-panel[hidden] {
+  display: none;
+}
+.storyboard {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.storyboard-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+}
+.storyboard-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.storyboard .excalidraw .undo-redo-buttons,
+.storyboard .excalidraw [data-testid='button-undo'],
+.storyboard .excalidraw [data-testid='button-redo'],
+.storyboard .excalidraw .default-sidebar-trigger {
+  display: none;
+}
+@media (max-width: 767px) {
+  .project-tabs {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+:root[data-workspace-narrow='true']
+  .editing-area:has(#project-storyboard-panel:not([hidden])) {
+  height: calc(var(--app-viewport-height) - 76px - env(safe-area-inset-bottom));
+  overflow: hidden;
+}

@@ -352,3 +352,8 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Use a dropdown of the selected TTS model's catalog voices in AI connector settings, rather than a raw voice text field.
 - Remove blank space above populated dropdown options across the app; empty-result messages retain their normal readable spacing.
+
+## Project storyboard — 11 October 2026
+
+- Put Editor and Storyboard tabs in the main project header. Editor contains the preview and timeline; Storyboard presents a project-owned Excalidraw diagram branded as the project's storyboard.
+- Give the editing agent the ability to inspect and work on the storyboard through the same shared engine and explicit edit approval used for timeline work.

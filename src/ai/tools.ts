@@ -66,7 +66,13 @@ const actionSchema = z.discriminatedUnion('type', [
 const schemas = {
   load_skill: z
     .object({
-      skillId: z.enum(['editing', 'export', 'transcription', 'history']),
+      skillId: z.enum([
+        'editing',
+        'storyboard',
+        'export',
+        'transcription',
+        'history',
+      ]),
     })
     .strict(),
   search_asset_index: z
@@ -81,6 +87,12 @@ const schemas = {
     limit: z.number().int().min(1).max(20).optional(),
   }),
   inspect_project: emptySchema,
+  inspect_storyboard: z
+    .object({
+      offset: z.number().int().min(0).max(5000).default(0),
+      limit: z.number().int().min(1).max(100).default(50),
+    })
+    .strict(),
   inspect_asset: assetSchema,
   inspect_timeline: z.object({ timeUs: time }).strict(),
   inspect_capabilities: emptySchema,
@@ -155,6 +167,8 @@ export function toolDefinitions(
       'Search saved asset labels, including sound, and timestamped scenes for this project and explicitly allowed library assets. Read-only; no media or new inference.',
     read_asset_index:
       'Read paginated saved scene labels, representative and action timestamps for an authorized asset. Observations describe sampled evidence and may be incomplete.',
+    inspect_storyboard:
+      'Read paginated project storyboard geometry and styles. Text and frame names require text-sharing consent; no files or embedded content.',
     inspect_project:
       'Read the selected project snapshot. Times are integer microseconds and ranges are half-open. Names and text may be withheld.',
     inspect_asset:
@@ -195,11 +209,14 @@ export function toolDefinitions(
           return (
             loadedSkills.has('editing') || loadedSkills.has('transcription')
           );
+        case 'inspect_storyboard':
+          return loadedSkills.has('storyboard');
+        case 'validate_edits':
+        case 'propose_edits':
+          return loadedSkills.has('editing') || loadedSkills.has('storyboard');
         case 'inspect_timeline':
         case 'inspect_capabilities':
         case 'search_text_library':
-        case 'validate_edits':
-        case 'propose_edits':
           return loadedSkills.has('editing');
         case 'read_transcript':
           return loadedSkills.has('transcription') && includeTranscripts;

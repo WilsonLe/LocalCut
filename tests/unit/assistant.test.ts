@@ -1343,6 +1343,15 @@ describe('headless assistant boundaries', () => {
   it('evaluates timing, dry-runs every canonical editing operation and redacts planning feedback', async () => {
     const f = fixture();
     const operations: EditOperation[] = [
+      {
+        type: 'setStoryboard',
+        storyboard: { elements: [], backgroundColor: '#fff' },
+      },
+      {
+        type: 'upsertStoryboardElements',
+        elements: [{ id: 'shot', type: 'rectangle' }],
+      },
+      { type: 'removeStoryboardElements', elementIds: ['shot'] },
       { type: 'renameProject', name: 'Renamed film' },
       { type: 'addTrack', track: { id: 'temporary', kind: 'overlay' } },
       { type: 'reorderTrack', trackId: 'temporary', index: 0 },
@@ -2211,7 +2220,7 @@ describe('incremental assistant skills', () => {
       JSON.parse(
         f.provider.requests[0]!.messages[1]!.content!,
       ).skillCatalog.map((skill: { id: string }) => skill.id),
-    ).toEqual(['editing']);
+    ).toEqual(['storyboard', 'editing']);
     expect(names(f.provider.requests[1]!)).toEqual(baseTools);
     const results = f.provider.requests[1]!.messages.filter(
       (message) => message.role === 'tool',

@@ -1,3 +1,4 @@
+import { localStoryboardAssets } from './scripts/storyboard-assets';
 import { defineConfig } from 'vite';
 import type { Plugin } from 'vite';
 import { RUNTIME_CDN } from './src/services/transcription-config.ts';
@@ -77,7 +78,13 @@ function revisionManifest(): Plugin {
 }
 export default defineConfig(({ command }) => ({
   base: process.env.LOCALCUT_BASE_PATH || '/LocalCut/',
-  plugins: [react(), tailwindcss(), publicModuleAliases(), revisionManifest()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    publicModuleAliases(),
+    revisionManifest(),
+    localStoryboardAssets(),
+  ],
   define: {
     __LOCALCUT_COMMIT__: JSON.stringify(buildInfo.commit),
     __LOCALCUT_FONT_REVISION__: JSON.stringify(

@@ -15,6 +15,7 @@ test('verified build cache reuses test/docs edits and rejects source/output/envi
       'build-state.mjs',
       'build.mjs',
       'font-snapshot.ts',
+      'storyboard-assets.ts',
       'build-info.ts',
     ])
       await copyFile(
