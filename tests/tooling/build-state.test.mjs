@@ -10,7 +10,7 @@ test('verified build cache reuses test/docs edits and rejects source/output/envi
   try {
     for (const dir of ['scripts', 'src', 'public', 'dist', 'tests', 'docs'])
       await mkdir(join(root, dir));
-    for (const name of ['build-state.mjs', 'build.mjs'])
+    for (const name of ['build-state.mjs', 'build.mjs', 'font-snapshot.ts'])
       await copyFile(
         new URL('../../scripts/' + name, import.meta.url),
         join(root, 'scripts', name),

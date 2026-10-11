@@ -50,7 +50,7 @@ for (const base of ['/', '/LocalCut/']) {
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route(`**${base}editor.js`, async (route) => {
+    await page.route(`**${base}assets/editor-*.js`, async (route) => {
       await held;
       await route.continue();
     });
@@ -98,7 +98,7 @@ for (const base of ['/', '/LocalCut/']) {
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route(`**${base}editor.js`, async (route) => {
+    await page.route(`**${base}assets/editor-*.js`, async (route) => {
       await held;
       await route.continue();
     });
@@ -120,7 +120,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       browser.getByText('No saved projects yet', { exact: true }),
     ).toBeVisible();
-    await page.unroute(`**${base}editor.js`);
+    await page.unroute(`**${base}assets/editor-*.js`);
     await page.evaluate(() =>
       localStorage.setItem(
         'localcut.project-catalog.v1',
@@ -203,7 +203,7 @@ for (const base of ['/', '/LocalCut/']) {
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route(`**${base}editor.js`, async (route) => {
+    await page.route(`**${base}assets/editor-*.js`, async (route) => {
       await held;
       await route.continue();
     });

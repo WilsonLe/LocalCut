@@ -15,12 +15,15 @@ const faces = new Map<string, Promise<void>>();
 const prepared = new Map<string, Promise<void>>();
 let downloading = 0;
 const waiting: (() => void)[] = [];
-async function fetchFont(url: URL) {
+async function fetchFont(url: URL, cache: RequestCache = 'default') {
   if (downloading >= 4)
     await new Promise<void>((resolve) => waiting.push(resolve));
   else downloading++;
   try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(15000),
+      cache,
+    });
     if (!response.ok) throw new Error('Font asset unavailable');
     return await response.arrayBuffer();
   } finally {
@@ -30,8 +33,13 @@ async function fetchFont(url: URL) {
   }
 }
 // BASE_URL is an origin-relative deployment base, including inside worker chunks.
+declare const __LOCALCUT_FONT_REVISION__: string;
+const fontRevision =
+  typeof __LOCALCUT_FONT_REVISION__ === 'string'
+    ? __LOCALCUT_FONT_REVISION__
+    : '';
 const fontBase = new URL(
-  'fonts/',
+  `fonts/${fontRevision ? fontRevision + '/' : ''}`,
   new URL(import.meta.env.BASE_URL, import.meta.url),
 );
 
@@ -79,15 +87,18 @@ export async function ensureTextFont(style: TextStyleInput) {
       await Promise.all(
         files.map((file) =>
           retryable(faces, `${id}/${file.file}`, async () => {
-            const bytes = await fetchFont(
-              new URL(`${id}/${file.file}`, fontBase),
-            );
-            const hash = [
-              ...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)),
-            ]
-              .map((byte) => byte.toString(16).padStart(2, '0'))
-              .join('');
-            if (hash !== file.sha256)
+            const url = new URL(`${id}/${file.file}`, fontBase);
+            const valid = async (bytes: ArrayBuffer) => {
+              const hash = [
+                ...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)),
+              ]
+                .map((byte) => byte.toString(16).padStart(2, '0'))
+                .join('');
+              return hash === file.sha256;
+            };
+            let bytes = await fetchFont(url);
+            if (!(await valid(bytes))) bytes = await fetchFont(url, 'reload');
+            if (!(await valid(bytes)))
               throw new Error('Font integrity check failed');
             const face = await new FontFace(manifest.family, bytes, {
               unicodeRange: file.unicodeRange,
@@ -108,7 +119,7 @@ export async function ensureTextFont(style: TextStyleInput) {
   } catch (error) {
     throw new EditorError(
       'MISSING_ASSET',
-      `Could not load ${id.replaceAll('-', ' ')}. Retry when the font files are available.`,
+      `Could not load ${id.replaceAll('-', ' ')}. Retry, or reload LocalCut to get the current font files.`,
       { cause: error instanceof Error ? error.message : String(error) },
     );
   }

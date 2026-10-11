@@ -22,12 +22,53 @@ function externalInferenceAssets(): Plugin {
     },
   };
 }
+// Workspace imports follow content hashes; public headless URLs remain aliases.
+function publicModuleAliases(): Plugin {
+  return {
+    name: 'localcut-public-module-aliases',
+    generateBundle(_options, bundle) {
+      const modules: Record<string, string> = {};
+      for (const name of ['editor', 'ai']) {
+        const entry = Object.values(bundle).find(
+          (output) =>
+            output.type === 'chunk' && output.isEntry && output.name === name,
+        );
+        if (!entry) throw new Error(`Missing ${name} module entry`);
+        modules[name] = entry.fileName;
+        this.emitFile({
+          type: 'asset',
+          fileName: `${name}.js`,
+          source: `export * from './${entry.fileName}';\n`,
+        });
+      }
+      this.emitFile({
+        type: 'asset',
+        fileName: 'modules.json',
+        source:
+          JSON.stringify({
+            version: 1,
+            release: createHash('sha256')
+              .update(JSON.stringify(modules))
+              .digest('hex'),
+            modules,
+          }) + '\n',
+      });
+    },
+  };
+}
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { resolve } from 'node:path';
-export default defineConfig({
+import { createHash } from 'node:crypto';
+import { fontSnapshot } from './scripts/font-snapshot';
+export default defineConfig(({ command }) => ({
   base: process.env.LOCALCUT_BASE_PATH || '/LocalCut/',
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), publicModuleAliases()],
+  define: {
+    __LOCALCUT_FONT_REVISION__: JSON.stringify(
+      command === 'build' ? fontSnapshot() : '',
+    ),
+  },
   resolve: { alias: { '@': resolve(import.meta.dirname, 'src') } },
   worker: { format: 'es', plugins: () => [externalInferenceAssets()] },
   build: {
@@ -42,11 +83,8 @@ export default defineConfig({
         ai: resolve(import.meta.dirname, 'src/ai/index.ts'),
       },
       output: {
-        entryFileNames: (chunk) =>
-          chunk.name === 'editor' || chunk.name === 'ai'
-            ? `${chunk.name}.js`
-            : 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
       },
     },
   },
-});
+}));

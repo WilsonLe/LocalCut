@@ -341,6 +341,16 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
     page,
     context,
   }) => {
+    // Simulate Safari retaining pre-fix stable entries after an app update.
+    // The current workspace must never request these unversioned URLs.
+    let staleEntryRequests = 0;
+    await context.route(/\/(?:ai|editor)\.js(?:\?|$)/, (route) => {
+      staleEntryRequests++;
+      return route.fulfill({
+        contentType: 'application/javascript',
+        body: "throw new Error('Cached module from an older release');",
+      });
+    });
     await catalog(context, key);
     let authorization: URL | undefined;
     let exchanges = 0;
@@ -383,6 +393,7 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
     await page.goto(base + '?campaign=ui-test');
     if (openProject)
       await createProject(page, 'OAuth project ' + crypto.randomUUID());
+    expect(staleEntryRequests).toBe(0);
     const originalHash = new URL(page.url()).hash;
     if (openProject) expect(originalHash).toMatch(/^#\/project\//);
     await openAISettings(page);
@@ -392,6 +403,7 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
     await expect(
       page.getByRole('link', { name: 'Authorize LocalCut', exact: true }),
     ).toBeVisible();
+    expect(staleEntryRequests).toBe(0);
     expect(authorization?.searchParams.get('code_challenge_method')).toBe(
       'S256',
     );
@@ -489,6 +501,7 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
       0,
     );
     expect(exchanges).toBe(1);
+    expect(staleEntryRequests).toBe(0);
   });
 }
 

@@ -29,8 +29,17 @@ Live account sign-in, plan entitlement, browser CORS availability and paid infer
 Load the modules after the user chooses to connect. The frontend owns connection controls, the conversation view, model selection, progress, proposal review, and error presentation. The shared editor remains the only owner of project state. The composer information icon reveals the selected provider/model and a Configure AI action. Its connection dialog uses one searchable model dropdown with an inline refresh icon; Data & analytics reveals the separate, initially unchecked sharing opt-ins. Session switching preserves drafts and transcripts within the current project/model/context scope. See [workspace behavior](workspace.md) for the UI contract.
 
 ```ts
-import { createEditor } from '/LocalCut/editor.js';
-import { createOpenRouter, createAssistant } from '/LocalCut/ai.js';
+// Resolve both entries from the same release; see the headless API contract.
+const discovery = new URL('/LocalCut/modules.json', location.href);
+discovery.searchParams.set('fresh', crypto.randomUUID());
+const response = await fetch(discovery, { cache: 'no-store' });
+if (!response.ok) throw new Error('LocalCut modules unavailable');
+const release = await response.json();
+const [{ createEditor }, ai] = await Promise.all([
+  import(new URL(release.modules.editor, discovery).href),
+  import(new URL(release.modules.ai, discovery).href),
+]);
+const { createOpenRouter, createAssistant } = ai;
 
 const editor = await createEditor();
 const project = await editor.projects.open(selectedProjectId);
@@ -94,7 +103,7 @@ const audio = await provider.synthesizeSpeech(
   },
   controller.signal,
 );
-const { renderSpeech } = await import('/LocalCut/ai.js');
+const { renderSpeech } = ai; // Same discovered AI release as the provider above.
 const result = await renderSpeech(
   audio,
   {

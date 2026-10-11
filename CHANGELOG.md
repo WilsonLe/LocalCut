@@ -2,6 +2,13 @@
 
 Current version: **0.1.0-alpha.1**. Short summaries for end users and executives; the linked Git diff is the full changelog. See [SemVer and release rules](docs/releasing.md#semantic-versioning).
 
+## Unreleased
+
+- Keep AI connections and editing code consistent across cached releases; headless integrations can discover matching module versions.
+- Recover missing deployment assets with an explicit reload, preserving saved projects, and load fonts from consistent snapshots.
+
+[Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/pull/109/files)
+
 ## v0.1.0-alpha.1 — Unreleased alpha
 
 - Edit and export videos locally, with timeline controls, styled/animated text and local transcription.

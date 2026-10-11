@@ -15,7 +15,7 @@ A browser video editor with local media processing and an optional AI editing as
 - Export MP4/H.264/AAC or WebM/VP9/Opus when your browser supports the required codecs.
 - Save projects and versions in this browser and export portable project/workspace backups with optional original media.
 
-The application builds to static files. The separately built `editor.js` and `ai.js` entries expose the shared editing engine and assistant for other consumers; see the [API](docs/api.md). This repository is an application, not a published npm package (`private: true`).
+The application builds to static files. Headless consumers discover content-hashed editor and AI modules through `modules.json`, following [the API recipe](docs/api.md). Stable `editor.js` and `ai.js` compatibility aliases remain available. This repository is an application, not a published npm package (`private: true`).
 
 ## Browser support and data
 

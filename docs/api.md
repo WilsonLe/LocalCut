@@ -2,10 +2,21 @@
 
 Optional remote AI lives in the separately imported `ai.js` entry. Its connection, event, proposal, cancellation and frontend wiring contracts are documented in [AI providers and service routing](ai.md). Constructing either AI object starts no work; the editor is opened separately and supplied to the assistant.
 
-Serve dist over HTTPS or localhost. Import from the deployment base:
+Serve dist over HTTPS or localhost. Discover both module URLs from one fresh `modules.json` response, then retain that release for the lifetime of the integration. Its version-one contract contains `release` (a digest of the module URL map) and `modules.editor` / `modules.ai` (deployment-relative, content-hashed URLs). The discovery request uses a fresh query and `cache: 'no-store'` to bypass browser/intermediary caches; module bytes remain cacheable. If a deployment removes a discovered module before import completes, surface a reload/reconnect action and rediscover both modules together. Do not silently replace one module beneath a running engine or assistant.
+
+The stable `editor.js` and `ai.js` compatibility aliases remain available, but a server cannot retroactively invalidate an older copy already cached by a browser. Use discovery for integrations following the latest deployment, or pin the hashed URLs and retain the complete matching static release when reproducibility is required.
+
+Import from the deployment base after an explicit editing action:
 
 ```ts
-import { createEditor } from '/LocalCut/editor.js';
+const discovery = new URL('/LocalCut/modules.json', location.href);
+discovery.searchParams.set('fresh', crypto.randomUUID());
+const response = await fetch(discovery, { cache: 'no-store' });
+if (!response.ok) throw new Error('LocalCut modules unavailable');
+const release = await response.json();
+const { createEditor } = await import(
+  new URL(release.modules.editor, discovery).href
+);
 // Types are generated at dist/types/editor/index.d.ts.
 const editor = await createEditor();
 const project = await editor.projects.create('First cut');

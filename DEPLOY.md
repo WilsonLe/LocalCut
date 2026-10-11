@@ -48,13 +48,17 @@ Use HTTPS in production (localhost is supported for development). Host the app o
 
 ## Distribution contents
 
-Publish only `dist/` or the intentionally selected `dist-root/`. Output includes `index.html`, `editor.js`, `ai.js`, hashed application/support/worker assets, declarations, icons/manifest, fonts/notices and Vite's build manifest. Keep the complete output together; do not mix assets from different builds.
+Publish only `dist/` or the intentionally selected `dist-root/`. Output includes `index.html`, `modules.json`, stable `editor.js`/`ai.js` compatibility re-exports, content-hashed engine/AI/support/worker assets, declarations, icons/manifest, fonts/notices and Vite's build manifest. Keep the complete output together; do not mix assets from different builds.
 
-The authored-text catalog includes roughly 297 MiB of licensed WOFF2 assets under `fonts/`; the application requests only needed subsets. Preserve per-family licenses and catalog manifests with distributions. Test harnesses, fixtures, models, caches, credentials and large inference binaries remain outside deployed output.
+The authored-text catalog includes roughly 297 MiB of licensed WOFF2 assets under `fonts/<snapshot-sha256>/`; the application requests only needed subsets. Preserve per-family licenses and catalog manifests with distributions. Test harnesses, fixtures, models, caches, credentials and large inference binaries remain outside deployed output.
 
 Include the root [MIT license](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md) with downloadable distributions or make them available alongside a hosted distribution. The static build does not automatically copy those root documents. Bundled notices and font licenses already present in output must also be preserved.
 
-Prefer immutable hashed-asset caching and short-lived/revalidated HTML plus stable entry files (`editor.js`, `ai.js`) so clients do not retain mismatched releases. Keep prior hashed assets accessible while clients transition if the host supports it. This is hosting guidance, not a claim that upstream Pages cache headers are configurable through this repository.
+Prefer immutable hashed-asset caching and short-lived/revalidated HTML/discovery. Headless clients discover hashed editor/AI URLs together using [the API recipe](docs/api.md); the workspace imports hashed entries directly. Old cached compatibility aliases cannot be invalidated remotely. Keep discovery, aliases and all referenced modules together. Keep prior hashed assets accessible while clients transition if the host supports it. This is hosting guidance, not a claim that upstream Pages cache headers are configurable through this repository.
+
+## Cache consistency and recovery
+
+Tabs left open across deployment may request removed old chunks or font snapshots. The workspace offers explicit recovery for lazy-chunk failures; it never reloads automatically or clears local data. Its Reload action fetches a fresh HTML URL while preserving the project route. A failed old font snapshot reports an actionable error; reload to adopt the current snapshot. If interrupted work must continue on an old release, host the complete old static artifact (including chunks and its font snapshot) rather than mixing files from releases. Configure HTML/discovery revalidation on hosts that expose cache headers; GitHub Pages does not provide application-controlled response headers. A rollout/recovery check must include a tab from the previous release, a newly opened tab, and a failed chunk followed by explicit reload.
 
 ## Live verification and release identity
 
@@ -65,7 +69,7 @@ After an authorized deployment, use a fresh Google Chrome context with generated
 1. Verify the title and rendered workspace at the correct base, and check for missing lazy modules, worker assets, icons or fonts.
 2. On a bare URL without saved credentials, verify inert startup: no editing-storage initialization, media/inference workers, model downloads, permission prompts or AI requests before an explicit action. An explicit local project/catalog route and an explicit OAuth return have their documented behavior; saved credential restoration can load AI/catalogs in an existing profile.
 3. Create a project, import generated media, render the preview and save a real supported export. Reopen the local project after reload and verify the selected editing change's relevant flow.
-4. Verify the independent `editor.js`/`ai.js` entry and worker paths at the deployed base. Check grouped settings, provider controls and responsive/collapsible panels when touched by the release.
+4. Verify fresh `modules.json` discovery, the compatibility entries, and worker/font snapshot paths at the deployed base. Check grouped settings, provider controls and responsive/collapsible panels when touched by the release.
 5. Export a portable backup with originals and check import in an isolated profile when portability/storage changes are in scope. Do not test against personal media or clear unrelated browser data.
 
 Never initiate paid requests merely to smoke-test deployment. Live sign-in, provider entitlement, remote data sharing and inference need their own explicit actions/authority and evidence. Native Safari coverage remains separate from Chrome acceptance. Record gaps instead of claiming a live flow was verified from a local result.

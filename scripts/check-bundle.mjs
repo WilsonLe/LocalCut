@@ -2,6 +2,7 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { checkFonts } from './check-fonts.mjs';
 async function files(path) {
   const result = [];
@@ -21,11 +22,32 @@ for (const root of ['dist', 'dist-root']) {
     (v) => v.isEntry && v.src === 'index.html',
   );
   assert(entry, 'App manifest entry missing');
+  const optionalEntries = new Set(['editor.js', 'ai.js']);
+  const discovery = JSON.parse(await readFile(`${root}/modules.json`, 'utf8'));
+  assert.equal(discovery.version, 1);
+  assert(/^[a-f0-9]{64}$/.test(discovery.release));
+  assert.equal(
+    discovery.release,
+    createHash('sha256')
+      .update(JSON.stringify(discovery.modules))
+      .digest('hex'),
+  );
   for (const name of ['editor', 'ai']) {
     const moduleEntry = Object.values(manifest).find(
       (v) => v.isEntry && v.src === `src/${name}/index.ts`,
     );
-    assert(moduleEntry?.file === `${name}.js`, `Stable ${name} entry missing`);
+    assert(
+      moduleEntry?.file.startsWith(`assets/${name}-`) &&
+        moduleEntry.file.endsWith('.js'),
+      `Hashed ${name} entry missing`,
+    );
+    optionalEntries.add(moduleEntry.file);
+    assert.equal(discovery.modules[name], moduleEntry.file);
+    assert.equal(
+      await readFile(`${root}/${name}.js`, 'utf8'),
+      `export * from './${moduleEntry.file}';\n`,
+      `Stable ${name} alias does not match its manifest entry`,
+    );
     await stat(`${root}/types/${name}/index.d.ts`);
   }
   const graph = new Set();
@@ -60,9 +82,7 @@ for (const root of ['dist', 'dist-root']) {
   assert(css <= 30 * 1024, `Initial CSS ${css}`);
   assert(total <= 5 * 1024 * 1024, `Aggregate JS/CSS ${total}`);
   assert(
-    ![...graph].some(
-      (p) => p === 'editor.js' || p === 'ai.js' || p.includes('worker'),
-    ),
+    ![...graph].some((p) => optionalEntries.has(p) || p.includes('worker')),
     'Engine or AI eagerly loaded',
   );
   console.log(

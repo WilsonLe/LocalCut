@@ -65,7 +65,7 @@ export async function inputHash(build) {
       (file) => basename(file) !== 'AGENTS.md',
     ),
     ...(await filesIn(join(root, 'public'))),
-    ...['build.mjs', 'build-state.mjs'].map((name) =>
+    ...['build.mjs', 'build-state.mjs', 'font-snapshot.ts'].map((name) =>
       join(root, 'scripts', name),
     ),
   ];
