@@ -9,7 +9,7 @@ Current version: **0.1.0-alpha.1**. Short summaries for end users and executives
 - Keep AI connections and editing code consistent across cached releases; headless integrations can discover matching module versions.
 - Recover missing deployment assets with an explicit reload, preserving saved projects, and load fonts from consistent snapshots.
 
-[Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/pull/109/files)
+[Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/pull/125/files)
 
 ## v0.1.0-alpha.1 — Unreleased alpha
 
