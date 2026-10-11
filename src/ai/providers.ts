@@ -305,6 +305,17 @@ export function createServiceRouter(
               'MODEL_REQUIRED',
               'Choose a model for each LLM fallback.',
             );
+            // A selected model's reservation may exceed a configured backup's ceiling.
+            let maxOutputTokens = request.maxOutputTokens;
+            if (!ownsSelection) {
+              const catalog = await client.listModels(op.signal, model);
+              if (op.signal.aborted)
+                throw new AiError('CANCELLED', 'AI request cancelled.');
+              const maximum = catalog.find(
+                (item) => item.id === model,
+              )?.maxCompletionTokens;
+              if (maximum) maxOutputTokens = Math.min(maxOutputTokens, maximum);
+            }
             // Provider-specific reasoning signatures never travel to another endpoint.
             const messages =
               selected.llm.length === 1
@@ -319,7 +330,7 @@ export function createServiceRouter(
                       : m,
                   );
             for await (const event of client.stream(
-              { ...request, model, messages },
+              { ...request, model, messages, maxOutputTokens },
               op.signal,
             )) {
               if (op.signal.aborted)

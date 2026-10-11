@@ -66,6 +66,60 @@ function routed(a: OpenRouter, b: OpenRouter) {
   );
 }
 describe('service providers', () => {
+  it('caps a reasoning request to the actual configured fallback model completion limit', async () => {
+    const model = (id: string, max: number) => ({
+      id,
+      name: id,
+      context_length: 300000,
+      supported_parameters: ['tools', 'tool_choice', 'reasoning'],
+      top_provider: { max_completion_tokens: max },
+    });
+    const primaryFetch = vi.fn<typeof globalThis.fetch>(async (url) =>
+      String(url).endsWith('/models')
+        ? Response.json({ data: [model('primary-model', 32768)] })
+        : new Response(null, { status: 429 }),
+    );
+    const backupFetch = vi.fn<typeof globalThis.fetch>(async (url) =>
+      String(url).endsWith('/models')
+        ? Response.json({ data: [model('backup-model', 8192)] })
+        : new Response(
+            'data: {"choices":[{"index":0,"delta":{"content":"Backup completed"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+            { headers: { 'Content-Type': 'text/event-stream' } },
+          ),
+    );
+    const a = createOpenRouter({ fetch: primaryFetch });
+    const b = createOpenRouter({ fetch: backupFetch });
+    a.setKey('synthetic-primary');
+    b.setKey('synthetic-backup');
+    const router = routed(a, b);
+    try {
+      const events = await collect(
+        router.stream({ ...chat, maxOutputTokens: 16384 }, signal()),
+      );
+      expect(events.at(-1)).toMatchObject({
+        type: 'complete',
+        message: { content: 'Backup completed' },
+      });
+      const primary = primaryFetch.mock.calls.find(([url]) =>
+        String(url).endsWith('/chat/completions'),
+      )!;
+      const backup = backupFetch.mock.calls.find(([url]) =>
+        String(url).endsWith('/chat/completions'),
+      )!;
+      expect(JSON.parse(String(primary[1]?.body)).max_tokens).toBe(16384);
+      expect(JSON.parse(String(backup[1]?.body)).max_tokens).toBe(8192);
+      expect(
+        backupFetch.mock.calls.filter(([url]) =>
+          String(url).endsWith('/chat/completions'),
+        ),
+      ).toHaveLength(1);
+    } finally {
+      router.dispose();
+      a.dispose();
+      b.dispose();
+    }
+  });
+
   it('verifies independently stored OpenRouter keys without inference and disconnects only one account', async () => {
     const records = new Map<string, string>();
     const storage = {
