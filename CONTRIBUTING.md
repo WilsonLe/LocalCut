@@ -53,7 +53,7 @@ Push your feature branch to your fork (or this repository if authorized) and ope
 - Explain the problem and resulting behavior, and link every tracking issue. Use `Closes #number` only when the PR fully delivers it; otherwise use `Refs #number`.
 - Link the PR back from each issue. Keep the issue scope current when findings change it.
 - List exact check commands/results and the tested commit; distinguish local author evidence, independent review and external/live outcomes. Add screenshots for UI changes, using generated or shareable test data.
-- Update affected documentation/contracts in the same change, or explain why no update is warranted. Include storage compatibility and rollback implications where relevant.
+- Update affected documentation/contracts in the same change, or explain why no update is warranted. Include storage compatibility and rollback implications where relevant. For notable changes, add a brief end-user/executive outcome under Unreleased in [CHANGELOG.md](CHANGELOG.md) and link the complete diff; propose the release impact using [SemVer rules](docs/releasing.md#semantic-versioning). Maintainers choose the combined release version; do not bump the manifest for every PR.
 
 A maintainer arranges one independent review-and-address cycle on a frozen candidate, then records the reviewed and resulting heads. Address actionable in-scope findings and rerun affected checks; do not automatically launch a second independent review. Explain unresolved feedback and limitations. See [review and delivery](docs/development.md#review-and-delivery).
 

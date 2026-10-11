@@ -24,4 +24,4 @@ Sustained, well-reviewed contributions, helpful triage, careful handling of priv
 
 ## Project status
 
-LocalCut is a `0.1.0` application in the current manifest, with no published npm package or long-term support branch. That version alone does not identify the deployed revision. API/storage changes must be documented and preserve compatibility or include an explicit tested transition; users must not discover data incompatibility through an unsafe rollback.
+LocalCut is at `0.1.0-alpha.1`, an unreleased alpha in initial development, following the [SemVer release policy](releasing.md#semantic-versioning), with no published npm package or long-term support branch. Named versions, immutable tags and exact deployed revisions are recorded separately. API/storage changes must be documented and preserve compatibility or include an explicit tested transition; users must not discover data incompatibility through an unsafe rollback.

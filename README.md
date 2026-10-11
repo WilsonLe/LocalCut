@@ -83,6 +83,10 @@ See [architecture](docs/architecture.md), [API](docs/api.md), [OpenRouter integr
 
 Native Safari: enable **Allow remote automation** in Safari’s Develop → Developer Settings once, then run `pnpm test:safari`. The suite uses installed Safari through `safaridriver`, verifies/reuses both builds, and runs serially with its own loopback ports. It checks storage reload and three MP4 round trips at each base path, including stereo WAV input, reimported AAC and silence. Unavailable native capabilities fail. Results and failure screenshots are saved in `test-results/safari/`. Playwright WebKit is not native Safari evidence. Safari is an explicit additional gate, with Chrome remaining the complete acceptance target.
 
+## Versioning
+
+LocalCut is currently **v0.1.0-alpha.1**, an unreleased alpha in initial development. Named releases follow [SemVer](https://semver.org/spec/v2.0.0.html) using the [project release policy](docs/releasing.md#semantic-versioning). Read the [short changelog](CHANGELOG.md) for user-facing outcomes and links to each version's full Git diff. Development deployments are identified by commit; no release tag has been published yet.
+
 ## Contributing and community
 
 Bug reports, documentation fixes, accessibility improvements, reproducible browser checks and focused feature proposals are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), use the [issue templates](https://github.com/WilsonLe/LocalCut/issues/new/choose), and follow the [Code of Conduct](CODE_OF_CONDUCT.md). For questions use [SUPPORT.md](SUPPORT.md); for suspected vulnerabilities use [SECURITY.md](SECURITY.md).

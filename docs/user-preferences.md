@@ -231,3 +231,8 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Maintain newcomer-facing README, contributor, deployment, support, security, community and maintainer guidance so LocalCut is approachable as an open-source project. Keep the technical contracts accurate and connected through a documentation index.
 - License LocalCut's original code and documentation under MIT. Preserve separate third-party, font, model and fixture licenses/notices.
+
+## SemVer and changelog — 11 October 2026
+
+- Adopt Semantic Versioning with the current application at `0.1.0-alpha.1` (the latest alpha correction). Use version-based changelog entries and the release policy for future bumps.
+- Keep changelog summaries short and understandable to executives and end users. Link each summary to its full changelog: the Git diff for that version/candidate.

@@ -1,17 +1,14 @@
 # Changelog
 
-This log records notable project changes. Entries under Unreleased describe work awaiting merge/release; they do not establish a deployed version. The application manifest version is not a substitute for the exact deployed commit. See [release guidance](docs/releasing.md) for revision and validation evidence.
+Current version: **0.1.0-alpha.1**. Short summaries for end users and executives; the linked Git diff is the full changelog. See [SemVer and release rules](docs/releasing.md#semantic-versioning).
 
-## Unreleased
+## v0.1.0-alpha.1 — Unreleased alpha
 
-### Added
+- Edit and export videos locally, with timeline controls, styled/animated text and local transcription.
+- Use optional AI for reviewed editing proposals, speech generation and explicitly approved remote services.
+- Transfer selected projects, versions and originals through portable backups.
+- Get started and contribute more easily with clearer setup, deployment, support and privacy guidance, plus MIT licensing.
 
-- MIT licensing for LocalCut's original code and documentation, with separate third-party attribution preserved.
-- Contributor, community, security and support policies, GitHub issue/PR templates, and connected user/maintainer documentation.
-- Guides for first edits, privacy, troubleshooting, governance, roadmap and releases.
+This is an alpha candidate, not a published/tagged release. The diff covers development since repository initialization through the current candidate; its pending branch link will become an immutable tag/commit comparison when released.
 
-### Changed
-
-- README onboarding and deployment guidance, including self-hosting base paths, distribution notices, live verification and storage-compatible rollback.
-
-Historical changes are available in [merged pull requests](https://github.com/WilsonLe/LocalCut/pulls?q=is%3Apr+is%3Amerged) and Git history. No historical release series has been reconstructed here.
+[Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/c7aa85017d7c3a65c70d3b51fd03607c0fbaa5e9..codex/open-source-docs)

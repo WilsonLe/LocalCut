@@ -35,7 +35,7 @@ Choose a starting point for the work you want to do. Current behavior lives in t
 | [Governance](governance.md)                                              | Decisions, maintainers and contributor responsibilities       |
 | [Roadmap](roadmap.md)                                                    | Priorities, non-goals and proposal criteria                   |
 | [Maintainer guide](maintaining.md)                                       | Triage, review, repository readiness and documentation upkeep |
-| [Releasing](releasing.md)                                                | Candidate checks, approval, release notes and evidence        |
+| [Releasing](releasing.md)                                                | SemVer, short changelog/full diffs, approval and evidence     |
 | [Deployment](../DEPLOY.md)                                               | Pages, self-hosting, live checks and compatible rollback      |
 | [Security](../SECURITY.md)                                               | Private reporting limitations and vulnerability handling      |
 | [Code of Conduct](../CODE_OF_CONDUCT.md)                                 | Community expectations and moderation                         |

@@ -38,6 +38,6 @@ Before publishing downloadable release archives, include the project license and
 
 ## Release notes and follow-through
 
-Record observable changes, browser/provider limits, breaking changes or backup implications, exact commit and validation scope. Do not copy an issue's promised outcome into release notes if live verification is missing. Compare release notes against the final diff and [release evidence](releasing.md).
+Use the [SemVer policy](releasing.md#semantic-versioning) to choose the release version and keep the manifest, changelog heading and published tag aligned. Keep the public changelog to two to five short user/executive outcome bullets per version and link the full Git diff. Put browser/provider limits, backup implications, exact commit and validation scope in the linked release evidence; surface essential user actions in the short summary. Verify diff endpoints and compare notes against the final candidate. Do not advertise an unverified outcome or reuse a published tag.
 
 After a merge, fast-forward the clean canonical checkout without discarding unrelated work. Clean only task-owned worktrees, branches and processes when safe; do not prune shared caches or browser data. A release incident needs a verified compatible recovery path, not indiscriminate storage clearing.

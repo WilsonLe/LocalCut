@@ -19,6 +19,8 @@ Describe the user/developer problem and resulting behavior. Keep scope focused.
 
 - Updated guides/contracts, or why no update is warranted:
 - Storage/API compatibility, consent/privacy and asset licensing implications:
+- Proposed release impact (patch/minor/major under the initial-development policy):
+- Short user/executive changelog outcome and full Git diff link, or why no entry is warranted:
 - Release/rollback risks:
 
 ## Review and handoff
