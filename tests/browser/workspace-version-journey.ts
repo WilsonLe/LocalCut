@@ -1,3 +1,4 @@
+import { openVersions } from './workspace-settings-helper';
 import { expect, test, type Page } from '@playwright/test';
 
 export async function versionJourney(page: Page, base: string) {
@@ -21,7 +22,7 @@ export async function versionJourney(page: Page, base: string) {
     await page.getByRole('button', { name: 'Apply properties' }).click();
     await expect(page.getByRole('dialog')).not.toBeVisible();
     // Explicit browsing flushes the pending debounce before listing versions.
-    await page.getByRole('button', { name: 'Versions', exact: true }).click();
+    await openVersions(page);
     const firstVersionLabel = await page
       .getByRole('group', { name: 'Saved versions' })
       .getByRole('button')
@@ -192,7 +193,7 @@ export async function versionJourney(page: Page, base: string) {
       .getByRole('button', { name: 'Open project', exact: true })
       .click();
     await page.getByRole('button', { name: /Version journey/ }).click();
-    await page.getByRole('button', { name: 'Versions', exact: true }).click();
+    await openVersions(page);
     await expect(
       page.getByRole('button', { name: /Version \d+ ·.*Restored/ }),
     ).toBeVisible();

@@ -1,5 +1,15 @@
+import { openWorkspaceGroup } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+
+async function expectExportAvailable(page: Page, available: boolean) {
+  const menu = await openWorkspaceGroup(page, 'Export');
+  await expect(
+    menu.getByRole('menuitem', { name: 'Export video', exact: true }),
+  ).toHaveCount(available ? 1 : 0);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+}
 
 async function palette(page: Page) {
   await page.getByRole('button', { name: 'Commands', exact: true }).click();
@@ -71,10 +81,17 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(newProject).not.toBeVisible();
     await expect(
       header.getByRole('button', { name: 'Versions', exact: true }),
+    ).toHaveCount(0);
+    const projectMenu = await openWorkspaceGroup(page, 'Project');
+    await expect(
+      projectMenu.getByRole('menuitem', { name: 'Versions', exact: true }),
     ).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
     await expect(
       header.getByRole('button', { name: 'Export', exact: true }),
     ).toHaveCount(0);
+    await expectExportAvailable(page, false);
 
     await run(page, 'Add text');
     await page
@@ -90,7 +107,8 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(properties).not.toBeVisible();
     await expect(
       header.getByRole('button', { name: 'Export', exact: true }),
-    ).toBeVisible();
+    ).toHaveCount(0);
+    await expectExportAvailable(page, true);
     await run(page, 'Forward ten frames');
     await expect(
       page.getByRole('slider', { name: 'Playhead position', exact: true }),
@@ -137,6 +155,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       header.getByRole('button', { name: 'Export', exact: true }),
     ).toHaveCount(0);
+    await expectExportAvailable(page, false);
     dialog = await palette(page);
     await expect(
       dialog.getByRole('option', {
@@ -148,7 +167,8 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(page.getByText(/Version \d+ · Read-only/)).toHaveCount(0);
     await expect(
       header.getByRole('button', { name: 'Export', exact: true }),
-    ).toBeVisible();
+    ).toHaveCount(0);
+    await expectExportAvailable(page, true);
 
     await run(page, 'Export video');
     await expect(

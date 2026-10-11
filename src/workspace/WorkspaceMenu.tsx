@@ -9,6 +9,7 @@ export interface WorkspaceMenuProps {
   busy: boolean;
   hasProject: boolean;
   canExport: boolean;
+  canBrowseVersions: boolean;
   mediaOpen: boolean;
   chatCollapsed: boolean;
   format: 'mp4' | 'webm';
@@ -19,6 +20,7 @@ export interface WorkspaceMenuProps {
   onToggleMedia: () => void;
   onToggleChat: () => void;
   onExport: () => void;
+  onVersions: () => void;
   onFormatChange: (format: 'mp4' | 'webm') => void;
   onAppearance: () => void;
   onShortcuts: () => void;
@@ -79,6 +81,7 @@ export function WorkspaceMenu({
   busy,
   hasProject,
   canExport,
+  canBrowseVersions,
   mediaOpen,
   chatCollapsed,
   format,
@@ -89,6 +92,7 @@ export function WorkspaceMenu({
   onToggleMedia,
   onToggleChat,
   onExport,
+  onVersions,
   onFormatChange,
   onAppearance,
   onShortcuts,
@@ -147,6 +151,11 @@ export function WorkspaceMenu({
               {!busy && (
                 <Menu.Item className={itemClass} onClick={onOpen}>
                   Open project
+                </Menu.Item>
+              )}
+              {canBrowseVersions && (
+                <Menu.Item className={itemClass} onClick={onVersions}>
+                  Versions
                 </Menu.Item>
               )}
               {!busy && hasProject && (

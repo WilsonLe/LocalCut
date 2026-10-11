@@ -19,8 +19,11 @@ function storage(): AuthorizationStorage & { values: Map<string, string> } {
 const callback = 'https://wilsonle.github.io/LocalCut/?workspace=one';
 function returned(url: string, target = callback) {
   const actual = new URL(target);
+  const providerCallback = new URL(
+    new URL(url).searchParams.get('callback_url')!,
+  );
   actual.searchParams.set('code', 'authorization-code');
-  actual.searchParams.set('state', new URL(url).searchParams.get('state')!);
+  actual.searchParams.set('state', providerCallback.searchParams.get('state')!);
   return actual.href;
 }
 
@@ -43,7 +46,11 @@ describe('OpenRouter explicit PKCE authorization', () => {
     expect(fetch).not.toHaveBeenCalled();
     const url = new URL(authorizationUrl);
     expect(url.origin + url.pathname).toBe('https://openrouter.ai/auth');
-    expect(url.searchParams.get('callback_url')).toBe(callback);
+    const registered = new URL(url.searchParams.get('callback_url')!);
+    expect(registered.searchParams.get('state')).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(url.searchParams.has('state')).toBe(false);
+    registered.searchParams.delete('state');
+    expect(registered.href).toBe(callback);
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
     expect(expiresAt).toBe(1000 + OAUTH_TTL_MS);
     const stored = JSON.parse(store.values.get(OAUTH_STORAGE_KEY)!) as {
@@ -83,6 +90,22 @@ describe('OpenRouter explicit PKCE authorization', () => {
     ).rejects.toMatchObject({ code: 'AUTH_FLOW_INVALID' });
     expect(JSON.stringify(client.status())).not.toContain('private');
   });
+  it('accepts the documented code-only redirect to a callback carrying state', async () => {
+    const store = storage();
+    const first = createOpenRouter({ oauthStorage: store });
+    const flow = await first.beginAuthorization({ callbackUrl: callback });
+    const actual = new URL(
+      new URL(flow.authorizationUrl).searchParams.get('callback_url')!,
+    );
+    actual.searchParams.set('code', 'authorization-code');
+    const second = createOpenRouter({
+      oauthStorage: store,
+      fetch: async () => Response.json({ key: 'test-key-private' }),
+    });
+    expect(
+      await second.completeAuthorization({ callbackUrl: actual.href }),
+    ).toEqual({ connected: true, sanitizedCallbackUrl: callback });
+  });
   it('resumes after reload from same tab session storage and returns a clean callback URL', async () => {
     const store = storage();
     const first = createOpenRouter({ oauthStorage: store });
@@ -116,6 +139,10 @@ describe('OpenRouter explicit PKCE authorization', () => {
       const registered = new URL(
         new URL(flow.authorizationUrl).searchParams.get('callback_url')!,
       );
+      expect(registered.searchParams.get('state')).toMatch(
+        /^[A-Za-z0-9_-]{43}$/,
+      );
+      registered.searchParams.delete('state');
       expect(registered.href).toBe(callback);
       expect(registered.hash).toBe('');
       expect(flow.authorizationUrl).not.toContain('local-project');

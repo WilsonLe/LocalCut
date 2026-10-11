@@ -54,28 +54,33 @@ for (const base of ['/', '/LocalCut/']) {
     await expect
       .poll(async () => (await dialog.boundingBox())!.width)
       .toBeGreaterThanOrEqual(760);
-    const providers = dialog.getByRole('button', {
-      name: 'Providers & services',
-      exact: true,
-    });
-    expect(await toggleAnimation(providers)).toEqual({
-      animated: true,
-      between: true,
-    });
+    await expect(
+      dialog.getByRole('heading', {
+        name: 'Providers & services',
+        exact: true,
+      }),
+    ).toBeVisible();
     await dialog
       .getByRole('button', { name: 'Add provider', exact: true })
       .click();
     const name = dialog.getByLabel('Name', { exact: true });
     await name.fill('Unsaved provider');
-    expect(await toggleAnimation(providers)).toEqual({
+    const keyPanel = dialog.getByRole('button', {
+      name: 'Use an API key instead',
+      exact: true,
+    });
+    const key = dialog.getByLabel('OpenRouter API key', { exact: true });
+    await key.fill('synthetic-unsaved-key');
+    expect(await toggleAnimation(keyPanel)).toEqual({
       animated: true,
       between: true,
     });
-    await expect(name).not.toBeVisible();
-    await providers.focus();
-    await providers.press('Space');
+    await expect(key).not.toBeVisible();
+    await keyPanel.focus();
+    await keyPanel.press('Space');
+    await expect(key).toHaveValue('synthetic-unsaved-key');
+    await expect(key).toBeVisible();
     await expect(name).toHaveValue('Unsaved provider');
-    await expect(name).toBeVisible();
     const service = dialog.getByRole('button', {
       name: 'STT · Transcription',
       exact: true,
@@ -122,8 +127,8 @@ for (const base of ['/', '/LocalCut/']) {
       path: testInfo.outputPath('ai-settings-phone.png'),
     });
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await providers.scrollIntoViewIfNeeded();
-    const noMotion = await providers.evaluate(async (element) => {
+    await keyPanel.scrollIntoViewIfNeeded();
+    const noMotion = await keyPanel.evaluate(async (element) => {
       const panel = document.getElementById(
         element.getAttribute('aria-controls')!,
       )!;

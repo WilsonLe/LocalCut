@@ -117,7 +117,8 @@ for (const base of ['/', '/LocalCut/']) {
       'synthetic-connection-key',
     );
     expect(requests).toBe(2);
-    // A hovered error toast can pause its expiry and cover the mobile Send button.
+    // On mobile the error toast covers Send; shared-browser focus can pause
+    // its auto-dismiss. Close it through the same control a user can use.
     await dismissNotifications(page);
     reject = false;
     await composer.fill('Try again');
@@ -274,14 +275,20 @@ for (const base of ['/', '/LocalCut/']) {
     await openAISettings(page);
     await expect(dialog).toBeVisible();
     await dialog
-      .getByRole('button', { name: 'Disconnect', exact: true })
+      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
       .click();
     await expect(
       dialog.getByLabel('OpenRouter API key', { exact: true }),
-    ).toHaveValue('');
+    ).toHaveCount(0);
+    await expect(
+      dialog.getByRole('button', { name: 'Add OpenRouter', exact: true }),
+    ).toBeVisible();
     await expect(
       dialog.getByText('Key connected', { exact: true }),
     ).toHaveCount(0);
+    await dialog
+      .getByRole('button', { name: 'Add OpenRouter', exact: true })
+      .click();
     await dialog
       .getByLabel('OpenRouter API key', { exact: true })
       .fill('synthetic-second-key');

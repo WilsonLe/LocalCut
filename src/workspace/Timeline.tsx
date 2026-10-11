@@ -5,12 +5,10 @@ import {
   useState,
   type CSSProperties,
 } from 'react';
-import { Menu } from '@base-ui/react/menu';
 import { interfaceScale } from './appearance';
 import { useViewport } from './useViewport';
 import {
   Captions,
-  ChevronDown,
   Plus,
   ListChecks,
   Group,
@@ -26,6 +24,7 @@ import {
   Undo2,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { Tooltip } from '../components/ui/tooltip';
 import type { Asset, Editor, Project } from '../editor';
 import { TimelinePreviews } from './timeline-previews';
 import { TimelineClipPreview } from './TimelineClipPreview';
@@ -62,10 +61,12 @@ interface Props {
   onProperties: () => void;
   onText: () => void;
   onAddTrack: (kind: 'video' | 'audio') => void;
+  onReorderTrack: (trackId: string, index: number) => void;
 }
 export function Timeline(props: Props) {
   const { project, assets, selected, timeUs } = props;
   const busy = props.busy || props.readOnly;
+  const [addingTrack, setAddingTrack] = useState(false);
   const addTrackTrigger = useRef<HTMLButtonElement>(null);
   const trackFocusProject = useRef<string | null>(null);
   useEffect(() => {
@@ -127,6 +128,112 @@ export function Timeline(props: Props) {
       Math.round(Math.min(total - 1, Math.max(0, fraction * total))),
     );
   };
+  const reorderFocus = useRef<{ projectId: string; trackId: string } | null>(
+    null,
+  );
+  const reorder = (trackId: string, index: number) => {
+    if (!project || busy) return;
+    reorderFocus.current = { projectId: project.id, trackId };
+    props.onReorderTrack(trackId, index);
+  };
+  useEffect(() => {
+    const pending = reorderFocus.current;
+    if (!pending || busy) return;
+    reorderFocus.current = null;
+    if (
+      pending.projectId === project?.id &&
+      !props.readOnly &&
+      document.activeElement === document.body
+    ) {
+      [
+        ...(tracksElement.current?.querySelectorAll<HTMLElement>(
+          '.timeline-track',
+        ) ?? []),
+      ]
+        .find((row) => row.dataset.trackId === pending.trackId)
+        ?.querySelector<HTMLButtonElement>('.track-label')
+        ?.focus();
+    }
+  }, [busy, project?.id, project?.revision, props.readOnly]);
+  const tracksElement = useRef<HTMLDivElement>(null);
+  const trackDrag = useRef<{
+    id: number;
+    trackId: string;
+    startY: number;
+    index: number;
+    moved: boolean;
+  } | null>(null);
+  const [dropTrack, setDropTrack] = useState<string | null>(null);
+  const gestureScope = `${project?.id}:${project?.revision}:${props.versionId}:${busy}`;
+  const [dragScope, setDragScope] = useState(gestureScope);
+  if (dragScope !== gestureScope) {
+    setDragScope(gestureScope);
+    setDropTrack(null);
+  }
+  useEffect(() => {
+    // A changed revision, project or version retires a gesture authored on old state.
+    trackDrag.current = null;
+  }, [project?.id, project?.revision, props.versionId, busy]);
+  const addControls = !!project && !busy && (
+    <div
+      className="timeline-add-track"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && addingTrack) {
+          event.preventDefault();
+          event.stopPropagation();
+          setAddingTrack(false);
+          addTrackTrigger.current?.focus();
+        }
+      }}
+    >
+      <Tooltip content="Add track">
+        <Button
+          ref={addTrackTrigger}
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Add track"
+          aria-expanded={addingTrack}
+          aria-controls="add-track-choices"
+          onClick={() => setAddingTrack(!addingTrack)}
+        >
+          <Plus aria-hidden="true" />
+        </Button>
+      </Tooltip>
+      {addingTrack && (
+        <div
+          id="add-track-choices"
+          role="group"
+          aria-label="Track type"
+          className="flex items-center gap-1"
+        >
+          {(['audio', 'video'] as const).map((kind) => (
+            <Tooltip
+              key={kind}
+              content={kind === 'audio' ? 'Audio track' : 'Video track'}
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label={kind === 'audio' ? 'Audio track' : 'Video track'}
+                onClick={() => {
+                  trackFocusProject.current = project.id;
+                  setAddingTrack(false);
+                  props.onAddTrack(kind);
+                }}
+              >
+                <Plus aria-hidden="true" />
+                {kind === 'audio' ? (
+                  <Music2 aria-hidden="true" />
+                ) : (
+                  <Film aria-hidden="true" />
+                )}
+              </Button>
+            </Tooltip>
+          ))}
+        </div>
+      )}
+    </div>
+  );
   const selectedClip = project?.tracks
     .flatMap((track) => track.clips)
     .find((clip) => clip.id === selected[0]);
@@ -134,48 +241,6 @@ export function Timeline(props: Props) {
     <section className="timeline" aria-label="Video timeline">
       <div className="timeline-toolbar">
         <div className="flex items-center gap-1">
-          {!!project && !busy && (
-            <Menu.Root modal={false}>
-              <Menu.Trigger
-                ref={addTrackTrigger}
-                render={<Button variant="ghost" size="sm" />}
-              >
-                <Plus aria-hidden="true" /> Add track
-                <ChevronDown aria-hidden="true" />
-              </Menu.Trigger>
-              <Menu.Portal>
-                <Menu.Positioner
-                  align="start"
-                  sideOffset={8}
-                  collisionPadding={8}
-                  className="z-50 outline-none"
-                >
-                  <Menu.Popup
-                    aria-label="Add track"
-                    className="max-h-(--available-height) w-44 max-w-[calc(var(--app-viewport-width)-1rem)] overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none"
-                  >
-                    {(['video', 'audio'] as const).map((kind) => (
-                      <Menu.Item
-                        key={kind}
-                        className="flex min-h-9 cursor-default items-center gap-2 rounded-md px-3 py-2 text-sm outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
-                        onClick={() => {
-                          trackFocusProject.current = project.id;
-                          props.onAddTrack(kind);
-                        }}
-                      >
-                        {kind === 'video' ? (
-                          <Film aria-hidden="true" />
-                        ) : (
-                          <Music2 aria-hidden="true" />
-                        )}
-                        {kind === 'video' ? 'Video track' : 'Audio track'}
-                      </Menu.Item>
-                    ))}
-                  </Menu.Popup>
-                </Menu.Positioner>
-              </Menu.Portal>
-            </Menu.Root>
-          )}
           {!!project && !busy && (
             <Button
               variant="ghost"
@@ -309,9 +374,16 @@ export function Timeline(props: Props) {
             </div>
           )}
           {!!project && !busy && (
-            <Button variant="ghost" size="sm" onClick={props.onText}>
-              <Type /> Add text
-            </Button>
+            <Tooltip content="Add text">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Add text"
+                onClick={props.onText}
+              >
+                <Type aria-hidden="true" />
+              </Button>
+            </Tooltip>
           )}
           {!!selected.length && (
             <Button
@@ -397,10 +469,105 @@ export function Timeline(props: Props) {
                   <span key={part}>{formatTime((total * part) / 3)}</span>
                 ))}
               </div>
-              <div className="timeline-tracks">
+              <div className="timeline-tracks" ref={tracksElement}>
                 {project?.tracks.map((track, index) => (
-                  <div className="timeline-track" key={track.id}>
-                    <span className="track-label">
+                  <div
+                    className="timeline-track"
+                    key={track.id}
+                    data-track-id={track.id}
+                    data-drop-target={dropTrack === track.id}
+                  >
+                    <button
+                      type="button"
+                      className="track-label"
+                      disabled={props.readOnly}
+                      aria-disabled={!!busy}
+                      aria-label={`Reorder ${track.kind === 'audio' ? 'Audio' : track.kind === 'overlay' ? 'Text' : 'Video'} ${index + 1}`}
+                      title="Drag to reorder · Alt+Up/Down"
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape' && trackDrag.current) {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          trackDrag.current = null;
+                          setDropTrack(null);
+                          return;
+                        }
+                        if (
+                          event.altKey &&
+                          (event.key === 'ArrowUp' || event.key === 'ArrowDown')
+                        ) {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          const next =
+                            index + (event.key === 'ArrowUp' ? -1 : 1);
+                          if (
+                            !busy &&
+                            next >= 0 &&
+                            next < project.tracks.length
+                          )
+                            reorder(track.id, next);
+                        }
+                      }}
+                      onPointerDown={(event) => {
+                        if (busy || event.button !== 0) return;
+                        event.preventDefault();
+                        event.currentTarget.focus();
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                        trackDrag.current = {
+                          id: event.pointerId,
+                          trackId: track.id,
+                          startY: event.clientY,
+                          index,
+                          moved: false,
+                        };
+                      }}
+                      onPointerMove={(event) => {
+                        const drag = trackDrag.current;
+                        if (!drag || drag.id !== event.pointerId) return;
+                        if (
+                          Math.abs(event.clientY - drag.startY) < 4 &&
+                          !drag.moved
+                        )
+                          return;
+                        drag.moved = true;
+                        const rows = [
+                          ...(tracksElement.current?.querySelectorAll<HTMLElement>(
+                            '.timeline-track',
+                          ) ?? []),
+                        ];
+                        drag.index = rows.reduce((closest, row, i) => {
+                          const center = (item: HTMLElement) => {
+                            const box = item.getBoundingClientRect();
+                            return box.y + box.height / 2;
+                          };
+                          return Math.abs(event.clientY - center(row)) <
+                            Math.abs(event.clientY - center(rows[closest]!))
+                            ? i
+                            : closest;
+                        }, 0);
+                        setDropTrack(project.tracks[drag.index]?.id ?? null);
+                      }}
+                      onPointerUp={(event) => {
+                        const drag = trackDrag.current;
+                        trackDrag.current = null;
+                        setDropTrack(null);
+                        if (
+                          !busy &&
+                          drag?.id === event.pointerId &&
+                          drag.moved &&
+                          drag.index !== index
+                        )
+                          reorder(drag.trackId, drag.index);
+                      }}
+                      onPointerCancel={() => {
+                        trackDrag.current = null;
+                        setDropTrack(null);
+                      }}
+                      onLostPointerCapture={() => {
+                        trackDrag.current = null;
+                        setDropTrack(null);
+                      }}
+                    >
                       {track.kind === 'audio' ? (
                         <Music2 />
                       ) : track.kind === 'overlay' ? (
@@ -416,7 +583,7 @@ export function Timeline(props: Props) {
                             : 'Video'}{' '}
                         {index + 1}
                       </span>
-                    </span>
+                    </button>
                     <div
                       className="track-lane"
                       onPointerDown={(event) => {
@@ -580,13 +747,12 @@ export function Timeline(props: Props) {
                   </>
                 )}
               </div>
+              {addControls}
             </div>
           </div>
         </>
       ) : (
-        <div className="empty-timeline">
-          Your clips, captions and audio will appear here.
-        </div>
+        addControls
       )}
     </section>
   );

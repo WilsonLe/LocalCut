@@ -1,10 +1,10 @@
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import {
-  Check,
   ChartNoAxesColumn,
   KeyRound,
   LoaderCircle,
-  Unplug,
+  Trash2,
+  RefreshCw,
 } from 'lucide-react';
 import type { ContextPolicy, OpenRouterModel } from '../ai';
 import { Button } from '../components/ui/button';
@@ -31,8 +31,12 @@ import { useIndexConsent, saveIndexConsent } from './index-consent';
 import { toast } from 'sonner';
 import { ProviderSettings } from './ProviderSettings';
 import type { ProviderSettingsProps } from './ProviderSettings';
-interface Props extends Omit<ProviderSettingsProps, 'connecting'> {
+interface Props extends Omit<
+  ProviderSettingsProps,
+  'connecting' | 'openRouterControls' | 'modelControls'
+> {
   providerName?: string;
+  returnFocus?: () => HTMLElement | null;
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
   connection: boolean;
@@ -51,6 +55,7 @@ interface Props extends Omit<ProviderSettingsProps, 'connecting'> {
   connectionError: string | null;
 }
 export default function AIConnectionDialog({
+  returnFocus,
   settingsOpen,
   setSettingsOpen,
   connection,
@@ -80,7 +85,10 @@ export default function AIConnectionDialog({
       }}
     >
       <DialogContent
-        finalFocus={() => document.getElementById('workspace-settings-trigger')}
+        finalFocus={
+          returnFocus ??
+          (() => document.getElementById('workspace-settings-trigger'))
+        }
         className="ai-settings-dialog flex max-h-[calc(var(--app-viewport-height)*0.9)] flex-col gap-6 overflow-hidden p-6 sm:max-w-3xl sm:p-8"
       >
         <DialogHeader>
@@ -99,7 +107,101 @@ export default function AIConnectionDialog({
               Connecting provider…
             </p>
           )}
-          <ProviderSettings {...providerProps} connecting={connecting} />
+          {connectionError && (
+            <div className="space-y-2">
+              <p role="alert" className="text-sm text-destructive">
+                {connectionError}
+              </p>
+            </div>
+          )}
+          <ProviderSettings
+            {...providerProps}
+            connecting={connecting}
+            modelControls={
+              (connection || providerProps.connectedProviders.length > 0) && (
+                <div className="space-y-2">
+                  <Label title={providerName}>AI model</Label>
+                  <ModelPicker
+                    models={models}
+                    model={model}
+                    onChange={setModel}
+                    loading={connecting}
+                    refresh={refreshCatalog}
+                  />
+                </div>
+              )
+            }
+            openRouterControls={
+              <div className="space-y-4 rounded-lg border p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">OpenRouter</p>
+                    <p role="status" className="text-xs text-muted-foreground">
+                      {connection ? 'Key connected' : 'Disconnected'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      disabled={connecting}
+                      variant={connection ? 'outline' : 'default'}
+                      onClick={() => void authorize()}
+                    >
+                      {connection && <RefreshCw aria-hidden="true" />}
+                      {connection
+                        ? 'Reconnect OpenRouter'
+                        : 'Connect with OpenRouter'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={connecting}
+                      aria-label="Remove OpenRouter"
+                      title="Remove OpenRouter"
+                      onClick={disconnect}
+                    >
+                      <Trash2 aria-hidden="true" />
+                    </Button>
+                  </div>
+                </div>
+                <CollapsibleDisclosure
+                  key={connection ? 'connected' : 'disconnected'}
+                  summary={
+                    connection ? 'Replace API key' : 'Use an API key instead'
+                  }
+                  defaultOpen={!connection}
+                >
+                  <form
+                    onSubmit={(event: FormEvent) => {
+                      event.preventDefault();
+                      const key = apiKey;
+                      setApiKey('');
+                      void connect('key', key);
+                    }}
+                    className="space-y-3 pt-3"
+                  >
+                    <Label htmlFor="openrouter-key">OpenRouter API key</Label>
+                    <Input
+                      id="openrouter-key"
+                      type="password"
+                      autoComplete="off"
+                      spellCheck={false}
+                      value={apiKey}
+                      onChange={(event) => setApiKey(event.target.value)}
+                      disabled={connecting}
+                    />
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      disabled={connecting || !apiKey.trim()}
+                    >
+                      <KeyRound aria-hidden="true" />
+                      Use API key
+                    </Button>
+                  </form>
+                </CollapsibleDisclosure>
+              </div>
+            }
+          />
           <div className="space-y-2 rounded-lg border p-3">
             <div className="flex items-center gap-2">
               <Checkbox
@@ -120,98 +222,6 @@ export default function AIConnectionDialog({
               Klip in chat. Remembered on this device; revoke here anytime.
             </p>
           </div>
-          {!connection ? (
-            <CollapsibleDisclosure
-              summary="Connect OpenRouter"
-              defaultOpen={providerProps.connectedProviders.length === 0}
-            >
-              <div className="mt-3 space-y-5">
-                <Button
-                  className="w-full"
-                  disabled={connecting}
-                  onClick={() => void authorize()}
-                >
-                  Connect with OpenRouter
-                </Button>
-                <form
-                  onSubmit={(event: FormEvent) => {
-                    event.preventDefault();
-                    const key = apiKey;
-                    setApiKey('');
-                    void connect('key', key);
-                  }}
-                  className="space-y-3"
-                >
-                  <Label htmlFor="openrouter-key">OpenRouter API key</Label>
-                  <Input
-                    id="openrouter-key"
-                    type="password"
-                    autoComplete="off"
-                    spellCheck={false}
-                    value={apiKey}
-                    onChange={(event) => setApiKey(event.target.value)}
-                    disabled={connecting}
-                  />
-                  <Button
-                    type="submit"
-                    variant="outline"
-                    className="w-full"
-                    disabled={connecting || !apiKey.trim()}
-                  >
-                    <KeyRound aria-hidden="true" />
-                    Use API key
-                  </Button>
-                </form>
-              </div>
-            </CollapsibleDisclosure>
-          ) : (
-            <div className="space-y-5">
-              <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted">
-                    <Check className="size-4" aria-hidden="true" />
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium">OpenRouter</p>
-                    <p role="status" className="text-xs text-muted-foreground">
-                      Key connected
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Saved on this device
-                    </p>
-                  </div>
-                </div>
-                <Button variant="outline" size="sm" onClick={disconnect}>
-                  <Unplug aria-hidden="true" />
-                  Disconnect
-                </Button>
-              </div>
-            </div>
-          )}
-          {(connection || providerProps.connectedProviders.length > 0) && (
-            <div className="space-y-2">
-              <Label title={providerName}>AI model</Label>
-              <ModelPicker
-                models={models}
-                model={model}
-                onChange={setModel}
-                loading={connecting}
-                refresh={refreshCatalog}
-              />
-            </div>
-          )}
-          {connectionError && (
-            <div className="space-y-2">
-              <p role="alert" className="text-sm text-destructive">
-                {connectionError}
-              </p>
-              {!connection && (
-                <Button variant="outline" onClick={disconnect}>
-                  Disconnect
-                </Button>
-              )}
-            </div>
-          )}
         </div>
         <div className="flex items-center justify-between">
           <Popover>
