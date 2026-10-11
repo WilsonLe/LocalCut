@@ -337,3 +337,8 @@ This is the project record of the user's durable product and workflow choices. U
 ## Application updates — 11 October 2026
 
 - Add an icon-only Check for update control at the top right of the main header. When a later deployed commit is available, prompt the user to update; reload only after the user chooses Update now.
+
+## Reusable computation — 11 October 2026
+
+- Persist expensive reusable computed results locally once produced; refreshing or reopening must reuse valid results instead of recomputing, including audio waveforms. Audit other derived media/analysis values too.
+- Enforce this principle in development documentation and agent guidance, with versioned source/parameter identity, correct invalidation and refresh regression evidence.

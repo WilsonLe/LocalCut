@@ -26,6 +26,21 @@ export const inputFormats = [MP4, QTFF, WEBM, MP3, WAVE];
 export function inputFile(file: Blob) {
   return new Input({ source: new BlobSource(file), formats: inputFormats });
 }
+function sourceIdentity(asset: Asset, file: File) {
+  return JSON.stringify([
+    file.size,
+    file.lastModified,
+    asset.kind,
+    asset.durationUs,
+    asset.width,
+    asset.height,
+    asset.rotation,
+    asset.videoCodec,
+    asset.audioCodec,
+    asset.sampleRate,
+    asset.channels,
+  ]);
+}
 export async function inspect(
   file: Blob,
   name: string,
@@ -153,6 +168,7 @@ export async function importAsset(
                 'Ready originals cannot be replaced',
               );
               // Conservative invalidation also covers replacement with identical metadata.
+              await store.invalidateDerivatives(relinkId);
               const { AssetIndexStore } =
                 await import('../storage/asset-index');
               const index = await AssetIndexStore.open(store.namespace);
@@ -284,21 +300,27 @@ async function convertCacheAttempt(
     `derivative:${id}`,
     'exclusive',
     async () => {
+      checkAbort(signal);
+      const asset = await store.getAsset(assetId);
+      const original = await store.file(assetId);
+      const source = sourceIdentity(asset, original);
       const old = await store.derivative(id);
       if (old) {
         try {
-          return await store.file(old.path);
+          const file = await store.file(old.path);
+          if (old.source === source && file.size === old.size) return file;
         } catch {
-          await store.db.delete('derivatives', id);
+          // Rebuild a missing disposable file.
         }
+        await store.remove(old.path);
+        await store.db.delete('derivatives', id);
       }
-      const asset = await store.getAsset(assetId);
       invariant(
         kind === 'pcm' ? asset.audioCodec : asset.videoCodec,
         'UNSUPPORTED_CODEC',
         `Asset has no ${kind === 'pcm' ? 'audio' : 'video'}`,
       );
-      const input = inputFile(await store.file(assetId)),
+      const input = inputFile(original),
         path = `cache-${id}`;
       let target: Awaited<ReturnType<typeof outputTarget>> | undefined;
       let conversion: Conversion | undefined;
@@ -368,6 +390,7 @@ async function convertCacheAttempt(
               size: file.size,
               accessed: Date.now(),
               kind,
+              source,
             });
             await store.finishJournal(jobId);
             return file;
@@ -401,42 +424,199 @@ export async function thumbnails(
     'INVALID_COMMAND',
     'Invalid thumbnail times',
   );
-  const file = await store.file(assetId),
-    asset = await store.getAsset(assetId),
-    input = asset.kind === 'image' ? undefined : inputFile(file);
+  invariant(
+    Number.isSafeInteger(width) && width > 0 && width <= 4096,
+    'INVALID_COMMAND',
+    'Invalid thumbnail width',
+  );
+  return store.lock(
+    `asset:${assetId}`,
+    'shared',
+    async () => {
+      checkAbort(signal);
+      const file = await store.file(assetId),
+        asset = await store.getAsset(assetId);
+      return thumbnailTiles(store, asset, file, timesUs, signal, width);
+    },
+    signal,
+  );
+}
+// Both callers hold one original lease; never reacquire it behind a queued relink.
+async function thumbnailTiles(
+  store: Store,
+  asset: Asset,
+  file: File,
+  timesUs: number[],
+  signal: AbortSignal,
+  width: number,
+) {
+  const assetId = asset.id;
+  invariant(
+    asset.kind === 'image' || asset.videoCodec,
+    'UNSUPPORTED_CODEC',
+    'Asset has no video',
+  );
+  const source = sourceIdentity(asset, file);
   const height = Math.max(1, Math.round((width * asset.height) / asset.width));
   const results: { timeUs: number; blob: Blob }[] = [];
+  // Open a native decoder only after a cache miss, and reuse it within this batch.
+  let input: Input | undefined, sink: VideoSampleSink | undefined;
+  let firstTimestamp = 0;
   try {
-    const track = await input?.getPrimaryVideoTrack();
-    const sink = track ? new VideoSampleSink(track) : undefined;
-    const firstTimestamp = track ? await track.getFirstTimestamp() : 0;
     for (const timeUs of timesUs) {
       checkAbort(signal);
-      const canvas = new OffscreenCanvas(width, height),
-        ctx = canvas.getContext('2d')!;
-      if (asset.kind === 'image') {
-        const bitmap = await createImageBitmap(file);
-        ctx.drawImage(bitmap, 0, 0, width, height);
-        bitmap.close();
-      } else {
-        // Camera/recording containers may begin after timestamp zero.
-        const sample = await sink!.getSample(
-          Math.max(firstTimestamp, timeUs / 1e6),
-        );
-        invariant(sample, 'MISSING_ASSET', 'No frame at requested time');
-        sample.draw(ctx, 0, 0, width, height);
-        sample.close();
-      }
-      results.push({
-        timeUs,
-        blob: await canvas.convertToBlob({ type: 'image/webp', quality: 0.8 }),
-      });
+      // Still-image pixels do not depend on the requested presentation timestamp.
+      const id = `thumbnail-v1-${assetId}-${width}-${asset.kind === 'image' ? 0 : timeUs}`;
+      const blob = await store.lock(
+        `derivative:${id}`,
+        'exclusive',
+        async () => {
+          const cached = await store.cachedBlob(id, source);
+          checkAbort(signal);
+          if (cached) return cached;
+          const canvas = new OffscreenCanvas(width, height),
+            ctx = canvas.getContext('2d')!;
+          if (asset.kind === 'image') {
+            const bitmap = await createImageBitmap(file);
+            try {
+              ctx.drawImage(bitmap, 0, 0, width, height);
+            } finally {
+              bitmap.close();
+            }
+          } else {
+            if (!input) {
+              input = inputFile(file);
+              const track = await input.getPrimaryVideoTrack();
+              invariant(track, 'UNSUPPORTED_CODEC', 'Asset has no video');
+              sink = new VideoSampleSink(track);
+              firstTimestamp = await track.getFirstTimestamp();
+            }
+            // Camera/recording containers may begin after timestamp zero.
+            const sample = await sink!.getSample(
+              Math.max(firstTimestamp, timeUs / 1e6),
+            );
+            invariant(sample, 'MISSING_ASSET', 'No frame at requested time');
+            try {
+              sample.draw(ctx, 0, 0, width, height);
+            } finally {
+              sample.close();
+            }
+          }
+          checkAbort(signal);
+          const blob = await canvas.convertToBlob({
+            type: 'image/webp',
+            quality: 0.8,
+          });
+          await store.saveCachedBlob(
+            id,
+            assetId,
+            'thumbnail',
+            source,
+            blob,
+            signal,
+          );
+          return blob;
+        },
+        signal,
+      );
+      checkAbort(signal);
+      results.push({ timeUs, blob });
       await new Promise((r) => setTimeout(r, 0));
     }
     return results;
   } finally {
     input?.dispose();
   }
+}
+
+export async function contactSheet(
+  store: Store,
+  assetId: string,
+  timesUs: number[],
+  signal: AbortSignal,
+  width = 320,
+) {
+  invariant(
+    timesUs.length > 0 &&
+      timesUs.length <= 1000 &&
+      timesUs.every((time) => Number.isSafeInteger(time) && time >= 0),
+    'INVALID_COMMAND',
+    'Contact sheet needs valid timestamps',
+  );
+  invariant(
+    Number.isSafeInteger(width) && width > 0 && width <= 4096,
+    'INVALID_COMMAND',
+    'Invalid thumbnail width',
+  );
+  const key = new TextEncoder().encode(JSON.stringify([width, timesUs]));
+  const digest = await crypto.subtle.digest('SHA-256', key);
+  const requestKey = Array.from(new Uint8Array(digest), (b) =>
+    b.toString(16).padStart(2, '0'),
+  ).join('');
+  const id = `contact-sheet-v1-${assetId}-${requestKey}`;
+  return store.lock(
+    `asset:${assetId}`,
+    'shared',
+    () =>
+      store.lock(
+        `derivative:${id}`,
+        'exclusive',
+        async () => {
+          checkAbort(signal);
+          const file = await store.file(assetId),
+            asset = await store.getAsset(assetId);
+          const source = sourceIdentity(asset, file);
+          // A sheet hit also avoids regenerating any evicted individual tiles.
+          const cached = await store.cachedBlob(id, source);
+          checkAbort(signal);
+          if (cached) return { blob: cached, timesUs };
+          const items = await thumbnailTiles(
+            store,
+            asset,
+            file,
+            timesUs,
+            signal,
+            width,
+          );
+          const images: ImageBitmap[] = [];
+          try {
+            for (const item of items) {
+              checkAbort(signal);
+              images.push(await createImageBitmap(item.blob));
+            }
+            const columns = Math.ceil(Math.sqrt(items.length));
+            const canvas = new OffscreenCanvas(
+              columns * width,
+              Math.ceil(items.length / columns) * images[0]!.height,
+            );
+            const ctx = canvas.getContext('2d')!;
+            for (let i = 0; i < images.length; i++) {
+              checkAbort(signal);
+              ctx.drawImage(
+                images[i]!,
+                (i % columns) * width,
+                Math.floor(i / columns) * images[0]!.height,
+              );
+            }
+            const blob = await canvas.convertToBlob({ type: 'image/png' });
+            await store.saveCachedBlob(
+              id,
+              assetId,
+              'contact-sheet',
+              source,
+              blob,
+              signal,
+            );
+            checkAbort(signal);
+            return { blob, timesUs };
+          } finally {
+            for (const image of images) image.close();
+          }
+        },
+        signal,
+      ),
+    signal,
+  );
 }
 export async function pcmWindow(
   file: File,
@@ -491,41 +671,76 @@ export async function waveform(
     'INVALID_COMMAND',
     'Invalid waveform bins',
   );
-  const release = await store.lease('asset:' + assetId, signal);
-  try {
-    const file = await convertCache(
-        store,
-        assetId,
-        'pcm',
+  return store.lock(
+    `asset:${assetId}`,
+    'shared',
+    () => {
+      const id = `waveform-v1-${assetId}-${bins}`;
+      return store.lock(
+        `derivative:${id}`,
+        'exclusive',
+        async () => {
+          checkAbort(signal);
+          const asset = await store.getAsset(assetId);
+          const original = await store.file(assetId);
+          const source = sourceIdentity(asset, original);
+          const cached = await store.cachedBlob(id, source);
+          checkAbort(signal);
+          if (cached && cached.size === bins * 4) {
+            const peaks = new Float32Array(await cached.arrayBuffer());
+            if (peaks.every((value) => Number.isFinite(value) && value >= 0)) {
+              progress({ stage: 'waveform-cache', progress: 1 });
+              return peaks;
+            }
+          }
+          const file = await convertCache(
+            store,
+            assetId,
+            'pcm',
+            signal,
+            progress,
+            jobId,
+          );
+          const total = Math.ceil((asset.durationUs * 48000) / 1e6),
+            values = new Float32Array(bins);
+          for (let start = 0; start < total; start += 48000) {
+            checkAbort(signal);
+            const data = await pcmWindow(
+              file,
+              start,
+              Math.min(48000, total - start),
+            );
+            for (let i = 0; i < data[0]!.length; i++) {
+              const bin = Math.min(
+                bins - 1,
+                Math.floor(((start + i) * bins) / total),
+              );
+              values[bin] = Math.max(
+                values[bin]!,
+                Math.abs(data[0]![i]!),
+                Math.abs(data[1]![i]!),
+              );
+            }
+            progress({
+              stage: 'waveform',
+              progress: Math.min(1, (start + 48000) / total),
+            });
+            await new Promise((r) => setTimeout(r, 0));
+          }
+          await store.saveCachedBlob(
+            id,
+            assetId,
+            'waveform',
+            source,
+            new Blob([values.buffer], { type: 'application/octet-stream' }),
+            signal,
+          );
+          checkAbort(signal);
+          return values;
+        },
         signal,
-        progress,
-        jobId,
-      ),
-      asset = await store.getAsset(assetId);
-    const total = Math.ceil((asset.durationUs * 48000) / 1e6),
-      values = new Float32Array(bins);
-    for (let start = 0; start < total; start += 48000) {
-      checkAbort(signal);
-      const data = await pcmWindow(file, start, Math.min(48000, total - start));
-      for (let i = 0; i < data[0]!.length; i++) {
-        const bin = Math.min(
-          bins - 1,
-          Math.floor(((start + i) * bins) / total),
-        );
-        values[bin] = Math.max(
-          values[bin]!,
-          Math.abs(data[0]![i]!),
-          Math.abs(data[1]![i]!),
-        );
-      }
-      progress({
-        stage: 'waveform',
-        progress: Math.min(1, (start + 48000) / total),
-      });
-      await new Promise((r) => setTimeout(r, 0));
-    }
-    return values;
-  } finally {
-    release();
-  }
+      );
+    },
+    signal,
+  );
 }

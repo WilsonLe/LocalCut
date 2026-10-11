@@ -531,45 +531,15 @@ export async function createEditor(options: EditorOptions = {}) {
         });
       },
       contactSheet(assetId: string, timesUs: number[], width = 320) {
-        active();
-        return jobs.start(async (signal, progress, id) => {
-          const items = await background.run<{ timeUs: number; blob: Blob }[]>(
-            'thumbnail',
-            { namespace, jobId: id, assetId, timesUs, width },
-            signal,
-            progress,
-          );
-          invariant(
-            items.length,
-            'INVALID_COMMAND',
-            'Contact sheet needs timestamps',
-          );
-          const columns = Math.ceil(Math.sqrt(items.length)),
-            images = await Promise.all(
-              items.map((i) => createImageBitmap(i.blob)),
-            );
-          try {
-            const canvas = new OffscreenCanvas(
-                columns * width,
-                Math.ceil(items.length / columns) * images[0]!.height,
-              ),
-              ctx = canvas.getContext('2d')!;
-            for (let i = 0; i < images.length; i++) {
-              checkAbort(signal);
-              ctx.drawImage(
-                images[i]!,
-                (i % columns) * width,
-                Math.floor(i / columns) * images[0]!.height,
-              );
-            }
-            return {
-              blob: await canvas.convertToBlob({ type: 'image/png' }),
-              timesUs,
-            };
-          } finally {
-            for (const image of images) image.close();
-          }
-        });
+        return run<{ blob: Blob; timesUs: number[] }>(
+          background,
+          'contactSheet',
+          {
+            assetId,
+            timesUs,
+            width,
+          },
+        );
       },
       waveform(assetId: string, bins = 1000) {
         return run<Float32Array>(background, 'waveform', { assetId, bins });
