@@ -333,3 +333,7 @@ This is the project record of the user's durable product and workflow choices. U
 ## Project switcher dialog — 11 October 2026
 
 - Open the header project-name switcher in a dialog over the current editor, including on mobile. Dismissing it preserves the current route and editing state; selecting another project updates its URL. This supersedes the earlier routed-screen choice for the project-name switcher. LocalCut home and direct catalog links retain the Projects screen.
+
+## Application updates — 11 October 2026
+
+- Add an icon-only Check for update control at the top right of the main header. When a later deployed commit is available, prompt the user to update; reload only after the user chooses Update now.

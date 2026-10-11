@@ -61,10 +61,25 @@ import tailwindcss from '@tailwindcss/vite';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fontSnapshot } from './scripts/font-snapshot';
+import { readBuildInfo } from './scripts/build-info.ts';
+const buildInfo = readBuildInfo(import.meta.dirname);
+function revisionManifest(): Plugin {
+  return {
+    name: 'localcut-revision-manifest',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'build-info.json',
+        source: JSON.stringify(buildInfo) + '\n',
+      });
+    },
+  };
+}
 export default defineConfig(({ command }) => ({
   base: process.env.LOCALCUT_BASE_PATH || '/LocalCut/',
-  plugins: [react(), tailwindcss(), publicModuleAliases()],
+  plugins: [react(), tailwindcss(), publicModuleAliases(), revisionManifest()],
   define: {
+    __LOCALCUT_COMMIT__: JSON.stringify(buildInfo.commit),
     __LOCALCUT_FONT_REVISION__: JSON.stringify(
       command === 'build' ? fontSnapshot() : '',
     ),

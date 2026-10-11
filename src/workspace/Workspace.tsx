@@ -30,6 +30,7 @@ import type {
 } from '../editor';
 import { Button } from '../components/ui/button';
 import { Toaster } from '../components/ui/sonner';
+import { UpdateControl } from './UpdateControl';
 // Capture callback secrets before loading the conversation or any asynchronous work.
 import './oauth-callback';
 const Conversation = lazy(() =>
@@ -1557,6 +1558,7 @@ export function Workspace() {
           <TaskQueueControl editor={queueOwner} />
         </Suspense>
       )}
+      <UpdateControl busy={busy} />
       {!busy && (
         <Button
           id="workspace-command-trigger"
