@@ -43,6 +43,24 @@ for (const base of ['/', '/LocalCut/']) {
             ],
           },
         });
+      if (
+        route.request().method() === 'GET' &&
+        new URL(route.request().url()).searchParams.get('output_modalities') ===
+          'speech'
+      )
+        return route.fulfill({
+          headers: cors,
+          json: {
+            data: [
+              {
+                id: 'google/gemini-3.8-flash-tts',
+                name: 'Gemini Flash TTS',
+                architecture: { output_modalities: ['speech'] },
+                supported_voices: ['Zephyr'],
+              },
+            ],
+          },
+        });
       paid++;
       return route.abort();
     });
