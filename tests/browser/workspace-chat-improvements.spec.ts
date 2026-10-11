@@ -1,3 +1,4 @@
+import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test } from '@playwright/test';
 import { openAISettings } from './workspace-settings-helper';
 import type { BrowserContext, Page } from '@playwright/test';
@@ -228,10 +229,7 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await expect(source).toBeVisible();
     await expect(source.locator('img')).toBeVisible();
-    for (const close of await page
-      .getByRole('button', { name: 'Close toast', exact: true })
-      .all())
-      if (await close.isVisible()) await close.click();
+    await dismissNotifications(page);
     const asset = await page.evaluate(async (base) => {
       const { createEditor } = (await import(
         base + 'editor.js'
@@ -255,10 +253,7 @@ for (const base of ['/', '/LocalCut/']) {
       data.setData('application/x-localcut-image', id);
       return data;
     }, asset.id);
-    for (const close of await page
-      .getByRole('button', { name: 'Close toast', exact: true })
-      .all())
-      if (await close.isVisible()) await close.click();
+    await dismissNotifications(page);
     const from = (await source.boundingBox())!;
     const to = (await input.boundingBox())!;
     await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
