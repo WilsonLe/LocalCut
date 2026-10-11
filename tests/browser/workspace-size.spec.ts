@@ -403,7 +403,10 @@ test.describe('scaled touch layouts', () => {
               .getByRole('button', { name: 'Expand media', exact: true })
               .click();
             await expect(
-              page.getByRole('dialog', { name: 'Media library', exact: true }),
+              page.getByRole('complementary', {
+                name: 'Media library',
+                exact: true,
+              }),
             ).toBeVisible();
             await page.keyboard.press('Escape');
             await navigation

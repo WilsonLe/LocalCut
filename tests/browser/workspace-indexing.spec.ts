@@ -156,7 +156,7 @@ for (const base of ['/', '/LocalCut/']) {
         .getByRole('button', { name: 'Close media', exact: true })
         .click();
       await expect(
-        page.getByRole('dialog', { name: 'Media library', exact: true }),
+        page.getByRole('complementary', { name: 'Media library', exact: true }),
       ).toBeHidden();
       release();
       await expect(
@@ -186,7 +186,7 @@ for (const base of ['/', '/LocalCut/']) {
       await page.keyboard.press('Escape');
       await expect(history).toBeHidden();
       await expect(
-        page.getByRole('dialog', { name: 'Media library', exact: true }),
+        page.getByRole('complementary', { name: 'Media library', exact: true }),
       ).toBeVisible();
       await page
         .getByRole('button', { name: 'Asset details for red.png' })
@@ -196,7 +196,7 @@ for (const base of ['/', '/LocalCut/']) {
       await expect(page.getByRole('tooltip')).toContainText('red.png');
       await page.keyboard.press('Escape');
       await expect(
-        page.getByRole('dialog', { name: 'Media library', exact: true }),
+        page.getByRole('complementary', { name: 'Media library', exact: true }),
       ).toBeHidden();
       await expect(
         page.getByRole('button', { name: 'Expand media', exact: true }),

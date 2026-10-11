@@ -10,7 +10,6 @@ import type { TransitionTemplate } from '../core/timeline';
 import { TRANSITION_TEMPLATES } from '../core/timeline';
 import { clipName, formatTime } from './helpers';
 import { frameStep } from './shortcuts';
-import { saveWorkspacePreferences } from './preferences';
 import type { WorkspaceCommand } from './commands';
 
 interface CommandContext {
@@ -558,7 +557,7 @@ export function workspaceCommands(
     '?',
   );
   const revealChat = (run: () => void) => () => {
-    saveWorkspacePreferences({ chatCollapsed: false });
+    if (chatCollapsed) toggleChat();
     run();
   };
   for (const item of assistantCommands())

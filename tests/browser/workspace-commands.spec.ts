@@ -209,18 +209,22 @@ for (const base of ['/', '/LocalCut/']) {
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
     expect(bounds.y + bounds.height).toBeLessThanOrEqual(844);
     await page.keyboard.press('Escape');
+    await run(page, 'Expand chat');
     await run(page, 'Collapse chat');
     await page.reload();
+    await expect(page.locator('.conversation-panel')).toBeHidden();
     await expect(
-      page.getByRole('button', { name: 'Expand chat', exact: true }),
-    ).toBeVisible();
+      page
+        .getByRole('navigation', { name: 'Workspace sections' })
+        .getByRole('button', { name: 'Edit', exact: true }),
+    ).toHaveAttribute('aria-current', 'page');
     await run(page, 'Expand media');
     await expect(
-      page.getByRole('dialog', { name: 'Media library', exact: true }),
+      page.getByRole('complementary', { name: 'Media library', exact: true }),
     ).toBeVisible();
     await page.reload();
     await expect(
-      page.getByRole('dialog', { name: 'Media library', exact: true }),
+      page.getByRole('complementary', { name: 'Media library', exact: true }),
     ).toBeHidden();
     await expect(
       page.getByRole('button', { name: 'Expand media', exact: true }),

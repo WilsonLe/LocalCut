@@ -53,6 +53,7 @@ const EditorPanels = lazy(() =>
   })),
 );
 import type { PreviewControls } from './Preview';
+import type { MobileTab } from './MobileNavigation';
 const Tooltip = lazy(() =>
   import('../components/ui/tooltip').then(({ Tooltip }) => ({
     default: Tooltip,
@@ -81,6 +82,7 @@ import { selectionIds, transitionPairs } from '../core/timeline';
 import type { TransitionTemplate } from '../core/timeline';
 import { interfaceScale, useAppearance } from './appearance';
 import { usePageZoomGuard } from './usePageZoomGuard';
+import { hasBlockingOverlay } from './overlays';
 import {
   saveWorkspacePreferences,
   useWorkspacePreferences,
@@ -91,7 +93,6 @@ import type { TextStyleInput } from '../core/text-library';
 import type { DialogName, Progress } from './WorkspaceDialogs';
 const MediaLibrary = lazy(() => import('./MediaLibrary'));
 const MobileNavigation = lazy(() => import('./MobileNavigation'));
-const MobileMediaSheet = lazy(() => import('./MobileMediaSheet'));
 const WorkspaceDialogs = lazy(() => import('./WorkspaceDialogs'));
 const Preview = lazy(() =>
   import('./Preview').then(({ Preview }) => ({ default: Preview })),
@@ -146,7 +147,38 @@ export function Workspace() {
   const [narrow, setNarrow] = useState(
     () => window.matchMedia(narrowQuery).matches,
   );
-  const [mobileMediaOpen, setMobileMediaOpen] = useState(false);
+  const [mobileTab, setMobileTab] = useState<MobileTab>('edit');
+  const previousMobileTab = useRef<MobileTab>('edit');
+  const selectMobileTab = (tab: MobileTab) => {
+    if (tab === mobileTab) return;
+    if (tab === 'media') previousMobileTab.current = mobileTab;
+    setMobileTab(tab);
+    requestAnimationFrame(() => {
+      if (
+        !window.matchMedia(narrowQuery).matches ||
+        document
+          .querySelector('.workspace-columns')
+          ?.getAttribute('data-mobile-tab') !== tab
+      )
+        return;
+      document
+        .querySelector('.workspace-body')
+        ?.scrollTo({ top: 0, behavior: 'instant' });
+      const target =
+        tab === 'edit'
+          ? document.getElementById('workspace-editor')
+          : document.querySelector<HTMLElement>(
+              tab === 'chat' ? '.conversation-toggle' : '.media-toggle',
+            );
+      target?.focus({ preventScroll: true });
+    });
+  };
+  const closeMobileMedia = () => {
+    selectMobileTab(previousMobileTab.current);
+    requestAnimationFrame(() =>
+      document.getElementById('mobile-media-trigger')?.focus(),
+    );
+  };
   const mediaHasFocus = useRef(false);
   const restoreMediaFocus = useRef(false);
   const mediaTriggerRef = useCallback((trigger: HTMLButtonElement | null) => {
@@ -154,7 +186,13 @@ export function Workspace() {
       requestAnimationFrame(() => {
         if (trigger.isConnected && restoreMediaFocus.current) {
           restoreMediaFocus.current = false;
-          if (document.activeElement === document.body) trigger.focus();
+          const active = document.activeElement;
+          if (
+            active === document.body ||
+            active?.closest('[inert]') ||
+            !active?.getClientRects().length
+          )
+            trigger.focus();
         }
       });
     }
@@ -169,11 +207,13 @@ export function Workspace() {
     const query = window.matchMedia(narrowQuery);
     const update = () => {
       // CSS may hide and blur the rail before this change event is delivered.
-      restoreMediaFocus.current = mediaHasFocus.current;
+      restoreMediaFocus.current =
+        mediaHasFocus.current ||
+        !!document.activeElement?.closest('#workspace-media');
       mediaHasFocus.current = false;
       setNarrow(query.matches);
       document.documentElement.dataset.workspaceNarrow = String(query.matches);
-      setMobileMediaOpen(false);
+      setMobileTab('edit');
     };
     update();
     query.addEventListener('change', update);
@@ -182,21 +222,52 @@ export function Workspace() {
       delete document.documentElement.dataset.workspaceNarrow;
     };
   }, [narrowQuery]);
+  useLayoutEffect(() => {
+    if (!restoreMediaFocus.current) return;
+    const frame = requestAnimationFrame(() => {
+      const trigger = document.getElementById(
+        narrow ? 'mobile-media-trigger' : 'desktop-media-trigger',
+      );
+      if (trigger && restoreMediaFocus.current) {
+        restoreMediaFocus.current = false;
+        trigger.focus();
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [narrow]);
   const [mediaLoaded, setMediaLoaded] = useState(false);
   const drawer = narrow
-    ? mobileMediaOpen
+    ? mobileTab === 'media'
     : (mediaOverride ?? preferences.mediaOpen);
   if (drawer && !mediaLoaded) setMediaLoaded(true);
+  useEffect(() => {
+    if (!narrow || mobileTab !== 'media') return;
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || hasBlockingOverlay()) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setMobileTab(previousMobileTab.current);
+      requestAnimationFrame(() =>
+        document.getElementById('mobile-media-trigger')?.focus(),
+      );
+    };
+    document.addEventListener('keydown', escape, true);
+    return () => document.removeEventListener('keydown', escape, true);
+  }, [narrow, mobileTab]);
   const toggleMedia = () => {
     if (narrow) {
-      setMobileMediaOpen(!mobileMediaOpen);
+      if (mobileTab === 'media') closeMobileMedia();
+      else selectMobileTab('media');
       return;
     }
     saveWorkspacePreferences({ mediaOpen: !drawer });
     setMediaOverride(null);
   };
-  const toggleChat = () =>
-    saveWorkspacePreferences({ chatCollapsed: !chatCollapsed });
+  const toggleChat = () => {
+    if (narrow) selectMobileTab(mobileTab === 'chat' ? 'edit' : 'chat');
+    else saveWorkspacePreferences({ chatCollapsed: !chatCollapsed });
+  };
+  const visibleChatCollapsed = !narrow && chatCollapsed;
   const setFormat = (exportFormat: 'mp4' | 'webm') =>
     saveWorkspacePreferences({ exportFormat });
   useEffect(() => {
@@ -344,7 +415,7 @@ export function Workspace() {
         Math.min(previous, Math.max(0, projectDuration(snapshot) - 1)),
       );
     }
-  }, [refreshProject, setTimeUs]);
+  }, [refreshProject, setTimeUs, setSelection, setSelected]);
   const ensureEditor = useCallback(async () => {
     instance.current ??= import('../editor')
       .then(async ({ createEditor }) => {
@@ -463,7 +534,7 @@ export function Workspace() {
     setDialog(null);
     setAppearanceOpen(false);
     previewControls.current?.pause();
-  }, [setTimeUs, setDialog]);
+  }, [setTimeUs, setDialog, setSelected, setSelection]);
   const openProject = useCallback(
     async (snapshot: Project, signal?: AbortSignal, updateRoute = true) => {
       const startingUrl = window.location.href;
@@ -532,6 +603,7 @@ export function Workspace() {
       setDialog,
       setCommandsOpen,
       setSettingsOpen,
+      setTransfer,
     ],
   );
   const navigation = useProjectNavigation({
@@ -1251,7 +1323,7 @@ export function Workspace() {
               versions,
               versionsOpen,
               format,
-              chatCollapsed,
+              narrow ? mobileTab !== 'chat' : chatCollapsed,
               drawer,
               appearanceOpen,
               setDialog,
@@ -1345,6 +1417,7 @@ export function Workspace() {
       onBlurCapture={(event) => {
         if (
           window.matchMedia(narrowQuery).matches === narrow &&
+          event.relatedTarget !== null &&
           !event.currentTarget.contains(event.relatedTarget)
         )
           mediaHasFocus.current = false;
@@ -1395,7 +1468,7 @@ export function Workspace() {
   return (
     <div
       className="workspace"
-      data-chat-collapsed={chatCollapsed}
+      data-chat-collapsed={visibleChatCollapsed}
       data-media-open={drawer}
     >
       <header ref={header} className="workspace-header">
@@ -1469,7 +1542,7 @@ export function Workspace() {
                 hasProject={!!project && !projectsOpen}
                 canExport={!!total && !projectsOpen}
                 mediaOpen={drawer}
-                chatCollapsed={chatCollapsed}
+                chatCollapsed={narrow ? mobileTab !== 'chat' : chatCollapsed}
                 format={format}
                 onNew={() => setDialog('new')}
                 onOpen={showProjects}
@@ -1560,17 +1633,18 @@ export function Workspace() {
           <WorkspacePanels
             narrow={narrow}
             inert={projectsOpen || navigation.blocked}
-            chatCollapsed={chatCollapsed}
+            chatCollapsed={visibleChatCollapsed}
             mediaOpen={drawer}
             onCollapseChat={toggleChat}
             onCollapseMedia={toggleMedia}
-            media={!narrow ? mediaPanel : null}
+            media={mediaPanel}
+            mobileTab={mobileTab}
           >
             <Suspense
               fallback={
                 <aside
                   aria-label="Editing conversation"
-                  data-collapsed={chatCollapsed}
+                  data-collapsed={visibleChatCollapsed}
                   className="conversation-panel min-w-0 border-b bg-background lg:border-l lg:border-b-0"
                 />
               }
@@ -1585,7 +1659,7 @@ export function Workspace() {
                 onApplied={refresh}
                 onError={error}
                 registerCleanup={registerCleanup}
-                collapsed={chatCollapsed}
+                collapsed={visibleChatCollapsed}
                 onToggle={toggleChat}
               />
             </Suspense>
@@ -1722,16 +1796,6 @@ export function Workspace() {
             </main>
           </WorkspacePanels>
         </Suspense>
-        {narrow && (
-          <Suspense fallback={null}>
-            <MobileMediaSheet
-              open={drawer}
-              onClose={() => setMobileMediaOpen(false)}
-            >
-              {mediaPanel}
-            </MobileMediaSheet>
-          </Suspense>
-        )}
 
         {transfer && (
           <Suspense
@@ -1768,9 +1832,8 @@ export function Workspace() {
           fallback={<div className="mobile-navigation" aria-busy="true" />}
         >
           <MobileNavigation
-            chatCollapsed={chatCollapsed}
-            mediaOpen={drawer}
-            onToggleMedia={toggleMedia}
+            activeTab={mobileTab}
+            onSelect={selectMobileTab}
             mediaTriggerRef={mediaTriggerRef}
           />
         </Suspense>

@@ -1,3 +1,4 @@
+import type { MobileTab } from './MobileNavigation';
 import { interfaceScale } from './appearance';
 import { Children, useEffect, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
@@ -98,6 +99,7 @@ export function WorkspacePanels({
   children,
   media,
   narrow,
+  mobileTab,
   chatCollapsed,
   mediaOpen,
   inert,
@@ -107,6 +109,7 @@ export function WorkspacePanels({
   children: ReactNode;
   media: ReactNode;
   narrow: boolean;
+  mobileTab: MobileTab;
   chatCollapsed: boolean;
   mediaOpen: boolean;
   inert: boolean;
@@ -192,6 +195,7 @@ export function WorkspacePanels({
     <ResizablePanelGroup
       elementRef={group}
       className="workspace-columns"
+      data-mobile-tab={mobileTab}
       orientation="horizontal"
       disabled={narrow}
       inert={inert}
@@ -248,6 +252,8 @@ export function WorkspacePanels({
         groupResizeBehavior="preserve-pixel-size"
         disabled={!mediaOpen}
         className="media-panel-slot"
+        inert={narrow && mobileTab !== 'media'}
+        aria-hidden={(narrow && mobileTab !== 'media') || undefined}
       >
         {media}
       </ResizablePanel>
@@ -266,6 +272,8 @@ export function WorkspacePanels({
         id="editor-panel"
         minSize={minimum}
         className="editor-panel-slot"
+        inert={narrow && mobileTab !== 'edit'}
+        aria-hidden={(narrow && mobileTab !== 'edit') || undefined}
       >
         {conversation[1]}
       </ResizablePanel>
@@ -291,6 +299,8 @@ export function WorkspacePanels({
         maxSize={chatMaximum}
         groupResizeBehavior="preserve-pixel-size"
         className="chat-panel-slot"
+        inert={narrow && mobileTab !== 'chat'}
+        aria-hidden={(narrow && mobileTab !== 'chat') || undefined}
         disabled={chatCollapsed}
       >
         {conversation[0]}

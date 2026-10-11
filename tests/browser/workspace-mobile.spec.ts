@@ -1,3 +1,4 @@
+import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test, type Page } from '@playwright/test';
 
 test.use({ hasTouch: true });
@@ -37,12 +38,140 @@ async function select(page: Page, name: RegExp) {
   await page.getByRole('option', { name }).click();
 }
 for (const base of ['/', '/LocalCut/']) {
-  test(`mobile media sheet fills every interface size and scrolls its library ${base}`, async ({
+  test(`mobile active tabs preserve state and animate the selection ${base}`, async ({
+    page,
+  }, info) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.goto(base);
+    await create(page);
+    const nav = page.getByRole('navigation', { name: 'Workspace sections' });
+    const editor = page.locator('#workspace-editor');
+    const chat = page.locator('.conversation-panel');
+    const media = page.locator('#workspace-media');
+    const edit = nav.getByRole('button', { name: 'Edit', exact: true });
+    const chatTab = nav.getByRole('button', { name: 'Chat', exact: true });
+    const mediaTab = page.locator('#mobile-media-trigger');
+    const preferences = await page.evaluate(() =>
+      localStorage.getItem('localcut.workspace-preferences.v1'),
+    );
+    await expect(edit).toHaveAttribute('aria-current', 'page');
+    await expect(editor).toBeVisible();
+    await expect(chat).toBeHidden();
+    await expect(media).toBeHidden();
+    await page.screenshot({ path: info.outputPath('mobile-active-edit.png') });
+    await chatTab.click();
+    await expect(chatTab).toHaveAttribute('aria-current', 'page');
+    await expect(chat).toBeVisible();
+    await expect(editor).toBeHidden();
+    await mediaTab.click();
+    await expect(mediaTab).toHaveAttribute('aria-current', 'page');
+    await expect(media).toBeVisible();
+    await expect(editor).toBeHidden();
+    await expect(chat).toBeHidden();
+    await expect(nav).toBeInViewport();
+    await expect
+      .poll(async () => {
+        const highlight = (await page
+          .locator('.mobile-tab-indicator')
+          .boundingBox())!;
+        const selected = (await mediaTab.boundingBox())!;
+        return Math.abs(highlight.x - selected.x);
+      })
+      .toBeLessThan(1);
+    expect(
+      await page
+        .locator('.mobile-tab-indicator')
+        .evaluate((el) => getComputedStyle(el).transitionDuration),
+    ).not.toBe('0s');
+    await page.screenshot({ path: info.outputPath('mobile-active-media.png') });
+    await media
+      .getByRole('button', { name: 'Close media', exact: true })
+      .click();
+    await expect(chatTab).toHaveAttribute('aria-current', 'page');
+    await expect(chat).toBeVisible();
+    for (let i = 0; i < 3; i++) {
+      await edit.click();
+      await chatTab.click();
+      await mediaTab.click();
+    }
+    await edit.click();
+    await expect(editor).toBeVisible();
+    await expect(chat).toBeHidden();
+    await expect(media).toBeHidden();
+    await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await chatTab.focus();
+    await page.keyboard.press('Enter');
+    await expect(chat).toBeVisible();
+    expect(
+      await page
+        .locator('.mobile-tab-indicator')
+        .evaluate((el) => getComputedStyle(el).transitionDuration),
+    ).toBe('0s');
+    expect(
+      await page
+        .locator('#chat-panel')
+        .evaluate((el) => getComputedStyle(el).animationName),
+    ).toBe('none');
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem('localcut.workspace-preferences.v1'),
+      ),
+    ).toBe(preferences);
+    await edit.click();
+    await page.getByRole('button', { name: 'Commands', exact: true }).click();
+    const commands = page.getByRole('dialog', {
+      name: 'Commands',
+      exact: true,
+    });
+    await commands.getByRole('combobox').fill('Expand chat');
+    await commands
+      .getByRole('option')
+      .filter({ has: page.getByText('Expand chat', { exact: true }) })
+      .click();
+    await expect(chatTab).toHaveAttribute('aria-current', 'page');
+    await expect(chat).toBeVisible();
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem('localcut.workspace-preferences.v1'),
+      ),
+    ).toBe(preferences);
+    await edit.click();
+    await page.setViewportSize({ width: 390, height: 500 });
+    await page
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .click();
+    await page
+      .getByRole('menuitem', { name: 'Appearance', exact: true })
+      .click();
+    const appearance = page.getByRole('region', {
+      name: 'Appearance customization',
+    });
+    await expect(appearance).toBeVisible();
+    const body = page.locator('.workspace-body');
+    await body.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    expect(await body.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+    await chatTab.click();
+    await expect.poll(() => body.evaluate((el) => el.scrollTop)).toBe(0);
+    await expect(
+      chat.getByRole('button', { name: 'Chat sessions' }),
+    ).toBeInViewport();
+    await appearance.getByRole('button', { name: 'Close appearance' }).click();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(editor).toBeVisible();
+    await expect(chat).toBeVisible();
+    await expect(nav).toBeHidden();
+  });
+
+  test(`mobile media tab fills the content at every interface size and scrolls its library ${base}`, async ({
     page,
   }, info) => {
     await page.setViewportSize({ width: 320, height: 740 });
     await page.goto(base);
-    const media = page.getByRole('dialog', {
+    const media = page.getByRole('complementary', {
       name: 'Media library',
       exact: true,
     });
@@ -68,11 +197,17 @@ for (const base of ['/', '/LocalCut/']) {
         await expect
           .poll(async () => {
             const bounds = (await media.boundingBox())!;
+            const header = (await page
+              .locator('.workspace-header')
+              .boundingBox())!;
+            const nav = (await page
+              .locator('.mobile-navigation')
+              .boundingBox())!;
             return Math.max(
               Math.abs(bounds.x),
-              Math.abs(bounds.y),
+              Math.abs(bounds.y - header.y - header.height),
               Math.abs(bounds.width - viewport.width),
-              Math.abs(bounds.height - viewport.height),
+              Math.max(0, bounds.y + bounds.height - nav.y),
             );
           })
           .toBeLessThanOrEqual(1);
@@ -84,6 +219,9 @@ for (const base of ['/', '/LocalCut/']) {
           exact: true,
         });
         await expect(close).toBeInViewport();
+        await media
+          .getByRole('button', { name: 'Import media', exact: true })
+          .scrollIntoViewIfNeeded();
         await expect(
           media.getByRole('button', { name: 'Import media', exact: true }),
         ).toBeInViewport();
@@ -277,16 +415,18 @@ for (const base of ['/', '/LocalCut/']) {
         });
         const mediaTrigger = nav.getByRole('button', { name: 'Expand media' });
         await mediaTrigger.click();
-        const media = page.getByRole('dialog', {
+        const media = page.getByRole('complementary', {
           name: 'Media library',
           exact: true,
         });
         await expect(media).toBeInViewport();
         const mediaBounds = (await media.boundingBox())!;
         expect(mediaBounds.x).toBeCloseTo(0, 0);
-        expect(mediaBounds.y).toBeCloseTo(0, 0);
+        expect(mediaBounds.y).toBeGreaterThan(0);
         expect(mediaBounds.width).toBeCloseTo(320, 0);
-        expect(mediaBounds.height).toBeCloseTo(740, 0);
+        expect(mediaBounds.y + mediaBounds.height).toBeLessThanOrEqual(
+          (await nav.boundingBox())!.y,
+        );
         await expect(
           media.getByText('first.png', { exact: true }),
         ).toBeVisible();
@@ -299,7 +439,12 @@ for (const base of ['/', '/LocalCut/']) {
           await page.keyboard.press('Tab');
           await expect
             .poll(() =>
-              media.evaluate((el) => el.contains(document.activeElement)),
+              page.evaluate(() => {
+                const focused = document.activeElement;
+                return !focused?.closest(
+                  '[inert], [aria-hidden="true"], #editor-panel, #chat-panel',
+                );
+              }),
             )
             .toBe(true);
         }
@@ -338,10 +483,7 @@ for (const base of ['/', '/LocalCut/']) {
         await expect(
           page.getByRole('button', { name: 'Play preview', exact: true }),
         ).toBeInViewport();
-        for (const close of await page
-          .getByRole('button', { name: 'Close toast', exact: true })
-          .all())
-          await close.click();
+        await dismissNotifications(page);
         await page.screenshot({
           path: info.outputPath('mobile-editor-start.png'),
         });
@@ -470,8 +612,11 @@ for (const base of ['/', '/LocalCut/']) {
         );
         await page.setViewportSize({ width: 390, height: 844 });
         await expect(
-          page.getByRole('dialog', { name: 'Media library', exact: true }),
-        ).toHaveCount(0);
+          page.getByRole('complementary', {
+            name: 'Media library',
+            exact: true,
+          }),
+        ).toBeHidden();
         await page
           .getByRole('button', { name: 'Expand media', exact: true })
           .click();
