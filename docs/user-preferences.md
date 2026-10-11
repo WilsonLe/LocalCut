@@ -102,6 +102,7 @@ This is the project record of the user's durable product and workflow choices. U
 ## Project cards — 11 October 2026
 
 - Present saved projects as a responsive card list with thumbnails and accessible contextual actions for rename, thumbnail adjustment, archive/restore and backup export.
+- Keep the Active/Archived switch beside the Projects title in the page header, wrapping within that header on narrow screens.
 - Archive reversibly, retaining edits, versions and originals. Keep custom thumbnails local and support framing adjustments.
 
 ## Keyboard and mouse editing — 10 October 2026

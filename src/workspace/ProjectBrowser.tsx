@@ -104,9 +104,38 @@ export default function ProjectBrowser({
           <ArrowLeft /> Back to editor
         </Button>
         <div className="project-browser-heading">
-          <h1 ref={heading} tabIndex={-1}>
-            Projects
-          </h1>
+          <div className="project-browser-title">
+            <h1 ref={heading} tabIndex={-1}>
+              Projects
+            </h1>
+            <div
+              className="project-browser-views"
+              ref={viewControls}
+              role="group"
+              aria-label="Project view"
+            >
+              <Button
+                variant={archived ? 'ghost' : 'secondary'}
+                aria-pressed={!archived}
+                onClick={() => {
+                  setArchived(false);
+                  setActionError('');
+                }}
+              >
+                Active
+              </Button>
+              <Button
+                variant={archived ? 'secondary' : 'ghost'}
+                aria-pressed={archived}
+                onClick={() => {
+                  setArchived(true);
+                  setActionError('');
+                }}
+              >
+                Archived
+              </Button>
+            </div>
+          </div>
           <div className="project-browser-actions">
             <Button variant="outline" disabled={busy} onClick={onImport}>
               <Upload /> Import backup
@@ -142,33 +171,6 @@ export default function ProjectBrowser({
               <RefreshCw />
             </Button>
           )}
-        </div>
-        <div
-          className="project-browser-views"
-          ref={viewControls}
-          role="group"
-          aria-label="Project view"
-        >
-          <Button
-            variant={archived ? 'ghost' : 'secondary'}
-            aria-pressed={!archived}
-            onClick={() => {
-              setArchived(false);
-              setActionError('');
-            }}
-          >
-            Active
-          </Button>
-          <Button
-            variant={archived ? 'secondary' : 'ghost'}
-            aria-pressed={archived}
-            onClick={() => {
-              setArchived(true);
-              setActionError('');
-            }}
-          >
-            Archived
-          </Button>
         </div>
         {actionError && (
           <p role="alert" className="mb-4">

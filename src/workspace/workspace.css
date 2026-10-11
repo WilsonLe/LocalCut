@@ -70,10 +70,15 @@
 .project-browser-search input {
   padding-left: 36px;
 }
+.project-browser-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
 .project-browser-views {
   display: flex;
   gap: 4px;
-  margin-bottom: 20px;
 }
 .project-browser-list {
   display: grid;
