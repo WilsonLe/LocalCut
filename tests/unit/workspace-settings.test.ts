@@ -10,6 +10,11 @@ import {
   workspaceSettings,
 } from '../../src/workspace/workspace-settings';
 
+import {
+  defaultWorkspacePreferences,
+  getWorkspacePreferences,
+} from '../../src/workspace/preferences';
+
 afterEach(() => vi.unstubAllGlobals());
 it('imports legacy appearance backups with default size and retains every existing choice', () => {
   const { interfaceSize: _size, ...legacy } = defaultAppearance;
@@ -56,4 +61,32 @@ it('rejects invalid or unknown size fields instead of applying arbitrary CSS fro
       appearance: { ...defaultAppearance, css: 'arbitrary' },
     }),
   ).toThrow('Invalid appearance');
+});
+
+it('imports legacy snapping defaults and retains explicit off in portable settings', () => {
+  const { timelineSnapping: _snapping, ...legacy } =
+    defaultWorkspacePreferences;
+  void _snapping;
+  const records = new Map<string, string>();
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => records.get(key) ?? null,
+    setItem: (key: string, value: string) => records.set(key, value),
+  });
+  expect(
+    importWorkspaceSettings(
+      { workspace: { ...legacy, timelineSnapping: false } },
+      false,
+      true,
+    ),
+  ).toEqual([]);
+  expect(getWorkspacePreferences().preferences.timelineSnapping).toBe(false);
+  expect(workspaceSettings().workspace?.timelineSnapping).toBe(false);
+  expect(importWorkspaceSettings({ workspace: legacy }, false, true)).toEqual(
+    [],
+  );
+  expect(getWorkspacePreferences().preferences.timelineSnapping).toBe(true);
+  for (const timelineSnapping of ['false', 0, null as unknown as boolean])
+    expect(() =>
+      validateWorkspaceSettings({ workspace: { ...legacy, timelineSnapping } }),
+    ).toThrow('Invalid workspace settings');
 });
