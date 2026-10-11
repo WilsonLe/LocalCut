@@ -11,10 +11,8 @@ for (const base of ['/', '/LocalCut/']) {
     async ({ page, context }, testInfo) => {
       await test.step(`chat picker matches control heights and reuses empty chats ${base}`, async () => {
         await page.goto(base);
-        await expect(page.locator('.chat-composer')).toHaveCSS(
-          'border-radius',
-          '8px',
-        );
+        await expect(page.locator('.chat-provider-empty')).toBeVisible();
+        await expect(page.locator('.chat-composer')).toHaveCount(0);
         const trigger = page.getByRole('button', {
           name: 'Chat sessions',
           exact: true,
