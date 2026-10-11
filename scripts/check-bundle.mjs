@@ -2,6 +2,7 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { checkFonts } from './check-fonts.mjs';
 async function files(path) {
   const result = [];
@@ -22,6 +23,15 @@ for (const root of ['dist', 'dist-root']) {
   );
   assert(entry, 'App manifest entry missing');
   const optionalEntries = new Set(['editor.js', 'ai.js']);
+  const discovery = JSON.parse(await readFile(`${root}/modules.json`, 'utf8'));
+  assert.equal(discovery.version, 1);
+  assert(/^[a-f0-9]{64}$/.test(discovery.release));
+  assert.equal(
+    discovery.release,
+    createHash('sha256')
+      .update(JSON.stringify(discovery.modules))
+      .digest('hex'),
+  );
   for (const name of ['editor', 'ai']) {
     const moduleEntry = Object.values(manifest).find(
       (v) => v.isEntry && v.src === `src/${name}/index.ts`,
@@ -32,6 +42,7 @@ for (const root of ['dist', 'dist-root']) {
       `Hashed ${name} entry missing`,
     );
     optionalEntries.add(moduleEntry.file);
+    assert.equal(discovery.modules[name], moduleEntry.file);
     assert.equal(
       await readFile(`${root}/${name}.js`, 'utf8'),
       `export * from './${moduleEntry.file}';\n`,

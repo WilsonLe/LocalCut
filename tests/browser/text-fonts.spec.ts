@@ -14,7 +14,7 @@ for (const base of ['/', '/LocalCut/']) {
       } else await route.continue();
     });
     await page.goto(base);
-    await context.route('**/fonts/inter/latin.woff2', (route) =>
+    await context.route('**/fonts/*/inter/latin.woff2', (route) =>
       route.fulfill({ body: 'bad font', contentType: 'font/woff2' }),
     );
     const failure = await page.evaluate(async (base) => {
@@ -59,7 +59,7 @@ for (const base of ['/', '/LocalCut/']) {
       }
     }, base);
     expect(failure).toBe('MISSING_ASSET');
-    await context.unroute('**/fonts/inter/latin.woff2');
+    await context.unroute('**/fonts/*/inter/latin.woff2');
     const result = await page.evaluate(async (base) => {
       const { createEditor } = await import(base + 'editor.js');
       const editor = await createEditor({

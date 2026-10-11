@@ -1,6 +1,6 @@
 # LocalCut
 
-A local video editor that builds to static files. The conversation-led workspace combines local media import, preview, timeline editing and export with optional AI-provider editing proposals. The separately built `editor.js` and `ai.js` entries remain available to other consumers.
+A local video editor that builds to static files. The conversation-led workspace combines local media import, preview, timeline editing and export with optional AI-provider editing proposals. Headless consumers discover content-hashed editor and AI modules through `modules.json`, following [the API recipe](docs/api.md). Stable `editor.js` and `ai.js` compatibility aliases remain available.
 
 ## Editing
 

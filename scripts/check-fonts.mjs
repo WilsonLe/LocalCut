@@ -2,9 +2,14 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
+import { fontSnapshot } from './font-snapshot.ts';
 
 export async function checkFonts(root) {
-  const directory = join(root, 'fonts');
+  const snapshots = await readdir(join(root, 'fonts'));
+  assert.equal(snapshots.length, 1, 'Exactly one immutable font snapshot');
+  const directory = join(root, 'fonts', snapshots[0]);
+  assert.equal(snapshots[0], fontSnapshot(directory));
+  assert.equal(snapshots[0], fontSnapshot());
   const catalog = JSON.parse(
     await readFile('src/core/bundled-fonts.json', 'utf8'),
   );
