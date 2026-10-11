@@ -7,6 +7,7 @@ persisted formats and [API contracts](../../docs/api.md) for publication semanti
 - Commit project, history, and receipt together. Check an existing receipt before the expected revision; compare its versioned request content without rewriting old receipts.
 - Keep undo/redo revisions monotonic and the history bound intact. Normalize legacy identities across current and historical snapshots in one transaction without advancing the editing revision.
 - Cancellation may abort a pending transaction. Once committed, return its successful result; late cancellation must not remove published originals or transcripts.
+- `tasks.ts` owns the additive task sidecar. Publish results and terminal status together, check cancellation in that transaction, and retain the canonical committed-result exception without placing artifacts or credentials in project JSON.
 - OPFS and IndexedDB do not share a transaction. Journal file mutations and mark original publication alongside ready metadata; recovery re-reads the journal after acquiring its job lock.
 - Scope locks, files, databases, and caches to the supplied namespace. Respect active jobs/readers during recovery and eviction; a missing source requires relinking rather than replacement of a ready original.
 - Evict disposable derivatives before retrying quota failures once. Preserve originals, edits, transcripts and retained index evidence; project deletion deliberately retains original files.

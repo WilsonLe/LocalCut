@@ -1,6 +1,7 @@
 import {
   lazy,
   Suspense,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -12,7 +13,10 @@ import {
   ArrowUp,
   Download,
   LoaderCircle,
-  MousePointer2,
+  Copy,
+  GitBranch,
+  Info,
+  X,
   Square,
   Terminal,
 } from 'lucide-react';
@@ -31,11 +35,15 @@ import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
 import { Tooltip } from '../components/ui/tooltip';
 import { AccordionDisclosure } from '../components/ui/accordion';
-import { downloadFile } from './helpers';
+import { downloadFile, MEDIA_DRAG_EVENT } from './helpers';
+import type { MediaDragDetail } from './helpers';
 import { errorCode, errorText } from './conversation-errors';
+import DictationButton from './DictationButton';
+import type { Asset } from '../editor';
+import type { AssistantBranch } from '../ai';
 const ChatMarkdown = lazy(() => import('./ChatMarkdown'));
 
-interface Message {
+export interface Message {
   id: string;
   role: 'user' | 'assistant';
   text: string;
@@ -80,7 +88,14 @@ function ToolDetails({ tool }: { tool: AssistantToolCall }) {
     </div>
   );
 }
+export interface ChatBranch {
+  checkpoint: AssistantBranch;
+  messages: Message[];
+}
 interface SessionProps extends ConversationProps {
+  initialBranch?: ChatBranch;
+  onBranch: (branch: ChatBranch) => void;
+  active: boolean;
   editor: Editor;
   project: Project;
   connection: Connection;
@@ -111,10 +126,26 @@ export default function ConversationSession({
   onTitle,
   onDraftChange,
   readOnly,
+  initialBranch,
+  onBranch,
+  active,
 }: SessionProps) {
   const [prompt, setPrompt] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(
+    initialBranch?.messages ?? [],
+  );
+  const [attachments, setAttachments] = useState<Asset[]>([]);
+  const [dropping, setDropping] = useState(false);
+  const [attaching, setAttaching] = useState(false);
   const [proposals, setProposals] = useState<Record<string, EditProposal>>({});
+  const [branchable, setBranchable] = useState<string[]>(
+    initialBranch?.messages
+      .filter(
+        (message) =>
+          message.role === 'assistant' && message.status === 'complete',
+      )
+      .map((message) => message.id) ?? [],
+  );
   const [running, setRunning] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [activity, setActivity] = useState('Thinking…');
@@ -155,11 +186,47 @@ export default function ConversationSession({
     if (nearBottom.current && list.current)
       list.current.scrollTop = list.current.scrollHeight;
   }, [messages, proposals, activity]);
+  const ensureAssistant = () => {
+    if (!assistant.current) {
+      assistant.current = connection.api.createAssistant({
+        editor,
+        tasks: editor.tasks,
+        branch: initialBranch?.checkpoint,
+        provider: connection.provider,
+        projectId: project.id,
+        model,
+        context: privacy,
+        transcription: connection.transcription,
+      });
+      unsubscribe.current = assistant.current.subscribe((event) => {
+        if (!mounted.current) return;
+        if (event.type === 'proposal')
+          setProposals((current) => ({
+            ...current,
+            [event.proposal.id]: event.proposal,
+          }));
+        if (event.type === 'proposal_progress')
+          setProposals((current) => {
+            const proposal = current[event.proposalId];
+            return proposal
+              ? {
+                  ...current,
+                  [event.proposalId]: {
+                    ...proposal,
+                    progress: event.progress,
+                  },
+                }
+              : current;
+          });
+      });
+    }
+    return assistant.current;
+  };
   const send = async (event: FormEvent) => {
     event.preventDefault();
     if (readOnly) return;
     const text = prompt.trim();
-    if (!text || runningRef.current || applyingRef.current) return;
+    if (!text || attaching || runningRef.current || applyingRef.current) return;
     runningRef.current = true;
     setFailure(null);
     setActivity('Thinking…');
@@ -173,41 +240,17 @@ export default function ConversationSession({
     try {
       await waitForRetired();
       if (!mounted.current || cancelBeforeRun.current) return;
-      if (!assistant.current) {
-        assistant.current = connection.api.createAssistant({
-          editor,
-          provider: connection.provider,
-          projectId: project.id,
-          model,
-          context: privacy,
-          transcription: connection.transcription,
-        });
-        unsubscribe.current = assistant.current.subscribe((event) => {
-          if (!mounted.current) return;
-          if (event.type === 'proposal')
-            setProposals((current) => ({
-              ...current,
-              [event.proposal.id]: event.proposal,
-            }));
-          if (event.type === 'proposal_progress')
-            setProposals((current) => {
-              const proposal = current[event.proposalId];
-              return proposal
-                ? {
-                    ...current,
-                    [event.proposalId]: {
-                      ...proposal,
-                      progress: event.progress,
-                    },
-                  }
-                : current;
-            });
-        });
-      }
-      const context = selected ? `Selected clip ID: ${selected.id}.\n\n` : '';
-      activeTurn = assistant.current.run(context + text);
+      const session = ensureAssistant();
+      session.includeAssets(attachments.map((asset) => asset.id));
+      const context =
+        (selected ? `Selected clip ID: ${selected.id}.\n\n` : '') +
+        (attachments.length
+          ? `Attached local image asset IDs: ${attachments.map((asset) => asset.id).join(', ')}. Inspect these assets with the declared tools; their pixels remain local.\n\n`
+          : '');
+      activeTurn = session.run(context + text);
       turn.current = activeTurn;
       setPrompt('');
+      setAttachments([]);
       onDraftChange(false);
       nearBottom.current = true;
       setFollowing(true);
@@ -305,6 +348,7 @@ export default function ConversationSession({
       runningRef.current = false;
       if (mounted.current) {
         setRunning(false);
+        setBranchable(assistant.current?.snapshot().historyTurnIds ?? []);
         onBusy(false);
         setCancelling(false);
       }
@@ -368,6 +412,70 @@ export default function ConversationSession({
     input.style.height = 'auto';
     input.style.height = `${Math.min(180, input.scrollHeight)}px`;
   }, [prompt]);
+  const composerBox = useRef<HTMLDivElement>(null);
+  const attachImages = useCallback(
+    async (files: File[], assetId?: string) => {
+      if (!active || readOnly || attaching || runningRef.current) return;
+      setAttaching(true);
+      try {
+        const images: Asset[] = [];
+        if (assetId) images.push(await editor.assets.inspect(assetId));
+        for (const file of files) {
+          if (!file.type.startsWith('image/'))
+            throw new Error('Drag image files or image assets into the draft.');
+          images.push(await editor.assets.import(file).completion);
+        }
+        if (
+          images.some(
+            (asset) => asset.kind !== 'image' || asset.status !== 'ready',
+          )
+        )
+          throw new Error('Choose a ready image asset.');
+        if (!mounted.current) return;
+        setAttachments((current) =>
+          [
+            ...new Map(
+              [...current, ...images].map((asset) => [asset.id, asset]),
+            ).values(),
+          ].slice(0, 8),
+        );
+        composer.current?.focus();
+        onDraftChange(true);
+      } catch (error) {
+        if (mounted.current)
+          setFailure(
+            error instanceof Error
+              ? error.message
+              : 'Image could not be attached.',
+          );
+      } finally {
+        if (mounted.current) setAttaching(false);
+      }
+    },
+    [active, readOnly, attaching, editor, onDraftChange],
+  );
+  useEffect(() => {
+    if (!active) return;
+    const handle = (event: Event) => {
+      const detail = (event as CustomEvent<MediaDragDetail>).detail;
+      if (detail.phase === 'cancel') {
+        setDropping(false);
+        return;
+      }
+      const over =
+        !readOnly &&
+        !attaching &&
+        !runningRef.current &&
+        document
+          .elementFromPoint(detail.clientX, detail.clientY)
+          ?.closest('.chat-composer') === composerBox.current;
+      setDropping(detail.phase === 'move' && over);
+      if (detail.phase === 'drop' && over)
+        void attachImages([], detail.assetId);
+    };
+    document.addEventListener(MEDIA_DRAG_EVENT, handle);
+    return () => document.removeEventListener(MEDIA_DRAG_EVENT, handle);
+  }, [active, readOnly, attaching, attachImages]);
   return (
     <>
       <div className="conversation-transcript">
@@ -397,20 +505,9 @@ export default function ConversationSession({
               className={
                 message.role === 'user'
                   ? 'ml-6 rounded-2xl bg-muted px-4 py-3 text-sm leading-relaxed'
-                  : 'space-y-3 text-sm leading-relaxed'
+                  : 'group/response space-y-3 text-sm leading-relaxed'
               }
             >
-              {message.text && (
-                <Suspense
-                  fallback={
-                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                      {message.text}
-                    </p>
-                  }
-                >
-                  <ChatMarkdown text={message.text} />
-                </Suspense>
-              )}
               {!!message.tools?.length && (
                 <AccordionDisclosure
                   summary={
@@ -446,6 +543,17 @@ export default function ConversationSession({
                     ))}
                   </div>
                 </AccordionDisclosure>
+              )}
+              {message.text && (
+                <Suspense
+                  fallback={
+                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                      {message.text}
+                    </p>
+                  }
+                >
+                  <ChatMarkdown text={message.text} />
+                </Suspense>
               )}
               {message.status === 'streaming' && (
                 <p
@@ -591,16 +699,89 @@ export default function ConversationSession({
                     </div>
                   );
                 })}
-              {message.status === 'complete' && message.usage && (
-                <AccordionDisclosure summary="Response details">
-                  <p className="text-[11px] text-muted-foreground">
-                    {message.usage.totalTokens.toLocaleString()} tokens
-                    {message.usage.cost !== undefined
-                      ? ` · $${message.usage.cost.toFixed(4)}`
-                      : ''}
-                  </p>
-                </AccordionDisclosure>
-              )}
+              {message.role === 'assistant' &&
+                message.status === 'complete' &&
+                message.text && (
+                  <footer
+                    className="response-actions flex items-center gap-1"
+                    aria-label="Response actions"
+                  >
+                    <Tooltip content="Copy response">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Copy response"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(message.text).then(
+                            () => toast.success('Response copied'),
+                            () =>
+                              setFailure(
+                                'Clipboard unavailable. Select the response text to copy it.',
+                              ),
+                          );
+                        }}
+                      >
+                        <Copy />
+                      </Button>
+                    </Tooltip>
+                    {branchable.includes(message.id) &&
+                      !running &&
+                      !applying && (
+                        <Tooltip content="Continue from this response in a new chat">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="Branch response"
+                            onClick={() => {
+                              try {
+                                const checkpoint = ensureAssistant().branch(
+                                  message.id,
+                                );
+                                const index = messages.findIndex(
+                                  (item) => item.id === message.id,
+                                );
+                                onBranch({
+                                  checkpoint,
+                                  messages: messages
+                                    .slice(0, index + 1)
+                                    .map((item) => ({
+                                      ...item,
+                                      proposalIds: [],
+                                    })),
+                                });
+                              } catch (error) {
+                                onError(error);
+                              }
+                            }}
+                          >
+                            <GitBranch />
+                          </Button>
+                        </Tooltip>
+                      )}
+                    <Tooltip
+                      content={
+                        <span>
+                          {message.usage
+                            ? `${message.usage.totalTokens.toLocaleString()} tokens${message.usage.cost !== undefined ? ` · $${message.usage.cost.toFixed(4)}` : ''}`
+                            : 'Usage unavailable'}
+                          <br />
+                          {model}
+                        </span>
+                      }
+                    >
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Response details"
+                      >
+                        <Info />
+                      </Button>
+                    </Tooltip>
+                  </footer>
+                )}
             </article>
           ))}
         </div>
@@ -631,7 +812,72 @@ export default function ConversationSession({
             {failure}
           </p>
         )}
-        <div className="chat-composer">
+        <div
+          ref={composerBox}
+          className="chat-composer"
+          data-dropping={dropping || undefined}
+          onDragOver={(event) => {
+            if (
+              !readOnly &&
+              (event.dataTransfer.types.includes('Files') ||
+                event.dataTransfer.types.includes(
+                  'application/x-localcut-image',
+                ))
+            ) {
+              event.preventDefault();
+              event.stopPropagation();
+              setDropping(true);
+            }
+          }}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node))
+              setDropping(false);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setDropping(false);
+            void attachImages(
+              [...event.dataTransfer.files],
+              event.dataTransfer.getData('application/x-localcut-image') ||
+                undefined,
+            );
+          }}
+        >
+          {!!attachments.length && (
+            <div
+              className="flex flex-wrap gap-1 px-3 pt-2"
+              aria-label="Attached images"
+            >
+              {attachments.map((asset) => (
+                <span
+                  className="flex items-center rounded-md bg-muted px-2 text-xs"
+                  key={asset.id}
+                >
+                  {asset.name}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Remove ${asset.name}`}
+                    onClick={() => {
+                      setAttachments((items) =>
+                        items.filter((item) => item.id !== asset.id),
+                      );
+                      onDraftChange(!!prompt || attachments.length > 1);
+                    }}
+                  >
+                    <X />
+                  </Button>
+                </span>
+              ))}
+            </div>
+          )}
+          {attaching && (
+            <p role="status" className="px-3 pt-2 text-xs">
+              Importing image…
+            </p>
+          )}
           <Textarea
             ref={composer}
             rows={1}
@@ -640,7 +886,9 @@ export default function ConversationSession({
             value={prompt}
             onChange={(event) => {
               setPrompt(event.target.value);
-              onDraftChange(event.target.value.length > 0);
+              onDraftChange(
+                event.target.value.length > 0 || attachments.length > 0,
+              );
             }}
             placeholder={
               messages.length ? 'Follow up…' : 'What would you like to change?'
@@ -661,24 +909,22 @@ export default function ConversationSession({
             }}
           />
           <div className="composer-actions">
-            {composerControl}
             <div className="flex items-center gap-1">
-              <Tooltip
-                content={
-                  selected
-                    ? `${selected.kind} clip selected · ${selected.id}`
-                    : 'Whole project'
-                }
-              >
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Request context"
-                >
-                  <MousePointer2 />
-                </Button>
-              </Tooltip>
+              {composerControl}
+              <DictationButton
+                editor={editor}
+                active={active}
+                disabled={readOnly || running || applying}
+                onText={(text) => {
+                  setPrompt((current) =>
+                    ((current ? current + ' ' : '') + text).slice(0, 100000),
+                  );
+                  onDraftChange(true);
+                }}
+                onError={setFailure}
+              />
+            </div>
+            <div className="ml-auto flex items-center gap-1">
               {running ? (
                 <Button
                   type="button"
@@ -699,7 +945,7 @@ export default function ConversationSession({
                   type="submit"
                   size="icon-sm"
                   aria-label="Send edit request"
-                  disabled={readOnly || !prompt.trim() || applying}
+                  disabled={readOnly || !prompt.trim() || applying || attaching}
                 >
                   <ArrowUp aria-hidden="true" />
                 </Button>

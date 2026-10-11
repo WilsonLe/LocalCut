@@ -200,6 +200,34 @@ describe('service providers', () => {
     expect(b.synthesizeSpeech).toHaveBeenCalledTimes(1);
     expect(a.synthesizeSpeech).toHaveBeenCalledTimes(1);
   });
+  it('never shares a saved reference with fallback speech providers', async () => {
+    const a = client(async function* () {
+      yield complete;
+    });
+    const b = client(async function* () {
+      yield complete;
+    });
+    b.synthesizeSpeech = vi.fn(async () => {
+      throw new AiError('PROVIDER_UNAVAILABLE', 'unavailable');
+    });
+    a.synthesizeSpeech = vi.fn();
+    const router = routed(a, b);
+    await expect(
+      router.synthesizeSpeech(
+        {
+          model: 'fish-audio/s2.1-pro',
+          voice: 'reference',
+          script: 'New script',
+          languages: ['English'],
+          reference: { data: 'synthetic', transcript: 'Original' },
+        },
+        signal(),
+      ),
+    ).rejects.toHaveProperty('code', 'PROVIDER_UNAVAILABLE');
+    expect(b.synthesizeSpeech).toHaveBeenCalledTimes(1);
+    expect(a.synthesizeSpeech).not.toHaveBeenCalled();
+    router.dispose();
+  });
   it('keeps removed OpenRouter absent and accepts its explicit timestamped STT route', () => {
     const c = defaultProviderConfiguration();
     c.profiles = [];

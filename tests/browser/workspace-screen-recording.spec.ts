@@ -469,8 +469,20 @@ for (const base of ['/', '/LocalCut/']) {
     await page.keyboard.press('Escape');
     await expect(dialog).not.toBeVisible();
     expect((await fixture(page, '')).ended).toBe(true);
-    // Discard never initialized editing storage or created a project.
-    expect(await page.evaluate(() => indexedDB.databases())).toHaveLength(0);
+    // Capture retains only queue metadata; discard never initializes canonical
+    // editing storage, imports media or creates a project.
+    const databases = await page.evaluate(() => indexedDB.databases());
+    expect(
+      databases.filter((database) => database.name !== 'localcut-tasks-v1'),
+    ).toHaveLength(0);
+    await page.getByRole('button', { name: 'Task queue', exact: true }).click();
+    const queue = page.getByRole('dialog', { name: 'Task queue', exact: true });
+    await expect(
+      queue
+        .getByRole('article', { name: 'Screen recording', exact: true })
+        .getByRole('status'),
+    ).toContainText('cancelled');
+    await queue.getByRole('button', { name: 'Close', exact: true }).click();
     dialog = await open(page);
     await dialog
       .getByRole('button', { name: 'Choose source and record' })

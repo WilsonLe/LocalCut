@@ -281,6 +281,19 @@ export const transcriptSchema = z
     revision: z.string(),
     language: z.string().optional(),
     cues: z.array(cueSchema),
+    speech: z
+      .object({
+        script: z.string().min(1).max(5000),
+        model: z.string().min(1).max(256),
+        voice: z.string().min(1).max(80),
+        languages: z.array(z.string().min(1).max(80)).max(32),
+        instructions: z.string().max(5000).optional(),
+        originalDurationUs: time.positive(),
+        measuredCues: z.array(cueSchema).max(20000),
+        paddingUs: time.max(1000000),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export const backupSchema = z
@@ -294,6 +307,41 @@ export const backupSchema = z
   .strict();
 export type Asset = z.infer<typeof assetSchema>;
 export type Transcript = z.infer<typeof transcriptSchema>;
+/** Measured source-relative phrases, independent of an imported asset. */
+export type SpeechTranscript = Pick<
+  Transcript,
+  'model' | 'revision' | 'language' | 'cues'
+>;
+export type SpeechMetadata = NonNullable<Transcript['speech']>;
+export function validateSpeechTranscriptTiming(
+  transcript: Transcript,
+  durationUs: number,
+) {
+  if (!transcript.speech) return;
+  let endUs = 0;
+  for (const cue of transcript.cues) {
+    invariant(
+      cue.timeUs >= endUs,
+      'INVALID_DOCUMENT',
+      'Speech editing ranges overlap',
+    );
+    endUs = cue.endUs;
+  }
+  const ids = new Set<string>();
+  let previous = -1;
+  for (const cue of transcript.speech.measuredCues) {
+    invariant(
+      !ids.has(cue.id) &&
+        cue.timeUs >= previous &&
+        cue.endUs > cue.timeUs &&
+        cue.endUs <= durationUs,
+      'INVALID_DOCUMENT',
+      'Invalid measured speech timing',
+    );
+    ids.add(cue.id);
+    previous = cue.timeUs;
+  }
+}
 export type ProjectBackup = z.infer<typeof backupSchema>;
 export function validateBackup(value: unknown): ProjectBackup {
   const result = backupSchema.safeParse(value);
@@ -346,6 +394,7 @@ export function validateBackup(value: unknown): ProjectBackup {
   for (const transcript of backup.transcripts) {
     const asset = assets.get(transcript.assetId);
     invariant(asset, 'INVALID_DOCUMENT', 'Transcript lacks source metadata');
+    validateSpeechTranscriptTiming(transcript, asset.durationUs);
     let previous = -1;
     const cueIds = new Set<string>();
     for (const cue of transcript.cues) {

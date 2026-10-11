@@ -1,6 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createOpenRouter } from '../../src/ai/openrouter';
-import { SPEECH_LIMITS } from '../../src/ai/speech';
+import {
+  SPEECH_LIMITS,
+  speechBody,
+  readSpeechAudio,
+  REFERENCE_SPEECH_MODEL,
+} from '../../src/ai/speech';
 import { renderSpeech } from '../../src/ai/speech-audio';
 import type { SpeechRequest } from '../../src/ai/types';
 
@@ -20,6 +25,7 @@ const request = (): SpeechRequest => ({
   instructions: 'Warm and friendly.',
 });
 const signal = () => new AbortController().signal;
+afterEach(() => vi.unstubAllGlobals());
 const tone = (seconds = 1) =>
   Float32Array.from(
     { length: seconds * 24000 },
@@ -63,6 +69,120 @@ function frequency(samples: Float32Array) {
 }
 
 describe('OpenRouter speech', () => {
+  it('uses reference WAV and its matching transcript only on the verified cloning endpoint', async () => {
+    const rendered = await renderSpeech(
+      { samples: tone(), sampleRate: 24000 },
+      { mode: 'speed', speed: 1 },
+      signal(),
+    );
+    const data = Buffer.from(await rendered.file.arrayBuffer()).toString(
+      'base64',
+    );
+    const referenceRequest = {
+      ...request(),
+      model: REFERENCE_SPEECH_MODEL,
+      voice: 'reference',
+      reference: { data, transcript: 'The original sample.' },
+    };
+    const body = JSON.parse(speechBody(referenceRequest));
+    expect(body).toMatchObject({
+      model: REFERENCE_SPEECH_MODEL,
+      response_format: 'mp3',
+      input: request().script,
+      provider: { data_collection: 'deny' },
+      input_references: [
+        {
+          type: 'input_audio',
+          input_audio: { data: `data:audio/wav;base64,${data}` },
+        },
+        { type: 'text', text: 'The original sample.' },
+      ],
+    });
+    for (const key of ['voice', 'seed', 'instructions'])
+      expect(body).not.toHaveProperty(key);
+    for (const invalid of [
+      { ...referenceRequest, model: speech.id },
+      { ...referenceRequest, script: '' },
+      { ...referenceRequest, script: 'a'.repeat(5001) },
+      { ...referenceRequest, languages: [] },
+      { ...referenceRequest, instructions: 'a'.repeat(1501) },
+      { ...referenceRequest, reference: undefined },
+      {
+        ...referenceRequest,
+        reference: { data: 'eA==', transcript: 'sample' },
+      },
+      { ...referenceRequest, reference: { data, transcript: '' } },
+    ])
+      expect(() => speechBody(invalid)).toThrow();
+    expect(() => speechBody(referenceRequest, true)).toThrow();
+    for (const supports of [true, false]) {
+      const fetch = vi.fn<typeof globalThis.fetch>(async (url) =>
+        String(url).endsWith('/endpoints')
+          ? Response.json({
+              data: { endpoints: [{ supports_voice_cloning: supports }] },
+            })
+          : Response.json({
+              data: [
+                speech,
+                {
+                  id: REFERENCE_SPEECH_MODEL,
+                  name: 'Fish',
+                  architecture: { output_modalities: ['speech'] },
+                },
+              ],
+            }),
+      );
+      const client = createOpenRouter({ fetch });
+      client.setKey('synthetic-key');
+      expect(
+        (await client.listSpeechModels()).some((model) => model.referenceVoice),
+      ).toBe(supports);
+      client.dispose();
+    }
+  });
+  it('closes the MP3 decoder on success, invalid audio and late cancellation', async () => {
+    for (const mode of ['ready', 'overshoot', 'invalid', 'cancelled']) {
+      const controller = new AbortController();
+      const close = vi.fn(async () => {});
+      vi.stubGlobal(
+        'AudioContext',
+        class {
+          close = close;
+          async decodeAudioData() {
+            if (mode === 'invalid') throw new Error('private decoder error');
+            if (mode === 'cancelled') controller.abort();
+            return {
+              sampleRate: 24000,
+              numberOfChannels: 1,
+              length: 24000,
+              getChannelData: () =>
+                mode === 'overshoot'
+                  ? Float32Array.from(tone(), () => 1.2)
+                  : tone(),
+            };
+          }
+        },
+      );
+      const pending = readSpeechAudio(
+        new Response(new Uint8Array([1, 2, 3]), {
+          headers: { 'content-type': 'audio/mpeg' },
+        }),
+        controller.signal,
+        'mp3',
+      );
+      if (mode === 'ready' || mode === 'overshoot') {
+        const samples = (await pending).samples;
+        expect(samples.length).toBe(24000);
+        if (mode === 'overshoot')
+          expect(samples.every((sample) => sample === 1)).toBe(true);
+      } else
+        await expect(pending).rejects.toHaveProperty(
+          'code',
+          mode === 'invalid' ? 'INVALID_RESPONSE' : 'CANCELLED',
+        );
+      expect(close).toHaveBeenCalledTimes(1);
+    }
+  });
   it('discovers speech models without requiring chat context or tools', async () => {
     const { client } = setup();
     expect(await client.listSpeechModels()).toEqual([

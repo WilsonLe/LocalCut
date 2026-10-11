@@ -266,3 +266,16 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Adopt Semantic Versioning with the current application at `0.1.0-alpha.1` (the latest alpha correction). Use version-based changelog entries and the release policy for future bumps.
 - Keep changelog summaries short and understandable to executives and end users. Link each summary to its full changelog: the Git diff for that version/candidate.
+
+## Chat and durable tasks — 11 October 2026
+
+- Move text-to-speech generation into Media and explain the action through a tooltip.
+- Show collapsible tool activity above assistant text. Reveal copy, branch and response-details tooltip actions on hover/focus, with reachable touch controls. Branch through the selected completed response into a separate chat; preserve the original conversation and require fresh edit approval.
+- Remove the composer context pointer, align send/stop at the far right, and provide explicit dictation plus dragging local image references into the draft. Source pixels stay local.
+- Keep assistant replies short and concise. For broad requests, lead with a brief high-level answer; expand into details when asked.
+- Remove the speech-dialog provider metatext. Use one persistent local queue for long-running work, with a public status-polling API, bounded safe retries and visible error escalation. Closing the speech dialog keeps generation running. Persist submitted requests and completed takes across refresh; interrupted remote submissions need explicit retry to avoid duplicate charges. The user selected this local approach over a hosted job service.
+- Retain completed speech audio so identical takes can be reused and retimed locally. Do not imply that a preset voice or unavailable provider seed guarantees identical regeneration.
+
+- Let users save an auditioned favorite voice for future scripts and manage it through selection, rename, archive and restore. A saved voice retains its original recording and matching transcript locally, then explicitly sends that reference through a supported OpenRouter cloning model on Generate. Saving settings alone does not satisfy this choice. Do not imply that a seed locks voice identity or guarantees identical generated output.
+
+- Store measured word or phrase timestamps with generated speech so later chat agents can use that context to edit. Retain the authored script and synthesis identity alongside the timing; keep transcript sharing separately controlled. Provide modest editing padding around phrases, with no overlapping ranges; continuous boundaries are acceptable.

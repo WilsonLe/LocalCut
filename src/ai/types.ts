@@ -72,6 +72,13 @@ export interface SpeechModel {
   id: string;
   name: string;
   voices: string[];
+  /** Requires an explicitly selected reference recording. */
+  referenceVoice?: boolean;
+}
+export interface SpeechReference {
+  /** Base64 24 kHz mono PCM WAV; never a URL or project media handle. */
+  data: string;
+  transcript: string;
 }
 export interface SpeechRequest {
   model: string;
@@ -80,9 +87,10 @@ export interface SpeechRequest {
   /** Languages present in the original script; synthesis never translates it. */
   languages: string[];
   instructions?: string;
+  reference?: SpeechReference;
 }
 export interface SpeechAudio {
-  /** Gemini speech output: signed 16-bit little-endian, 24 kHz mono. */
+  /** Normalized speech output: 24 kHz mono, finite samples in [-1, 1]. */
   samples: Float32Array;
   sampleRate: 24000;
 }
