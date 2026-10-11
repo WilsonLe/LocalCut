@@ -195,6 +195,7 @@ test('conversation cancellation rejects late proposals and can start a fresh tur
         await route.fulfill({ headers: cors, body: '' });
         return;
       }
+      if (await fulfillChatTitle(route)) return;
       if (holdFirst) {
         holdFirst = false;
         received();

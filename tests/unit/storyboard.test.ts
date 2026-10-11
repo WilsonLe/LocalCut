@@ -201,6 +201,17 @@ describe('project storyboard', () => {
     expect(apply.mock.calls.map(([batch]) => batch.expectedRevision)).toEqual([
       0, 1,
     ]);
+    const restored = structuredClone(project.storyboard!);
+    for (const element of restored.elements) {
+      element.boundElements = [];
+      element.version++;
+      element.versionNonce = 123;
+      element.index = 'a0';
+      element.updated = 123;
+    }
+    session.change(restored, true);
+    expect(await session.flush()).toBe(true);
+    expect(apply).toHaveBeenCalledTimes(2);
     project = { ...project, revision: 3 };
     session.change({ elements: [], backgroundColor: '#fff' }, true);
     expect(await session.flush()).toBe(false);

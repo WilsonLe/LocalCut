@@ -6,7 +6,10 @@ function content(scene: Storyboard) {
     ...scene,
     elements: scene.elements.map((element) =>
       Object.fromEntries(
-        Object.entries(element).filter(
+        Object.entries({
+          ...element,
+          boundElements: element.boundElements ?? [],
+        }).filter(
           ([key]) =>
             !['version', 'versionNonce', 'index', 'updated'].includes(key),
         ),
