@@ -1,4 +1,4 @@
-import type { Project } from './model';
+import type { Project, Track } from './model';
 
 /** Ordered visual overlaps that the shared compositor can transition. */
 export function transitionPairs(project: Project) {
@@ -68,3 +68,46 @@ export const TRANSITION_TEMPLATES = [
   { id: 'blur-dissolve', label: 'Blur dissolve' },
 ] as const;
 export type TransitionTemplate = (typeof TRANSITION_TEMPLATES)[number]['id'];
+
+/** Shared output policy for preview, export and assistant inspection. */
+export function outputTracks(
+  project: Project,
+  kind: 'visual' | 'audio',
+): Track[] {
+  const candidates = project.tracks.filter(
+    (track) =>
+      !track.disabled &&
+      (kind === 'visual' ? track.kind !== 'audio' : track.kind !== 'overlay'),
+  );
+  const solo = candidates.some((track) => track.solo);
+  return candidates.filter(
+    (track) => (!solo || track.solo) && (kind !== 'audio' || !track.muted),
+  );
+}
+
+export function trackName(track: Track, index: number) {
+  return (
+    track.name ??
+    `${track.kind === 'audio' ? 'Audio' : track.kind === 'overlay' ? 'Text' : 'Video'} ${index + 1}`
+  );
+}
+
+/** Originals actually consumed by the shared compositor, unlike backup references. */
+export function outputAssetIds(project: Project): string[] {
+  return [
+    ...new Set(
+      (['visual', 'audio'] as const).flatMap((kind) =>
+        outputTracks(project, kind).flatMap((track) =>
+          track.clips.flatMap((clip) =>
+            clip.assetId &&
+            (kind === 'visual'
+              ? ['video', 'image'].includes(clip.kind)
+              : ['video', 'audio'].includes(clip.kind) && !clip.muted)
+              ? [clip.assetId]
+              : [],
+          ),
+        ),
+      ),
+    ),
+  ];
+}

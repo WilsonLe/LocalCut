@@ -1261,6 +1261,25 @@ describe('headless assistant boundaries', () => {
       { type: 'addTrack', track: { id: 'temporary', kind: 'overlay' } },
       { type: 'reorderTrack', trackId: 'temporary', index: 0 },
       {
+        type: 'updateTrack',
+        trackId: 'temporary',
+        patch: {
+          name: 'Renamed track',
+          disabled: true,
+          muted: true,
+          solo: true,
+          locked: true,
+        },
+      },
+      {
+        type: 'duplicateTrack',
+        trackId: 'temporary',
+        newTrackId: 'duplicate-track',
+      },
+      { type: 'clearTrack', trackId: 'duplicate-track' },
+      { type: 'removeTrack', trackId: 'duplicate-track' },
+      { type: 'updateTrack', trackId: 'temporary', patch: { locked: false } },
+      {
         type: 'insertClip',
         trackId: 'main',
         clip: {
