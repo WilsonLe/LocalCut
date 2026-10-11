@@ -380,3 +380,44 @@ it('blocks suspended preview playback without user activation', async () => {
   session.dispose();
   vi.unstubAllGlobals();
 });
+
+it('retains worker stack, cause and request correlation on failed operations', async () => {
+  const worker = {
+    postMessage: vi.fn(),
+    terminate: vi.fn(),
+    onmessage: null,
+  } as unknown as Worker;
+  const client = new WorkerClient(() => worker);
+  const completion = client.run(
+    'import',
+    {},
+    new AbortController().signal,
+    () => {},
+  );
+  const id = vi.mocked(worker.postMessage).mock.calls[0]![0].id;
+  const stack =
+    'EditorError: Decoder failed\n at decode (media.worker.js:42:3)';
+  worker.onmessage!({
+    data: {
+      id,
+      kind: 'error',
+      error: {
+        code: 'UNSUPPORTED_CODEC',
+        message: 'Decoder failed',
+        stack,
+        cause: {
+          name: 'Error',
+          message: 'Native codec',
+          stack: 'Error: Native codec\n at native (decoder.js:5:2)',
+        },
+      },
+    },
+  } as MessageEvent);
+  await expect(completion).rejects.toMatchObject({
+    code: 'UNSUPPORTED_CODEC',
+    stack,
+    cause: { message: 'Native codec' },
+    details: { operation: 'import', requestId: id },
+  });
+  client.reset();
+});

@@ -229,3 +229,7 @@ All storyboard mutations use `commands.validate/apply`, request IDs and expected
 - `setStoryboard { storyboard: { elements, backgroundColor } }` replaces the complete scene, as used by direct Excalidraw drawing. It never changes timeline clips or media.
 
 Scenes are bounded to 5,000 unique elements, 20,000 points per drawing and 100,000 characters per text element. Only defined fields are accepted; files, media bytes, web embeds, links and arbitrary custom metadata are excluded. Undo/Redo, autosaved versions and backups reuse the canonical project owners.
+
+## Error diagnostic propagation
+
+Editor error normalization retains the original stack and cause. Worker failures carry their available stack and safely serialized cause/aggregate data back to the calling realm; job events can include optional diagnostic fields alongside their existing code/message. Durable task failure records add optional diagnostics while preserving the existing safe error/action metadata. Consumers must tolerate legacy failures with unavailable stacks. These fields add observation only; request correlation, cancellation, publication and retry semantics are unchanged. The workspace captures its local session separately and never submits diagnostic reports to providers.

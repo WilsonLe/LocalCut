@@ -33,12 +33,18 @@ export function invariant(
 }
 export function asEditorError(error: unknown): EditorError {
   if (error instanceof EditorError) return error;
-  if (error instanceof DOMException && error.name === 'QuotaExceededError')
-    return new EditorError('QUOTA_EXCEEDED', error.message);
-  if (error instanceof DOMException && error.name === 'AbortError')
-    return new EditorError('CANCELLED', 'Operation cancelled');
-  return new EditorError(
-    'WORKER_FAILED',
-    error instanceof Error ? error.message : String(error),
-  );
+  const normalized =
+    error instanceof DOMException && error.name === 'QuotaExceededError'
+      ? new EditorError('QUOTA_EXCEEDED', error.message)
+      : error instanceof DOMException && error.name === 'AbortError'
+        ? new EditorError('CANCELLED', 'Operation cancelled')
+        : new EditorError(
+            'WORKER_FAILED',
+            error instanceof Error ? error.message : String(error),
+          );
+  if (error instanceof Error) {
+    normalized.stack = error.stack;
+    normalized.cause = error;
+  }
+  return normalized;
 }

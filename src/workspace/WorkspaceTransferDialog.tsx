@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from './notifications';
 import type {
   Editor,
   Job,

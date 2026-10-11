@@ -219,3 +219,7 @@ The same Chrome selection verifies failed drawing fonts stay local and rejects d
 ## Automatic chat title checks
 
 Run `pnpm test tests/unit/chat-title.test.ts tests/unit/providers.test.ts`, then `pnpm test:ui --grep 'chat title runs|chat navigation pauses|chat picker matches'`. These cover bounded complete text, the selected model and configured route transport, independent delayed naming, session/branch ownership, failure and retirement, searchable titles, full/reduced motion and retained conversation controls at both hosting bases. Provider interception establishes transport and lifecycle evidence; live naming quality and cost depend on the configured provider. Naming is session UI metadata and grants no editing/tool authority.
+
+## Notification history checks
+
+For error diagnostics and notification history, run `pnpm test tests/unit/error-diagnostics.test.ts tests/unit/notification-history.test.ts tests/unit/services.test.ts tests/unit/task-queue.test.ts tests/unit/worker-publication.test.ts`, then `pnpm test:ui --grep 'error stack trace and persistent notification history'`. The Chrome scenario covers both static bases, original stack/session capture, clipboard success/check/reset and denial, dismissal, persisted reopening, informational notifications, unread dots, clear history and narrow layouts. Notification history is user-owned lifecycle UI; it grants no assistant edit operation.

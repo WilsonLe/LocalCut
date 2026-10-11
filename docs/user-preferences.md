@@ -375,3 +375,8 @@ This is the project record of the user's durable product and workflow choices. U
 ## Chat asset indexing — 11 October 2026
 
 - Let the chat agent index assets through the existing shared indexer. Keep remembered indexing consent and explicit proposal approval, disclose derived-evidence sharing and possible cost, and reuse progress/cancellation and saved local results.
+
+## Error details and notification history — 12 October 2026
+
+- Every error toast offers a stack-trace icon opening the full available stack and relevant session diagnostics. Include an icon-only copy action with a temporary check mark after successful copying.
+- Keep a persistent local history of all notifications, including informational toasts. Use a standalone bell icon at the top right of the main header, without a visible button box, and a dot for unread notifications. Opening history clears the dot; dismissed errors remain available with their original full report.
