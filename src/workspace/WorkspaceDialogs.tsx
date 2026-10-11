@@ -360,6 +360,7 @@ function Properties({
   const [baseChanges, setBaseChanges] = useState<
     Partial<Record<Parameter, number>>
   >({});
+  const [animationValid, setAnimationValid] = useState(true);
   const duplicateTimes = Object.values(keyframes).some(
     (keys) => new Set(keys.map((key) => key.timeUs)).size !== keys.length,
   );
@@ -373,7 +374,7 @@ function Properties({
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        if (readOnly || busy || duplicateTimes) return;
+        if (readOnly || busy || duplicateTimes || !animationValid) return;
         const form = new FormData(event.currentTarget);
         const startUs = Math.round(Number(form.get('start')) * 1e6),
           enteredDurationUs = Math.round(Number(form.get('duration')) * 1e6),
@@ -514,6 +515,7 @@ function Properties({
           clip={{ ...clip, ...baseChanges }}
           keyframes={keyframes}
           onChange={setKeyframes}
+          onValidityChange={setAnimationValid}
           onBaseChange={(parameter, value) =>
             setBaseChanges((values) => ({ ...values, [parameter]: value }))
           }
@@ -573,7 +575,10 @@ function Properties({
       </div>
       <DialogFooter className="shrink-0">
         {!readOnly && (
-          <Button type="submit" disabled={busy || duplicateTimes}>
+          <Button
+            type="submit"
+            disabled={busy || duplicateTimes || !animationValid}
+          >
             Apply properties
           </Button>
         )}

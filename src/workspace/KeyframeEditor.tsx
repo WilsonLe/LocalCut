@@ -32,6 +32,7 @@ export function KeyframeEditor({
   keyframes,
   onChange,
   onBaseChange,
+  onValidityChange,
   playheadUs,
   readOnly,
 }: {
@@ -39,6 +40,7 @@ export function KeyframeEditor({
   keyframes: Clip['keyframes'];
   onChange: (keys: Clip['keyframes']) => void;
   onBaseChange: (parameter: Parameter, value: number) => void;
+  onValidityChange: (valid: boolean) => void;
   playheadUs: number;
   readOnly?: boolean;
 }) {
@@ -53,6 +55,47 @@ export function KeyframeEditor({
   );
   const [parameter, setParameter] = useState<Parameter>(available[0]!.value);
   const field = available.find((item) => item.value === parameter)!;
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [invalid, setInvalid] = useState<Record<string, string>>({});
+  const validity = (next: typeof invalid) => {
+    setInvalid(next);
+    onValidityChange(Object.keys(next).length === 0);
+  };
+  const readNumber = (
+    input: HTMLInputElement,
+    id: string,
+    label: string,
+    time = false,
+  ) => {
+    const text = input.value;
+    setDrafts((previous) => ({ ...previous, [id]: text }));
+    const value = time
+      ? Math.round(Number(input.value) * 1e6)
+      : Number(input.value);
+    const valid =
+      input.validity.valid &&
+      Number.isFinite(value) &&
+      (!time || Number.isSafeInteger(value));
+    const next = { ...invalid };
+    if (valid) delete next[id];
+    else next[id] = `${field.label}: ${label}`;
+    validity(next);
+    // Retain the last valid value for sampling while incomplete text belongs
+    // to the form draft, including when another property is visible.
+    return valid ? value : undefined;
+  };
+  const removeDrafts = (ids: string[]) => {
+    validity(
+      Object.fromEntries(
+        Object.entries(invalid).filter(([id]) => !ids.includes(id)),
+      ),
+    );
+    setDrafts((previous) =>
+      Object.fromEntries(
+        Object.entries(previous).filter(([id]) => !ids.includes(id)),
+      ),
+    );
+  };
   const keys = keyframes[parameter] ?? [];
   const localUs = Math.max(
     0,
@@ -117,11 +160,16 @@ export function KeyframeEditor({
               min={field.min}
               max={field.max}
               step="any"
-              defaultValue={clip[parameter]}
+              value={drafts[`base-${parameter}`] ?? String(clip[parameter])}
               readOnly={readOnly}
-              onChange={(event) =>
-                onBaseChange(parameter, Number(event.target.value))
-              }
+              onChange={(event) => {
+                const value = readNumber(
+                  event.target,
+                  `base-${parameter}`,
+                  'base value',
+                );
+                if (value !== undefined) onBaseChange(parameter, value);
+              }}
             />
           </div>
         )}
@@ -172,10 +220,16 @@ export function KeyframeEditor({
                 min={0}
                 max={clip.durationUs / 1e6}
                 step="any"
-                defaultValue={key.timeUs / 1e6}
+                value={drafts[`time-${key.id}`] ?? String(key.timeUs / 1e6)}
                 readOnly={readOnly}
                 onChange={(event) => {
-                  const timeUs = Math.round(Number(event.target.value) * 1e6);
+                  const timeUs = readNumber(
+                    event.target,
+                    `time-${key.id}`,
+                    `point ${index + 1} time`,
+                    true,
+                  );
+                  if (timeUs === undefined) return;
                   replace(
                     keys.map((point) =>
                       point.id === key.id ? { ...point, timeUs } : point,
@@ -195,17 +249,21 @@ export function KeyframeEditor({
                 min={field.min}
                 max={field.max}
                 step="any"
-                defaultValue={key.value}
+                value={drafts[`value-${key.id}`] ?? String(key.value)}
                 readOnly={readOnly}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const value = readNumber(
+                    event.target,
+                    `value-${key.id}`,
+                    `point ${index + 1} value`,
+                  );
+                  if (value === undefined) return;
                   replace(
                     keys.map((point) =>
-                      point.id === key.id
-                        ? { ...point, value: Number(event.target.value) }
-                        : point,
+                      point.id === key.id ? { ...point, value } : point,
                     ),
-                  )
-                }
+                  );
+                }}
               />
             </div>
             <div className="grid gap-1">
@@ -243,9 +301,10 @@ export function KeyframeEditor({
                 type="button"
                 variant="outline"
                 aria-label={`Remove point ${index + 1}`}
-                onClick={() =>
-                  replace(keys.filter((point) => point.id !== key.id))
-                }
+                onClick={() => {
+                  removeDrafts([`time-${key.id}`, `value-${key.id}`]);
+                  replace(keys.filter((point) => point.id !== key.id));
+                }}
               >
                 Remove
               </Button>
@@ -279,11 +338,28 @@ export function KeyframeEditor({
               Add at end
             </Button>
             {!!keys.length && (
-              <Button type="button" variant="ghost" onClick={() => replace([])}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  removeDrafts(
+                    keys.flatMap((key) => [
+                      `time-${key.id}`,
+                      `value-${key.id}`,
+                    ]),
+                  );
+                  replace([]);
+                }}
+              >
                 Clear property animation
               </Button>
             )}
           </div>
+        )}
+        {!!Object.keys(invalid).length && (
+          <p role="alert" className="text-sm text-destructive">
+            Enter a valid value for {Object.values(invalid)[0]}.
+          </p>
         )}
       </div>
     </details>

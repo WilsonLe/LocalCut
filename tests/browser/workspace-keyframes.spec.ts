@@ -124,6 +124,36 @@ for (const base of ['/', '/LocalCut/']) {
         .getByRole('button', { name: 'Add at end', exact: true })
         .click();
       await form.getByLabel('Point 2 value', { exact: true }).fill('0.5');
+      for (const [label, incomplete, repaired] of [
+        ['Point 2 value', '', '0.5'],
+        ['Point 2 time (seconds)', '', '2'],
+        ['Base value', '', '1'],
+        ['Point 2 value', '2', '0.5'],
+      ]) {
+        await form.getByLabel(label!, { exact: true }).fill(incomplete!);
+        await form
+          .getByRole('combobox', { name: 'Animated property', exact: true })
+          .click();
+        await page.getByRole('option', { name: /^Position X/ }).click();
+        await expect(
+          form.getByRole('button', { name: 'Apply properties', exact: true }),
+        ).toHaveCount(0);
+        // Enter must not publish a hidden property's incomplete numeric draft.
+        await form.getByLabel('Base value', { exact: true }).press('Enter');
+        await expect(form).toBeVisible();
+        expect(await snapshot(page, base, id)).toEqual(initial);
+        await form
+          .getByRole('combobox', { name: 'Animated property', exact: true })
+          .click();
+        await page.getByRole('option', { name: /^Opacity/ }).click();
+        await expect(form.getByLabel(label!, { exact: true })).toHaveValue(
+          incomplete!,
+        );
+        await form.getByLabel(label!, { exact: true }).fill(repaired!);
+        await expect(
+          form.getByRole('button', { name: 'Apply properties', exact: true }),
+        ).toBeVisible();
+      }
       await expect(
         form.getByRole('img', { name: 'Keyframe animation graph' }),
       ).toBeVisible();
@@ -270,6 +300,7 @@ for (const base of ['/', '/LocalCut/']) {
       ).toBe('hold');
       await first.dblclick();
       await form.getByText('Animation', { exact: true }).click();
+      await form.getByLabel('Point 2 value', { exact: true }).fill('');
       await form
         .getByRole('button', { name: 'Remove point 2', exact: true })
         .click();
