@@ -1,6 +1,7 @@
 import {
   accountStorage,
   accountCredentialKey,
+  accountStorageKey,
   forgetAccount,
   OPENROUTER_ACCOUNT_PENDING,
 } from './provider-account-storage';
@@ -770,12 +771,23 @@ export function Conversation(props: ConversationProps) {
   };
   useEffect(() => {
     const changed = (event: StorageEvent) => {
+      if (event.storageArea !== window.localStorage) return;
       for (const profile of configuration.current.profiles) {
         if (
           profile.kind !== 'compatible' &&
-          (event.key === accountCredentialKey(profile) || event.key === null)
-        )
+          (event.key === accountCredentialKey(profile) ||
+            (profile.kind === 'chatgpt' &&
+              event.key ===
+                accountStorageKey(profile, 'localcut.chatgpt-authority.v1')) ||
+            event.key === null)
+        ) {
+          if (profile.kind === 'chatgpt') {
+            const client = providers.current.get(profile.id)?.client as
+              ChatGPTClient | undefined;
+            if (!client?.synchronize()) continue;
+          }
           removeProvider(profile.id, false);
+        }
       }
     };
     window.addEventListener('storage', changed);

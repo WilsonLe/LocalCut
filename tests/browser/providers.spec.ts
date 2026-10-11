@@ -402,6 +402,7 @@ for (const base of ['/', '/LocalCut/']) {
     };
     let authParams = new URLSearchParams();
     let exchanges = 0;
+    const catalogCredentials: string[] = [];
     await context.route(
       'https://auth.openai.com/api/accounts/authorize**',
       (route) => {
@@ -445,8 +446,9 @@ for (const base of ['/', '/LocalCut/']) {
         });
       },
     );
-    await context.route('https://api.openai.com/v1/models', (route) =>
-      route.fulfill({
+    await context.route('https://api.openai.com/v1/models', (route) => {
+      catalogCredentials.push(route.request().headers().authorization!);
+      return route.fulfill({
         headers: cors,
         json: {
           models: [
@@ -457,8 +459,8 @@ for (const base of ['/', '/LocalCut/']) {
             },
           ],
         },
-      }),
-    );
+      });
+    });
     await context.route('https://api.openai.com/v1/responses', (route) => {
       const body = route.request().postDataJSON() as {
         store: boolean;
@@ -579,6 +581,89 @@ for (const base of ['/', '/LocalCut/']) {
       dialog.getByRole('button', { name: 'Verify ChatGPT work', exact: true }),
     ).toBeVisible();
     await secondPopup.close();
+    const sibling = await context.newPage();
+    await sibling.goto(base);
+    const accountKey = await page.evaluate(() =>
+      Object.keys(localStorage).find((key) =>
+        key.startsWith('localcut.chatgpt-credentials.v1:'),
+      )!,
+    );
+    const workCredential = JSON.parse(
+      (await page.evaluate((key) => localStorage.getItem(key), accountKey))!,
+    ) as Record<string, unknown>;
+    const writeFromSibling = async (value: string | null) => {
+      await page.evaluate((key) => {
+        const state = window as typeof window & {
+          providerStorageEvent?: Promise<void>;
+        };
+        state.providerStorageEvent = new Promise<void>((resolve) => {
+          const changed = (event: StorageEvent) => {
+            if (event.key !== key) return;
+            window.removeEventListener('storage', changed);
+            resolve();
+          };
+          window.addEventListener('storage', changed);
+        });
+      }, accountKey);
+      await sibling.evaluate(
+        ({ key, value }) => {
+          if (value === null) localStorage.removeItem(key);
+          else localStorage.setItem(key, value);
+        },
+        { key: accountKey, value },
+      );
+      await page.evaluate(async () => {
+        const state = window as typeof window & {
+          providerStorageEvent?: Promise<void>;
+        };
+        await state.providerStorageEvent;
+        delete state.providerStorageEvent;
+      });
+    };
+    const workVerify = dialog.getByRole('button', {
+      name: 'Verify ChatGPT work',
+      exact: true,
+    });
+    const personalVerify = dialog.getByRole('button', {
+      name: 'Verify ChatGPT',
+      exact: true,
+    });
+    const restoreWork = async () => {
+      await dialog
+        .getByRole('button', { name: 'Connect', exact: true })
+        .click();
+      await dialog
+        .getByRole('button', { name: 'Connect', exact: true })
+        .last()
+        .click();
+      await expect(workVerify).toBeVisible();
+    };
+    await test.step('same-session rotation preserves the connected account; replacement and removal retire only it', async () => {
+      await writeFromSibling(
+        JSON.stringify({ ...workCredential, accessToken: 'synthetic-rotated' }),
+      );
+      await expect(workVerify).toBeVisible();
+      await workVerify.click();
+      await expect(dialog.getByRole('status')).toContainText(
+        'Credentials verified',
+      );
+      expect(catalogCredentials.at(-1)).toBe('Bearer synthetic-rotated');
+      const replacement = JSON.stringify({
+        ...workCredential,
+        sessionId: 'synthetic-replacement',
+        accessToken: 'synthetic-replaced',
+      });
+      await writeFromSibling(replacement);
+      await expect(workVerify).toHaveCount(0);
+      await expect(personalVerify).toBeVisible();
+      await restoreWork();
+      await writeFromSibling(null);
+      await expect(workVerify).toHaveCount(0);
+      await expect(personalVerify).toBeVisible();
+      await writeFromSibling(replacement);
+      await restoreWork();
+    });
+    await sibling.close();
     await dialog
       .getByRole('button', { name: 'Remove ChatGPT', exact: true })
       .click();

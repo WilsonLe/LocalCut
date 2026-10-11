@@ -19,6 +19,8 @@ export interface ChatGPTOptions extends Omit<
 }
 export interface ChatGPTClient extends OpenRouter {
   restore(): boolean;
+  /** Adopt token rotation; retire operations only when the saved session changes. */
+  synchronize(): boolean;
 }
 /** Inert, public OAuth/Responses adapter. No Codex client ID or private ChatGPT endpoints. */
 export function createChatGPT(options: ChatGPTOptions = {}): ChatGPTClient {
@@ -123,6 +125,20 @@ export function createChatGPT(options: ChatGPTOptions = {}): ChatGPTClient {
     options.now,
   );
   let listening = false;
+  const synchronize = () => {
+    let retired: boolean;
+    try {
+      retired = auth.synchronize();
+    } catch {
+      auth.invalidate(false);
+      retired = true;
+    }
+    if (retired) {
+      generation++;
+      for (const c of active) c.abort();
+    }
+    return retired;
+  };
   const storageChanged = (event: StorageEvent) => {
     if (
       event.key !== CHATGPT_CREDENTIAL_KEY &&
@@ -130,14 +146,7 @@ export function createChatGPT(options: ChatGPTOptions = {}): ChatGPTClient {
       event.key !== null
     )
       return;
-    try {
-      if (event.storageArea !== globalThis.localStorage || !auth.synchronize())
-        return;
-    } catch {
-      auth.invalidate(false);
-    }
-    generation++;
-    for (const c of active) c.abort();
+    if (event.storageArea === globalThis.localStorage) synchronize();
   };
   const listen = () => {
     if (
@@ -180,6 +189,7 @@ export function createChatGPT(options: ChatGPTOptions = {}): ChatGPTClient {
   };
   return {
     status: () => ({ connected: !disposed && auth.connected() }),
+    synchronize,
     restore() {
       aiInvariant(!disposed, 'DISPOSED', 'ChatGPT provider is disposed.');
       generation++;

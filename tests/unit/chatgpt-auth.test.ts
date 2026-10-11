@@ -250,6 +250,52 @@ describe('ChatGPT OAuth', () => {
 });
 
 describe('durable ChatGPT session authority', () => {
+  it('synchronizes rotated tokens without retiring work and immediately cancels a replaced session', async () => {
+    const s = await setup();
+    await s.auth.complete(s.callback.href);
+    let release!: (response: Response) => void;
+    const fetch = vi.fn<typeof globalThis.fetch>(
+      () => new Promise<Response>((resolve) => (release = resolve)),
+    );
+    const client = createChatGPT({
+      fetch,
+      credentialStorage: s.persistent,
+      oauthStorage: memory(),
+      now: () => 1000000,
+    });
+    client.restore();
+    const catalog = {
+      models: [{ slug: 'model', display_name: 'Model', visibility: 'list' }],
+    };
+    const pending = client.listModels();
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    const saved = JSON.parse(s.persistent.getItem(CHATGPT_CREDENTIAL_KEY)!);
+    s.persistent.setItem(
+      CHATGPT_CREDENTIAL_KEY,
+      JSON.stringify({ ...saved, accessToken: 'rotated-token' }),
+    );
+    expect(client.synchronize()).toBe(false);
+    expect(client.status().connected).toBe(true);
+    release(Response.json(catalog));
+    await expect(pending).resolves.toMatchObject([{ id: 'model' }]);
+    const replaced = client.listModels();
+    const rejected = expect(replaced).rejects.toMatchObject({
+      code: 'CANCELLED',
+    });
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    expect(
+      new Headers(fetch.mock.calls[1]![1]?.headers).get('authorization'),
+    ).toBe('Bearer rotated-token');
+    s.persistent.setItem(
+      CHATGPT_CREDENTIAL_KEY,
+      JSON.stringify({ ...saved, sessionId: 'replacement-session' }),
+    );
+    expect(client.synchronize()).toBe(true);
+    await rejected;
+    expect(client.status().connected).toBe(false);
+    release(Response.json(catalog));
+    client.dispose();
+  });
   it('rejects replacement credentials before a storage event and cancels late catalog publication', async () => {
     const s = await setup();
     await s.auth.complete(s.callback.href);
