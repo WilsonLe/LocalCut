@@ -10,6 +10,7 @@ import {
   reopen,
   cleanup,
   interfaceLayout,
+  textFonts,
 } from '../tests/safari/scenarios.mjs';
 
 if (process.platform !== 'darwin')
@@ -133,7 +134,17 @@ try {
         );
       }
       const result = await execute(mediaRoundTrip, base, namespace);
-      report.results.push({ base, layout, ...result });
+      const fonts = await execute(textFonts, base, namespace);
+      assert.ok(
+        fonts.lit.every((value) => value > 1000),
+        JSON.stringify(fonts),
+      );
+      assert.ok(
+        fonts.errors.every((value) => value < 8),
+        JSON.stringify(fonts),
+      );
+      assert.ok(fonts.bytes > 100);
+      report.results.push({ base, layout, fonts, ...result });
       for (const m of result.measurements) {
         assert.ok(m.bytes > 100);
         assert.equal(m.videoCodec, 'avc');

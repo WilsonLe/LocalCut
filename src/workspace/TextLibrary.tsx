@@ -3,6 +3,8 @@ import { LoaderCircle } from 'lucide-react';
 import { SettingsSelect } from './SettingsSelect';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
+import { ensureTextFont } from '../media/fonts';
 import { Label } from '../components/ui/label';
 import { CollapsibleDisclosure } from '../components/ui/collapsible';
 import {
@@ -12,6 +14,7 @@ import {
 } from '../core/text-library';
 import type { TextStyleInput } from '../core/text-library';
 import { paintText } from '../media/text';
+import { textStyleSchema } from '../core/model';
 import {
   Combobox,
   ComboboxContent,
@@ -31,23 +34,98 @@ export function TextSample({
   className?: string;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const [error, setError] = useState('');
+
   useEffect(() => {
-    const ctx = canvas.current!.getContext('2d')!;
-    ctx.clearRect(0, 0, 600, 240);
-    ctx.save();
-    ctx.scale(0.5, 0.5);
-    ctx.translate(0, 160);
-    paintText(ctx, style, 1200, 320);
-    ctx.restore();
+    // Fields are drafts until the form is submitted. Paint a stable sample while
+    // an animation draft is incomplete instead of sending it to the evaluator.
+    const sample = textStyleSchema.shape.animation.safeParse(style.animation)
+      .success
+      ? style
+      : { ...style, animation: undefined };
+    const element = canvas.current!;
+    const ctx = element.getContext('2d')!;
+    let disposed = false,
+      frame = 0,
+      ready = false,
+      visible = false;
+    const motion = matchMedia('(prefers-reduced-motion: reduce)');
+    const draw = (timeUs: number) => {
+      ctx.clearRect(0, 0, 600, 240);
+      ctx.save();
+      try {
+        ctx.scale(0.5, 0.5);
+        ctx.translate(0, 160);
+        paintText(
+          ctx,
+          motion.matches && sample.animation?.kind === 'typewriter'
+            ? { ...sample, animation: undefined }
+            : sample,
+          1200,
+          320,
+          timeUs,
+        );
+      } finally {
+        ctx.restore();
+      }
+    };
+    const start = performance.now();
+    const tick = (now: number) => {
+      if (disposed || !visible || !ready) return;
+      draw(
+        motion.matches
+          ? sample.animation?.kind === 'typewriter'
+            ? 1e12
+            : 0
+          : (now - start) * 1000,
+      );
+      if (sample.animation && !motion.matches)
+        frame = requestAnimationFrame(tick);
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry!.isIntersecting;
+      cancelAnimationFrame(frame);
+      if (visible && !ready) {
+        setError('');
+        void ensureTextFont(sample)
+          .then(() => {
+            if (disposed) return;
+            ready = true;
+            tick(performance.now());
+          })
+          .catch((reason: Error) => {
+            if (!disposed) setError(reason.message);
+          });
+      } else if (visible) tick(performance.now());
+    });
+    observer.observe(element);
+    const changed = () => {
+      cancelAnimationFrame(frame);
+      tick(performance.now());
+    };
+    motion.addEventListener('change', changed);
+    return () => {
+      disposed = true;
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+      motion.removeEventListener('change', changed);
+    };
   }, [style]);
   return (
-    <canvas
-      ref={canvas}
-      width={600}
-      height={240}
-      className={className ?? 'w-full rounded-md bg-zinc-950'}
-      aria-hidden="true"
-    />
+    <>
+      <canvas
+        ref={canvas}
+        width={600}
+        height={240}
+        className={className ?? 'w-full rounded-md bg-zinc-950'}
+        aria-hidden="true"
+      />
+      {error && (
+        <span role="status" className="text-xs text-destructive">
+          {error}
+        </span>
+      )}
+    </>
   );
 }
 
@@ -59,11 +137,16 @@ export function FontPicker({
   onChange: (value: TextStyleInput['fontFamily']) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const fonts = TEXT_FONTS.filter((font) => matchesTextLabels(font, query));
   return (
     <Combobox
-      items={TEXT_FONTS}
+      items={fonts.slice(0, 60)}
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(value) => {
+        setOpen(value);
+        if (!value) setQuery('');
+      }}
       value={TEXT_FONTS.find((font) => font.id === (value ?? 'sans'))!}
       onValueChange={(font) => {
         if (font) onChange(font.id);
@@ -87,7 +170,8 @@ export function FontPicker({
       >
         <ComboboxInput
           aria-label="Search fonts"
-          placeholder="Search names or labels…"
+          placeholder="Search names or tags…"
+          onChange={(event) => setQuery(event.target.value)}
         />
         <ComboboxEmpty>No matching fonts.</ComboboxEmpty>
         <ComboboxList>
@@ -104,6 +188,11 @@ export function FontPicker({
             </ComboboxItem>
           )}
         </ComboboxList>
+        {fonts.length > 60 && (
+          <p className="px-3 pb-2 text-xs text-muted-foreground">
+            Search to narrow {fonts.length.toLocaleString()} fonts.
+          </p>
+        )}
       </ComboboxContent>
     </Combobox>
   );
@@ -118,50 +207,116 @@ export function TextLibrary({
 }) {
   const [mode, setMode] = useState<'templates' | 'fonts'>('templates');
   const [query, setQuery] = useState('');
+  const [tag, setTag] = useState('');
+  const [page, setPage] = useState(0);
+  const gallery = useRef<HTMLDivElement>(null);
   const items =
     mode === 'templates'
       ? TEXT_TEMPLATES
       : TEXT_FONTS.map((font) => ({
           ...font,
           style: {
-            text: 'Your story starts here',
+            text: font.sample ?? 'Your story starts here',
             fontSize: 88,
             fontFamily: font.id,
           },
         }));
-  const found = items.filter((item) => matchesTextLabels(item, query));
+  const found = items.filter(
+    (item) =>
+      matchesTextLabels(item, query) && (!tag || item.labels.includes(tag)),
+  );
+  const pages = Math.ceil(found.length / 24);
+  const shown = found.slice(page * 24, (page + 1) * 24);
+  const tags =
+    mode === 'fonts'
+      ? [
+          'sans',
+          'serif',
+          'handwriting',
+          'monospace',
+          'display',
+          'cute',
+          'rounded',
+          'vietnamese',
+        ]
+      : [
+          'animated',
+          'typing',
+          'handmade',
+          'cute',
+          'minimal',
+          'curved',
+          'shadowed',
+        ];
+  const navigate = (value: number) => {
+    setPage(value);
+    gallery.current?.scrollTo({ top: 0 });
+  };
   return (
     <div className="grid gap-3">
       <div className="flex gap-2" role="group" aria-label="Text library view">
         <Button
           variant={mode === 'templates' ? 'secondary' : 'ghost'}
           aria-pressed={mode === 'templates'}
-          onClick={() => setMode('templates')}
+          onClick={() => {
+            setMode('templates');
+            setPage(0);
+            setTag('');
+          }}
         >
           Templates
         </Button>
         <Button
           variant={mode === 'fonts' ? 'secondary' : 'ghost'}
           aria-pressed={mode === 'fonts'}
-          onClick={() => setMode('fonts')}
+          onClick={() => {
+            setMode('fonts');
+            setPage(0);
+            setTag('');
+          }}
         >
           Fonts
         </Button>
       </div>
       <Input
         aria-label="Search text library"
-        placeholder="Search names or labels: cute, minimal, curved…"
+        placeholder="Search names or tags: cute, minimal, typing…"
         value={query}
-        onChange={(event) => setQuery(event.target.value)}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          navigate(0);
+        }}
       />
+      <div
+        className="flex flex-wrap gap-1"
+        role="group"
+        aria-label="Filter tags"
+      >
+        {tags.map((value) => (
+          <Button
+            key={value}
+            size="sm"
+            variant={tag === value ? 'secondary' : 'ghost'}
+            aria-pressed={tag === value}
+            aria-label={`Filter ${value}`}
+            onClick={() => {
+              setTag(tag === value ? '' : value);
+              navigate(0);
+            }}
+          >
+            {value}
+          </Button>
+        ))}
+      </div>
       {busy && (
         <LoaderCircle className="animate-spin" aria-label="Inserting text" />
       )}
       <div
-        className="grid grid-cols-2 gap-3 max-h-[calc(var(--app-viewport-height)*0.55)] overflow-y-auto"
+        ref={gallery}
+        className="grid auto-rows-max grid-cols-2 gap-3 max-h-[calc(var(--app-viewport-height)*0.55)] overflow-y-auto"
         aria-label={mode === 'templates' ? 'Text templates' : 'Font library'}
       >
-        {found.map((item) => (
+        {shown.map((item) => (
           <Button
             key={item.id}
             aria-label={`Insert ${item.name}`}
@@ -180,12 +335,40 @@ export function TextLibrary({
       </div>
       {!found.length && (
         <p role="status" className="text-sm text-muted-foreground">
-          No matches. Try another name or label.
+          No matches. Try another name or tag.
         </p>
       )}
-      <p className="text-xs text-muted-foreground">
-        Local system fonts; the available typeface depends on your device.
-      </p>
+      {found.length > 0 && (
+        <div className="flex items-center justify-between gap-2">
+          <span role="status" className="text-xs text-muted-foreground">
+            {found.length.toLocaleString()}{' '}
+            {mode === 'fonts' ? 'fonts' : 'templates'}
+            {pages > 1 ? ` · Page ${page + 1} of ${pages}` : ''}
+          </span>
+          {pages > 1 && (
+            <div className="flex gap-1">
+              {page > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => navigate(page - 1)}
+                >
+                  Previous
+                </Button>
+              )}
+              {page + 1 < pages && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => navigate(page + 1)}
+                >
+                  Next
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -199,6 +382,20 @@ export function TextStyleFields({
   onChange: (style: TextStyleInput) => void;
   readOnly?: boolean;
 }) {
+  const variationsInput = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const variations = style.animation?.variations;
+    variationsInput.current?.setCustomValidity(
+      variations &&
+        (variations.length < 3 ||
+          variations.length > 5 ||
+          (style.animation?.frames !== undefined &&
+            variations.length !== style.animation.frames) ||
+          variations.some((value) => !value.trim()))
+        ? `Enter ${style.animation?.frames ?? 4} non-empty lines, or leave empty.`
+        : '',
+    );
+  }, [style.animation]);
   const patch = (values: Partial<TextStyleInput>) =>
     onChange({ ...style, ...values });
   return (
@@ -209,6 +406,118 @@ export function TextStyleFields({
           value={style.fontFamily}
           onChange={(fontFamily) => patch({ fontFamily })}
         />
+      )}
+      {!readOnly && (
+        <SettingsSelect
+          label="Text animation"
+          value={style.animation?.kind ?? 'none'}
+          options={[
+            { value: 'none', label: 'Static' },
+            { value: 'typewriter', label: 'Typewriter' },
+            { value: 'handmade', label: 'Handmade loop' },
+          ]}
+          onChange={(kind) =>
+            patch({
+              animation:
+                kind === 'none'
+                  ? undefined
+                  : {
+                      kind: kind as 'typewriter' | 'handmade',
+                      stepMs: kind === 'typewriter' ? 90 : 180,
+                      loop: kind === 'handmade',
+                      frames: kind === 'handmade' ? 4 : undefined,
+                    },
+            })
+          }
+        />
+      )}
+      {style.animation && (
+        <CollapsibleDisclosure summary="Animation settings">
+          <div className="mt-3 grid gap-3">
+            <Label htmlFor="animation-step">
+              {style.animation.kind === 'typewriter'
+                ? 'Milliseconds per character'
+                : 'Milliseconds per frame'}
+            </Label>
+            <Input
+              id="animation-step"
+              type="number"
+              min={40}
+              max={2000}
+              required
+              readOnly={readOnly}
+              value={style.animation.stepMs}
+              onChange={(event) =>
+                patch({
+                  animation: {
+                    ...style.animation!,
+                    stepMs: Number(event.target.value),
+                  },
+                })
+              }
+            />
+            {!readOnly && (
+              <Button
+                type="button"
+                variant={style.animation.loop ? 'secondary' : 'outline'}
+                aria-pressed={style.animation.loop}
+                onClick={() =>
+                  patch({
+                    animation: {
+                      ...style.animation!,
+                      loop: !style.animation!.loop,
+                    },
+                  })
+                }
+              >
+                Loop animation
+              </Button>
+            )}
+            {style.animation.kind === 'handmade' && (
+              <>
+                {!readOnly && (
+                  <SettingsSelect
+                    label="Animation frames"
+                    value={String(
+                      style.animation.frames ??
+                        style.animation.variations?.length ??
+                        4,
+                    )}
+                    options={[3, 4, 5].map((frames) => ({
+                      value: String(frames),
+                      label: `${frames} frames`,
+                    }))}
+                    onChange={(frames) =>
+                      patch({
+                        animation: {
+                          ...style.animation!,
+                          frames: Number(frames),
+                          variations: undefined,
+                        },
+                      })
+                    }
+                  />
+                )}
+                <Label htmlFor="animation-variations">
+                  Text variations (optional, one per frame)
+                </Label>
+                <Textarea
+                  ref={variationsInput}
+                  id="animation-variations"
+                  readOnly={readOnly}
+                  placeholder="Leave empty to animate the same text"
+                  value={style.animation.variations?.join('\n') ?? ''}
+                  onChange={(event) => {
+                    const variations = event.target.value
+                      ? event.target.value.split('\n')
+                      : undefined;
+                    patch({ animation: { ...style.animation!, variations } });
+                  }}
+                />
+              </>
+            )}
+          </div>
+        </CollapsibleDisclosure>
       )}
       {!readOnly && (
         <SettingsSelect

@@ -1,0 +1,70 @@
+{
+  "family": "LocalCut jura",
+  "weight": 400,
+  "files": [
+    {
+      "file": "cyrillic.woff2",
+      "subset": "cyrillic",
+      "unicodeRange": "U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116",
+      "sha256": "eb383d39482b78f983d842cd629d151917115e9f908f92a902c51dbe9620d8fd",
+      "bytes": 20148,
+      "source": "https://fonts.gstatic.com/s/jura/v34/z7NOdRfiaC4Vd8hhoPzfb5vBTP1d7ZuiR_g.woff2"
+    },
+    {
+      "file": "cyrillic-ext.woff2",
+      "subset": "cyrillic-ext",
+      "unicodeRange": "U+0460-052F,U+1C80-1C8A,U+20B4,U+2DE0-2DFF,U+A640-A69F,U+FE2E-FE2F",
+      "sha256": "5f0d0617b4aabf40ce9bd0d2954c7e78c1a899978d14d2de6f8378e40b9784e1",
+      "bytes": 20488,
+      "source": "https://fonts.gstatic.com/s/jura/v34/z7NOdRfiaC4Vd8hhoPzfb5vBTP1d7ZurR_g.woff2"
+    },
+    {
+      "file": "greek.woff2",
+      "subset": "greek",
+      "unicodeRange": "U+0370-0377,U+037A-037F,U+0384-038A,U+038C,U+038E-03A1,U+03A3-03FF",
+      "sha256": "14f5abf93f92112498bbb6e129046f344e47f1b85e3d86e7c8ea18dc2c9ab019",
+      "bytes": 17576,
+      "source": "https://fonts.gstatic.com/s/jura/v34/z7NOdRfiaC4Vd8hhoPzfb5vBTP1d7ZulR_g.woff2"
+    },
+    {
+      "file": "greek-ext.woff2",
+      "subset": "greek-ext",
+      "unicodeRange": "U+1F00-1FFF",
+      "sha256": "b11cb9c5b394b00c9e4bb3d556478815695a9a4c8672164fb1d21616d7477109",
+      "bytes": 22364,
+      "source": "https://fonts.gstatic.com/s/jura/v34/z7NOdRfiaC4Vd8hhoPzfb5vBTP1d7ZuqR_g.woff2"
+    },
+    {
+      "file": "kayah-li.woff2",
+      "subset": "kayah-li",
+      "unicodeRange": "U+200C-200D,U+2010,U+25CC,U+A900-A92F",
+      "sha256": "0e9d7b37167b50981f87c6404aea86cbbf713696ad64f9b4d47cbf63ba470a89",
+      "bytes": 17288,
+      "source": "https://fonts.gstatic.com/s/jura/v34/z7NOdRfiaC4Vd8hhoPzfb5vBTP1d7ZvuR_g.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "b34f1dc726f62a8f0860f57ca83c481de72244d7e49eb6a5704625e7ddf3dc5c",
+      "bytes": 14080,
+      "source": "https://fonts.gstatic.com/s/jura/v34/z7NOdRfiaC4Vd8hhoPzfb5vBTP1d7ZumR_g.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "d629235be72615292a70ec4b5cc7c46a49174f45ecf87402753e9d4e8291402c",
+      "bytes": 21944,
+      "source": "https://fonts.gstatic.com/s/jura/v34/z7NOdRfiaC4Vd8hhoPzfb5vBTP1d7ZuoR_g.woff2"
+    },
+    {
+      "file": "vietnamese.woff2",
+      "subset": "vietnamese",
+      "unicodeRange": "U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB",
+      "sha256": "9db53e30ba1bbd8c0c810970295855ef303ad0c915cd55b6a750cc4570b79d37",
+      "bytes": 16408,
+      "source": "https://fonts.gstatic.com/s/jura/v34/z7NOdRfiaC4Vd8hhoPzfb5vBTP1d7ZupR_g.woff2"
+    }
+  ]
+}

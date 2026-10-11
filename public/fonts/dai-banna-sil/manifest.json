@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut dai-banna-sil",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "92a7a1143e895a7a339350efeb220d5adfae52fdd29d108b67ba39f4ff6461bb",
+      "bytes": 14204,
+      "source": "https://fonts.gstatic.com/s/daibannasil/v2/lW-4wj0AJWmpwGyJ2uEoA4I7vSmKKw.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "7c6d739b317b43c708634b2403770f4a64693d0018c63e7f146fb759bc72b1e7",
+      "bytes": 14580,
+      "source": "https://fonts.gstatic.com/s/daibannasil/v2/lW-4wj0AJWmpwGyJ2uEoA4I7vSeKKw.woff2"
+    },
+    {
+      "file": "new-tai-lue.woff2",
+      "subset": "new-tai-lue",
+      "unicodeRange": "U+1980-19DF,U+200C-200D,U+25CC",
+      "sha256": "71e14346d46520a316089d01b159d8352cffcf0afc124ac4b15caab04881c458",
+      "bytes": 24076,
+      "source": "https://fonts.gstatic.com/s/daibannasil/v2/lW-4wj0AJWmpwGyJ2uEoA4I7vRuKKw.woff2"
+    }
+  ]
+}

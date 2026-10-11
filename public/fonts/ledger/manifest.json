@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut ledger",
+  "weight": 400,
+  "files": [
+    {
+      "file": "cyrillic.woff2",
+      "subset": "cyrillic",
+      "unicodeRange": "U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116",
+      "sha256": "6749f48e3fc1ecddfb0de9b396a1a7b7451268fe64ba23923a5c04d2f71cb7b1",
+      "bytes": 14768,
+      "source": "https://fonts.gstatic.com/s/ledger/v17/j8_q6-HK1L3if_sBmMrx.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "c366051f6064154033a37f1ea84ff174daa2672e41af82c9a11c5ce7d1994b5e",
+      "bytes": 11076,
+      "source": "https://fonts.gstatic.com/s/ledger/v17/j8_q6-HK1L3if_sBnMrx.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "a2e9fc1bea4c9629e45dc6e9c8833d800dfe7042e36f543156cdb66320087ed9",
+      "bytes": 15252,
+      "source": "https://fonts.gstatic.com/s/ledger/v17/j8_q6-HK1L3if_sBksrx.woff2"
+    }
+  ]
+}

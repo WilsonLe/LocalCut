@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut bokor",
+  "weight": 400,
+  "files": [
+    {
+      "file": "khmer.woff2",
+      "subset": "khmer",
+      "unicodeRange": "U+1780-17FF,U+19E0-19FF,U+200C-200D,U+25CC",
+      "sha256": "84e8edba218c278bee86ca5a0da3a161351897d8447c8a376206e2e4d9056df4",
+      "bytes": 41536,
+      "source": "https://fonts.gstatic.com/s/bokor/v32/m8JcjfpeeaqTiS2afog.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "efd12730dad85cb89a85bf444a8ee9b052ec01455831a4d606c910daf70019aa",
+      "bytes": 12008,
+      "source": "https://fonts.gstatic.com/s/bokor/v32/m8JcjfpeeaqTiS2Rfog.woff2"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut mukta-mahee",
+  "weight": 400,
+  "files": [
+    {
+      "file": "gurmukhi.woff2",
+      "subset": "gurmukhi",
+      "unicodeRange": "U+0951-0952,U+0964-0965,U+0A01-0A76,U+200C-200D,U+20B9,U+25CC,U+262C,U+A830-A839",
+      "sha256": "e3b25f1e4643e458f219aabf28d810dd005c094f40405da54b9d63b4b20dc0d3",
+      "bytes": 39296,
+      "source": "https://fonts.gstatic.com/s/muktamahee/v19/XRXQ3IOIi0hcP8iVU67hA9vpUT8.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "2c07633cca167cfde7935d475c0a428c4480f707f7af90d1e0973f8b509f3152",
+      "bytes": 21436,
+      "source": "https://fonts.gstatic.com/s/muktamahee/v19/XRXQ3IOIi0hcP8iVU67hA9vKUT8.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "cc9508342335c7e09d12d4deed076b889b8d62ce99f400f5c10032865ffbf017",
+      "bytes": 30540,
+      "source": "https://fonts.gstatic.com/s/muktamahee/v19/XRXQ3IOIi0hcP8iVU67hA9vEUT8.woff2"
+    }
+  ]
+}

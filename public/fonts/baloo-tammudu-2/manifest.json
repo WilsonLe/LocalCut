@@ -1,0 +1,38 @@
+{
+  "family": "LocalCut baloo-tammudu-2",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "09d55afc8585adaadaa04b8d37484a3b28f6c327f380b602d63fc9299ef67ab7",
+      "bytes": 17728,
+      "source": "https://fonts.gstatic.com/s/balootammudu2/v27/1Pt5g8TIS_SAmkLguUdFP8UaJcKkzlPmMT00GaE_Jf8e0cmFZA.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "cdebd7d8ba48100fad66ef1c191f1f341a30f202785d860753d4a18af54a2946",
+      "bytes": 30256,
+      "source": "https://fonts.gstatic.com/s/balootammudu2/v27/1Pt5g8TIS_SAmkLguUdFP8UaJcKkzlPmMT00GaE_Jf8e0ceFZA.woff2"
+    },
+    {
+      "file": "telugu.woff2",
+      "subset": "telugu",
+      "unicodeRange": "U+0951-0952,U+0964-0965,U+0C00-0C7F,U+1CDA,U+1CF2,U+200C-200D,U+25CC",
+      "sha256": "07f141678e3a3ebb1dc249d0933f4d1fa42af75e4fed2b26eb36031827a82545",
+      "bytes": 64372,
+      "source": "https://fonts.gstatic.com/s/balootammudu2/v27/1Pt5g8TIS_SAmkLguUdFP8UaJcKkzlPmMT00GaE_Jf8e0dWFZA.woff2"
+    },
+    {
+      "file": "vietnamese.woff2",
+      "subset": "vietnamese",
+      "unicodeRange": "U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB",
+      "sha256": "afca90bfec3f18feee5e1f5709d3acdf4952287b86e74d90ab70b5a54b02cd71",
+      "bytes": 21356,
+      "source": "https://fonts.gstatic.com/s/balootammudu2/v27/1Pt5g8TIS_SAmkLguUdFP8UaJcKkzlPmMT00GaE_Jf8e0caFZA.woff2"
+    }
+  ]
+}

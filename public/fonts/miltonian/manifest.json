@@ -1,0 +1,14 @@
+{
+  "family": "LocalCut miltonian",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "96b73f91d13ee49589d1611fb4c82ed1a97b0729cd15f4111bdbfe50ee05371f",
+      "bytes": 53784,
+      "source": "https://fonts.gstatic.com/s/miltonian/v32/zOL-4pbPn6Ne9JqTg9mb7uRB.woff2"
+    }
+  ]
+}

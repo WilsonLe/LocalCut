@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut anek-odia",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "42e155dc8bf74293871fb7dbfb5c0e55369dbdef474c13e742503890ccf50b53",
+      "bytes": 18812,
+      "source": "https://fonts.gstatic.com/s/anekodia/v17/TK3PWkoJARApz5UCd345tuevwwQX0CwsoYkAWgWYevAauivBUnmZfp3hV5E.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "46f4c3a7f7115af94ada92ef4b44fe822e9d5845041f510947cc5841e7570f84",
+      "bytes": 19036,
+      "source": "https://fonts.gstatic.com/s/anekodia/v17/TK3PWkoJARApz5UCd345tuevwwQX0CwsoYkAWgWYevAauivBUnmZfp3vV5E.woff2"
+    },
+    {
+      "file": "oriya.woff2",
+      "subset": "oriya",
+      "unicodeRange": "U+0951-0952,U+0964-0965,U+0B01-0B77,U+1CDA,U+1CF2,U+200C-200D,U+20B9,U+25CC",
+      "sha256": "a871548a106c830b78eeeac2a69b0bf542c8fc92bd00d17a10b9ebe95d0f062c",
+      "bytes": 56308,
+      "source": "https://fonts.gstatic.com/s/anekodia/v17/TK3PWkoJARApz5UCd345tuevwwQX0CwsoYkAWgWYevAauivBUnmZfp34V5E.woff2"
+    }
+  ]
+}

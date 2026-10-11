@@ -1,0 +1,14 @@
+{
+  "family": "LocalCut electrolize",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "821b2ac55948ff3d568ec4b472b2c241cc41fa52df6a9484076f30ad92a09636",
+      "bytes": 16684,
+      "source": "https://fonts.gstatic.com/s/electrolize/v20/cIf5Ma1dtE0zSiGSiED7AXEBuI8.woff2"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "family": "LocalCut sofia-sans-semi-condensed",
+  "weight": 400,
+  "files": [
+    {
+      "file": "cyrillic.woff2",
+      "subset": "cyrillic",
+      "unicodeRange": "U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116",
+      "sha256": "f6845648ad667a9edee94e44bde4f8a657aa44a15751beba7a595ad8ff0030d4",
+      "bytes": 22656,
+      "source": "https://fonts.gstatic.com/s/sofiasanssemicondensed/v8/46kOlaPnUDrQoNsWDCGXXxYlujh5Wv0nwP4RwxURm28cA7YLHsIVvoobEd9QE6k.woff2"
+    },
+    {
+      "file": "cyrillic-ext.woff2",
+      "subset": "cyrillic-ext",
+      "unicodeRange": "U+0460-052F,U+1C80-1C8A,U+20B4,U+2DE0-2DFF,U+A640-A69F,U+FE2E-FE2F",
+      "sha256": "a7fb2d40b42919dcf52e2b4e349f6385213372b96b0e9d493217caa4309f4383",
+      "bytes": 22808,
+      "source": "https://fonts.gstatic.com/s/sofiasanssemicondensed/v8/46kOlaPnUDrQoNsWDCGXXxYlujh5Wv0nwP4RwxURm28cA7YLHsIVvoobEd9ZE6k.woff2"
+    },
+    {
+      "file": "greek.woff2",
+      "subset": "greek",
+      "unicodeRange": "U+0370-0377,U+037A-037F,U+0384-038A,U+038C,U+038E-03A1,U+03A3-03FF",
+      "sha256": "fb350b21825766f460d10763f1890af68d5e977d467fb373a5b48e5957703c19",
+      "bytes": 20320,
+      "source": "https://fonts.gstatic.com/s/sofiasanssemicondensed/v8/46kOlaPnUDrQoNsWDCGXXxYlujh5Wv0nwP4RwxURm28cA7YLHsIVvoobEd9XE6k.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "2d9e71f2cc190dda0e78c3b882ddce02a69a2d62385c91dd183aea06d2fd5c85",
+      "bytes": 15888,
+      "source": "https://fonts.gstatic.com/s/sofiasanssemicondensed/v8/46kOlaPnUDrQoNsWDCGXXxYlujh5Wv0nwP4RwxURm28cA7YLHsIVvoobEd9UE6k.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "4529ad0f42162641b3a0fefeb29a7e0dc87e22d20b44ec211ef038f05285b616",
+      "bytes": 18892,
+      "source": "https://fonts.gstatic.com/s/sofiasanssemicondensed/v8/46kOlaPnUDrQoNsWDCGXXxYlujh5Wv0nwP4RwxURm28cA7YLHsIVvoobEd9aE6k.woff2"
+    }
+  ]
+}

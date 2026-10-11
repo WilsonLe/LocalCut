@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut buenard",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "51ba3c8f06ca7ce3e7a9ae3fb96bf9be2427dcf0f685192ff6402fd445039a2f",
+      "bytes": 13104,
+      "source": "https://fonts.gstatic.com/s/buenard/v22/OD5cuM6Cyma8FnnsJTzfWLAhv7i92sqpK3_wghc.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "dbe40b1c06f7881fc44cdb16d9b1709365a874abe88b6bd5dfa53e7c42ec6f7a",
+      "bytes": 17236,
+      "source": "https://fonts.gstatic.com/s/buenard/v22/OD5cuM6Cyma8FnnsJTzfWLAhv7i92sqpK3_-ghc.woff2"
+    }
+  ]
+}

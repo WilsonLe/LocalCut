@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-manichaean",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "c45bac13588376a8f3b68aadc47c7c56195e6a424b594b0c244046bc16f0a2e4",
+      "bytes": 15572,
+      "source": "https://fonts.gstatic.com/s/notosansmanichaean/v19/taiVGntiC4--qtsfi4Jp9-_GkPZZCcrfenqFPzo.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "ae4461b2d96c4c2645a803f99dbabdff8ddc0528ca4209e8f278438d57da3e15",
+      "bytes": 18700,
+      "source": "https://fonts.gstatic.com/s/notosansmanichaean/v19/taiVGntiC4--qtsfi4Jp9-_GkPZZCcrfenqLPzo.woff2"
+    },
+    {
+      "file": "manichaean.woff2",
+      "subset": "manichaean",
+      "unicodeRange": "U+0640,U+200C-200D,U+25CC,U+FE00,U+10AC0-10AFF",
+      "sha256": "f204e26d907fa304f805e3e3d17d5671767f94d32dc1de7e316b8642fb750025",
+      "bytes": 31364,
+      "source": "https://fonts.gstatic.com/s/notosansmanichaean/v19/taiVGntiC4--qtsfi4Jp9-_GkPZZCcrfenr-Pzo.woff2"
+    }
+  ]
+}

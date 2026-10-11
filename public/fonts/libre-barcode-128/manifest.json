@@ -1,0 +1,14 @@
+{
+  "family": "LocalCut libre-barcode-128",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "15ad10aff06a7ea840ef2830801b62d22c6a16e057aee7a9462bd77139f6a1b9",
+      "bytes": 4236,
+      "source": "https://fonts.gstatic.com/s/librebarcode128/v31/cIfnMbdUsUoiW3O_hVviCwVjuLtXeK_H9AI.woff2"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-shavian",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "5b778949e1cf851b7ec12db8d4e513899fd827b81a35fb16b884fdc878eada96",
+      "bytes": 15196,
+      "source": "https://fonts.gstatic.com/s/notosansshavian/v18/CHy5V_HZE0jxJBQlqAeCKjJvQBNF4HFXQJg.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "2365ae086024fa8e903696e693f868a43b091d17747bd7a053f3a8e709191bf6",
+      "bytes": 18236,
+      "source": "https://fonts.gstatic.com/s/notosansshavian/v18/CHy5V_HZE0jxJBQlqAeCKjJvQBNF4HFZQJg.woff2"
+    },
+    {
+      "file": "shavian.woff2",
+      "subset": "shavian",
+      "unicodeRange": "U+10450-1047F",
+      "sha256": "1ddf443e052b321b7e5c8b40fdabbc5993fe62112606b41c1790e453a933436c",
+      "bytes": 19004,
+      "source": "https://fonts.gstatic.com/s/notosansshavian/v18/CHy5V_HZE0jxJBQlqAeCKjJvQBNF4HEaQJg.woff2"
+    }
+  ]
+}

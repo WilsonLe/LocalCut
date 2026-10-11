@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut michroma",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "754fdb31c9906e82cf9c0ecb1d0b528073818fc2c418a39932c83a34cca027b6",
+      "bytes": 17908,
+      "source": "https://fonts.gstatic.com/s/michroma/v21/PN_zRfy9qWD8fEagAPg9pTk.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "47d1da59ad295c62a80f16020ac841cfc7fc2294f88c9055fbcb494f5ffa7709",
+      "bytes": 23384,
+      "source": "https://fonts.gstatic.com/s/michroma/v21/PN_zRfy9qWD8fEagAPgzpTk.woff2"
+    }
+  ]
+}

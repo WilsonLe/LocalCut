@@ -1,0 +1,38 @@
+{
+  "family": "LocalCut comic-relief",
+  "weight": 400,
+  "files": [
+    {
+      "file": "cyrillic.woff2",
+      "subset": "cyrillic",
+      "unicodeRange": "U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116",
+      "sha256": "1faba81120a64ace5167634239b9036454a63d598b3b927cf6929ac2bd6b5ead",
+      "bytes": 25076,
+      "source": "https://fonts.gstatic.com/s/comicrelief/v2/BCauqZkHrvL55SZ8uaEhHMYGXxhg.woff2"
+    },
+    {
+      "file": "greek.woff2",
+      "subset": "greek",
+      "unicodeRange": "U+0370-0377,U+037A-037F,U+0384-038A,U+038C,U+038E-03A1,U+03A3-03FF",
+      "sha256": "598db6e663af49e011457990fd21d61d9a998988f0827a9c1f3552cce77da5db",
+      "bytes": 21896,
+      "source": "https://fonts.gstatic.com/s/comicrelief/v2/BCauqZkHrvL55SZ8uaEhHMYGWBhg.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "eba4a56233b105228b84486f1ad843b4a70c2240c98df420ce7c330806e28d8b",
+      "bytes": 17864,
+      "source": "https://fonts.gstatic.com/s/comicrelief/v2/BCauqZkHrvL55SZ8uaEhHMYGWxhg.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "530c3702983bb5bb6391a230c972ce10bda98945af8519e8d323d8f60ba12f0a",
+      "bytes": 22336,
+      "source": "https://fonts.gstatic.com/s/comicrelief/v2/BCauqZkHrvL55SZ8uaEhHMYGVRhg.woff2"
+    }
+  ]
+}

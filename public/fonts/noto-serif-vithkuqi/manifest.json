@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-serif-vithkuqi",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "f8e1a936264ecab223c949c50b9c9eec09a3a24803e10f6a3b42bcca4c9f57f0",
+      "bytes": 11832,
+      "source": "https://fonts.gstatic.com/s/notoserifvithkuqi/v3/YA94r1OY7FjTf5szakutkndpw9HH-4a4z9pklvg1IQSNcRWMdV2FoS4.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "5b500c85bb26bbe4a15dcf44ce7380c373729f9d6b435b20f2063022dcc536e9",
+      "bytes": 14924,
+      "source": "https://fonts.gstatic.com/s/notoserifvithkuqi/v3/YA94r1OY7FjTf5szakutkndpw9HH-4a4z9pklvg1IQSNcRWMdV2LoS4.woff2"
+    },
+    {
+      "file": "vithkuqi.woff2",
+      "subset": "vithkuqi",
+      "unicodeRange": "U+10570-1057A,U+1057C-1058A,U+1058C-10592,U+10594-10595,U+10597-105A1,U+105A3-105B1,U+105B3-105B9,U+105BB-105BC",
+      "sha256": "ffc87f25048d98b29827056a60ccbab88e4872e5db550415d006ef27036c778e",
+      "bytes": 18728,
+      "source": "https://fonts.gstatic.com/s/notoserifvithkuqi/v3/YA94r1OY7FjTf5szakutkndpw9HH-4a4z9pklvg1IQSNcRWMdV0wgAtN.woff2"
+    }
+  ]
+}

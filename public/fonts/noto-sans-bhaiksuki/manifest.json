@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-bhaiksuki",
+  "weight": 400,
+  "files": [
+    {
+      "file": "bhaiksuki.woff2",
+      "subset": "bhaiksuki",
+      "unicodeRange": "U+200C-200D,U+25CC,U+11C00-11C6F",
+      "sha256": "28d6d1f5f7d30b2af81bf66c89a7f05c3b9233c0e26298b6261c9ad40f274ed5",
+      "bytes": 110888,
+      "source": "https://fonts.gstatic.com/s/notosansbhaiksuki/v18/UcC63EosKniBH4iELXATsSBWdvUHXxhjwiz_UUM.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "77b67b35b16d9dc95bb901dc40b49850bf91d8ef41bd5438b26170386b6aa4ff",
+      "bytes": 16204,
+      "source": "https://fonts.gstatic.com/s/notosansbhaiksuki/v18/UcC63EosKniBH4iELXATsSBWdvUHXxhjwrXedA.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "995a780c5b90a64ded6fc768aa5307a6fdae66456edd136d9e5cad6b1c070dfd",
+      "bytes": 19824,
+      "source": "https://fonts.gstatic.com/s/notosansbhaiksuki/v18/UcC63EosKniBH4iELXATsSBWdvUHXxhjwrvedA.woff2"
+    }
+  ]
+}

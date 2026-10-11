@@ -1,0 +1,14 @@
+{
+  "family": "LocalCut numans",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "31e11d50402b8c5ef569ab58878f71b5d3cdf899d7ae3d79111bf1cef040acdf",
+      "bytes": 12272,
+      "source": "https://fonts.gstatic.com/s/numans/v16/SlGRmQmGupYAfH84ZhIh.woff2"
+    }
+  ]
+}

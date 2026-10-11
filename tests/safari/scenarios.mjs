@@ -1,5 +1,126 @@
 /* global AudioContext, OffscreenCanvas, File, indexedDB, navigator, localStorage, window, StorageEvent, requestAnimationFrame, document, innerHeight, innerWidth */
 // Self-contained functions run inside the real Safari production page via WebDriver.
+export async function textFonts(base, namespace) {
+  const { createEditor } = await import(base + 'editor.js');
+  const editor = await createEditor({ namespace });
+  const canvas = new OffscreenCanvas(640, 360),
+    ctx = canvas.getContext('2d');
+  const styles = [
+    { text: 'Xin chào Việt Nam', fontSize: 52, fontFamily: 'font-inter' },
+    {
+      text: 'Hello world',
+      fontSize: 88,
+      fontFamily: 'font-special-elite',
+      animation: { kind: 'typewriter', stepMs: 40, loop: false },
+    },
+    {
+      text: '',
+      fontSize: 52,
+      fontFamily: 'font-patrick-hand',
+      animation: {
+        kind: 'handmade',
+        stepMs: 50,
+        loop: true,
+        variations: ['one', 'two', 'three', 'four', 'five'],
+      },
+    },
+  ];
+  const pixels = async (id, time) => {
+    const frame = await editor.preview.frame(id, time).completion;
+    try {
+      ctx.drawImage(frame.image, 0, 0);
+      return ctx.getImageData(0, 0, 640, 360).data;
+    } finally {
+      frame.image.close();
+    }
+  };
+  let artifact;
+  try {
+    const project = await editor.projects.create('Safari animated fonts', {
+      width: 640,
+      height: 360,
+    });
+    await editor.commands.apply({
+      projectId: project.id,
+      expectedRevision: 0,
+      requestId: 'fonts',
+      operations: [
+        { type: 'addTrack', track: { id: 'overlay', kind: 'overlay' } },
+        ...styles.map((text, i) => ({
+          type: 'insertClip',
+          trackId: 'overlay',
+          clip: {
+            id: 'font-' + i,
+            kind: 'text',
+            startUs: i * 200000,
+            durationUs: 200000,
+            x: 40,
+            y: 70,
+            width: 560,
+            height: 260,
+            text,
+          },
+        })),
+      ],
+    });
+    const expected = [];
+    for (let i = 0; i < styles.length; i++)
+      expected.push(await pixels(project.id, i * 200000 + 100000));
+    artifact = await editor.exports.start(project.id, { format: 'mp4' })
+      .completion;
+    const asset = await editor.assets.import(
+      new File([artifact.file], 'font-animation.mp4', { type: 'video/mp4' }),
+    ).completion;
+    const decoded = await editor.projects.create('Safari decoded fonts', {
+      width: 640,
+      height: 360,
+    });
+    await editor.commands.apply({
+      projectId: decoded.id,
+      expectedRevision: 0,
+      requestId: 'decode',
+      operations: [
+        { type: 'addTrack', track: { id: 'video', kind: 'video' } },
+        {
+          type: 'insertClip',
+          trackId: 'video',
+          clip: {
+            id: 'decoded',
+            kind: 'video',
+            assetId: asset.id,
+            startUs: 0,
+            durationUs: asset.durationUs,
+            sourceOutUs: asset.durationUs,
+            width: 640,
+            height: 360,
+          },
+        },
+      ],
+    });
+    const errors = [];
+    const lit = [];
+    for (let i = 0; i < styles.length; i++) {
+      const actual = await pixels(decoded.id, i * 200000 + 100000);
+      let error = 0,
+        count = 0;
+      for (let j = 0; j < actual.length; j++) {
+        if (j % 4 !== 3) error += Math.abs(actual[j] - expected[i][j]);
+        if (
+          j % 4 === 0 &&
+          expected[i][j] + expected[i][j + 1] + expected[i][j + 2] > 60
+        )
+          count++;
+      }
+      errors.push(error / (640 * 360 * 3));
+      lit.push(count);
+    }
+    return { errors, lit, bytes: artifact.file.size };
+  } finally {
+    await artifact?.dispose();
+    await editor.dispose();
+  }
+}
+
 export async function mediaRoundTrip(base, namespace) {
   const { createEditor } = await import(base + 'editor.js');
   const editor = await createEditor({ namespace });

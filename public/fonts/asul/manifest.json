@@ -1,0 +1,14 @@
+{
+  "family": "LocalCut asul",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "f54ed69e89cf078b4ce5804acd0f1f405d976cd7673f5263ab7f28ec9a00e7fe",
+      "bytes": 12440,
+      "source": "https://fonts.gstatic.com/s/asul/v22/VuJ-dNjKxYr42fQPXQ.woff2"
+    }
+  ]
+}

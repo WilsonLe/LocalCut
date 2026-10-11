@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-kaithi",
+  "weight": 400,
+  "files": [
+    {
+      "file": "kaithi.woff2",
+      "subset": "kaithi",
+      "unicodeRange": "U+0966-096F,U+200C-200D,U+2010,U+25CC,U+2E31,U+A830-A839,U+11080-110CF",
+      "sha256": "77a76f5c7d9cf684ba936f02f9eb04dacd7dc0384ed8acb82e26706c031babc5",
+      "bytes": 39352,
+      "source": "https://fonts.gstatic.com/s/notosanskaithi/v23/buEtppS9f8_vkXadMBJJu0tWjLwjcnEAdw.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "52d6abd46eff4cc68e791c3094cdd1b6d1a08e6c03a6b744308b8a887c918302",
+      "bytes": 15524,
+      "source": "https://fonts.gstatic.com/s/notosanskaithi/v23/buEtppS9f8_vkXadMBJJu0tWjLwjcioAdw.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "8e42351817bd24be1c8b01825f01fd98b0b7bd5a30b90ebd30bf576aa3d0bc8b",
+      "bytes": 18412,
+      "source": "https://fonts.gstatic.com/s/notosanskaithi/v23/buEtppS9f8_vkXadMBJJu0tWjLwjciQAdw.woff2"
+    }
+  ]
+}

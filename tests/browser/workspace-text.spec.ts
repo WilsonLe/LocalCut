@@ -24,6 +24,174 @@ async function snapshot(
   );
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`bundled font pages and editable animated templates ${base}`, async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.goto(base);
+    const id = await page.evaluate(async (base) => {
+      const { createEditor } = await import(base + 'editor.js');
+      const editor = await createEditor();
+      try {
+        return (await editor.projects.create('Animated library')).id;
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    await page.goto(`${base}#/project/${id}`);
+    await page.getByRole('button', { name: 'Add text', exact: true }).click();
+    const library = page.getByRole('dialog', { name: 'Add text', exact: true });
+    await library.getByRole('button', { name: 'Fonts', exact: true }).click();
+    await expect(library.getByRole('button', { name: /^Insert / })).toHaveCount(
+      24,
+    );
+    await expect(library.getByRole('status')).toContainText('1,797 fonts');
+    await library.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(library.getByRole('status')).toContainText('Page 2');
+    await library
+      .getByRole('button', { name: 'Filter vietnamese', exact: true })
+      .click();
+    await library.getByLabel('Search text library').fill('Inter modern');
+    await expect(
+      library.getByRole('button', { name: 'Insert Inter', exact: true }),
+    ).toBeVisible();
+    if (base === '/')
+      await page.screenshot({ path: 'docs/images/text-fonts.png' });
+    await library
+      .getByRole('button', { name: 'Insert Inter', exact: true })
+      .click();
+    const properties = page.getByRole('dialog', {
+      name: 'Clip properties',
+      exact: true,
+    });
+    await expect(
+      properties.getByRole('combobox', { name: 'Font', exact: true }),
+    ).toContainText('Inter');
+    await properties
+      .getByRole('button', { name: 'Apply properties', exact: true })
+      .click();
+    await page.getByRole('button', { name: 'Add text', exact: true }).click();
+    await library
+      .getByRole('button', { name: 'Filter animated', exact: true })
+      .click();
+    await expect(library.getByRole('button', { name: /^Insert / })).toHaveCount(
+      5,
+    );
+    await library
+      .getByRole('button', { name: 'Insert Handmade 5 frames', exact: true })
+      .click();
+    await properties
+      .getByRole('button', { name: 'Animation settings', exact: true })
+      .click();
+    const sample = properties.locator('canvas');
+    const samplePixels = () =>
+      sample.evaluate((node: HTMLCanvasElement) => {
+        const pixels = node
+          .getContext('2d')!
+          .getImageData(0, 0, node.width, node.height).data;
+        let lit = 0;
+        for (let i = 0; i < pixels.length; i += 4)
+          if (pixels[i]! + pixels[i + 1]! + pixels[i + 2]! > 60) lit++;
+        return lit;
+      });
+    await properties.getByLabel('Milliseconds per frame').fill('');
+    await expect.poll(samplePixels).toBeGreaterThan(100);
+    expect(
+      await properties
+        .getByLabel('Milliseconds per frame')
+        .evaluate((node: HTMLInputElement) => node.checkValidity()),
+    ).toBe(false);
+    await properties.getByLabel('Milliseconds per frame').fill('100');
+    await properties
+      .getByLabel('Text variations (optional, one per frame)')
+      .fill('one\ntwo\nthree\nfour\nfive\nsix');
+    await expect.poll(samplePixels).toBeGreaterThan(100);
+    // Let a full-motion six-frame draft reach its formerly crashing sixth step.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          const start = performance.now();
+          const tick = () => {
+            if (performance.now() - start >= 700) resolve();
+            else requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        }),
+    );
+    expect(errors).toEqual([]);
+    await properties.getByLabel('Milliseconds per frame').fill('240');
+    await properties
+      .getByLabel('Text variations (optional, one per frame)')
+      .fill('one\ntwo');
+    expect(
+      await properties
+        .getByLabel('Text variations (optional, one per frame)')
+        .evaluate((node: HTMLTextAreaElement) => node.checkValidity()),
+    ).toBe(false);
+    await properties
+      .getByRole('combobox', { name: 'Animation frames', exact: true })
+      .click();
+    await page.getByRole('option', { name: '3 frames', exact: true }).click();
+    expect(
+      await properties
+        .getByLabel('Text variations (optional, one per frame)')
+        .evaluate((node: HTMLTextAreaElement) => node.checkValidity()),
+    ).toBe(true);
+    await properties
+      .getByLabel('Text variations (optional, one per frame)')
+      .fill('hello\nhey\nhi');
+    await properties.getByLabel('Text', { exact: true }).fill('');
+    await expect.poll(samplePixels).toBeGreaterThan(100);
+    await properties
+      .getByRole('button', { name: 'Apply properties', exact: true })
+      .click();
+    await expect(properties).not.toBeVisible();
+    const animation = (
+      await snapshot(page, base, 'Animated library')
+    ).tracks[0]!.clips.find((clip) => clip.text?.animation)!.text!.animation;
+    expect(animation).toMatchObject({
+      kind: 'handmade',
+      stepMs: 240,
+      frames: 3,
+      loop: true,
+      variations: ['hello', 'hey', 'hi'],
+    });
+    expect(
+      (await snapshot(page, base, 'Animated library')).tracks[0]!.clips.find(
+        (clip) => clip.text?.animation,
+      )!.text!.text,
+    ).toBe('');
+    await page.reload();
+    expect(
+      (await snapshot(page, base, 'Animated library')).tracks[0]!.clips.find(
+        (clip) => clip.text?.animation,
+      )!.text!.animation,
+    ).toEqual(animation);
+    await page.getByRole('button', { name: 'Add text', exact: true }).click();
+    await library
+      .getByRole('button', { name: 'Filter typing', exact: true })
+      .click();
+    await library
+      .getByRole('button', { name: 'Insert Typewriter', exact: true })
+      .click();
+    await properties
+      .getByRole('button', { name: 'Animation settings', exact: true })
+      .click();
+    await properties.getByLabel('Milliseconds per character').fill('80');
+    await properties
+      .getByRole('button', { name: 'Loop animation', exact: true })
+      .click();
+    await properties
+      .getByRole('button', { name: 'Apply properties', exact: true })
+      .click();
+    expect(
+      (await snapshot(page, base, 'Animated library')).tracks[0]!.clips.find(
+        (clip) => clip.text?.animation?.kind === 'typewriter',
+      )!.text!.animation,
+    ).toEqual({ kind: 'typewriter', stepMs: 80, loop: true });
+  });
   test(`searchable fonts and text templates insert, edit, undo and reload ${base}`, async ({
     page,
   }) => {
@@ -42,7 +210,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page.getByRole('button', { name: 'Add text', exact: true }).click();
     const library = page.getByRole('dialog', { name: 'Add text', exact: true });
     await expect(library.getByRole('button', { name: /^Insert / })).toHaveCount(
-      12,
+      17,
     );
     if (base === '/')
       await page.screenshot({
@@ -55,9 +223,16 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
     await library.getByLabel('Search text library').fill('cute');
     await library.getByRole('button', { name: 'Fonts', exact: true }).click();
-    await expect(library.getByRole('button', { name: /^Insert / })).toHaveCount(
-      2,
-    );
+    await expect(
+      library.getByRole('button', { name: 'Insert Soft rounded', exact: true }),
+    ).toBeVisible();
+    await library.getByLabel('Search text library').fill('Patrick cute');
+    await expect(
+      library.getByRole('button', { name: 'Insert Patrick Hand', exact: true }),
+    ).toBeVisible();
+    await expect(
+      library.getByText('Local system fonts;', { exact: false }),
+    ).toHaveCount(0);
     await library
       .getByRole('button', { name: 'Templates', exact: true })
       .click();
@@ -141,6 +316,14 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(library).toBeVisible();
     await expect(
       library.getByRole('button', { name: 'Insert Plain text', exact: true }),
+    ).toBeVisible();
+    await expect(
+      library.getByText('Typewriter', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      library.getByText('animated · typing · typewriter · minimal', {
+        exact: true,
+      }),
     ).toBeVisible();
     if (base === '/')
       await page.screenshot({

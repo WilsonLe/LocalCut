@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut chelsea-market",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "c74227d556a0967c1be9c42926de92bbd82b09f650d583c520c2d9a4b98cf307",
+      "bytes": 61504,
+      "source": "https://fonts.gstatic.com/s/chelseamarket/v14/BCawqZsHqfr89WNP_IApC8tzKChiJg8.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "26f1dc6ee0f2bc6f94024e7a959dfa85d8245659394596e4a23301223b25f28c",
+      "bytes": 62348,
+      "source": "https://fonts.gstatic.com/s/chelseamarket/v14/BCawqZsHqfr89WNP_IApC8tzKChsJg8.woff2"
+    }
+  ]
+}

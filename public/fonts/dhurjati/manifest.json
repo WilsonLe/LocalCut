@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut dhurjati",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "db679b969bcbe17e74c502b179156cf551e6022b12df2ccf8ce4d303c1d3495e",
+      "bytes": 12004,
+      "source": "https://fonts.gstatic.com/s/dhurjati/v27/_6_8ED3gSeatXfFiFU31QqU.woff2"
+    },
+    {
+      "file": "telugu.woff2",
+      "subset": "telugu",
+      "unicodeRange": "U+0951-0952,U+0964-0965,U+0C00-0C7F,U+1CDA,U+1CF2,U+200C-200D,U+25CC",
+      "sha256": "85cb41c1ff8040737ba9c0a86b2df08c3368bd99f78f6a0902b638c4c069d161",
+      "bytes": 192160,
+      "source": "https://fonts.gstatic.com/s/dhurjati/v27/_6_8ED3gSeatXfFiFU3pQqU.woff2"
+    }
+  ]
+}

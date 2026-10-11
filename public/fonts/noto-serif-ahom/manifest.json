@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-serif-ahom",
+  "weight": 400,
+  "files": [
+    {
+      "file": "ahom.woff2",
+      "subset": "ahom",
+      "unicodeRange": "U+25CC,U+11700-1174F",
+      "sha256": "ef1063ff3458921d398fc4b214bc74c27c445a62c0ce926f5ec0b341649af7ce",
+      "bytes": 29824,
+      "source": "https://fonts.gstatic.com/s/notoserifahom/v21/FeVIS0hfp6cprmEUffAW_fUL_ANOY80PMQ.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "8c7de8557ef0fb2b46798157dfec8318cf4cc787b35e1be00cdb44d1fe43eb1f",
+      "bytes": 17696,
+      "source": "https://fonts.gstatic.com/s/notoserifahom/v21/FeVIS0hfp6cprmEUffAW_fUL_ANOxewq.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "0d1ec6c5e3e3c82cd73e22a7e15f0b3aa215f5696e082ded9e2ec3340058609f",
+      "bytes": 20900,
+      "source": "https://fonts.gstatic.com/s/notoserifahom/v21/FeVIS0hfp6cprmEUffAW_fUL_ANOy-wq.woff2"
+    }
+  ]
+}

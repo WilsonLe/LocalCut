@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-takri",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "29ff313267c83e675c4ae0712733854054b065bfe047e21b3f5681f048991303",
+      "bytes": 15508,
+      "source": "https://fonts.gstatic.com/s/notosanstakri/v25/TuGJUVpzXI5FBtUq5a8bnKIOdTwgM-XX.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "a28c072ee8b7708feb8938dfaad598b6062c70e9958de4f8ad32457d59f55e70",
+      "bytes": 18768,
+      "source": "https://fonts.gstatic.com/s/notosanstakri/v25/TuGJUVpzXI5FBtUq5a8bnKIOdTwgPeXX.woff2"
+    },
+    {
+      "file": "takri.woff2",
+      "subset": "takri",
+      "unicodeRange": "U+0964-0965,U+200C-200D,U+25CC,U+A830-A839,U+11680-116CF",
+      "sha256": "f828bd13fcde717365ad228d251c1e57cdac4eb00d79bca65cc1409fe1fd79ef",
+      "bytes": 26764,
+      "source": "https://fonts.gstatic.com/s/notosanstakri/v25/TuGJUVpzXI5FBtUq5a8bnKIOdTwgR-XX.woff2"
+    }
+  ]
+}

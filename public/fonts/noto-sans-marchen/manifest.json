@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-marchen",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "cc3b0ce2f8d8aa7da9675973e12d273e704c1b6b33dab3a1f7951b7d27178486",
+      "bytes": 15300,
+      "source": "https://fonts.gstatic.com/s/notosansmarchen/v21/aFTO7OZ_Y282EP-WyG6QTOX_C8WZMEhIma8.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "b26dfa21c3a839c69fd6e8dc3657bd67506bcc6c98f51ffd1a69a5a86d8d81a1",
+      "bytes": 17932,
+      "source": "https://fonts.gstatic.com/s/notosansmarchen/v21/aFTO7OZ_Y282EP-WyG6QTOX_C8WZMEhGma8.woff2"
+    },
+    {
+      "file": "marchen.woff2",
+      "subset": "marchen",
+      "unicodeRange": "U+25CC,U+11C70-11CBF",
+      "sha256": "c652bdd9a01633b7641ee3780a023bc018abc9d3a16db517eb0afb0070c2b1b3",
+      "bytes": 68060,
+      "source": "https://fonts.gstatic.com/s/notosansmarchen/v21/aFTO7OZ_Y282EP-WyG6QTOX_C8WZMEjXuIp7.woff2"
+    }
+  ]
+}

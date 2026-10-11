@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-javanese",
+  "weight": 400,
+  "files": [
+    {
+      "file": "javanese.woff2",
+      "subset": "javanese",
+      "unicodeRange": "U+200C-200D,U+25CC,U+A980-A9DF",
+      "sha256": "8d3c205acb235426aa7d43cc0ab5f2d7569fb06eee9f54fd3f9f66eff0c2c688",
+      "bytes": 44268,
+      "source": "https://fonts.gstatic.com/s/notosansjavanese/v25/2V01KJkDAIA6Hp4zoSScDjV0Y-eoHAHT-Z3MngEefiidxJnkJHhoZA.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "20bdc549dab6be950bb20513a1797bf9bb7377e20152244fd8b4e4bd5f4f3a2d",
+      "bytes": 10308,
+      "source": "https://fonts.gstatic.com/s/notosansjavanese/v25/2V01KJkDAIA6Hp4zoSScDjV0Y-eoHAHT-Z3MngEefiidxJnkJF5oZA.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "f3723455bce10b55ccc64bf1b3200073335dc17adb1f16832abd8ce15d8ca789",
+      "bytes": 12916,
+      "source": "https://fonts.gstatic.com/s/notosansjavanese/v25/2V01KJkDAIA6Hp4zoSScDjV0Y-eoHAHT-Z3MngEefiidxJnkJFBoZA.woff2"
+    }
+  ]
+}

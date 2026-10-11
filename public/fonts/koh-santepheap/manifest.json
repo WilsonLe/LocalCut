@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut koh-santepheap",
+  "weight": 400,
+  "files": [
+    {
+      "file": "khmer.woff2",
+      "subset": "khmer",
+      "unicodeRange": "U+1780-17FF,U+19E0-19FF,U+200C-200D,U+25CC",
+      "sha256": "195463742bb1e4a0e4e90794a11e91a983a43743f0df56fd475f816711f079c4",
+      "bytes": 48608,
+      "source": "https://fonts.gstatic.com/s/kohsantepheap/v15/gNMdW3p6SJbwyGj2rBZyeOrTjNPtHVk.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "0ae63cf049005bd86f5a82d176e530c02995c76b8d6e642ef675272428549f21",
+      "bytes": 12968,
+      "source": "https://fonts.gstatic.com/s/kohsantepheap/v15/gNMdW3p6SJbwyGj2rBZyeOrTjNPmHVk.woff2"
+    }
+  ]
+}

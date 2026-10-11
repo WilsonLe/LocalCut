@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-tangsa",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "581c33df3ab5602b72d93a4684db3092b7bbf36309a535f54a9e606beed21ad9",
+      "bytes": 11284,
+      "source": "https://fonts.gstatic.com/s/notosanstangsa/v9/z7NCdQPmcigbbZAIOl9igP26K470lICpky0-peX5Qp1YkxoWa9s.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "06d1c30a2bca90eda4da03190ec3f9a56751373209a76484d3e20e93841edef4",
+      "bytes": 14288,
+      "source": "https://fonts.gstatic.com/s/notosanstangsa/v9/z7NCdQPmcigbbZAIOl9igP26K470lICpky0-peX5Qp1YkxoYa9s.woff2"
+    },
+    {
+      "file": "tangsa.woff2",
+      "subset": "tangsa",
+      "unicodeRange": "U+16A70-16ACF",
+      "sha256": "71f458f4e66c41ab6d9b5b5fe5229463fbcc2172dd608874b4aa5110f3748edb",
+      "bytes": 21108,
+      "source": "https://fonts.gstatic.com/s/notosanstangsa/v9/z7NCdQPmcigbbZAIOl9igP26K470lICpky0-peX5Qp1Ykxq1Sv5o.woff2"
+    }
+  ]
+}

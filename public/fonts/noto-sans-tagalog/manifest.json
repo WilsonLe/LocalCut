@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-tagalog",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "d9541dc916af16054cf4363411028c339983709735c92c372ec6a33ff281458a",
+      "bytes": 15792,
+      "source": "https://fonts.gstatic.com/s/notosanstagalog/v23/J7aFnoNzCnFcV9ZI-sUYuvote1R0wzEHCck.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "32c1679ce103e1f0622bf8e972f749749a97f888b3e0d9b617ccf797132398e1",
+      "bytes": 19100,
+      "source": "https://fonts.gstatic.com/s/notosanstagalog/v23/J7aFnoNzCnFcV9ZI-sUYuvote1R0wzEJCck.woff2"
+    },
+    {
+      "file": "tagalog.woff2",
+      "subset": "tagalog",
+      "unicodeRange": "U+1700-171F,U+1735-1736,U+200C-200D,U+25CC",
+      "sha256": "9388564068c8b3da5df49a724bcad1d55fca94200d473bc5c7a101f16d76aedd",
+      "bytes": 19428,
+      "source": "https://fonts.gstatic.com/s/notosanstagalog/v23/J7aFnoNzCnFcV9ZI-sUYuvote1R0wzExCck.woff2"
+    }
+  ]
+}

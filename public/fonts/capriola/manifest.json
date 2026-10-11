@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut capriola",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "3a699a96b93301126fa93a9e52306a65149c4bb3b686eda38da3895941edaa4f",
+      "bytes": 20876,
+      "source": "https://fonts.gstatic.com/s/capriola/v15/wXKoE3YSppcvo1PDlk_7JeE.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "79b22997f327492db4b5b337d879a06171aa88c29638c9a34b3641641807a457",
+      "bytes": 29016,
+      "source": "https://fonts.gstatic.com/s/capriola/v15/wXKoE3YSppcvo1PDlk_1JeE.woff2"
+    }
+  ]
+}

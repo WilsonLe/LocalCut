@@ -1,0 +1,54 @@
+{
+  "family": "LocalCut ubuntu-condensed",
+  "weight": 400,
+  "files": [
+    {
+      "file": "cyrillic.woff2",
+      "subset": "cyrillic",
+      "unicodeRange": "U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116",
+      "sha256": "a84dfc58394ef6a837352516ab9e38146255baa5900e7289eb48ba31707b92b6",
+      "bytes": 40428,
+      "source": "https://fonts.gstatic.com/s/ubuntucondensed/v17/u-4k0rCzjgs5J7oXnJcM_0kACGMtT-Tfqw.woff2"
+    },
+    {
+      "file": "cyrillic-ext.woff2",
+      "subset": "cyrillic-ext",
+      "unicodeRange": "U+0460-052F,U+1C80-1C8A,U+20B4,U+2DE0-2DFF,U+A640-A69F,U+FE2E-FE2F",
+      "sha256": "8feec81228c44bcb64ecdf280956308934fff53704c6c6eacf37f0fd305f096f",
+      "bytes": 52580,
+      "source": "https://fonts.gstatic.com/s/ubuntucondensed/v17/u-4k0rCzjgs5J7oXnJcM_0kACGMtT-3fqw.woff2"
+    },
+    {
+      "file": "greek.woff2",
+      "subset": "greek",
+      "unicodeRange": "U+0370-0377,U+037A-037F,U+0384-038A,U+038C,U+038E-03A1,U+03A3-03FF",
+      "sha256": "28aee6b709c4b28a9843c924af9bd66f78c6a67ab2dfaa7c7cc7bbfa91f6fef1",
+      "bytes": 36712,
+      "source": "https://fonts.gstatic.com/s/ubuntucondensed/v17/u-4k0rCzjgs5J7oXnJcM_0kACGMtT-Pfqw.woff2"
+    },
+    {
+      "file": "greek-ext.woff2",
+      "subset": "greek-ext",
+      "unicodeRange": "U+1F00-1FFF",
+      "sha256": "820addac6acc83c1c3730eb0f6b41bf77d133a238d470cdf092188a4cb785803",
+      "bytes": 44016,
+      "source": "https://fonts.gstatic.com/s/ubuntucondensed/v17/u-4k0rCzjgs5J7oXnJcM_0kACGMtT-zfqw.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "205b31fa22002439a622c454d7f4744058ef5b46072e78c57e0f27b76fc9104f",
+      "bytes": 29232,
+      "source": "https://fonts.gstatic.com/s/ubuntucondensed/v17/u-4k0rCzjgs5J7oXnJcM_0kACGMtT-Dfqw.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "39fbcde43a8cf76014bed28035007f706bf3f5b329b7b7b904d1ce875f50791a",
+      "bytes": 59272,
+      "source": "https://fonts.gstatic.com/s/ubuntucondensed/v17/u-4k0rCzjgs5J7oXnJcM_0kACGMtT-7fqw.woff2"
+    }
+  ]
+}

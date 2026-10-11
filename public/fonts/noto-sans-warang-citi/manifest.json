@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-warang-citi",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "97ad03481220b7d1c7870524b9866565f96740f12fa2f21d835be478dc61871d",
+      "bytes": 15260,
+      "source": "https://fonts.gstatic.com/s/notosanswarangciti/v19/EYqtmb9SzL1YtsZSScyKDXIeOv3w-zgsNvKhou9D.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "2cb9857ebbaf8524d6b4c31e4f3a0356ac1aa3949b86a9b7c0d8ae821ba90155",
+      "bytes": 18336,
+      "source": "https://fonts.gstatic.com/s/notosanswarangciti/v19/EYqtmb9SzL1YtsZSScyKDXIeOv3w-zgsNvKhrO9D.woff2"
+    },
+    {
+      "file": "warang-citi.woff2",
+      "subset": "warang-citi",
+      "unicodeRange": "U+200C-200D,U+25CC,U+118A0-118FF",
+      "sha256": "989370ed62cf8772dac6ff088a2cca2300a5bc883d28da95f0684bbdd0f0b91b",
+      "bytes": 30260,
+      "source": "https://fonts.gstatic.com/s/notosanswarangciti/v19/EYqtmb9SzL1YtsZSScyKDXIeOv3w-zgsNvKhwu9D.woff2"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-samaritan",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "c19bf454fc37a70a3ae16b7ba4a39c3378961cca6fe22c3170ea24ca8ead7b32",
+      "bytes": 14688,
+      "source": "https://fonts.gstatic.com/s/notosanssamaritan/v17/buEqppe9f8_vkXadMBJJo0tSmaYjFkxOYolpNw.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "832abd9dd56b33e0bf76e011338e9deedaed3fb9c4e5a6917b8bd5d3b36774ed",
+      "bytes": 17600,
+      "source": "https://fonts.gstatic.com/s/notosanssamaritan/v17/buEqppe9f8_vkXadMBJJo0tSmaYjFkxOYodpNw.woff2"
+    },
+    {
+      "file": "samaritan.woff2",
+      "subset": "samaritan",
+      "unicodeRange": "U+0800-083F,U+2E31",
+      "sha256": "f761659d767f23953628e6c239971a8e93a68e5b4a727a052c849dcf7535141d",
+      "bytes": 20284,
+      "source": "https://fonts.gstatic.com/s/notosanssamaritan/v17/buEqppe9f8_vkXadMBJJo0tSmaYjFkxOYrdpNw.woff2"
+    }
+  ]
+}

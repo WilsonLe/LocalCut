@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut radio-canada-big",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "ce90fbdcc151ee6ee4cccf3b6caf916ad7d7dc85629835d37b44b6643f2d36b5",
+      "bytes": 10916,
+      "source": "https://fonts.gstatic.com/s/radiocanadabig/v3/LYjUdHrinEImAoQewU0hyTsPFra4Yp-6A-YRBF-RX6nNRb3u0JY.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "6845526e43597cfb68470da58c00237668881ff628851b2edc3f6520c98b5ebf",
+      "bytes": 14684,
+      "source": "https://fonts.gstatic.com/s/radiocanadabig/v3/LYjUdHrinEImAoQewU0hyTsPFra4Yp-6A-YRBF-RX6nNRb3g0JY.woff2"
+    }
+  ]
+}

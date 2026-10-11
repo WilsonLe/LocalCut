@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut rajdhani",
+  "weight": 400,
+  "files": [
+    {
+      "file": "devanagari.woff2",
+      "subset": "devanagari",
+      "unicodeRange": "U+0900-097F,U+1CD0-1CF9,U+200C-200D,U+20A8,U+20B9,U+20F0,U+25CC,U+A830-A839,U+A8E0-A8FF,U+11B00-11B09",
+      "sha256": "8d83d478802c346477be3573031c9d9c60f2e4d6c1fc20e7f4033e53e0aed495",
+      "bytes": 88080,
+      "source": "https://fonts.gstatic.com/s/rajdhani/v17/LDIxapCSOBg7S-QT7p4GM-Y.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "759a9000e47b028799d7a4ca602634a7ac7adf415775df070a335d18d9b66f38",
+      "bytes": 14976,
+      "source": "https://fonts.gstatic.com/s/rajdhani/v17/LDIxapCSOBg7S-QT7p4HM-Y.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "8c88cb63f3e946ad0d2b98cb5539dad37a5b10a0c438d825f36c765f53955cee",
+      "bytes": 22304,
+      "source": "https://fonts.gstatic.com/s/rajdhani/v17/LDIxapCSOBg7S-QT7p4JM-Y.woff2"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-serif-hebrew",
+  "weight": 400,
+  "files": [
+    {
+      "file": "hebrew.woff2",
+      "subset": "hebrew",
+      "unicodeRange": "U+0307-0308,U+0590-05FF,U+200C-2010,U+20AA,U+25CC,U+FB1D-FB4F",
+      "sha256": "63551a0c3805f9baa46b6bf8e62b22fb3b385ef36c8dcac9339b553ca2cb25b0",
+      "bytes": 19372,
+      "source": "https://fonts.gstatic.com/s/notoserifhebrew/v30/k3k0o9MMPvpLmixYH7euCwmkS9DohjX1-kRyiqyBqIxnoLbp93i9IKrXKF_qVAwSMGo1vw.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "c5446f84bec8038d6a644c83695cc8e97d2065c02504d78c42b509facc965414",
+      "bytes": 11852,
+      "source": "https://fonts.gstatic.com/s/notoserifhebrew/v30/k3k0o9MMPvpLmixYH7euCwmkS9DohjX1-kRyiqyBqIxnoLbp93i9IKrXKF_qVAwSMGg1vw.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "df4e93fbf1fa8890e1b1dd32c54b4ceac8ed4dc93c18ce26e0b67a8af862bcef",
+      "bytes": 14568,
+      "source": "https://fonts.gstatic.com/s/notoserifhebrew/v30/k3k0o9MMPvpLmixYH7euCwmkS9DohjX1-kRyiqyBqIxnoLbp93i9IKrXKF_qVAwSMGY1vw.woff2"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-hanunoo",
+  "weight": 400,
+  "files": [
+    {
+      "file": "hanunoo.woff2",
+      "subset": "hanunoo",
+      "unicodeRange": "U+1720-1736,U+200C-200D,U+25CC",
+      "sha256": "b55eb07958177c532117b62182d2761a4bdd524cbf85af78b519cf712d5e0f6a",
+      "bytes": 19016,
+      "source": "https://fonts.gstatic.com/s/notosanshanunoo/v22/f0Xs0fCv8dxkDWlZSoXOj6CphMloFvERGJk.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "c3f7e1ae9161c743e7abd3c5fe815be1853b3aa5bd7f58c5186e25382068fc69",
+      "bytes": 15604,
+      "source": "https://fonts.gstatic.com/s/notosanshanunoo/v22/f0Xs0fCv8dxkDWlZSoXOj6CphMloFvErGJk.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "08a5ad8881f3cedeb0faa4b6bbd69296cee89fd1489a56d0fdb6f959fc61c28d",
+      "bytes": 18852,
+      "source": "https://fonts.gstatic.com/s/notosanshanunoo/v22/f0Xs0fCv8dxkDWlZSoXOj6CphMloFvElGJk.woff2"
+    }
+  ]
+}

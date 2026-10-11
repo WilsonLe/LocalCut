@@ -1,0 +1,38 @@
+{
+  "family": "LocalCut gabriela",
+  "weight": 400,
+  "files": [
+    {
+      "file": "cyrillic.woff2",
+      "subset": "cyrillic",
+      "unicodeRange": "U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116",
+      "sha256": "b2326cb5dc586a35eb70aa4939d4a8fcffc947a7c6b56b5cf455e025e589e4e3",
+      "bytes": 18820,
+      "source": "https://fonts.gstatic.com/s/gabriela/v23/qkBWXvsO6sreR8E-b8m9xLs.woff2"
+    },
+    {
+      "file": "cyrillic-ext.woff2",
+      "subset": "cyrillic-ext",
+      "unicodeRange": "U+0460-052F,U+1C80-1C8A,U+20B4,U+2DE0-2DFF,U+A640-A69F,U+FE2E-FE2F",
+      "sha256": "0b13d0ed86ecb5ebb1583c6eadd35a2002167adc283a7d38c2efbad9741e9603",
+      "bytes": 22156,
+      "source": "https://fonts.gstatic.com/s/gabriela/v23/qkBWXvsO6sreR8E-b8m0xLs.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "96ec52829a0f9281a5b25a00ee4cd793ab4a2c2d713a54aac94a98b2f92b1748",
+      "bytes": 12796,
+      "source": "https://fonts.gstatic.com/s/gabriela/v23/qkBWXvsO6sreR8E-b8m5xLs.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "9cb8f1169a540a1e92af162dcf690cd70f65f7fd20f634a1056f5196019cc0d8",
+      "bytes": 15516,
+      "source": "https://fonts.gstatic.com/s/gabriela/v23/qkBWXvsO6sreR8E-b8m3xLs.woff2"
+    }
+  ]
+}

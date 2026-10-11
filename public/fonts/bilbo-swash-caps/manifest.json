@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut bilbo-swash-caps",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "52fd0538a01109d201841397a7b83e8ffea47b729da2e7ba1e889da4eeb3d0ec",
+      "bytes": 21312,
+      "source": "https://fonts.gstatic.com/s/bilboswashcaps/v23/zrf-0GXbz-H3Wb4XBsGrTgq2PVmdmATipw.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "5856a2e2bf6142942f1c20a56b06589202f1ab37832f0e2915254f05ccdcdc05",
+      "bytes": 21976,
+      "source": "https://fonts.gstatic.com/s/bilboswashcaps/v23/zrf-0GXbz-H3Wb4XBsGrTgq2PVmdmAripw.woff2"
+    }
+  ]
+}

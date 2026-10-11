@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-serif-dives-akuru",
+  "weight": 400,
+  "files": [
+    {
+      "file": "dives-akuru.woff2",
+      "subset": "dives-akuru",
+      "unicodeRange": "U+11900-11906,U+11909,U+1190C-11913,U+11915-11916,U+11918-11935,U+11937-11938,U+1193B-11946,U+11950-11959",
+      "sha256": "115bb8019edc236d4f5be3f32cf3edc8b815869c3adf35cafb25f954875afd75",
+      "bytes": 101196,
+      "source": "https://fonts.gstatic.com/s/notoserifdivesakuru/v8/QldfNSVMqAsHtsJ_TnD3aT03sMgd57ibeeZT2-vj7og.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "e6d90db761dd91052c90e60fb67d4d0f34fb446fedfd5a224624effbb936c1ef",
+      "bytes": 18708,
+      "source": "https://fonts.gstatic.com/s/notoserifdivesakuru/v8/QldfNSVMqAsHtsJ_TnD3aT03sMgd57ibeeZT20fCyw.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "aa758fdc957d559f98daadd47aca988d5b03e8fb5bc38b84de058219d30bf02d",
+      "bytes": 22240,
+      "source": "https://fonts.gstatic.com/s/notoserifdivesakuru/v8/QldfNSVMqAsHtsJ_TnD3aT03sMgd57ibeeZT20nCyw.woff2"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import { VideoSampleSink } from 'mediabunny';
 import { paintText } from './text';
+import { ensureTextFont } from './fonts';
 import type { Input, VideoSample } from 'mediabunny';
 import type { Clip, Project, Transcript } from '../core/model';
 import { EditorError, invariant } from '../core/errors';
@@ -163,7 +164,12 @@ export class Renderer {
           .map((c) => c.text)
           .join('\n');
       }
-      if (text) {
+      if (
+        text ||
+        (clip.kind === 'text' &&
+          clip.text?.animation?.kind === 'handmade' &&
+          clip.text.animation.variations?.length)
+      ) {
         const style = clip.text ?? {
           text,
           fontSize: 48,
@@ -172,7 +178,14 @@ export class Renderer {
           align: 'center' as const,
         };
         ctx.filter = 'none';
-        paintText(ctx, { ...style, text }, width, height);
+        await ensureTextFont({ ...style, text });
+        paintText(
+          ctx,
+          { ...style, text },
+          width,
+          height,
+          timeUs - clip.startUs,
+        );
       }
     }
     if (clip.transcriptId) {

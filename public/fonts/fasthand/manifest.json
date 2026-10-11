@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut fasthand",
+  "weight": 400,
+  "files": [
+    {
+      "file": "khmer.woff2",
+      "subset": "khmer",
+      "unicodeRange": "U+1780-17FF,U+19E0-19FF,U+200C-200D,U+25CC",
+      "sha256": "ad5db087d3fb39c1e935cdc2af15be76e6031d2cfb35cdec162447b09af04698",
+      "bytes": 86132,
+      "source": "https://fonts.gstatic.com/s/fasthand/v33/0yb9GDohyKTYn_ZEERkiaE0.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "81701671ab1c9710b3fc045c3b029f991a4a0e3891f3fdecd7be7e7a1e62f7e5",
+      "bytes": 50156,
+      "source": "https://fonts.gstatic.com/s/fasthand/v33/0yb9GDohyKTYn_ZEERkpaE0.woff2"
+    }
+  ]
+}

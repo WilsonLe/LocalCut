@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut sree-krushnadevaraya",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "030d7e309a119f44850efa201622bb8d5eb832d2446196937912e8b09192322f",
+      "bytes": 13000,
+      "source": "https://fonts.gstatic.com/s/sreekrushnadevaraya/v23/R70FjzQeifmPepmyQQjQ9kvwMkWYPfTA_HWc0lk.woff2"
+    },
+    {
+      "file": "telugu.woff2",
+      "subset": "telugu",
+      "unicodeRange": "U+0951-0952,U+0964-0965,U+0C00-0C7F,U+1CDA,U+1CF2,U+200C-200D,U+25CC",
+      "sha256": "61d3f40a071591716c950a0ab5f9b323ee3c9be49790202b7f57a3dfd65fc215",
+      "bytes": 113776,
+      "source": "https://fonts.gstatic.com/s/sreekrushnadevaraya/v23/R70FjzQeifmPepmyQQjQ9kvwMkWYPfTA_HWA0lk.woff2"
+    }
+  ]
+}

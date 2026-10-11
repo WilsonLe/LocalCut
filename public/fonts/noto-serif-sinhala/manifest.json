@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-serif-sinhala",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "54df1d409e60474e5125529f60068c619b9e86958d5dc0bfc3d8cb807f7cb98b",
+      "bytes": 11712,
+      "source": "https://fonts.gstatic.com/s/notoserifsinhala/v30/DtVEJwinQqclnZE2CnsPug9lgGC3y2F2nehQ7Eg4EdBKWxPiDxMivFLgRXs_-pGxR2Mrz6M.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "979ddca7835c794451b9088c434cbd093752a69d0bb7d79dc561f55be0803fac",
+      "bytes": 14248,
+      "source": "https://fonts.gstatic.com/s/notoserifsinhala/v30/DtVEJwinQqclnZE2CnsPug9lgGC3y2F2nehQ7Eg4EdBKWxPiDxMivFLgRXs_-pGxR2Mlz6M.woff2"
+    },
+    {
+      "file": "sinhala.woff2",
+      "subset": "sinhala",
+      "unicodeRange": "U+0964-0965,U+0D81-0DF4,U+1CF2,U+200C-200D,U+25CC,U+111E1-111F4",
+      "sha256": "c036699da9b7f88366c9a39dafd0d684f0cb467700dac640b51e51408ba772c5",
+      "bytes": 42228,
+      "source": "https://fonts.gstatic.com/s/notoserifsinhala/v30/DtVEJwinQqclnZE2CnsPug9lgGC3y2F2nehQ7Eg4EdBKWxPiDxMivFLgRXs_-pGxR2M2z6M.woff2"
+    }
+  ]
+}

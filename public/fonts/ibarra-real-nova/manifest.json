@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut ibarra-real-nova",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "3d3f0b2a0a58c0ab39402a13b5843a1c1e55ca37c908ddcfb17161eb3ac26c0c",
+      "bytes": 17552,
+      "source": "https://fonts.gstatic.com/s/ibarrarealnova/v30/sZlSdQiA-DBIDCcaWtQzL4BZHoiDundw4ATyjed3EXdg5PDqXz4.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "0d2ba18d1e7a756bead6e4fc24aea8f4c085329d58df3b5bb4bc9c4bbd523054",
+      "bytes": 20520,
+      "source": "https://fonts.gstatic.com/s/ibarrarealnova/v30/sZlSdQiA-DBIDCcaWtQzL4BZHoiDundw4ATyjed3EXdg5PDkXz4.woff2"
+    }
+  ]
+}

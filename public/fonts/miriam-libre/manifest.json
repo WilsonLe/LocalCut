@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut miriam-libre",
+  "weight": 400,
+  "files": [
+    {
+      "file": "hebrew.woff2",
+      "subset": "hebrew",
+      "unicodeRange": "U+0307-0308,U+0590-05FF,U+200C-2010,U+20AA,U+25CC,U+FB1D-FB4F",
+      "sha256": "08235936d1f1d3409b7622367ce69789e79e2a22450a66af23ca6e0b09e03de2",
+      "bytes": 19880,
+      "source": "https://fonts.gstatic.com/s/miriamlibre/v19/DdT0798HsHwubBAqfkcBTL_1a7sPlXcE8PJjH9P3o97MLg.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "496d177ad28010caa5d186148cda9cb473ab5b1b8037b4228b1572c92b021943",
+      "bytes": 14920,
+      "source": "https://fonts.gstatic.com/s/miriamlibre/v19/DdT0798HsHwubBAqfkcBTL_1a7sPlXcE8PJjH9P3o9zMLg.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "a3831f1dec1045be234adbec8dab6a0eb4a5f92598f6d5981a138609868fbed7",
+      "bytes": 19456,
+      "source": "https://fonts.gstatic.com/s/miriamlibre/v19/DdT0798HsHwubBAqfkcBTL_1a7sPlXcE8PJjH9P3o9LMLg.woff2"
+    }
+  ]
+}

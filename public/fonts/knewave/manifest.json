@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut knewave",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "6206682ebee5adee8d98d67994ace704244b1b2a221a3c953a083e0b73491034",
+      "bytes": 17368,
+      "source": "https://fonts.gstatic.com/s/knewave/v15/sykz-yx0lLcxQaSIhS23-w.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "ed50e57c4d2aca45ee858b5ad2defd91b2eac8865d2a290db7250402806e1526",
+      "bytes": 17844,
+      "source": "https://fonts.gstatic.com/s/knewave/v15/sykz-yx0lLcxQaSIhSO3-w.woff2"
+    }
+  ]
+}

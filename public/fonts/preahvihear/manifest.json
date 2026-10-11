@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut preahvihear",
+  "weight": 400,
+  "files": [
+    {
+      "file": "khmer.woff2",
+      "subset": "khmer",
+      "unicodeRange": "U+1780-17FF,U+19E0-19FF,U+200C-200D,U+25CC",
+      "sha256": "d9ba07fec963d67cb993db5317c892cd46cd04c01c3241b5867b2b12ceabd103",
+      "bytes": 33384,
+      "source": "https://fonts.gstatic.com/s/preahvihear/v32/6NUS8F-dNQeEYhzj7uluxvwI6dA.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "1d8bdd0b709aa6cbc7b2d8c67a16c20eb8229657b6f4d165885a21162b015a4a",
+      "bytes": 14092,
+      "source": "https://fonts.gstatic.com/s/preahvihear/v32/6NUS8F-dNQeEYhzj7uluxvwD6dA.woff2"
+    }
+  ]
+}

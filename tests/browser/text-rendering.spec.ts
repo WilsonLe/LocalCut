@@ -45,6 +45,30 @@ for (const base of ['/', '/LocalCut/']) {
           background: '#ffff00',
           color: '#000000',
         },
+        { text: 'Xin chào Việt Nam', fontSize: 52, fontFamily: 'font-inter' },
+        {
+          text: 'Hello world',
+          fontSize: 88,
+          fontFamily: 'font-special-elite',
+          animation: { kind: 'typewriter', stepMs: 40, loop: false },
+        },
+        ...[3, 4, 5].map((frames) => ({
+          text: 'Happy little things',
+          fontSize: 52,
+          fontFamily: 'font-patrick-hand',
+          animation: { kind: 'handmade', stepMs: 50, loop: true, frames },
+        })),
+        {
+          text: '',
+          fontSize: 52,
+          fontFamily: 'font-patrick-hand',
+          animation: {
+            kind: 'handmade',
+            stepMs: 50,
+            loop: true,
+            variations: ['one', 'two', 'three'],
+          },
+        },
       ];
       const canvas = new OffscreenCanvas(640, 360),
         ctx = canvas.getContext('2d')!;
@@ -171,7 +195,10 @@ for (const base of ['/', '/LocalCut/']) {
       }
     }, base);
     expect(result.stats.every((frame) => frame.lit > 1000)).toBe(true);
-    expect(new Set(result.stats.map((frame) => frame.hash)).size).toBe(7);
+    // Same-time poses for 3/4/5 variants can match; every effect and new font differs.
+    expect(
+      new Set(result.stats.map((frame) => frame.hash)).size,
+    ).toBeGreaterThanOrEqual(10);
     expect(result.stats[3]!.blue).toBeGreaterThan(500);
     expect(result.stats[4]!.red).toBeGreaterThan(500);
     expect(result.stats[6]!.yellow).toBeGreaterThan(10000);
@@ -180,5 +207,13 @@ for (const base of ['/', '/LocalCut/']) {
       for (const error of errors) expect(error).toBeLessThan(8);
     expect(result.restored[2]).toMatchObject({ curve: 100 });
     expect(result.restored[3]).toMatchObject({ shadow: { offsetX: 10 } });
+    expect(result.restored[7]).toMatchObject({ fontFamily: 'font-inter' });
+    expect(result.restored[8]).toMatchObject({
+      animation: { kind: 'typewriter', stepMs: 40 },
+    });
+    expect(result.restored[12]).toMatchObject({
+      text: '',
+      animation: { variations: ['one', 'two', 'three'] },
+    });
   });
 }

@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut anek-bangla",
+  "weight": 400,
+  "files": [
+    {
+      "file": "bengali.woff2",
+      "subset": "bengali",
+      "unicodeRange": "U+0951-0952,U+0964-0965,U+0980-09FE,U+1CD0,U+1CD2,U+1CD5-1CD6,U+1CD8,U+1CE1,U+1CEA,U+1CED,U+1CF2,U+1CF5-1CF7,U+200C-200D,U+20B9,U+25CC,U+A8F1",
+      "sha256": "94a1ddc2079600272f1df27b7769c6b4572a7f9b02be477c5234be5c3e7c5372",
+      "bytes": 82156,
+      "source": "https://fonts.gstatic.com/s/anekbangla/v16/_gPW1R38qTExHg-17BhM6n66QhabMYB0fBKONtHhRSIUIre5mq3Ofm9ZEpIq5g.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "8028b0f5ddce1ee14a4b08825417f9455f4455f8c57b7b79ae154e57fb62bbf2",
+      "bytes": 19088,
+      "source": "https://fonts.gstatic.com/s/anekbangla/v16/_gPW1R38qTExHg-17BhM6n66QhabMYB0fBKONtHhRSIUIre5mq3Ofm9ZEoAq5g.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "bed7dd676f7de440a860999e30296f3cacf269ce21b42490d47308a4394a0f6f",
+      "bytes": 19260,
+      "source": "https://fonts.gstatic.com/s/anekbangla/v16/_gPW1R38qTExHg-17BhM6n66QhabMYB0fBKONtHhRSIUIre5mq3Ofm9ZEo4q5g.woff2"
+    }
+  ]
+}

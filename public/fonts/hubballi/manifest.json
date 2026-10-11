@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut hubballi",
+  "weight": 400,
+  "files": [
+    {
+      "file": "kannada.woff2",
+      "subset": "kannada",
+      "unicodeRange": "U+0951-0952,U+0964-0965,U+0C80-0CF3,U+1CD0,U+1CD2-1CD3,U+1CDA,U+1CF2,U+1CF4,U+200C-200D,U+20B9,U+25CC,U+A830-A835",
+      "sha256": "4e7ec387b5789e5942ac1755b1f4a8e50831d813e1d63432ad98451d761c5b6a",
+      "bytes": 57044,
+      "source": "https://fonts.gstatic.com/s/hubballi/v10/o-0JIpUj3WIZ1RFN55BmwhE.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "c2b613d5e415fb67298e7b84cba69b7a51385eeeda1c2b29bafdb6f2cb0b0a98",
+      "bytes": 21412,
+      "source": "https://fonts.gstatic.com/s/hubballi/v10/o-0JIpUj3WIZ1RFN55B8whE.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "509d43da88a31e9a76a174faa303daa56296aaa0038948fd733735e8f7444e1a",
+      "bytes": 25448,
+      "source": "https://fonts.gstatic.com/s/hubballi/v10/o-0JIpUj3WIZ1RFN55BywhE.woff2"
+    }
+  ]
+}

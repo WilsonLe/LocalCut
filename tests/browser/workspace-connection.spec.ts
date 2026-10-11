@@ -1,5 +1,5 @@
-import { dismissNotifications } from './workspace-notifications-helper';
 import { openAISettings } from './workspace-settings-helper';
+import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test } from '@playwright/test';
 
 const cors = {

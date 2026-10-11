@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut langar",
+  "weight": 400,
+  "files": [
+    {
+      "file": "gurmukhi.woff2",
+      "subset": "gurmukhi",
+      "unicodeRange": "U+0951-0952,U+0964-0965,U+0A01-0A76,U+200C-200D,U+20B9,U+25CC,U+262C,U+A830-A839",
+      "sha256": "61c7ba7c2caeb7d70224f76450e689f964ceaa13d075c4e9ef7031c4855fe8f9",
+      "bytes": 42456,
+      "source": "https://fonts.gstatic.com/s/langar/v30/kJEyBukW7AIlgjGliT9Y.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "4ec242bff124a35153111cbfac9bdaf225a6d38b7660596d7d3ebb9613007b1d",
+      "bytes": 28600,
+      "source": "https://fonts.gstatic.com/s/langar/v30/kJEyBukW7AIlgjGlqj9Y.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "85c9d2ea3d0d80964af596cba9487dc92ff15b0880f1acfef8d91db71d73e486",
+      "bytes": 38192,
+      "source": "https://fonts.gstatic.com/s/langar/v30/kJEyBukW7AIlgjGlpD9Y.woff2"
+    }
+  ]
+}

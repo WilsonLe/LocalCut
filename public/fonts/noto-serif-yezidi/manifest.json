@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-serif-yezidi",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "dc8898e4ded1556176d82b630919662b4178cb104df67945f896ab260154142d",
+      "bytes": 10936,
+      "source": "https://fonts.gstatic.com/s/notoserifyezidi/v23/XLYPIYr5bJNDGYxLBibeHZAn3B5KJENnQjbfhMSVZspD2yEUqVuI.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "12daea8e920693f3bcb5d6dd97e22e3bd35f0e47852bb53e66122b3acb60c507",
+      "bytes": 13516,
+      "source": "https://fonts.gstatic.com/s/notoserifyezidi/v23/XLYPIYr5bJNDGYxLBibeHZAn3B5KJENnQjbfhMSVZspD2yEUp1uI.woff2"
+    },
+    {
+      "file": "yezidi.woff2",
+      "subset": "yezidi",
+      "unicodeRange": "U+060C,U+061B,U+061F,U+0660-0669,U+06D4,U+10E80-10EBF",
+      "sha256": "ac658015ad14cff49f1d87112a499938f6faf04a298b091d3971fd44f3349640",
+      "bytes": 14872,
+      "source": "https://fonts.gstatic.com/s/notoserifyezidi/v23/XLYPIYr5bJNDGYxLBibeHZAn3B5KJENnQjbfhMSVZspD2yEUyFuI.woff2"
+    }
+  ]
+}

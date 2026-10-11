@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut anek-telugu",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "72f8d22ae39bb0fc100afcf847946f905e54f9c0ba56c4a4ecd7e6013e0ec1d6",
+      "bytes": 18792,
+      "source": "https://fonts.gstatic.com/s/anektelugu/v13/LhWLMVrUNvsddMtYGCx4FcVWOjlwE1WgXdoJ-5XHMl2DkooGK7i13y--kEqM2A.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "731cc55808d551627988cc77c8b22cf76f02be7e3563b6a336f0f0dd2b96791e",
+      "bytes": 19052,
+      "source": "https://fonts.gstatic.com/s/anektelugu/v13/LhWLMVrUNvsddMtYGCx4FcVWOjlwE1WgXdoJ-5XHMl2DkooGK7i13y--kESM2A.woff2"
+    },
+    {
+      "file": "telugu.woff2",
+      "subset": "telugu",
+      "unicodeRange": "U+0951-0952,U+0964-0965,U+0C00-0C7F,U+1CDA,U+1CF2,U+200C-200D,U+25CC",
+      "sha256": "f3f5ef20321a938f9f476db91e8296130e8bb75cf617fa9eda6f63d3c650875c",
+      "bytes": 77068,
+      "source": "https://fonts.gstatic.com/s/anektelugu/v13/LhWLMVrUNvsddMtYGCx4FcVWOjlwE1WgXdoJ-5XHMl2DkooGK7i13y--kFaM2A.woff2"
+    }
+  ]
+}

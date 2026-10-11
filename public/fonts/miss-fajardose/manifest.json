@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut miss-fajardose",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "704e02434f188a05de1e9e3b6e0aedf91014ccf73d68314629946b983bdbced3",
+      "bytes": 22072,
+      "source": "https://fonts.gstatic.com/s/missfajardose/v23/E21-_dn5gvrawDdPFVl-N0Ajb_qoUvc.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "7dbfea2f8ab310df47faf1e98aac99ae236a4279d4d19563b3739e9e0be96b62",
+      "bytes": 22492,
+      "source": "https://fonts.gstatic.com/s/missfajardose/v23/E21-_dn5gvrawDdPFVl-N0Ajb_qmUvc.woff2"
+    }
+  ]
+}

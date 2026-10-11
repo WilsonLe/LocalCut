@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut anek-tamil",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "630dd66b6d4f22f1cc33d027be9b1d5333261d9cfb7e0f5027e6d14306cf8370",
+      "bytes": 18636,
+      "source": "https://fonts.gstatic.com/s/anektamil/v18/XLYJIZH2bYJHGYtPGSbUB8JKTp-_9n55SsLHW0WZez6TjtkDu3uNQidKrIH5.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "b91a3deff6579b7b5708105a16b9887ebd07b1315ef4ac2d5d7eee49c5a8cd70",
+      "bytes": 18916,
+      "source": "https://fonts.gstatic.com/s/anektamil/v18/XLYJIZH2bYJHGYtPGSbUB8JKTp-_9n55SsLHW0WZez6TjtkDu3uNQidKooH5.woff2"
+    },
+    {
+      "file": "tamil.woff2",
+      "subset": "tamil",
+      "unicodeRange": "U+0964-0965,U+0B82-0BFA,U+200C-200D,U+20B9,U+25CC",
+      "sha256": "090dd2174307f71f96bab9ec1a546ca2392c2efda63ba8a8bd7c3aff490f8605",
+      "bytes": 35684,
+      "source": "https://fonts.gstatic.com/s/anektamil/v18/XLYJIZH2bYJHGYtPGSbUB8JKTp-_9n55SsLHW0WZez6TjtkDu3uNQidKuoH5.woff2"
+    }
+  ]
+}

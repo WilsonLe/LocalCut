@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut scoutie-sans",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "6db468408da3430c3f69b38d95e863d38e9e553a72e6562bbdf0da1a57c507d8",
+      "bytes": 14452,
+      "source": "https://fonts.gstatic.com/s/scoutiesans/v1/7Autp_U0nTyGGVyDCHG3pDc3M1HyA8SL9vi1xrjAtzVYBw.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "ffbb8e3061382f3a6542fcf43fbd885a3422bae1f8bb6f0026e99ff9c3991ce1",
+      "bytes": 24236,
+      "source": "https://fonts.gstatic.com/s/scoutiesans/v1/7Autp_U0nTyGGVyDCHG3pDc3M1HyA8SL9vi1xrjAtztYBw.woff2"
+    },
+    {
+      "file": "vietnamese.woff2",
+      "subset": "vietnamese",
+      "unicodeRange": "U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB",
+      "sha256": "5fb0a56cdbdb34fe9e65c18e8d14eb41fae6131cd44796d05da4c3af8332124f",
+      "bytes": 16708,
+      "source": "https://fonts.gstatic.com/s/scoutiesans/v1/7Autp_U0nTyGGVyDCHG3pDc3M1HyA8SL9vi1xrjAtzpYBw.woff2"
+    }
+  ]
+}

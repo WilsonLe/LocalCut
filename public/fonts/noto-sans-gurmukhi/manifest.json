@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-gurmukhi",
+  "weight": 400,
+  "files": [
+    {
+      "file": "gurmukhi.woff2",
+      "subset": "gurmukhi",
+      "unicodeRange": "U+0951-0952,U+0964-0965,U+0A01-0A76,U+200C-200D,U+20B9,U+25CC,U+262C,U+A830-A839",
+      "sha256": "5aa11a9c6889921dcf47d4500ded1a9f941c12fededfceb38d9c1dbead624d8c",
+      "bytes": 20896,
+      "source": "https://fonts.gstatic.com/s/notosansgurmukhi/v29/w8g9H3EvQP81sInb43inmyN9zZ7hb7ATbSWo4q8dJ74a3cVrYFQ_bogT0-gPeG1OekbVbfo.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "c20768d6a07264542be282d63a73d1f63c252a826ad07228e29caec1a3e77473",
+      "bytes": 10548,
+      "source": "https://fonts.gstatic.com/s/notosansgurmukhi/v29/w8g9H3EvQP81sInb43inmyN9zZ7hb7ATbSWo4q8dJ74a3cVrYFQ_bogT0-gPeG1Oekb2bfo.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "76a9265b8a7ec6a4b035cc8f5c644500125b8cdbb9d91362fcab8e466158bb3f",
+      "bytes": 13116,
+      "source": "https://fonts.gstatic.com/s/notosansgurmukhi/v29/w8g9H3EvQP81sInb43inmyN9zZ7hb7ATbSWo4q8dJ74a3cVrYFQ_bogT0-gPeG1Oekb4bfo.woff2"
+    }
+  ]
+}

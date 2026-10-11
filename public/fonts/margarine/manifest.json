@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut margarine",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "1a08b7b6bbd1e449704e980cdba005b37ae9ae26decee8183c6b7fdf72c29cd0",
+      "bytes": 52672,
+      "source": "https://fonts.gstatic.com/s/margarine/v27/qkBXXvoE6trLT9Y7YLyu455K.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "ed90909a59f50a924f620d112006d6afdc7448b3fc9948686655be58d2c149d0",
+      "bytes": 60116,
+      "source": "https://fonts.gstatic.com/s/margarine/v27/qkBXXvoE6trLT9Y7YLyu7Z5K.woff2"
+    }
+  ]
+}

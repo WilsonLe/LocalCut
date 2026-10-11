@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-linear-a",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "875f6400dee71189f77acb69d030c17ee16571d9046c5d631d3a57cc219b42a1",
+      "bytes": 15888,
+      "source": "https://fonts.gstatic.com/s/notosanslineara/v19/oPWS_l16kP4jCuhpgEGmwJOiA18FZj2GyWvR.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "568d2f9cee1a48282cb83b6de0e0a2aa671686fa7f9a70f752c2ae0f9de0b7fd",
+      "bytes": 19112,
+      "source": "https://fonts.gstatic.com/s/notosanslineara/v19/oPWS_l16kP4jCuhpgEGmwJOiA18FZj2Gx2vR.woff2"
+    },
+    {
+      "file": "linear-a.woff2",
+      "subset": "linear-a",
+      "unicodeRange": "U+10107-10133,U+10600-1077F",
+      "sha256": "fd2ffc4d1b0b00c20dc9852f8090afcb9ed934b81aff0f299d73739d72d0ca74",
+      "bytes": 59708,
+      "source": "https://fonts.gstatic.com/s/notosanslineara/v19/oPWS_l16kP4jCuhpgEGmwJOiA18FZj2GV0r0DQ.woff2"
+    }
+  ]
+}
