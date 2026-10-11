@@ -10,6 +10,7 @@ export interface WorkspacePreferences {
   timelineHeight: number;
   chatCollapsed: boolean;
   mediaOpen: boolean;
+  timelineSnapping: boolean;
   exportFormat: 'mp4' | 'webm';
   aiModel: string;
   aiProviders: string;
@@ -20,6 +21,7 @@ export const defaultWorkspacePreferences: WorkspacePreferences = {
   timelineHeight: 260,
   chatCollapsed: false,
   mediaOpen: false,
+  timelineSnapping: true,
   exportFormat: 'mp4',
   aiModel: '',
   aiProviders: '',
@@ -63,6 +65,8 @@ export function parseWorkspacePreferences(
       result.chatCollapsed = p.chatCollapsed;
     if ('mediaOpen' in p && typeof p.mediaOpen === 'boolean')
       result.mediaOpen = p.mediaOpen;
+    if ('timelineSnapping' in p && typeof p.timelineSnapping === 'boolean')
+      result.timelineSnapping = p.timelineSnapping;
     if (
       'exportFormat' in p &&
       (p.exportFormat === 'mp4' || p.exportFormat === 'webm')

@@ -20,7 +20,7 @@ The workspace shell and project browser render with the initial UI rather than w
 
 ## Local user preferences
 
-The browser remembers preferred chat width, whether chat is collapsed, deliberate media-panel visibility, export format, and the last selected primary AI model and non-secret named provider/service routes, alongside the existing appearance choices. These choices apply before the workspace renders, without opening a project or starting editing/AI services. Root and `/LocalCut/` share preferences on the same origin, and workspace choices synchronize across tabs. Changing preferences never changes project content or exported media.
+The browser remembers preferred chat width, whether chat is collapsed, deliberate media-panel visibility, timeline snapping, export format, and the last selected primary AI model and non-secret named provider/service routes, alongside the existing appearance choices. These choices apply before the workspace renders, without opening a project or starting editing/AI services. Root and `/LocalCut/` share preferences on the same origin, and workspace choices synchronize across tabs. Changing preferences never changes project content or exported media.
 
 Chat width is saved in pixels between 280 and 560. Dragging or keyboard resizing updates the preference; dragging below the midpoint between the expanded minimum and 52 px rail snaps a sidebar closed (166 px for chat and 151 px for media on a wide desktop). Collapse saves visibility while preserving its expanded width; edge buttons restore it. Collapse, constrained desktop/narrow screens and Appearance's temporary space constraints do not replace it with the rendered width. Expanding chat or returning to a wide layout restores the preferred width. The media toggle, View menu and keyboard shortcut save deliberate visibility changes. Importing files may temporarily reveal media without changing that saved choice; a later synchronized visibility change takes precedence. Export's menu and dialog share the remembered container, while codec checks still run for each actual export.
 
@@ -35,6 +35,7 @@ The audit covers the workspace, conversation/session picker, preview/timeline, d
 | Appearance choices, including interface size                                                                                  | Persist (existing)         | Durable visual customization                                       |
 | Chat width and collapsed state                                                                                                | Persist                    | Deliberate workspace layout                                        |
 | Media visibility                                                                                                              | Persist deliberate toggles | Import-driven opening remains temporary                            |
+| Timeline snapping                                                                                                             | Persist                    | Deliberate pointer-seeking choice                                  |
 | MP4/WebM export format                                                                                                        | Persist                    | Repeated export choice; never skips capability checks              |
 | OpenRouter model ID                                                                                                           | Persist                    | Repeated provider choice, validated after connection               |
 | OpenRouter credential                                                                                                         | Separate local record      | Restore connection after refresh; exclude from backups             |
@@ -130,6 +131,10 @@ Mod+K opens Commands from outside text fields and dialogs. The header search ico
 See the [desktop palette](images/workspace-commands.png) and [narrow palette](images/workspace-commands-narrow.png).
 
 Command on macOS or Ctrl elsewhere works with `Z` for Undo, Shift+`Z` for Redo, `O` for Open project, `I` for Import media, and `E` for Export. Ctrl+`Y` also redoes. Shortcuts never intercept text inputs, IME composition, dialogs or menus; Space on a focused button retains its native action. Editing shortcuts call the same revision-aware operations as the visible controls.
+
+Pointer seeking snaps to the nearest clip start/end across every track, including audio, text/captions and overlapping clips, within eight screen pixels. Project edges also attract the playhead; the final position remains inside the half-open playback range. The magnet button in the timeline toolbar toggles **Snapping**, starts on and remembers the choice locally, across tabs and in workspace backups. Older settings/backups default on. Zoom, scroll and interface size preserve the screen-distance threshold. Keyboard frame stepping and playback retain their existing precision.
+
+Direct edits show their result in the timeline and preview without a success toast, including split/delete, properties, history, track changes, grouping, audio separation, transitions and assistant edits. Errors, background completions and actions without apparent feedback still use notifications.
 
 ## Version browsing
 

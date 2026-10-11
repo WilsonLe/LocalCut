@@ -1,3 +1,4 @@
+import { secondaryTab } from './workspace-tab';
 import { dragPlayhead } from './workspace-playhead-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -394,8 +395,9 @@ for (const base of ['/', '/LocalCut/']) {
         await page.keyboard.press('ControlOrMeta+a');
         await page.keyboard.press('ControlOrMeta+g');
         await expect(
-          page.getByText('Clips grouped', { exact: true }),
-        ).toBeVisible();
+          page.locator('.timeline-clip[data-grouped="true"]'),
+        ).toHaveCount(2);
+        await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
         await expect(
           page.getByRole('button', { name: 'Ungroup clips', exact: true }),
         ).toBeEnabled();
@@ -574,6 +576,165 @@ for (const base of ['/', '/LocalCut/']) {
 }
 
 for (const base of ['/', '/LocalCut/']) {
+  test(`timeline snapping remembers its toggle and direct edits show results without success toasts ${base}`, async ({
+    page,
+    context,
+  }, testInfo) => {
+    const id = await prepare(page, base);
+    await page.evaluate(
+      async ({ base, id }) => {
+        const { createEditor } = (await import(
+          base + 'editor.js'
+        )) as typeof import('../../src/editor');
+        const editor = await createEditor();
+        try {
+          const project = await editor.projects.snapshot(id);
+          await editor.commands.apply({
+            projectId: id,
+            requestId: crypto.randomUUID(),
+            expectedRevision: project.revision,
+            operations: [
+              { type: 'addTrack', track: { id: 'titles', kind: 'overlay' } },
+              {
+                type: 'insertClip',
+                trackId: 'titles',
+                clip: {
+                  id: 'title',
+                  kind: 'text',
+                  startUs: 2_000_000,
+                  durationUs: 500_000,
+                  text: { text: 'Snap title' },
+                },
+              },
+            ],
+          });
+        } finally {
+          await editor.dispose();
+        }
+      },
+      { base, id },
+    );
+    await page.reload();
+    await expect(page.locator('.timeline-clip')).toHaveCount(3);
+    const revision = (await snapshot(page, base, id)).revision;
+    const toggle = page.getByRole('button', { name: 'Snapping', exact: true });
+    const handle = page.getByRole('slider', {
+      name: 'Playhead position',
+      exact: true,
+    });
+    const timeline = page.locator('.timeline-viewport');
+    const value = async () =>
+      Number(await handle.getAttribute('aria-valuenow'));
+    const seekNear = async (timeUs: number, offset: number) => {
+      await handle.press('Home');
+      const box = (await page.locator('.timeline-ruler').boundingBox())!;
+      await page.mouse.click(
+        box.x + (box.width * timeUs) / 4_000_000 + offset,
+        box.y + 4,
+      );
+    };
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await seekNear(1_000_000, 6);
+    await expect(handle).toHaveAttribute('aria-valuenow', '1000000');
+    await seekNear(3_000_000, -6);
+    await expect(handle).toHaveAttribute('aria-valuenow', '3000000');
+    for (const edge of [2_000_000, 2_500_000]) {
+      await seekNear(edge, 6);
+      await expect(handle).toHaveAttribute('aria-valuenow', String(edge));
+    }
+    await seekNear(1_000_000, 12);
+    expect(await value()).toBeGreaterThan(1_000_000);
+    await dragPlayhead(page, 0.251);
+    await expect(handle).toHaveAttribute('aria-valuenow', '1000000');
+    // Frame stepping remains precise even inside the snap radius.
+    await handle.press('ArrowRight');
+    await expect(handle).toHaveAttribute('aria-valuenow', '1033333');
+    // Empty-lane clicks use the same points without selecting/editing a clip.
+    const lane = page.locator('.track-lane').first();
+    const box = (await lane.boundingBox())!;
+    await page.mouse.click(box.x + box.width * 0.5 + 6, box.y + box.height / 2);
+    await expect(handle).toHaveAttribute('aria-valuenow', '2000000');
+    await timeline.press('=');
+    await timeline.evaluate((element) => {
+      element.scrollLeft = 80;
+    });
+    await seekNear(1_000_000, 6);
+    await expect(handle).toHaveAttribute('aria-valuenow', '1000000');
+    await seekNear(1_000_000, 12);
+    expect(await value()).toBeGreaterThan(1_000_000);
+    await timeline.press('0');
+    for (const size of ['Small (75%)', 'Large (125%)']) {
+      await page
+        .getByRole('button', { name: 'Workspace settings', exact: true })
+        .click();
+      await page
+        .getByRole('menuitem', { name: 'Appearance', exact: true })
+        .click();
+      await page.getByRole('combobox', { name: 'Interface size' }).click();
+      await page.getByRole('option', { name: size, exact: true }).click();
+      await page.getByRole('button', { name: 'Close appearance' }).click();
+      // ResizeObserver publishes the new fit width after appearance changes.
+      await expect
+        .poll(() =>
+          timeline.evaluate((element) =>
+            Math.abs(
+              element.querySelector('.timeline-content')!.clientWidth -
+                element.clientWidth,
+            ),
+          ),
+        )
+        .toBeLessThanOrEqual(1);
+      await seekNear(1_000_000, 6);
+      await expect(handle).toHaveAttribute('aria-valuenow', '1000000');
+      await seekNear(1_000_000, 12);
+      expect(await value()).toBeGreaterThan(1_000_000);
+    }
+    expect((await snapshot(page, base, id)).revision).toBe(revision);
+    const other = await secondaryTab(context, page);
+    await other.goto(page.url());
+    const otherToggle = other.getByRole('button', {
+      name: 'Snapping',
+      exact: true,
+    });
+    await expect(otherToggle).toHaveAttribute('aria-pressed', 'true');
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await expect(otherToggle).toHaveAttribute('aria-pressed', 'false');
+    await seekNear(1_000_000, 6);
+    expect(await value()).toBeGreaterThan(1_000_000);
+    await page.reload();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await seekNear(1_000_000, 6);
+    expect(await value()).toBeGreaterThan(1_000_000);
+    await toggle.click();
+    await expect(otherToggle).toHaveAttribute('aria-pressed', 'true');
+    await other.close();
+    await page.locator('[data-clip-id="clip-0"]').click();
+    await dragPlayhead(page, 0.125);
+    await page.getByRole('button', { name: 'Split clip', exact: true }).click();
+    await expect(page.locator('.timeline-clip')).toHaveCount(4);
+    await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect(page.locator('.timeline-clip')).toHaveCount(3);
+    await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Redo', exact: true }).click();
+    await expect(page.locator('.timeline-clip')).toHaveCount(4);
+    await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
+    await page
+      .getByRole('button', { name: 'Delete clip', exact: true })
+      .click();
+    await expect(page.locator('.timeline-clip')).toHaveCount(3);
+    await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Add track', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Audio track', exact: true })
+      .click();
+    await expect(page.locator('.timeline-track')).toHaveCount(3);
+    await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
+    await page.screenshot({
+      path: testInfo.outputPath('timeline-snapping.png'),
+    });
+  });
   test(`playhead dragging recovers after deleting and restoring tracks ${base}`, async ({
     page,
   }) => {

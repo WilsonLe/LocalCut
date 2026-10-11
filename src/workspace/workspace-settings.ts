@@ -41,7 +41,10 @@ export function validateWorkspaceSettings(
       throw new Error('Invalid appearance settings in backup');
   }
   if (settings.workspace) {
-    const p = { ...settings.workspace };
+    const p: Record<string, unknown> = {
+      timelineSnapping: defaultWorkspacePreferences.timelineSnapping,
+      ...settings.workspace,
+    };
     if (!('aiProviders' in p)) p.aiProviders = '';
     const parsed = parseWorkspacePreferences(
       JSON.stringify({ version: 1, preferences: p }),
@@ -73,9 +76,10 @@ export function importWorkspaceSettings(
   if (
     workspace &&
     settings.workspace &&
-    !saveWorkspacePreferences(
-      settings.workspace as unknown as WorkspacePreferences,
-    )
+    !saveWorkspacePreferences({
+      timelineSnapping: defaultWorkspacePreferences.timelineSnapping,
+      ...settings.workspace,
+    } as unknown as WorkspacePreferences)
   )
     failures.push('workspace settings');
   return failures;

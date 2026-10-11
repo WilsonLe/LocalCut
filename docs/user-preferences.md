@@ -113,6 +113,11 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Remove the separate scrub bar below the timeline tracks. Seek by dragging the top of the playhead, with a comfortable touch target and keyboard access.
 
+## Timeline snapping and editing feedback — 11 October 2026
+
+- Default timeline playhead snapping on, let users turn it off, and remember the choice locally. Snap to useful nearby clip boundaries across tracks and project edges.
+- Direct editing tools rely on their visible results: avoid success toasts for cutting, trimming, property changes, history, grouping, track changes and other apparent edits. Use Sonner for errors, background/queue notifications and actions without immediate visible feedback.
+
 ## Mobile workspace tabs — 11 October 2026
 
 - Show only the currently active Edit, Chat or Media view on mobile. Preserve editing, conversation drafts and media jobs while switching tabs.
