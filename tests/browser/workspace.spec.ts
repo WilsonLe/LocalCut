@@ -655,6 +655,21 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByRole('img', { name: 'Thumbnail for green.webm' }),
     ).toBeVisible();
+    for (const name of ['red.png', 'green.webm', 'delayed.webm']) {
+      const thumbnail = page.getByRole('img', {
+        name: `Thumbnail for ${name}`,
+      });
+      await expect(thumbnail).toBeVisible();
+      await expect
+        .poll(() =>
+          thumbnail.evaluate(
+            (el) =>
+              (el as HTMLImageElement).complete &&
+              (el as HTMLImageElement).naturalWidth > 0,
+          ),
+        )
+        .toBe(true);
+    }
     await expect(cards).not.toContainText([
       'Connect AI and choose a compatible model to index this asset.',
       '128 × 72',

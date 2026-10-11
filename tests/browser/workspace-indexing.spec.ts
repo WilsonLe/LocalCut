@@ -43,7 +43,12 @@ async function clickIndexAction(page: Page, name: string, asset = 'red.png') {
     page.getByRole('menu', { name: `Actions for ${asset}`, exact: true }),
   ).toBeHidden();
 }
-async function catalog(context: BrowserContext, audio = false, video = true) {
+async function catalog(
+  context: BrowserContext,
+  audio = false,
+  video = true,
+  visual = true,
+) {
   await context.route('https://openrouter.ai/api/v1/models', (route) =>
     route.fulfill({
       headers: cors,
@@ -57,7 +62,7 @@ async function catalog(context: BrowserContext, audio = false, video = true) {
             architecture: {
               input_modalities: [
                 'text',
-                'image',
+                ...(visual ? ['image'] : []),
                 ...(video ? ['video'] : []),
                 ...(audio ? ['audio'] : []),
               ],
@@ -189,20 +194,40 @@ for (const base of ['/', '/LocalCut/']) {
         exact: true,
       });
       const popupBounds = (await popup.boundingBox())!;
-      const toast = page.locator('[data-sonner-toast]').first();
+      const toaster = page.locator('[data-sonner-toaster]');
+      const toast = toaster.locator('[data-sonner-toast][data-type="loading"]');
       await expect(toast).toBeVisible();
-      const originalStyle = await toast.evaluate((el, box) => {
+      const originalToasterStyle = await toaster.evaluate((el, box) => {
         const element = el as HTMLElement;
         const original = element.getAttribute('style');
-        element.style.setProperty('position', 'fixed', 'important');
-        element.style.setProperty('transform', 'none', 'important');
         element.style.setProperty('top', `${box.y}px`, 'important');
         element.style.setProperty('left', `${box.x}px`, 'important');
+        element.style.setProperty('right', 'auto', 'important');
+        element.style.setProperty('bottom', 'auto', 'important');
         element.style.setProperty('width', `${box.width}px`, 'important');
         element.style.setProperty('height', `${box.height}px`, 'important');
         return original;
       }, popupBounds);
+      const originalStyle = await toast.evaluate((el) => {
+        const element = el as HTMLElement;
+        const original = element.getAttribute('style');
+        element.style.setProperty('transform', 'none', 'important');
+        element.style.setProperty('top', '0', 'important');
+        element.style.setProperty('left', '0', 'important');
+        element.style.setProperty('width', '100%', 'important');
+        element.style.setProperty('height', '100%', 'important');
+        return original;
+      });
       const cancelBounds = (await cancel.boundingBox())!;
+      const hit = {
+        x: cancelBounds.x + cancelBounds.width / 2,
+        y: cancelBounds.y + cancelBounds.height / 2,
+      };
+      const toastBounds = (await toast.boundingBox())!;
+      expect(hit.x).toBeGreaterThan(toastBounds.x);
+      expect(hit.x).toBeLessThan(toastBounds.x + toastBounds.width);
+      expect(hit.y).toBeGreaterThan(toastBounds.y);
+      expect(hit.y).toBeLessThan(toastBounds.y + toastBounds.height);
       expect(
         await page.evaluate(
           ({ x, y }) =>
@@ -223,6 +248,10 @@ for (const base of ['/', '/LocalCut/']) {
         if (style) el.setAttribute('style', style);
         else el.removeAttribute('style');
       }, originalStyle);
+      await toaster.evaluate((el, style) => {
+        if (style) el.setAttribute('style', style);
+        else el.removeAttribute('style');
+      }, originalToasterStyle);
       await page.keyboard.press('Escape');
       await page
         .getByRole('button', { name: 'Close media', exact: true })
@@ -713,6 +742,37 @@ for (const base of ['/', '/LocalCut/']) {
       await expect(
         page.getByRole('status', { name: 'Indexed', exact: true }),
       ).toHaveCount(0);
+      if (framesOnly) {
+        await catalog(context, false, false, false);
+        const configuration = await settings(page);
+        await configuration
+          .getByRole('combobox', { name: 'AI model', exact: true })
+          .click();
+        await page
+          .getByRole('button', { name: 'Refresh models', exact: true })
+          .click();
+        await page
+          .getByRole('option', { name: 'Visual chat · ' + model, exact: true })
+          .click();
+        await configuration
+          .getByRole('button', { name: 'Done', exact: true })
+          .click();
+        const preview = page.getByRole('button', {
+          name: 'Asset details for green.webm',
+        });
+        await preview.focus();
+        await page.keyboard.press('Shift+Tab');
+        await page.keyboard.press('Tab');
+        await expect(
+          page.getByRole('tooltip', { name: /^green\.webm / }),
+        ).toContainText(
+          'Choose a chat model supporting image inputs to index this asset.',
+        );
+        await expect(
+          await indexAction(page, 'Index', 'green.webm'),
+        ).toBeDisabled();
+        expect(bodies).toHaveLength(2);
+      }
     });
   }
 }

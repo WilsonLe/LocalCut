@@ -63,6 +63,18 @@ export async function mediaVideo(page: Page, start = 0) {
     }
     source.close();
     await output.finalize();
+    const verification = new Input({
+      formats: [WEBM],
+      source: new BlobSource(new Blob([target.buffer!])),
+    });
+    try {
+      const first =
+        await (await verification.getPrimaryVideoTrack())!.getFirstTimestamp();
+      if (first < start - 0.001)
+        throw new Error('Fixture lost its delayed presentation timestamp');
+    } finally {
+      verification.dispose();
+    }
     return {
       name: start ? 'delayed.webm' : 'green.webm',
       mimeType: 'video/webm',

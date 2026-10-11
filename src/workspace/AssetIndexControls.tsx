@@ -204,7 +204,7 @@ export default function AssetIndexControls({
             {allowed && !compatible && !readOnly && (
               <div>
                 {connection
-                  ? `Choose a chat model supporting ${asset.kind === 'video' ? 'image and video' : asset.kind} inputs to index this asset.`
+                  ? `Choose a chat model supporting ${asset.kind === 'video' ? 'image' : asset.kind} inputs to index this asset.`
                   : 'Connect AI and choose a compatible model to index this asset.'}
               </div>
             )}
