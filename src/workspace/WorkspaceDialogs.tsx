@@ -8,6 +8,8 @@ import { TextLibrary, TextStyleFields } from './TextLibrary';
 import type { TextStyleInput } from '../core/text-library';
 import { Textarea } from '../components/ui/textarea';
 import { Download, LoaderCircle } from 'lucide-react';
+import { NewProjectForm } from './NewProjectForm';
+import type { ProjectFormat } from './project-format';
 import type {
   Asset,
   Clip,
@@ -53,7 +55,7 @@ interface Props {
   onStartExport: () => void;
   onFormatChange: (format: 'mp4' | 'webm') => void;
   onCancelWork: () => void;
-  onCreateProject: (name: string) => void;
+  onCreateProject: (name: string, settings: ProjectFormat) => void;
   onInsertText: (style: TextStyleInput) => void;
   onSaveProperties: (operations: EditOperation[]) => void;
 }
@@ -109,38 +111,12 @@ export default function WorkspaceDialogs({
           <DialogHeader>
             <DialogTitle>New project</DialogTitle>
             <DialogDescription className="sr-only">
-              Name your project.
+              Choose a name, dimensions and frame rate for your project.
             </DialogDescription>
           </DialogHeader>
-          <form
-            className="new-project-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const name = String(
-                new FormData(event.currentTarget).get('name') ?? '',
-              ).trim();
-              if (!name) return;
-              onCreateProject(name);
-            }}
-          >
-            <div className="new-project-field">
-              <Label htmlFor="project-name">Project name</Label>
-              <Input
-                id="project-name"
-                name="name"
-                defaultValue="Untitled project"
-                required
-                maxLength={1000}
-                autoFocus
-              />
-            </div>
-            <DialogFooter>
-              <Button disabled={busy} type="submit">
-                {busy && <LoaderCircle className="animate-spin" />}Create
-                project
-              </Button>
-            </DialogFooter>
-          </form>
+          {dialog === 'new' && (
+            <NewProjectForm busy={busy} onCreate={onCreateProject} />
+          )}
         </DialogContent>
       </Dialog>
       <Dialog

@@ -2081,10 +2081,10 @@ export function Workspace() {
             onStartExport={startExport}
             onFormatChange={setFormat}
             onCancelWork={cancelWork}
-            onCreateProject={(name) =>
+            onCreateProject={(name, settings) =>
               void action(async () => {
                 const engine = await ensureEditor();
-                await openProject(await engine.projects.create(name));
+                await openProject(await engine.projects.create(name, settings));
               })
             }
             onInsertText={insertText}

@@ -1,5 +1,19 @@
 import type { Asset, Clip, EditOperation, Project } from '../editor';
 
+export function previewFrameSize(
+  project: Pick<Project, 'width' | 'height'> | null,
+) {
+  const { width, height } = project ?? { width: 1920, height: 1080 };
+  const scale = Math.min(960 / width, 960 / height);
+  const previewWidth = Math.max(1, Math.round(width * scale));
+  return {
+    width: previewWidth,
+    // The renderer scales uniformly from width. Derive height from the rounded
+    // width too, so very narrow projects remain complete rather than cropped.
+    height: Math.max(1, Math.round((previewWidth * height) / width)),
+  };
+}
+
 export function projectDuration(project: Project | null) {
   return Math.max(
     0,

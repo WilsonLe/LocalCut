@@ -103,6 +103,10 @@ This is the project record of the user's durable product and workflow choices. U
 - Keep the current project in the URL so reload, direct project links and browser Back/Forward restore the intended local project. Use a pinned router package where useful; routes must work on root and GitHub Pages hosting.
 - Keep route, project loading and catalog state in focused React hooks consumed by components. The engine remains the canonical project owner. Explicit project URLs may reopen local editing on startup; the bare app URL remains inert. This supersedes the earlier session-only active-project navigation choice.
 
+## Project creation format — 11 October 2026
+
+- Let users configure project dimensions, aspect ratio, resolution and frame rate when starting a project. Retain 1920 × 1080 at 30 fps as the default; provide presets and editable pixel dimensions through the shared project creation API.
+
 ## Project cards — 11 October 2026
 
 - Present saved projects as a responsive card list with thumbnails and accessible contextual actions for rename, thumbnail adjustment, archive/restore and backup export.

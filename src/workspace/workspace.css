@@ -512,7 +512,7 @@
 }
 .new-project-form {
   display: grid;
-  gap: 28px;
+  gap: 20px;
 }
 .new-project-field {
   display: grid;

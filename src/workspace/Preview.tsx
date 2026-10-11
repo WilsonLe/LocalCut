@@ -13,7 +13,7 @@ import type { Editor, Project, PreviewSession } from '../editor';
 import { Button } from '../components/ui/button';
 import { Tooltip } from '../components/ui/tooltip';
 import { useViewport } from './useViewport';
-import { formatTime, projectDuration } from './helpers';
+import { formatTime, projectDuration, previewFrameSize } from './helpers';
 
 interface Props {
   versionId?: string;
@@ -51,6 +51,7 @@ export function Preview({
   const generation = useRef(0);
   const [loading, setLoading] = useState(false);
   const total = projectDuration(project);
+  const dimensions = previewFrameSize(project);
   const { ref: viewport, view } = useViewport(
     'preview',
     `${project?.id}:${versionId}`,
@@ -92,10 +93,7 @@ export function Preview({
     const job = editor.preview.frame(
       project.id,
       Math.round(displayedTime),
-      {
-        width: 960,
-        height: Math.round((960 * project.height) / project.width),
-      },
+      previewFrameSize(project),
       versionId,
     );
     const unsubscribe = job.subscribe((event) => {
@@ -240,10 +238,8 @@ export function Preview({
               transformOrigin: '0 0',
               transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
             }}
-            width={960}
-            height={
-              project ? Math.round((960 * project.height) / project.width) : 540
-            }
+            width={dimensions.width}
+            height={dimensions.height}
             aria-label="Video preview"
             tabIndex={0}
             hidden={!total}
