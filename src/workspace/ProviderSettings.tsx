@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
-import type { OpenRouterModel } from '../ai';
+import type { OpenRouterModel, SpeechModel } from '../ai';
 import type { ServiceKind } from '../ai/providers';
 import { ModelPicker } from './ModelPicker';
 import { ProviderPicker } from './ProviderPicker';
@@ -73,7 +73,10 @@ export interface ProviderSettingsProps {
     id: string,
     service: 'tts' | 'stt',
     signal: AbortSignal,
-  ) => Promise<{ id: string; name: string }[]>;
+  ) => Promise<
+    (Pick<SpeechModel, 'id' | 'name'> &
+      Partial<Pick<SpeechModel, 'voices' | 'referenceVoice'>>)[]
+  >;
 }
 export function ProviderSettings(props: ProviderSettingsProps) {
   const { providerConfiguration: config } = props;
@@ -754,9 +757,20 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                                 )
                               }
                               load={props.loadServiceModels}
-                              onChange={(model) =>
+                              voice={route.voice}
+                              onVoiceChange={(voice) =>
                                 patch((next) => {
-                                  next.routes[service][index]!.model = model;
+                                  next.routes[service][index]!.voice = voice;
+                                })
+                              }
+                              onChange={(model, voice) =>
+                                patch((next) => {
+                                  const route = next.routes[service][index]!;
+                                  route.model = model;
+                                  if (service === 'tts') {
+                                    if (voice) route.voice = voice;
+                                    else delete route.voice;
+                                  }
                                 })
                               }
                             />
@@ -782,25 +796,6 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                               onBlur={(e) =>
                                 patch((next) => {
                                   next.routes[service][index]!.model =
-                                    e.target.value;
-                                })
-                              }
-                            />
-                          )}
-                          {service === 'tts' && (
-                            <Input
-                              disabled={
-                                props.connecting ||
-                                !props.connectedProviders.includes(
-                                  route.providerId,
-                                )
-                              }
-                              aria-label={`${profile.name} fallback voice`}
-                              placeholder="Fallback voice"
-                              defaultValue={route.voice ?? ''}
-                              onBlur={(e) =>
-                                patch((next) => {
-                                  next.routes[service][index]!.voice =
                                     e.target.value;
                                 })
                               }
@@ -927,6 +922,8 @@ function ServiceModelPicker({
   disabled,
   load,
   onChange,
+  voice,
+  onVoiceChange,
 }: {
   providerId: string;
   service: 'tts' | 'stt';
@@ -934,11 +931,13 @@ function ServiceModelPicker({
   label: string;
   disabled: boolean;
   load: ProviderSettingsProps['loadServiceModels'];
-  onChange: (model: string) => void;
+  voice?: string;
+  onVoiceChange: (voice: string) => void;
+  onChange: (model: string, voice?: string) => void;
 }) {
-  const [models, setModels] = useState<{ id: string; name: string }[]>(
-    providerId === 'local' ? [{ id: 'whisper', name: 'Local Whisper' }] : [],
-  );
+  const [models, setModels] = useState<
+    Awaited<ReturnType<ProviderSettingsProps['loadServiceModels']>>
+  >(providerId === 'local' ? [{ id: 'whisper', name: 'Local Whisper' }] : []);
   const [loading, setLoading] = useState(false);
   const [failure, setFailure] = useState('');
   const request = useRef<AbortController | null>(null);
@@ -971,6 +970,23 @@ function ServiceModelPicker({
       if (request.current === controller) setLoading(false);
     }
   };
+  useEffect(() => {
+    let active = true;
+    if (service === 'tts' && !disabled)
+      void Promise.resolve().then(() => {
+        if (active) void refresh();
+      });
+    return () => {
+      active = false;
+      request.current?.abort();
+    };
+    // This picker is keyed by provider/connection; discovery belongs to that lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [service, disabled]);
+  const selected = models.find((item) => item.id === model);
+  const availableVoices = selected?.referenceVoice
+    ? []
+    : (selected?.voices ?? []);
   return (
     <div className="space-y-1">
       <ModelPicker
@@ -983,8 +999,36 @@ function ServiceModelPicker({
         onOpen={() => {
           if (!models.length && !loading) void refresh();
         }}
-        onChange={onChange}
+        onChange={(id) => {
+          const next = models.find((item) => item.id === id);
+          onChange(
+            id,
+            voice && next?.voices?.includes(voice) && !next.referenceVoice
+              ? voice
+              : undefined,
+          );
+        }}
       />
+      {service === 'tts' && (
+        <SettingsSelect
+          label={label.replace('tts route model', 'TTS voice')}
+          value={voice && availableVoices.includes(voice) ? voice : null}
+          placeholder={
+            loading
+              ? 'Loading voices…'
+              : selected?.referenceVoice
+                ? 'Choose a saved voice in Text to speech'
+                : availableVoices.length
+                  ? 'Choose a voice'
+                  : 'No voices available'
+          }
+          options={availableVoices.map((value) => ({ value, label: value }))}
+          disabled={disabled || loading || !availableVoices.length}
+          onChange={(value) => {
+            if (availableVoices.includes(value)) onVoiceChange(value);
+          }}
+        />
+      )}
       {failure && (
         <p role="alert" className="text-xs text-destructive">
           {failure}
