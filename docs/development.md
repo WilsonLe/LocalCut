@@ -66,7 +66,7 @@ A derived-data change is complete only when:
 For media derivative changes, start with:
 
 ```sh
-pnpm test tests/unit/derived-cache.test.ts tests/unit/storage-races.test.ts tests/unit/worker-publication.test.ts
+pnpm test tests/unit/thumbnail-cache.test.ts tests/unit/derived-cache.test.ts tests/unit/storage-races.test.ts tests/unit/worker-publication.test.ts
 # After both current production builds:
 pnpm test:browser tests/browser/derived-cache.spec.ts tests/browser/recovery.spec.ts
 ```

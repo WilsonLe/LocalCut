@@ -95,6 +95,20 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 describe('durable task queue', () => {
+  it('keeps a facade job ID when a cache miss enters durable scheduling', async () => {
+    const q = queue();
+    q.register('thumbnail', {
+      lane: 'derivatives',
+      recovery: 'safe',
+      execute: async () => 'pixels',
+    });
+    const id = crypto.randomUUID();
+    const job = q.enqueue('thumbnail', {}, { id, label: 'Thumbnail' });
+    expect(job.id).toBe(id);
+    await expect(job.completion).resolves.toBe('pixels');
+    expect(await q.result(id)).toBe('pixels');
+    expect((await q.get(id))?.state).toBe('completed');
+  });
   it('cancels a navigation-interrupted request without retaining its network error', async () => {
     const q = queue();
     let started = false;

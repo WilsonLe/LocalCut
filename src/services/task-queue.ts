@@ -296,12 +296,13 @@ export class TaskQueue {
   enqueue<T>(
     kind: string,
     input: unknown,
-    options: { label: string; projectId?: string },
+    options: { label: string; projectId?: string; id?: string },
   ): Job<T> {
     if (this.disposed) throw new Error('Task queue disposed.');
     const handler = this.handlers.get(kind);
     if (!handler) throw new Error('No task handler is available.');
-    const id = crypto.randomUUID(),
+    // Facade cache lookups may already own this fresh job ID before a miss.
+    const id = options.id ?? crypto.randomUUID(),
       now = Date.now();
     const task: TaskRecord = {
       version: 1,
