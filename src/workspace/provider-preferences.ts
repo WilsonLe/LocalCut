@@ -14,10 +14,10 @@ export interface ProviderConfiguration {
   routes: ServiceRoutes;
 }
 export const defaultProviderConfiguration = (): ProviderConfiguration => ({
-  profiles: [{ id: 'openrouter', name: 'OpenRouter', kind: 'openrouter' }],
+  profiles: [],
   routes: {
-    llm: [{ providerId: 'openrouter', model: '' }],
-    tts: [{ providerId: 'openrouter', model: '' }],
+    llm: [],
+    tts: [],
     stt: [{ providerId: 'local', model: 'whisper' }],
   },
 });

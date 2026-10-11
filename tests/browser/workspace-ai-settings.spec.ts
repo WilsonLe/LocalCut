@@ -1,4 +1,7 @@
-import { openAISettings } from './workspace-settings-helper';
+import {
+  prepareOpenRouterKey,
+  openAISettings,
+} from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 import type { Locator } from '@playwright/test';
 
@@ -68,25 +71,26 @@ for (const base of ['/', '/LocalCut/']) {
     await page.keyboard.press('Escape');
     await expect(name).not.toBeVisible();
     await expect(dialog).toBeVisible();
-    const keyPanel = dialog.getByRole('button', {
-      name: 'Use an API key instead',
-      exact: true,
-    });
+    await prepareOpenRouterKey(page);
     const key = dialog.getByLabel('OpenRouter API key', { exact: true });
     await key.fill('synthetic-unsaved-key');
-    expect(await toggleAnimation(keyPanel)).toEqual({
-      animated: true,
-      between: true,
-    });
-    await expect(key).not.toBeVisible();
-    await keyPanel.focus();
-    await keyPanel.press('Space');
-    await expect(key).toHaveValue('synthetic-unsaved-key');
-    await expect(key).toBeVisible();
+    await dialog.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(key).toHaveCount(0);
+    await dialog
+      .getByRole('button', { name: 'I have an API key', exact: true })
+      .click();
+    await expect(key).toHaveValue('');
+    await expect(key).toBeFocused();
     await dialog
       .getByRole('button', { name: 'Add provider', exact: true })
       .click();
-    await expect(name).toHaveValue('Unsaved provider');
+    await page
+      .getByRole('combobox', { name: 'Provider type', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'OpenAI-compatible endpoint', exact: true })
+      .click();
+    await expect(name).toHaveValue('');
     await page.keyboard.press('Escape');
     const service = dialog.getByRole('button', {
       name: 'STT · Transcription',
@@ -134,8 +138,8 @@ for (const base of ['/', '/LocalCut/']) {
       path: testInfo.outputPath('ai-settings-phone.png'),
     });
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await keyPanel.scrollIntoViewIfNeeded();
-    const noMotion = await keyPanel.evaluate(async (element) => {
+    await service.scrollIntoViewIfNeeded();
+    const noMotion = await service.evaluate(async (element) => {
       const panel = document.getElementById(
         element.getAttribute('aria-controls')!,
       )!;
@@ -299,6 +303,7 @@ for (const base of ['/', '/LocalCut/']) {
     ).toHaveCount(0);
     await page.keyboard.press('Escape');
     await expect(dialog).toBeVisible();
+    await prepareOpenRouterKey(page);
     await dialog
       .getByLabel('OpenRouter API key', { exact: true })
       .fill('synthetic-first-account');
@@ -331,7 +336,7 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Add OpenRouter account', exact: true })
       .click();
     await dialog
-      .getByRole('button', { name: 'Connect with OpenRouter', exact: true })
+      .getByRole('button', { name: 'Log in and generate a key', exact: true })
       .click();
     await page
       .getByRole('link', { name: 'Return to LocalCut', exact: true })

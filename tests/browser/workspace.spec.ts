@@ -1,7 +1,11 @@
 import { mediaVideo } from './workspace-video-fixture';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { dragPlayhead } from './workspace-playhead-helper';
-import { openAISettings, openVideoExport } from './workspace-settings-helper';
+import {
+  prepareOpenRouterKey,
+  openAISettings,
+  openVideoExport,
+} from './workspace-settings-helper';
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -1062,6 +1066,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
+    await prepareOpenRouterKey(page);
     await settings.getByLabel('OpenRouter API key', { exact: true }).fill(key);
     await settings
       .getByRole('button', { name: 'Use API key', exact: true })
@@ -1191,6 +1196,7 @@ test('workspace imports image, audio and video, handles invalid input and cancel
       .flatMap((track) => track.clips.map((clip) => clip.kind))
       .sort(),
   ).toEqual(['audio', 'image', 'video']);
+  await dismissNotifications(page);
   await page.getByRole('button', { name: 'green.webm', exact: true }).click();
   await page
     .getByRole('button', { name: 'Clip properties', exact: true })
@@ -1230,6 +1236,7 @@ test('workspace imports image, audio and video, handles invalid input and cancel
     ),
   ).toHaveLength(3);
 
+  await dismissNotifications(page);
   await page.getByRole('button', { name: 'red.png', exact: true }).click();
   await page
     .getByRole('button', { name: 'Clip properties', exact: true })

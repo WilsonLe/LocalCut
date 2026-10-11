@@ -1,4 +1,7 @@
-import { openAISettings } from './workspace-settings-helper';
+import {
+  prepareOpenRouterKey,
+  openAISettings,
+} from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { Project } from '../../src/editor';
@@ -88,6 +91,7 @@ test('long assistant replies scroll inside the conversation and keep the compose
     name: 'AI connection',
     exact: true,
   });
+  await prepareOpenRouterKey(page);
   await settings
     .getByLabel('OpenRouter API key', { exact: true })
     .fill('synthetic-long-reply-key');
