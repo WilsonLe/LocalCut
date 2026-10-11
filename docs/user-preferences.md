@@ -271,6 +271,15 @@ This is the project record of the user's durable product and workflow choices. U
 - Adopt Semantic Versioning with the current application at `0.1.0-alpha.1` (the latest alpha correction). Use version-based changelog entries and the release policy for future bumps.
 - Keep changelog summaries short and understandable to executives and end users. Link each summary to its full changelog: the Git diff for that version/candidate.
 
+## Object animation and asset instances — 11 October 2026
+
+- Keep source assets immutable editing inputs. Each timeline placement is a separate instance with its own authored properties and keyframes; editing one placement must not change other placements of the same asset. Commands create new document snapshots and preserve earlier snapshots.
+- Provide keyframe animation for individual timeline objects through the shared engine, with the same result in preview and export.
+
+## Complete agent editing access — 11 October 2026
+
+- Every new editing feature must be accessible to the assistant when delivered. Keep discovery, inspection, domain guidance, canonical validation/proposals, explicit approval and regression coverage aligned with the UI/shared engine. Audit existing features exhaustively and maintain the [feature-access inventory](ai.md#editing-feature-access-inventory) and [development requirement](development.md#keep-agent-access-complete) with future changes. Preserve immutable asset/instance ownership, sharing consent and the existing user-owned file/service boundaries.
+
 ## Chat and durable tasks — 11 October 2026
 
 - Move text-to-speech generation into Media and explain the action through a tooltip.

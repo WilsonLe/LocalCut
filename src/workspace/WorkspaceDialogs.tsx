@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { averageSpeed, sourceDurationUs } from '../core/speed';
 import type { SpeedRamp } from '../core/speed';
 import { SpeedRampEditor } from './SpeedRampEditor';
+import { KeyframeEditor } from './KeyframeEditor';
+import type { Parameter } from '../core/model';
 import { TextLibrary, TextStyleFields } from './TextLibrary';
 import type { TextStyleInput } from '../core/text-library';
 import { Textarea } from '../components/ui/textarea';
@@ -47,6 +49,7 @@ interface Props {
   exportError: string;
   progress: Progress | null;
   total: number;
+  timeUs: number;
   onDialogChange: (dialog: DialogName) => void;
   onCloseExport: () => void;
   onStartExport: () => void;
@@ -68,6 +71,7 @@ export default function WorkspaceDialogs({
   exportError,
   progress,
   total,
+  timeUs,
   onDialogChange,
   onCloseExport,
   onStartExport,
@@ -140,6 +144,7 @@ export default function WorkspaceDialogs({
                 )
               }
               clip={selectedClip}
+              playheadUs={timeUs}
               busy={busy}
               onSave={onSaveProperties}
             />
@@ -317,12 +322,24 @@ function Properties({
   busy,
   readOnly,
   onSave,
+  playheadUs,
 }: {
   clip: Clip;
   busy: boolean;
   readOnly?: boolean;
   onSave: (operations: EditOperation[]) => void;
+  playheadUs: number;
 }) {
+  const [keyframes, setKeyframes] = useState<Clip['keyframes']>(() =>
+    structuredClone(clip.keyframes),
+  );
+  const [baseChanges, setBaseChanges] = useState<
+    Partial<Record<Parameter, number>>
+  >({});
+  const [animationValid, setAnimationValid] = useState(true);
+  const duplicateTimes = Object.values(keyframes).some(
+    (keys) => new Set(keys.map((key) => key.timeUs)).size !== keys.length,
+  );
   const [ramp, setRamp] = useState<SpeedRamp | undefined>(clip.speedRamp);
   const [pitchMode, setPitchMode] = useState<'change' | 'preserve'>(
     clip.pitchMode ?? 'change',
@@ -333,6 +350,7 @@ function Properties({
     <form
       onSubmit={(event) => {
         event.preventDefault();
+        if (readOnly || busy || duplicateTimes || !animationValid) return;
         const form = new FormData(event.currentTarget);
         const startUs = Math.round(Number(form.get('start')) * 1e6),
           enteredDurationUs = Math.round(Number(form.get('duration')) * 1e6),
@@ -351,6 +369,7 @@ function Properties({
               )
             : enteredDurationUs;
         const patch: Extract<EditOperation, { type: 'updateClip' }>['patch'] = {
+          ...baseChanges,
           startUs,
           durationUs,
           speed,
@@ -364,6 +383,21 @@ function Properties({
         if (clip.text)
           patch.text = { ...style!, text: String(form.get('text') ?? '') };
         const operations: EditOperation[] = [];
+        // Publish drafted curves before timing commands so the shared engine owns
+        // rescaling and clipping both edited and untouched parameter curves.
+        if (JSON.stringify(keyframes) !== JSON.stringify(clip.keyframes))
+          operations.push({
+            type: 'updateClip',
+            clipId: clip.id,
+            patch: {
+              keyframes: Object.fromEntries(
+                Object.entries(keyframes).map(([parameter, keys]) => [
+                  parameter,
+                  [...keys].sort((a, b) => a.timeUs - b.timeUs),
+                ]),
+              ),
+            },
+          });
         if (clip.groupId && startUs !== clip.startUs) {
           operations.push({
             type: 'moveGroup',
@@ -440,10 +474,35 @@ function Properties({
                   step="any"
                   readOnly={readOnly}
                   defaultValue={field.value}
+                  onChange={
+                    field.name === 'gain'
+                      ? (event) =>
+                          setBaseChanges((values) => ({
+                            ...values,
+                            gain: Number(event.target.value),
+                          }))
+                      : undefined
+                  }
                 />
               </div>
             ))}
         </div>
+        <KeyframeEditor
+          clip={{ ...clip, ...baseChanges }}
+          keyframes={keyframes}
+          onChange={setKeyframes}
+          onValidityChange={setAnimationValid}
+          onBaseChange={(parameter, value) =>
+            setBaseChanges((values) => ({ ...values, [parameter]: value }))
+          }
+          playheadUs={playheadUs}
+          readOnly={readOnly || busy}
+        />
+        {duplicateTimes && (
+          <p role="alert" className="text-sm text-destructive">
+            Each point in a property needs a distinct time.
+          </p>
+        )}
         {isTimedSource && (
           <>
             <Label htmlFor="audio-pitch">Audio pitch</Label>
@@ -492,7 +551,10 @@ function Properties({
       </div>
       <DialogFooter className="shrink-0">
         {!readOnly && (
-          <Button type="submit" disabled={busy}>
+          <Button
+            type="submit"
+            disabled={busy || duplicateTimes || !animationValid}
+          >
             Apply properties
           </Button>
         )}

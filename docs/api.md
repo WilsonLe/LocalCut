@@ -202,6 +202,10 @@ Tracks optionally persist `name` (trimmed, 1–1000 characters), `disabled`, `so
 
 These optional fields use existing document/history/backup serialization without a database migration. Older application revisions cannot read documents with the new fields; use the compatible reader when restoring such projects.
 
+### Instance-owned animation
+
+`Clip.keyframes` and numeric base properties belong to a single timeline placement, identified by `clip.id`. Source `assetId` references may be shared, but `updateClip` never writes source bytes or another placement. Commands validate a fresh document snapshot; previously returned snapshots retain their authored state. Use `updateClip` with a complete replacement keyframe map for animation edits, retaining all untouched parameter curves. Linear/hold points use integer clip-local microseconds, including the duration endpoint; renderers clamp outside the first/last point. An empty property curve uses its numeric base value. The existing duplicate/split/paste flows retain independent nested identities, and preview/export consume the same evaluation.
+
 ## Generated speech timing
 
 `transcription.measure(samples, sampleRate, { language?, provider? })` queues measurement of mono normalized PCM at 16, 24 or 48 kHz (at most 12 million finite samples). It anti-aliases to 16 kHz through the shared resampler, then uses the existing transcription worker or explicitly supplied `TranscriptionExecutor`. Default measurement requires already prepared local Whisper; it never downloads weights or uploads audio. Results are `SpeechTranscript` records with model/revision/language and recognized phrase cues in safe integer microseconds, independent of imported assets. Remote callbacks remain session-bound; abandoned requests escalate for explicit retry.

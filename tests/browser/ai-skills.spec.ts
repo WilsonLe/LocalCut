@@ -41,12 +41,16 @@ for (const base of ['/', '/LocalCut/']) {
         provider: {
           async *stream(request) {
             requests.push(structuredClone(request));
-            const name =
-              round++ === 0
-                ? 'load_skill'
-                : round === 2
-                  ? 'inspect_capabilities'
-                  : undefined;
+            const name = [
+              'load_skill',
+              'inspect_capabilities',
+              'search_text_library',
+              'propose_edits',
+            ][round++];
+            const discoveredFont =
+              name === 'propose_edits'
+                ? JSON.parse(request.messages.at(-1)!.content!).items[0].id
+                : undefined;
             yield {
               type: 'complete' as const,
               message: {
@@ -63,7 +67,74 @@ for (const base of ['/', '/LocalCut/']) {
                             arguments: JSON.stringify(
                               name === 'load_skill'
                                 ? { skillId: 'editing' }
-                                : {},
+                                : name === 'search_text_library'
+                                  ? {
+                                      kind: 'fonts',
+                                      query: 'Space Mono',
+                                      limit: 1,
+                                    }
+                                  : name === 'propose_edits'
+                                    ? {
+                                        summary:
+                                          'Use discovered font and animate one placement',
+                                        operations: [
+                                          {
+                                            type: 'addTrack',
+                                            track: {
+                                              id: 'titles',
+                                              kind: 'overlay',
+                                            },
+                                          },
+                                          {
+                                            type: 'insertClip',
+                                            trackId: 'titles',
+                                            clip: {
+                                              id: 'animated',
+                                              kind: 'text',
+                                              startUs: 0,
+                                              durationUs: 1000000,
+                                              text: {
+                                                text: 'A title',
+                                                fontFamily: discoveredFont,
+                                                animation: {
+                                                  kind: 'typewriter',
+                                                  stepMs: 90,
+                                                  loop: false,
+                                                },
+                                              },
+                                              keyframes: {
+                                                x: [
+                                                  {
+                                                    id: 'a',
+                                                    timeUs: 0,
+                                                    value: 0,
+                                                  },
+                                                  {
+                                                    id: 'b',
+                                                    timeUs: 1000000,
+                                                    value: 100,
+                                                  },
+                                                ],
+                                              },
+                                            },
+                                          },
+                                          {
+                                            type: 'insertClip',
+                                            trackId: 'titles',
+                                            clip: {
+                                              id: 'other',
+                                              kind: 'text',
+                                              startUs: 1000000,
+                                              durationUs: 1000000,
+                                              text: {
+                                                text: 'A title',
+                                                fontFamily: discoveredFont,
+                                              },
+                                            },
+                                          },
+                                        ],
+                                      }
+                                    : {},
                             ),
                           },
                         },
@@ -76,7 +147,25 @@ for (const base of ['/', '/LocalCut/']) {
         },
       });
       try {
-        await assistant.run('Inspect the editing rules').completion;
+        const turn = await assistant.run(
+          'Inspect editing, discover a font and animate a title',
+        ).completion;
+        const before = await editor.projects.snapshot(project.id);
+        if (before.revision !== project.revision)
+          throw new Error('Unapproved edit');
+        await assistant.approveProposal(turn.proposalIds[0]!);
+        const persisted = await editor.projects.open(project.id);
+        if (
+          persisted.revision !== project.revision + 1 ||
+          persisted.tracks[0]?.clips[0]?.text?.fontFamily !==
+            'font-space-mono' ||
+          persisted.tracks[0]?.clips[0]?.keyframes.x?.length !== 2 ||
+          Object.keys(persisted.tracks[0]?.clips[1]?.keyframes ?? {}).length !==
+            0
+        )
+          throw new Error(
+            'Approved discovery/animation did not persist independently',
+          );
         await assistant.run('Another request').completion;
         return requests.map((request) => ({
           tools: request.tools.map((tool) => tool.function.name),
@@ -100,8 +189,13 @@ for (const base of ['/', '/LocalCut/']) {
     expect(result[1]!.payload).toContain(
       'Transition templates are editable recipes',
     );
-    expect(result[3]!.tools).toEqual(result[0]!.tools);
-    expect(result[3]!.payload).not.toContain(
+    expect(result[0]!.tools).not.toContain('search_text_library');
+    expect(result[1]!.tools).toContain('search_text_library');
+    expect(result[2]!.payload).toContain('clip_local_timeline');
+    expect(result[2]!.payload).toContain('interpolation');
+    expect(result[3]!.payload).toContain('font-space-mono');
+    expect(result[5]!.tools).toEqual(result[0]!.tools);
+    expect(result[5]!.payload).not.toContain(
       'Transition templates are editable recipes',
     );
     expect(requested).toContain(skillFiles[0]);

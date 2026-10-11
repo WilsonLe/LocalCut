@@ -1,7 +1,19 @@
 import { z } from 'zod';
 import { applyOperations, batchSchema } from '../core/commands';
 import type { CommandBatch } from '../core/commands';
-import { assetIds } from '../core/model';
+import {
+  assetIds,
+  clipPatchSchema,
+  trackPatchSchema,
+  textStyleSchema,
+  parameterSchema,
+  keyframeSchema,
+} from '../core/model';
+import {
+  TEXT_FONTS,
+  TEXT_TEMPLATES,
+  matchesTextLabels,
+} from '../core/text-library';
 import type { Project } from '../core/model';
 import { EditorError } from '../core/errors';
 import { AiError, aiInvariant } from './errors';
@@ -72,6 +84,14 @@ const schemas = {
   inspect_asset: assetSchema,
   inspect_timeline: z.object({ timeUs: time }).strict(),
   inspect_capabilities: emptySchema,
+  search_text_library: z
+    .object({
+      kind: z.enum(['fonts', 'templates']),
+      query: z.string().max(256).default(''),
+      offset: z.number().int().min(0).max(100000).default(0),
+      limit: z.number().int().min(1).max(20).default(10),
+    })
+    .strict(),
   inspect_transcription: emptySchema,
   inspect_proposals: emptySchema,
   read_transcript: transcriptSchema,
@@ -90,6 +110,37 @@ export const supportedEditOperations =
   batchSchema.shape.operations.element.options.map(
     (operation) => operation.shape.type.value,
   );
+
+export const editingProperties = {
+  clip: Object.keys(clipPatchSchema.shape),
+  track: Object.keys(trackPatchSchema.shape),
+  textStyle: Object.keys(textStyleSchema.shape),
+  keyframes: {
+    parameters: parameterSchema.options,
+    interpolation: keyframeSchema.shape.interpolation.removeDefault().options,
+    values: Object.fromEntries(
+      parameterSchema.options.map((parameter) => [
+        parameter,
+        z.toJSONSchema(clipPatchSchema.shape[parameter], { io: 'input' }),
+      ]),
+    ),
+  },
+};
+
+/** The workspace's catalog and matcher; no media, private text or font downloads. */
+export function searchTextLibrary(
+  args: z.infer<typeof schemas.search_text_library>,
+) {
+  const catalog = args.kind === 'fonts' ? TEXT_FONTS : TEXT_TEMPLATES;
+  const matches = catalog.filter((item) => matchesTextLabels(item, args.query));
+  const end = Math.min(args.offset + args.limit, matches.length);
+  return {
+    ...args,
+    total: matches.length,
+    items: structuredClone(matches.slice(args.offset, end)),
+    nextOffset: end < matches.length ? end : null,
+  };
+}
 
 export function toolDefinitions(
   includeTranscripts: boolean,
@@ -111,7 +162,9 @@ export function toolDefinitions(
     inspect_timeline:
       'Evaluate active clips at a timeline time: exact frame time, source positions, animated transforms, effects, audio gain, captions and transition weights. Structural metadata only; never renders or uploads a frame.',
     inspect_capabilities:
-      'Read supported editing operations, timing rules, edit approval requirements and user-owned file actions.',
+      'Read all supported edit operations and property fields, keyframe parameters/interpolation, timing rules, catalog discovery, edit approval requirements and user-owned actions.',
+    search_text_library:
+      'Search the shared text templates or font catalog by name/labels. Paginated read-only results include stable font IDs or complete template styles for insertClip/updateClip. Empty query browses every entry. No private text, media, downloads or inference.',
     inspect_transcription:
       'Check whether local transcription assets are cached. Does not download or initialize a model.',
     inspect_proposals:
@@ -144,6 +197,7 @@ export function toolDefinitions(
           );
         case 'inspect_timeline':
         case 'inspect_capabilities':
+        case 'search_text_library':
         case 'validate_edits':
         case 'propose_edits':
           return loadedSkills.has('editing');

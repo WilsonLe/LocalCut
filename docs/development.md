@@ -25,6 +25,20 @@ Read the root `AGENTS.md`, then the guides in the target file's ancestor directo
 
 See [architecture](architecture.md) and [API contracts](api.md) before crossing a boundary. Preserve the existing owner instead of duplicating project state in a control or transport.
 
+## Keep agent access complete
+
+Every new or changed editing feature must ship with assistant access in the same change, following the [durable user preference](user-preferences.md#complete-agent-editing-access--11-october-2026). Before implementation, inventory the affected UI/API commands, authored properties, recipes and service actions against the [AI feature-access inventory](ai.md#editing-feature-access-inventory). Record a concrete reason for each user-owned boundary; a missing assistant path is unfinished editing work.
+
+For each included feature, verify these completion conditions:
+
+1. The shared engine owns the behavior and canonical schema; `validate_edits`/`propose_edits` expose every operation and field without a separate AI whitelist. Add new service actions through the existing capability-filtered, reviewable action path.
+2. The assistant can discover valid IDs/options/recipes and inspect the relevant state under the existing sharing policy. Extend `inspect_capabilities`, bounded catalog discovery or the owning inspection tool as needed. Keep recipe catalogs shared with the UI.
+3. The editing/service skill catalog and loaded guidance explain how to use the feature, preserve unrelated state and recover from validation/stale-revision errors. Loading remains incremental and never grants consent or approval.
+4. A meaningful regression demonstrates inspect/discover → validate/propose → explicit approval → persisted result. Cover cancellation/rejection or immutable instance ownership when affected. The operation-complete test must still enumerate every canonical operation; add a case whenever that list grows. Property-schema parity catches fields dropped from either edit tool; new authored behavior also needs runtime assertions.
+5. Update the inventory, relevant API/workspace contract and check-selection recipe with the change. In the PR, report feature coverage and any reserved boundary explicitly.
+
+Start with `pnpm test tests/unit/assistant.test.ts` for schema/operation/property/parameter coverage and approval/privacy authority. Use the related core regressions for changed timing, text, captions, tracks or groups. After both builds are current, run `pnpm test:browser tests/browser/ai-skills.spec.ts tests/browser/ai.spec.ts tests/browser/ai-actions.spec.ts` for dynamic guidance/catalog discovery, actual persisted approvals, history and native exports at both hosting bases. Add the affected workspace selector when the UI changes; retain the normal integration and applicable native acceptance gates. These deterministic providers establish engine/tool access, not live model editing quality or paid inference.
+
 ## One edit, one focused check
 
 Choose the smallest test that exercises the changed behavior, then run the cheap static checks. For a preview scheduling change:

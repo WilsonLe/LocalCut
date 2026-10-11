@@ -261,3 +261,11 @@ Rename and populated-track clear/delete use revision-bound dialogs; external edi
 Mobile Edit, Chat and Media own their active headings and global commands/settings; the duplicate LocalCut brand row is removed. Focusing the chat composer hides bottom navigation and fits the transcript/composer to the visual viewport while keeping the chat heading at the visible top. Blur restores navigation, and switching tabs retains drafts. Text-to-speech is available in Media through the shared AI connection.
 
 See the [controlled mobile keyboard viewport](images/workspace-mobile-chat-keyboard.png) (the top 420 px are the simulated visible area) and [Media speech entry](images/workspace-mobile-media-speech.png).
+
+## Object keyframe animation
+
+Open a selected clip’s **Clip properties → Animation**. Choose a property (position, dimensions, rotation, opacity, image/video effects, or audio gain), then add points at the playhead, clip start or clip end. Times are seconds relative to this clip’s start. Edit each point’s time, value and Linear/Hold interpolation; interpolation controls the segment leading to the next point. The graph shows the curve and current playhead. Base value applies when the property has no points; Gain uses the existing Gain field. Clear property animation or remove individual points to return to the base value.
+
+Apply properties commits the complete edit through the shared engine. Cancel discards the draft. Points must have distinct times inside the clip and valid property values; incomplete or invalid numeric drafts remain blocked across property switches and publish nothing. Return to the named property to correct the field or remove its point. Draft curves are applied before speed and resize commands, so edited and untouched curves follow the engine’s existing rescaling or trimming behavior. Final point times must fit the resulting duration; constant speed changes without a ramp retain clip-local point times. Read-only versions and locked tracks allow inspection only.
+
+Animation belongs to the selected timeline instance. Other placements of the same asset, original media bytes and earlier snapshots remain unchanged. Duplicate, split and paste create independent instance/keyframe identities. Undo/redo, versions and backups retain these existing clip-local curves; no schema or storage migration is required.
