@@ -1,3 +1,4 @@
+import { errorDiagnostic } from '../core/error-diagnostics';
 import { modelStatus } from '../services/transcription-status';
 import type {
   AutomaticSpeechRecognitionPipeline,
@@ -173,7 +174,7 @@ self.onmessage = async ({
     self.postMessage({
       id: data.id,
       kind: 'error',
-      error: { code: e.code, message: e.message },
+      error: { ...errorDiagnostic(e), code: e.code, message: e.message },
     });
   } finally {
     allowDownloads = false;

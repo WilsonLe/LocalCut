@@ -17,7 +17,7 @@ import {
   LoaderCircle,
   PlugZap,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { showErrorToast } from './error-toast';
 import { Button } from '../components/ui/button';
 import {
   Empty,
@@ -521,9 +521,10 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                                   setAuthUrl(url);
                                   if (popup) popup.location.href = url;
                                 })
-                                .catch(() => {
+                                .catch((error) => {
                                   popup?.close();
-                                  toast.error(
+                                  showErrorToast(
+                                    error,
                                     'Could not start ChatGPT sign-in. Allow browser storage and retry.',
                                   );
                                 })
@@ -884,8 +885,9 @@ function ProviderActions({
             setVerified('');
             void verify(profile.id)
               .then(setVerified)
-              .catch(() =>
-                toast.error(
+              .catch((error) =>
+                showErrorToast(
+                  error,
                   'Verification failed. Check this account and endpoint.',
                 ),
               )

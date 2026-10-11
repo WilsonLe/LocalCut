@@ -1,3 +1,4 @@
+import { errorDiagnostic } from '../core/error-diagnostics';
 import { resampleAt } from '../core/resample';
 import { Store } from '../storage/store';
 import type { Renderer } from '../media/composition';
@@ -242,7 +243,12 @@ self.onmessage = ({ data }: MessageEvent<Request>) => {
       self.postMessage({
         id: data.id,
         kind: 'error',
-        error: { code: e.code, message: e.message, details: e.details },
+        error: {
+          ...errorDiagnostic(e),
+          code: e.code,
+          message: e.message,
+          details: e.details,
+        },
       });
     } finally {
       store?.close();

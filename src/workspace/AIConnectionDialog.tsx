@@ -28,7 +28,7 @@ import {
   PopoverTrigger,
 } from '../components/ui/popover';
 import { useIndexConsent, saveIndexConsent } from './index-consent';
-import { toast } from 'sonner';
+import { showErrorToast } from './error-toast';
 import { ProviderSettings } from './ProviderSettings';
 import type { ProviderSettingsProps } from './ProviderSettings';
 interface Props extends Omit<
@@ -137,7 +137,8 @@ export default function AIConnectionDialog({
                 checked={indexingAllowed}
                 onCheckedChange={(checked) => {
                   if (!saveIndexConsent(checked === true))
-                    toast.error(
+                    showErrorToast(
+                      undefined,
                       'Indexing permission could not be saved. This choice lasts for this session.',
                     );
                 }}

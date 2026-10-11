@@ -22,24 +22,14 @@ import { EditorError, invariant } from '../core/errors';
 import { checkAbort } from '../services/jobs';
 import type { Progress } from '../services/jobs';
 import type { Store } from '../storage/store';
+import {
+  sourceIdentity,
+  thumbnailKey,
+  validateThumbnailRequest,
+} from '../storage/thumbnail-cache';
 export const inputFormats = [MP4, QTFF, WEBM, MP3, WAVE];
 export function inputFile(file: Blob) {
   return new Input({ source: new BlobSource(file), formats: inputFormats });
-}
-function sourceIdentity(asset: Asset, file: File) {
-  return JSON.stringify([
-    file.size,
-    file.lastModified,
-    asset.kind,
-    asset.durationUs,
-    asset.width,
-    asset.height,
-    asset.rotation,
-    asset.videoCodec,
-    asset.audioCodec,
-    asset.sampleRate,
-    asset.channels,
-  ]);
 }
 export async function inspect(
   file: Blob,
@@ -418,17 +408,7 @@ export async function thumbnails(
   signal: AbortSignal,
   width = 320,
 ) {
-  invariant(
-    timesUs.length <= 1000 &&
-      timesUs.every((t) => Number.isSafeInteger(t) && t >= 0),
-    'INVALID_COMMAND',
-    'Invalid thumbnail times',
-  );
-  invariant(
-    Number.isSafeInteger(width) && width > 0 && width <= 4096,
-    'INVALID_COMMAND',
-    'Invalid thumbnail width',
-  );
+  validateThumbnailRequest(timesUs, width);
   return store.lock(
     `asset:${assetId}`,
     'shared',
@@ -466,7 +446,7 @@ async function thumbnailTiles(
     for (const timeUs of timesUs) {
       checkAbort(signal);
       // Still-image pixels do not depend on the requested presentation timestamp.
-      const id = `thumbnail-v1-${assetId}-${width}-${asset.kind === 'image' ? 0 : timeUs}`;
+      const id = thumbnailKey(asset, width, timeUs);
       const blob = await store.lock(
         `derivative:${id}`,
         'exclusive',

@@ -1,3 +1,5 @@
+import { errorDiagnostic } from '../core/error-diagnostics';
+import type { ErrorDiagnostic } from '../core/error-diagnostics';
 import { TaskStore } from '../storage/tasks';
 import type { TaskStorage } from '../storage/tasks';
 import type { Job, JobEvent, Progress } from './jobs';
@@ -31,6 +33,7 @@ export interface TaskRecord {
     code: string;
     message: string;
     action: string;
+    diagnostic?: ErrorDiagnostic;
     details?: { status?: number; reason?: 'output_limit' };
   };
 }
@@ -157,6 +160,7 @@ const taskError = (error: unknown): TaskQueueError => {
   // Retain only bounded HTTP metadata and the local enum; discard provider bodies.
   return {
     ...(Object.keys(details).length ? { details } : {}),
+    diagnostic: errorDiagnostic(error, false),
     code,
     message:
       code === 'INTERRUPTED'
@@ -292,12 +296,13 @@ export class TaskQueue {
   enqueue<T>(
     kind: string,
     input: unknown,
-    options: { label: string; projectId?: string },
+    options: { label: string; projectId?: string; id?: string },
   ): Job<T> {
     if (this.disposed) throw new Error('Task queue disposed.');
     const handler = this.handlers.get(kind);
     if (!handler) throw new Error('No task handler is available.');
-    const id = crypto.randomUUID(),
+    // Facade cache lookups may already own this fresh job ID before a miss.
+    const id = options.id ?? crypto.randomUUID(),
       now = Date.now();
     const task: TaskRecord = {
       version: 1,
@@ -376,6 +381,8 @@ export class TaskQueue {
             {
               code: task.error?.code ?? 'CANCELLED',
               details: task.error?.details,
+              stack: task.error?.diagnostic?.stack,
+              cause: task.error?.diagnostic,
             },
           ),
         );

@@ -24,7 +24,7 @@ import {
   Settings2,
   X,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from './notifications';
 import type {
   Asset,
   EditOperation,
@@ -37,6 +37,14 @@ import type {
 } from '../editor';
 import { Button } from '../components/ui/button';
 import { Toaster } from '../components/ui/sonner';
+import {
+  showErrorToast,
+  registerErrorSession,
+  subscribeErrorDetails,
+} from './error-toast';
+import type { ErrorReport } from './error-toast';
+const ErrorDetailsDialog = lazy(() => import('./ErrorDetailsDialog'));
+import { NotificationControl } from './NotificationControl';
 import { UpdateControl } from './UpdateControl';
 // Capture callback secrets before loading the conversation or any asynchronous work.
 import './oauth-callback';
@@ -289,7 +297,8 @@ export function Workspace() {
     saveWorkspacePreferences({ exportFormat });
   useEffect(() => {
     if (!preferencesSaved)
-      toast.error(
+      showErrorToast(
+        undefined,
         'Workspace preferences could not be saved. Allow browser storage to keep them after reload.',
       );
   }, [preferencesSaved]);
@@ -448,6 +457,8 @@ export function Workspace() {
   const registerCleanup = useCallback((cleanup: () => Promise<void>) => {
     disposeAssistant.current = cleanup;
   }, []);
+  const [errorReport, setErrorReport] = useState<ErrorReport | null>(null);
+  useLayoutEffect(() => subscribeErrorDetails(setErrorReport), []);
   const error = useCallback((value: unknown) => {
     const detail =
       value && typeof value === 'object' && 'code' in value
@@ -458,14 +469,18 @@ export function Workspace() {
       return;
     }
     if (detail === 'REVISION_CONFLICT') {
-      toast.error('Project changed. Review the latest values and try again.');
+      showErrorToast(
+        value,
+        'Project changed. Review the latest values and try again.',
+      );
       return;
     }
     const message =
       value instanceof Error
         ? value.message
         : 'The operation could not be completed.';
-    toast.error(
+    showErrorToast(
+      value,
       message.length > 240
         ? 'The editor could not accept those settings. Check the values and try again.'
         : message,
@@ -720,6 +735,34 @@ export function Workspace() {
     restore: restoreProject,
   });
   const busy = operationBusy || navigation.blocked;
+  useLayoutEffect(() =>
+    registerErrorSession(() => ({
+      projectId: project?.id ?? null,
+      revision: project?.revision ?? null,
+      projectFormat: project
+        ? {
+            width: project.width,
+            height: project.height,
+            frameRate: project.frameRate,
+          }
+        : null,
+      selectedClipIds: selectedIds,
+      playheadUs: timeUs,
+      projectTab,
+      mobileTab,
+      narrow,
+      mediaOpen: drawer,
+      chatCollapsed,
+      viewingVersionId: browsed?.id ?? null,
+      busy,
+      trackCount: viewProject?.tracks.length ?? 0,
+      clipCount:
+        viewProject?.tracks.reduce(
+          (count, track) => count + track.clips.length,
+          0,
+        ) ?? 0,
+    })),
+  );
   const [mediaDrag, setMediaDrag] = useState<{
     assetId: string;
     projectId: string;
@@ -1719,6 +1762,7 @@ export function Workspace() {
           <TaskQueueControl editor={queueOwner} />
         </Suspense>
       )}
+      <NotificationControl />
       <UpdateControl busy={busy} />
       {!busy && (
         <Button
@@ -2425,6 +2469,15 @@ export function Workspace() {
             open
             onOpenChange={setCommandsOpen}
             commands={paletteCommands}
+          />
+        </Suspense>
+      )}
+      {errorReport && (
+        <Suspense fallback={null}>
+          <ErrorDetailsDialog
+            key={errorReport.text}
+            report={errorReport}
+            onClose={() => setErrorReport(null)}
           />
         </Suspense>
       )}

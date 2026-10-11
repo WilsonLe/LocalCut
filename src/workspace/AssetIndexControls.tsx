@@ -10,7 +10,8 @@ import {
   RotateCcw,
   X,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from './notifications';
+import { showErrorToast } from './error-toast';
 import { Menu } from '@base-ui/react/menu';
 import { AssetMenu, assetMenuItemClass } from './AssetMenu';
 import type { Asset, AssetIndexRun, Editor, Job, JobEvent } from '../editor';
@@ -98,10 +99,10 @@ export default function AssetIndexControls({
   };
   useEffect(() => {
     mounted.current = true;
-    void refresh().catch((e) => toast.error(indexError(e)));
+    void refresh().catch((e) => showErrorToast(e, indexError(e)));
     const stop = editor?.tasks.subscribe((task) => {
       if (task.kind.startsWith('index.labels:') && taskTerminal(task.state))
-        void refresh().catch((e) => toast.error(indexError(e)));
+        void refresh().catch((e) => showErrorToast(e, indexError(e)));
     });
     return () => {
       stop?.();
@@ -163,7 +164,8 @@ export default function AssetIndexControls({
       await job.completion;
       if (mounted.current) toast.success('Asset indexed', { id: notification });
     } catch (e) {
-      if (mounted.current) toast.error(indexError(e), { id: notification });
+      if (mounted.current)
+        showErrorToast(e, indexError(e), { id: notification });
     } finally {
       stop();
       await indexer.dispose();
@@ -171,7 +173,7 @@ export default function AssetIndexControls({
       if (mounted.current) {
         setBusy(false);
         setProgress(null);
-        await refresh().catch((e) => toast.error(indexError(e)));
+        await refresh().catch((e) => showErrorToast(e, indexError(e)));
       } else toast.dismiss(notification);
     }
   };
@@ -456,7 +458,7 @@ export default function AssetIndexControls({
                           setSelected(undefined);
                           return refresh();
                         })
-                        .catch((e) => toast.error(indexError(e)))
+                        .catch((e) => showErrorToast(e, indexError(e)))
                     }
                   >
                     <Trash2 />
@@ -495,7 +497,7 @@ function Evidence({
         }
       })
       .catch((e) => {
-        if (active) toast.error(indexError(e));
+        if (active) showErrorToast(e, indexError(e));
       });
     return () => {
       active = false;

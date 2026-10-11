@@ -200,6 +200,23 @@ for (const base of ['/', '/LocalCut/']) {
               .getByRole('menuitem', { name: 'New conversation', exact: true })
               .click();
             await expect(sessions).not.toBeVisible();
+            // Every header action remains directly clickable beside the new bell,
+            // including 320px with enlarged interface text and touch targets.
+            expect(
+              await page
+                .locator('.conversation-heading .header-actions button')
+                .evaluateAll((buttons) =>
+                  buttons.every((button) => {
+                    const box = button.getBoundingClientRect();
+                    return button.contains(
+                      document.elementFromPoint(
+                        box.x + box.width / 2,
+                        box.y + box.height / 2,
+                      ),
+                    );
+                  }),
+                ),
+            ).toBe(true);
             await openAISettings(page);
             const connection = page.getByRole('dialog', {
               name: 'AI connection',
