@@ -1,3 +1,5 @@
+import { errorDiagnostic } from '../core/error-diagnostics';
+import type { ErrorDiagnostic } from '../core/error-diagnostics';
 import { asEditorError, EditorError } from '../core/errors';
 export interface Progress {
   stage: string;
@@ -7,7 +9,7 @@ export interface Progress {
 export interface JobEvent extends Progress {
   jobId: string;
   state: 'running' | 'completed' | 'cancelled' | 'failed';
-  error?: { code: string; message: string };
+  error?: Partial<ErrorDiagnostic> & { code: string; message: string };
 }
 export interface Job<T> {
   id: string;
@@ -93,7 +95,7 @@ export class Jobs {
           jobId: id,
           state: e.code === 'CANCELLED' ? 'cancelled' : 'failed',
           stage: e.code === 'CANCELLED' ? 'cancelled' : 'failed',
-          error: { code: e.code, message: e.message },
+          error: { ...errorDiagnostic(e), code: e.code, message: e.message },
         });
         throw e;
       })

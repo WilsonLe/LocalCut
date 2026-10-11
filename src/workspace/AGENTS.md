@@ -22,3 +22,5 @@ pnpm test:ui --grep 'stale property|speed rounding'
 ```
 
 For scrolling or settings changes, select the matching title in `tests/browser/workspace-regressions.spec.ts` or `workspace-local-preferences.spec.ts` (which includes the settings journey). Follow the [development loop](../../docs/development.md) for build freshness and broader gates.
+
+- Route notifications through `notifications.ts` and errors through `showErrorToast` in `error-toast.tsx`; pass the original caught error instead of reducing it to a message. This preserves stack/session diagnostics and the persistent bell history. Keep reports local, omit credentials/provider bodies and user content, and never initialize editor services to collect diagnostics. Use the focused notification recipe in [development](../../docs/development.md#notification-history-checks).

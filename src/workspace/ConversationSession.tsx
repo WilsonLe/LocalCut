@@ -1,3 +1,4 @@
+import { registerErrorSession } from './error-toast';
 import {
   lazy,
   Suspense,
@@ -21,7 +22,7 @@ import {
   Play,
   Terminal,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from './notifications';
 import { Tooltip } from '../components/ui/tooltip';
 import type { Editor, Project } from '../editor';
 import type {
@@ -194,6 +195,21 @@ export default function ConversationSession({
   const titleAttempted = useRef(!!initialBranch?.messages.length);
   const titleRequest = useRef<AbortController | null>(null);
   const applyingRef = useRef(false);
+  useLayoutEffect(() =>
+    registerErrorSession(
+      () => ({
+        model,
+        active,
+        running: runningRef.current,
+        turnId: turn.current?.id ?? null,
+        messageCount: messages.length,
+        attachmentIds: attachments.map((asset) => asset.id),
+        pendingProposalIds: Object.keys(proposals),
+        privacy,
+      }),
+      'conversation',
+    ),
+  );
   const selected = project.tracks
     .flatMap((track) => track.clips)
     .find((clip) => clip.id === selectedClipId);

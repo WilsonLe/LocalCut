@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { LoaderCircle, RefreshCw } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from './notifications';
+import { showErrorToast } from './error-toast';
 import { Button } from '../components/ui/button';
 import { checkForUpdate } from './update';
 
@@ -26,9 +27,10 @@ export function UpdateControl({ busy }: { busy: boolean }) {
       if (controller.signal.aborted) return;
       if (later) setAvailable(true);
       else toast.success('LocalCut is up to date');
-    } catch {
+    } catch (error) {
       if (!controller.signal.aborted)
-        toast.error(
+        showErrorToast(
+          error,
           'Could not check for updates. Check your connection and try again.',
         );
     } finally {
