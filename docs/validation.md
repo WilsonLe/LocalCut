@@ -2,7 +2,7 @@
 
 ## Mobile media fixes — 11 October 2026
 
-Runtime candidate `04c232a52dd57871c744f2aaebe6de6e5e6daccd`, based on `0c3e8661b0c1efa073f8b4bf6bcd6ff5a9c6189d`, passed `pnpm check`: 559 unit tests, 22 tooling regressions, all 288 production stable-Chrome scenarios at `/` and `/LocalCut/`, formatting, lint, types, both verified builds and bundle budgets, without skips or retries. Initial JavaScript is 140,411–140,417 bytes gzip and CSS is 16,905 bytes, within unchanged budgets.
+Runtime candidate `04c232a52dd57871c744f2aaebe6de6e5e6daccd`, based on `0c3e8661b0c1efa073f8b4bf6bcd6ff5a9c6189d`, passed `pnpm check`: 559 unit tests, 22 tooling regressions, all 288 production stable-Chrome scenarios at `/` and `/LocalCut/`, formatting, lint, types, both verified builds and bundle budgets, without skips or retries. Initial JavaScript is 140,415–140,420 bytes gzip and CSS is 16,905 bytes, within unchanged budgets.
 
 The mobile regressions measure full-width Media at three interface sizes in portrait and short landscape, verify the inline project picker, and send real touch swipes starting on thumbnails. Thumbnail checks verify image/video pixels, a native WebM fixture whose first presentation timestamp is explicitly verified as delayed, and decoded previews after reload. A real loading notification is positioned beneath the menu; the test asserts it covers the tested point and that the menu receives the hit. Indexing cases cover passive progress/completion status, video-input clip labeling, image-input video-frame labeling, retained evidence, reload, deletion and incompatible-model guidance. Provider replies are controlled protocol fixtures, not paid inference evidence.
 
