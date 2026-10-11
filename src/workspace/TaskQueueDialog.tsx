@@ -445,11 +445,11 @@ export default function TaskQueueDialog({
               </TableBody>
             </Table>
             {edges.left && (
-              <div className="pointer-events-none absolute inset-y-0 left-0 flex w-12 items-center justify-start rounded-l-lg bg-gradient-to-r from-popover to-transparent pl-1">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex w-12 items-center justify-start rounded-l-lg bg-gradient-to-r from-muted to-transparent pl-1">
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="icon-sm"
-                  className="pointer-events-auto bg-popover shadow-sm"
+                  className="pointer-events-auto rounded-none border-0 bg-transparent text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground dark:hover:bg-transparent"
                   aria-label="Scroll one column left"
                   onClick={() => scrollColumn(-1)}
                 >
@@ -458,11 +458,11 @@ export default function TaskQueueDialog({
               </div>
             )}
             {edges.right && (
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex w-12 items-center justify-end rounded-r-lg bg-gradient-to-l from-popover to-transparent pr-1">
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex w-12 items-center justify-end rounded-r-lg bg-gradient-to-l from-muted to-transparent pr-1">
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="icon-sm"
-                  className="pointer-events-auto bg-popover shadow-sm"
+                  className="pointer-events-auto rounded-none border-0 bg-transparent text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground dark:hover:bg-transparent"
                   aria-label="Scroll one column right"
                   onClick={() => scrollColumn(1)}
                 >
