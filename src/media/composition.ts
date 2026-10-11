@@ -6,6 +6,7 @@ import type { Clip, Project, Transcript } from '../core/model';
 import { EditorError, invariant } from '../core/errors';
 import { gainAt, mapSourceCue, sourceTimeUs, valueAt } from '../core/timing';
 import { sourcePositionUs, speedAt } from '../core/speed';
+import { outputTracks } from '../core/timeline';
 import { PitchStretcher } from '../core/stretch';
 import { resampleAt } from '../core/resample';
 import { checkAbort } from '../services/jobs';
@@ -242,8 +243,9 @@ export class Renderer {
   async frame(timeUs: number, signal: AbortSignal) {
     checkAbort(signal);
     this.touchedLayers.clear();
+    const tracks = outputTracks(this.project, 'visual');
     const activeAssets = new Set(
-      this.project.tracks.flatMap((t) =>
+      tracks.flatMap((t) =>
         t.clips
           .filter(
             (c) =>
@@ -256,7 +258,7 @@ export class Renderer {
       ),
     );
     const activeVideoClips = new Set(
-      this.project.tracks.flatMap((track) =>
+      tracks.flatMap((track) =>
         track.clips
           .filter(
             (clip) =>
@@ -287,8 +289,7 @@ export class Renderer {
     ctx.reset();
     ctx.fillStyle = 'black';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    for (const track of this.project.tracks) {
-      if (track.kind === 'audio') continue;
+    for (const track of tracks) {
       const active = track.clips.filter(
         (c) =>
           c.startUs <= timeUs &&
@@ -362,21 +363,20 @@ export class Renderer {
     const mixed = [new Float32Array(count), new Float32Array(count)];
     const startUs = (startFrame * 1e6) / 48000,
       endUs = ((startFrame + count) * 1e6) / 48000;
+    const tracks = outputTracks(this.project, 'audio');
     const active = new Set(
-      this.project.tracks
-        .filter((t) => !t.muted)
-        .flatMap((t) =>
-          t.clips
-            .filter(
-              (c) =>
-                c.assetId &&
-                ['audio', 'video'].includes(c.kind) &&
-                !c.muted &&
-                c.startUs < endUs &&
-                c.startUs + c.durationUs > startUs,
-            )
-            .map((c) => c.assetId!),
-        ),
+      tracks.flatMap((t) =>
+        t.clips
+          .filter(
+            (c) =>
+              c.assetId &&
+              ['audio', 'video'].includes(c.kind) &&
+              !c.muted &&
+              c.startUs < endUs &&
+              c.startUs + c.durationUs > startUs,
+          )
+          .map((c) => c.assetId!),
+      ),
     );
     for (const [id, release] of this.leases)
       if (!active.has(id)) {
@@ -410,8 +410,7 @@ export class Renderer {
       }
 
     const activeClips = new Set<string>();
-    for (const track of this.project.tracks) {
-      if (track.muted) continue;
+    for (const track of tracks) {
       for (const clip of track.clips) {
         if (
           !clip.assetId ||

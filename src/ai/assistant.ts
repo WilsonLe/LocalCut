@@ -506,6 +506,8 @@ export function createAssistant(options: AssistantOptions) {
                     'applyTransitionTemplate generates ordinary editable keyframes and a blend; strength is 0 to 1, default 0.5. Inspect and tweak keyframes with updateClip. Applying another template builds on current attributes. RemoveTransition removes only the blend; Undo restores the entire template edit.',
                   groups:
                     'groupClips and ungroupClips persist membership; moveGroup preserves offsets; duplicateGroup requires a fresh ID for every member. Individual clip edits remain explicit.',
+                  tracks:
+                    'updateTrack changes only supplied name/disabled/muted/solo/locked fields. Disabled excludes all output; mute excludes audio; enabled solo isolates visual and audio domains independently. Lock rejects content/reorder/removal edits until explicit unlock. duplicateTrack requires newTrackId and copies clips/groups/transitions with fresh IDs; clearTrack/removeTrack retain source assets.',
                   separateAudio:
                     'reuse video source on an audio track and mute video audio; preserve source timing, speed, gain and fades',
                   crossfade:

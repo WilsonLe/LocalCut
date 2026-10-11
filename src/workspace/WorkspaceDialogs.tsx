@@ -155,7 +155,14 @@ export default function WorkspaceDialogs({
           {selectedClip && (
             <Properties
               key={`${selectedClip.id}:${project?.revision}`}
-              readOnly={readOnly}
+              readOnly={
+                readOnly ||
+                project?.tracks.some(
+                  (track) =>
+                    track.locked &&
+                    track.clips.some((clip) => clip.id === selectedClip.id),
+                )
+              }
               clip={selectedClip}
               busy={busy}
               onSave={onSaveProperties}

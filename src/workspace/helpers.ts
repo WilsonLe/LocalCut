@@ -27,7 +27,9 @@ export function clipName(clip: Clip, assets: Asset[]) {
 }
 export function appendAsset(project: Project, asset: Asset): EditOperation[] {
   const kind: 'audio' | 'video' = asset.kind === 'audio' ? 'audio' : 'video';
-  const track = project.tracks.find((track) => track.kind === kind);
+  const track = project.tracks.find(
+    (track) => track.kind === kind && !track.locked,
+  );
   const trackId = track?.id ?? crypto.randomUUID();
   const startUs = Math.max(
     0,

@@ -208,3 +208,9 @@ The timeline scrolls horizontally independently of the page and preserves propor
 Production Chrome captures: [mobile editor](screenshots/mobile-editor.png), [media tab](screenshots/mobile-media.png), [long conversation](screenshots/mobile-chat.png), and [projects with 200% text](screenshots/mobile-projects-text-200.png). These cover responsive UI on desktop Chrome with touch emulation; physical iOS/Android devices and their native keyboards remain unverified.
 
 When no configured chat provider is available, chat renders a centered, framed shadcn Empty state with a provider icon and a Connect provider button that opens the existing AI connection dialog, without helper copy. A connected provider without a selected model shows Choose AI model; a configured chat without a project offers New project and Open project. These states replace unavailable composer controls without starting any requests.
+
+## Track menu
+
+Each track has a compact ellipsis menu beneath its name. Rename, enable/disable, mute/unmute, solo/unsolo, lock/unlock, duplicate, move up/down, clear clips and delete use shared engine commands. Overlay tracks omit audio mute; first/last layers omit unavailable move directions. Locked tracks omit move/clear/delete and hide selected clip edit actions while retaining inspection. State icons show disabled, muted, solo and locked tracks; custom names remain discoverable in tooltips and accessible labels.
+
+Rename and populated-track clear/delete use revision-bound dialogs; external edits invalidate an open form instead of overwriting newer state. Empty-track delete is immediate and undoable. Historical versions expose no track mutation menu. Menus support keyboard and touch, constrain scrolling to the popup and remain within mobile viewport bounds. Drag and Alt+Up/Down reordering remain available for unlocked tracks. All operations retain persistence and Undo/Redo.
