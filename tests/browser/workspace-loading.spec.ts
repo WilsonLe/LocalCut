@@ -217,7 +217,9 @@ for (const base of ['/', '/LocalCut/']) {
       await expect(
         browser.getByRole('button', { name: /^Second cached film/ }),
       ).toBeEnabled();
-      await browser.getByRole('button', { name: /^Second cached film/ }).click();
+      await browser
+        .getByRole('button', { name: /^Second cached film/ })
+        .click();
       await expect(page).toHaveURL(new RegExp(`/project/${ids.second}$`));
       release();
       await expect(
