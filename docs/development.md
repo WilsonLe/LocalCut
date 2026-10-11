@@ -170,8 +170,8 @@ Merge requires authorization and triggers automatic Pages deployment on `main`. 
 ## Indexing checks
 
 ```sh
-pnpm test tests/unit/asset-index.test.ts tests/unit/asset-index-provider.test.ts
-pnpm test:ui --grep 'workspace indexing'
+pnpm test tests/unit/asset-index.test.ts tests/unit/asset-index-provider.test.ts tests/unit/assistant.test.ts
+pnpm test:ui --grep 'workspace indexing|chat indexing'
 # After both current builds:
 pnpm test:browser tests/browser/asset-index.spec.ts
 pnpm test:performance

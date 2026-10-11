@@ -116,6 +116,188 @@ async function image(page: Page) {
   await expect(page.locator('.media-item')).toHaveCount(1);
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`chat indexing approval, saved results and revoked consent ${base}`, async ({
+    page,
+    context,
+  }) => {
+    await catalog(context);
+    const bodies: Record<string, unknown>[] = [];
+    let chatRound = 0;
+    let evidenceRequests = 0;
+    await context.route(
+      'https://openrouter.ai/api/v1/chat/completions',
+      async (route) => {
+        if (route.request().method() === 'OPTIONS') {
+          await route.fulfill({ headers: cors });
+          return;
+        }
+        const body = route.request().postDataJSON();
+        bodies.push(body);
+        let reply: string | null;
+        let tool_calls: unknown[] | undefined;
+        if (body.tools) {
+          const scope = JSON.parse(body.messages[1].content);
+          const permitted = scope.skillCatalog.some(
+            (skill: { id: string }) => skill.id === 'indexing',
+          );
+          if (!permitted) reply = 'Enable asset indexing to continue.';
+          else if (chatRound === 0) {
+            reply = null;
+            tool_calls = [
+              {
+                index: 0,
+                id: 'load-indexing',
+                type: 'function',
+                function: {
+                  name: 'load_skill',
+                  arguments: JSON.stringify({ skillId: 'indexing' }),
+                },
+              },
+            ];
+            chatRound++;
+          } else if (chatRound === 1) {
+            const assetId = scope.availableAssetIds[0];
+            expect(assetId).toBeTruthy();
+            expect(JSON.stringify(body.tools)).toContain('index_asset');
+            reply = null;
+            tool_calls = [
+              {
+                index: 0,
+                id: 'inspect',
+                type: 'function',
+                function: {
+                  name: 'inspect_asset',
+                  arguments: JSON.stringify({ assetId }),
+                },
+              },
+              {
+                index: 1,
+                id: 'index-proposal',
+                type: 'function',
+                function: {
+                  name: 'propose_action',
+                  arguments: JSON.stringify({
+                    summary: 'Index the red image',
+                    action: { type: 'index_asset', assetId },
+                  }),
+                },
+              },
+            ];
+            chatRound++;
+          } else
+            reply = scope.assetIndex.assets.length
+              ? 'Saved red image observations are available.'
+              : 'Review the indexing proposal.';
+        } else {
+          evidenceRequests++;
+          const part = body.messages.at(-1).content;
+          const sceneId =
+            Array.isArray(part) && part.length > 1
+              ? /"sceneId":"(scene-\d+)"/.exec(String(part[0].text))?.[1]
+              : undefined;
+          reply = JSON.stringify(sceneId ? { sceneId, label } : label);
+        }
+        await route.fulfill({
+          headers: cors,
+          contentType: 'text/event-stream',
+          body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { ...(reply ? { content: reply } : {}), ...(tool_calls ? { tool_calls } : {}) }, finish_reason: tool_calls ? 'tool_calls' : 'stop' }], model })}\n\ndata: [DONE]\n\n`,
+        });
+      },
+    );
+    await page.goto(base);
+    await page
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .click();
+    await page.getByRole('menuitem', { name: 'Project', exact: true }).click();
+    await page
+      .getByRole('menuitem', { name: 'New project', exact: true })
+      .click();
+    await page
+      .getByLabel('Project name', { exact: true })
+      .fill('Chat indexing');
+    await page
+      .getByRole('button', { name: 'Create project', exact: true })
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'Import media', exact: true }).first(),
+    ).toBeEnabled();
+    await image(page);
+    let dialog = await connect(page);
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    const send = async (text: string) => {
+      await page
+        .getByRole('textbox', { name: 'Describe your edit' })
+        .fill(text);
+      await page
+        .getByRole('button', { name: 'Send edit request', exact: true })
+        .click();
+    };
+    await send('Index this image');
+    await expect(
+      page.getByText('Enable asset indexing to continue.', { exact: true }),
+    ).toBeVisible();
+    expect(evidenceRequests).toBe(0);
+    expect(JSON.stringify(bodies[0])).not.toContain('index_asset');
+    dialog = await settings(page);
+    await dialog
+      .getByRole('checkbox', { name: 'Allow asset indexing' })
+      .check();
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await send('Index this image');
+    const approve = page.getByRole('button', {
+      name: 'Apply proposal',
+      exact: true,
+    });
+    await expect(approve).toBeEnabled();
+    await expect(
+      page.getByText(/Indexing sends generated stills.*may incur cost/),
+    ).toBeVisible();
+    expect(evidenceRequests).toBe(0);
+    await page.screenshot({
+      path: test.info().outputPath('chat-indexing-approval.png'),
+    });
+    await approve.click();
+    await expect(page.getByText('Completed', { exact: true })).toBeVisible();
+    expect(evidenceRequests).toBe(2);
+    await expect(await indexAction(page, 'Reindex')).toBeEnabled();
+    await page.keyboard.press('Escape');
+    await send('Find the red image');
+    await expect(
+      page.getByText('Saved red image observations are available.', {
+        exact: true,
+      }),
+    ).toBeVisible();
+    expect(JSON.stringify(bodies.at(-1))).toContain(label.summary);
+    expect(JSON.stringify(bodies.at(-1))).not.toContain('data:image');
+    await clickIndexAction(page, 'View index results');
+    const saved = page.getByRole('dialog', {
+      name: 'Asset index',
+      exact: true,
+    });
+    await expect(
+      saved.getByText(label.summary, { exact: true }).first(),
+    ).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.reload();
+    await page
+      .getByRole('button', { name: 'Expand media', exact: true })
+      .click();
+    await expect(await indexAction(page, 'Reindex')).toBeEnabled();
+    await page.keyboard.press('Escape');
+    dialog = await settings(page);
+    await dialog
+      .getByRole('checkbox', { name: 'Allow asset indexing' })
+      .uncheck();
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await send('Index again');
+    await expect(
+      page.getByText('Enable asset indexing to continue.', { exact: true }),
+    ).toBeVisible();
+    expect(evidenceRequests).toBe(2);
+    expect(JSON.stringify(bodies.at(-1))).not.toContain(label.summary);
+    expect(JSON.stringify(bodies.at(-1))).not.toContain('index_asset');
+  });
+
   test(`mobile media keeps indexing alive while closed ${base}`, async ({
     page,
     context,
