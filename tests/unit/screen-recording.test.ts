@@ -73,6 +73,8 @@ it('asks immediately, includes available audio, retains final chunk and releases
   expect(getDisplayMedia).toHaveBeenCalledWith({
     video: { frameRate: 30 },
     audio: true,
+    systemAudio: 'include',
+    windowAudio: 'system',
   });
   const recording = await pending;
   Recorder.instances[0]!.ondataavailable?.({ data: new Blob(['first bytes']) });
@@ -87,9 +89,47 @@ it('asks immediately, includes available audio, retains final chunk and releases
 });
 it('external stop-sharing finalizes once and audio-free streams use video-only encoding', async () => {
   const { abort, video } = setup();
-  const recording = await startScreenRecording(true, abort.signal);
+  const recording = await startScreenRecording(false, abort.signal);
   video.dispatchEvent(new Event('ended'));
   expect((await recording.completion).file.type).toBe('video/webm;codecs=vp9');
+});
+it('rejects missing shared audio before recording, releases capture and permits a retry', async () => {
+  const missing = setup();
+  await expect(
+    startScreenRecording(true, missing.abort.signal),
+  ).rejects.toThrow('Your browser did not share audio');
+  expect(missing.video.readyState).toBe('ended');
+  expect(Recorder.instances).toHaveLength(0);
+  const retry = setup(true);
+  const recording = await startScreenRecording(true, retry.abort.signal);
+  recording.stop();
+  expect((await recording.completion).file.type).toContain('opus');
+});
+it('rejects an ended audio track and fails if required audio ends while recording', async () => {
+  const ended = setup(true);
+  ended.sound.stop();
+  await expect(startScreenRecording(true, ended.abort.signal)).rejects.toThrow(
+    'Your browser did not share audio',
+  );
+  expect(ended.video.readyState).toBe('ended');
+  const live = setup(true);
+  const recording = await startScreenRecording(true, live.abort.signal);
+  live.sound.stop();
+  live.sound.dispatchEvent(new Event('ended'));
+  await expect(recording.completion).rejects.toThrow('Shared audio ended');
+  expect(live.video.readyState).toBe('ended');
+});
+it('explicit video-only capture excludes system and window audio', async () => {
+  const { getDisplayMedia, abort } = setup();
+  const recording = await startScreenRecording(false, abort.signal);
+  expect(getDisplayMedia).toHaveBeenCalledWith({
+    video: { frameRate: 30 },
+    audio: false,
+    systemAudio: 'exclude',
+    windowAudio: 'exclude',
+  });
+  recording.stop();
+  await recording.completion;
 });
 it('dismissal while the picker is pending releases a late stream without starting a recorder', async () => {
   const { abort, getDisplayMedia, stream, video } = setup();

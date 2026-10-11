@@ -37,7 +37,7 @@ async function source(page: Page) {
         draw();
         const stream = canvas.captureStream(30);
         const timer = setInterval(draw, 33);
-        if (options.audio) {
+        if (options.audio && state.mode !== 'no-audio') {
           const audio = new AudioContext();
           const oscillator = audio.createOscillator();
           const gain = audio.createGain();
@@ -82,7 +82,8 @@ async function fixture(page: Page, expression: string) {
     if (
       expression === 'denied' ||
       expression === 'held' ||
-      expression === 'ready'
+      expression === 'ready' ||
+      expression === 'no-audio'
     )
       state.mode = expression;
     if (expression === 'release') state.release();
@@ -153,7 +154,7 @@ for (const base of ['/', '/LocalCut/']) {
     let dialog = await open(page);
     expect((await fixture(page, '')).calls).toBe(0);
     await dialog
-      .getByRole('checkbox', { name: 'Include shared audio when available' })
+      .getByRole('checkbox', { name: 'Include shared audio' })
       .check();
     await dialog
       .getByRole('button', { name: 'Choose source and record' })
@@ -234,6 +235,9 @@ for (const base of ['/', '/LocalCut/']) {
               bitmap.close();
               results.push({
                 audio: asset.audioCodec,
+                peak: Math.max(
+                  ...(await editor.assets.waveform(asset.id, 32).completion),
+                ),
                 pixel: [...ctx.getImageData(16, 9, 1, 1).data],
               });
             } finally {
@@ -248,7 +252,10 @@ for (const base of ['/', '/LocalCut/']) {
       { base, projectId },
     );
     expect(exports.map((result) => result.audio)).toEqual(['aac', 'opus']);
-    for (const result of exports) expect(result.pixel[1]).toBeGreaterThan(220);
+    for (const result of exports) {
+      expect(result.pixel[1]).toBeGreaterThan(220);
+      expect(result.peak).toBeGreaterThan(0.05);
+    }
     await source(page);
     dialog = await open(page);
     await fixture(page, 'denied');
@@ -276,6 +283,70 @@ for (const base of ['/', '/LocalCut/']) {
     expect((await snapshot(page, base)).project.revision).toBe(
       saved.project.revision,
     );
+  });
+
+  test(`screen recording requires requested sound and allows source retry or video-only capture ${base}`, async ({
+    page,
+  }, info) => {
+    await page.goto(base);
+    await source(page);
+    const dialog = await open(page);
+    const audio = dialog.getByRole('checkbox', {
+      name: 'Include shared audio',
+      exact: true,
+    });
+    await audio.check();
+    await fixture(page, 'no-audio');
+    await dialog
+      .getByRole('button', { name: 'Choose source and record' })
+      .click();
+    await expect(dialog.getByRole('alert')).toContainText(
+      'Your browser did not share audio',
+    );
+    await expect(dialog).toContainText('Chrome');
+    await expect(
+      dialog.getByRole('button', { name: 'Stop recording' }),
+    ).not.toBeVisible();
+    expect((await fixture(page, '')).ended).toBe(true);
+    expect(await page.evaluate(() => indexedDB.databases())).toHaveLength(0);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: info.outputPath('missing-shared-audio.png'),
+    });
+    expect(
+      await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth),
+    ).toBe(true);
+    await fixture(page, 'ready');
+    await dialog
+      .getByRole('button', { name: 'Choose source and record' })
+      .click();
+    await expect(dialog.getByRole('status')).toContainText(
+      'Shared audio included',
+    );
+    await page.evaluate(() => {
+      const stream = (
+        window as unknown as { recordingFixture: { stream: MediaStream } }
+      ).recordingFixture.stream;
+      stream.getAudioTracks()[0]!.stop();
+      stream.getAudioTracks()[0]!.dispatchEvent(new Event('ended'));
+    });
+    await expect(dialog.getByRole('alert')).toContainText('Shared audio ended');
+    expect((await fixture(page, '')).ended).toBe(true);
+    await audio.uncheck();
+    await fixture(page, 'no-audio');
+    await dialog
+      .getByRole('button', { name: 'Choose source and record' })
+      .click();
+    await expect(
+      dialog.getByRole('button', { name: 'Stop recording' }),
+    ).toBeVisible();
+    await expect(dialog.getByRole('status')).toContainText('0:01');
+    await dialog.getByRole('button', { name: 'Stop recording' }).click();
+    await expect(
+      dialog.getByRole('button', { name: 'Add to media' }),
+    ).toBeEnabled();
+    await dialog.getByRole('button', { name: 'Discard', exact: true }).click();
+    expect((await fixture(page, '')).ended).toBe(true);
   });
 
   test(`screen recording pending permission and active capture discard ${base}`, async ({
@@ -334,6 +405,8 @@ test('screen recording native tab capture at both static bases', async ({
   const browser = await chromium.launch({
     channel: 'chrome',
     executablePath: process.env.LOCALCUT_CHROME_EXECUTABLE,
+    // Headless defaults mute browser output, including the tab audio we test.
+    ignoreDefaultArgs: ['--mute-audio'],
     args: [
       '--auto-select-tab-capture-source-by-title=LocalCut capture fixture',
     ],
@@ -351,6 +424,40 @@ test('screen recording native tab capture at both static bases', async ({
           }),
         );
         await target.goto(origin + '/capture-fixture');
+        await target.evaluate(() => {
+          const button = document.createElement('button');
+          button.textContent = 'Play fixture sound';
+          button.onclick = () => {
+            const audio = new AudioContext();
+            Object.assign(window, { fixtureAudio: audio });
+            const oscillator = audio.createOscillator();
+            const gain = audio.createGain();
+            gain.gain.value = 0.1;
+            oscillator.connect(gain).connect(audio.destination);
+            oscillator.start();
+            void audio.resume();
+            window.addEventListener(
+              'pagehide',
+              () => {
+                void audio.close();
+              },
+              { once: true },
+            );
+          };
+          document.body.append(button);
+        });
+        await target
+          .getByRole('button', { name: 'Play fixture sound' })
+          .click();
+        await expect
+          .poll(() =>
+            target.evaluate(
+              () =>
+                (window as unknown as { fixtureAudio: AudioContext })
+                  .fixtureAudio.state,
+            ),
+          )
+          .toBe('running');
         const page = await context.newPage();
         await page.goto(origin + base);
         await page.evaluate(() => {
@@ -364,6 +471,9 @@ test('screen recording native tab capture at both static bases', async ({
           };
         });
         const dialog = await open(page);
+        await dialog
+          .getByRole('checkbox', { name: 'Include shared audio', exact: true })
+          .check();
         await dialog
           .getByRole('button', { name: 'Choose source and record' })
           .click();
@@ -392,16 +502,37 @@ test('screen recording native tab capture at both static bases', async ({
           .toBe(1);
         const saved = await snapshot(page, base);
         expect(saved.assets[0]!.videoCodec).toBe('vp9');
-        expect(saved.assets[0]!.durationUs).toBeGreaterThan(500000);
-        const green = await page.evaluate(
+        expect(saved.assets[0]!.audioCodec).toBe('opus');
+        const peak = await page.evaluate(
           async ({ base, assetId }) => {
             const { createEditor } = (await import(
               base + 'editor.js'
             )) as typeof import('../../src/editor');
             const editor = await createEditor();
             try {
-              const frames = await editor.assets.thumbnails(assetId, [0], 32)
-                .completion;
+              return Math.max(
+                ...(await editor.assets.waveform(assetId, 32).completion),
+              );
+            } finally {
+              await editor.dispose();
+            }
+          },
+          { base, assetId: saved.assets[0]!.id },
+        );
+        expect(peak).toBeGreaterThan(0.05);
+        expect(saved.assets[0]!.durationUs).toBeGreaterThan(500000);
+        const green = await page.evaluate(
+          async ({ base, assetId, timeUs }) => {
+            const { createEditor } = (await import(
+              base + 'editor.js'
+            )) as typeof import('../../src/editor');
+            const editor = await createEditor();
+            try {
+              const frames = await editor.assets.thumbnails(
+                assetId,
+                [timeUs],
+                32,
+              ).completion;
               const bitmap = await createImageBitmap(frames[0]!.blob);
               const canvas = new OffscreenCanvas(32, 18);
               const ctx = canvas.getContext('2d')!;
@@ -412,7 +543,11 @@ test('screen recording native tab capture at both static bases', async ({
               await editor.dispose();
             }
           },
-          { base, assetId: saved.assets[0]!.id },
+          {
+            base,
+            assetId: saved.assets[0]!.id,
+            timeUs: Math.floor(saved.assets[0]!.durationUs / 2),
+          },
         );
         expect(green).toBeGreaterThan(220);
         expect(

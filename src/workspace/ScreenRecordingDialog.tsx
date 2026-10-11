@@ -35,7 +35,6 @@ export default function ScreenRecordingDialog({
   const [file, setFile] = useState<File>();
   const [url, setUrl] = useState('');
   const [limited, setLimited] = useState(false);
-  const [hasAudio, setHasAudio] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
   const session = useRef<ScreenRecording | null>(null);
   const controller = useRef<AbortController | null>(null);
@@ -80,7 +79,6 @@ export default function ScreenRecordingDialog({
         return;
       }
       session.current = recording;
-      setHasAudio(recording.stream.getAudioTracks().length > 0);
       setElapsed(0);
       setPhase('recording');
       const result = await recording.completion;
@@ -144,15 +142,22 @@ export default function ScreenRecordingDialog({
           </p>
         )}
         {phase === 'idle' && supported && (
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="record-shared-audio"
-              checked={audio}
-              onCheckedChange={(checked) => setAudio(checked === true)}
-            />
-            <Label htmlFor="record-shared-audio">
-              Include shared audio when available
-            </Label>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="record-shared-audio"
+                checked={audio}
+                onCheckedChange={(checked) => setAudio(checked === true)}
+              />
+              <Label htmlFor="record-shared-audio">Include shared audio</Label>
+            </div>
+            {audio && (
+              <p className="text-sm text-muted-foreground">
+                Enable audio in the browser’s sharing picker too. For YouTube in
+                Safari, use Chrome and share the YouTube tab with tab audio
+                enabled.
+              </p>
+            )}
           </div>
         )}
         {(phase === 'recording' || phase === 'stopping') && (
@@ -173,7 +178,7 @@ export default function ScreenRecordingDialog({
               {phase === 'stopping'
                 ? 'Finishing recording…'
                 : `Recording ${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`}
-              {audio && !hasAudio && <span> · No shared audio</span>}
+              {audio && <span> · Shared audio included</span>}
             </p>
           </>
         )}

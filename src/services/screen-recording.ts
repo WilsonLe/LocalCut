@@ -31,6 +31,13 @@ export async function startScreenRecording(
   const stream = await navigator.mediaDevices.getDisplayMedia({
     video: { frameRate: 30 },
     audio,
+    // These picker hints request available system sound for screens/windows;
+    // audio:true alone does not guarantee that a browser supplies any audio.
+    systemAudio: audio ? 'include' : 'exclude',
+    windowAudio: audio ? 'system' : 'exclude',
+  } as DisplayMediaStreamOptions & {
+    systemAudio: 'include' | 'exclude';
+    windowAudio: 'system' | 'exclude';
   });
   let released = false;
   const release = () => {
@@ -45,7 +52,13 @@ export async function startScreenRecording(
       throw new Error(
         'The selected source is no longer available. Choose it again.',
       );
-    const hasAudio = stream.getAudioTracks().length > 0;
+    const hasAudio = stream
+      .getAudioTracks()
+      .some((track) => track.readyState === 'live');
+    if (audio && !hasAudio)
+      throw new Error(
+        'Your browser did not share audio. Choose the source again and enable audio in the sharing picker, or turn off Include shared audio to record without sound.',
+      );
     const mimeType = (
       hasAudio
         ? [
@@ -88,6 +101,9 @@ export async function startScreenRecording(
     stream
       .getVideoTracks()
       .forEach((track) => track.removeEventListener('ended', stop));
+    stream
+      .getAudioTracks()
+      .forEach((track) => track.removeEventListener('ended', audioEnded));
     recorder.ondataavailable = null;
     recorder.onstop = null;
     recorder.onerror = null;
@@ -110,6 +126,14 @@ export async function startScreenRecording(
   }
   function dispose() {
     fail(new DOMException('Recording discarded', 'AbortError'));
+  }
+  function audioEnded() {
+    if (audio && !stopping)
+      fail(
+        new Error(
+          'Shared audio ended. Choose the source again to record with sound.',
+        ),
+      );
   }
   recorder.ondataavailable = (event) => {
     if (settled || !event.data.size) return;
@@ -148,6 +172,9 @@ export async function startScreenRecording(
   stream
     .getVideoTracks()
     .forEach((track) => track.addEventListener('ended', stop));
+  stream
+    .getAudioTracks()
+    .forEach((track) => track.addEventListener('ended', audioEnded));
   signal.addEventListener('abort', dispose, { once: true });
   try {
     recorder.start(1000);
