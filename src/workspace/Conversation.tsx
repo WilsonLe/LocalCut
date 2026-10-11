@@ -279,12 +279,15 @@ export function Conversation(props: ConversationProps) {
         return;
       const catalog = await provider.listModels(controller.signal);
       if (mounted.current && token === attempt.current) {
+        const primaryProfile = configuration.current.profiles.find(
+          (profile) => profile.id === provider.selectedProvider('llm'),
+        );
         const available = catalog
           .filter(
             (item) =>
               item.supportsTools &&
               item.id !== 'openrouter/auto' &&
-              (provider.selectedProvider('llm') !== 'openrouter' ||
+              (primaryProfile?.kind !== 'openrouter' ||
                 item.contextLength > 256_000),
           )
           .sort((a, b) => a.name.localeCompare(b.name));
@@ -819,12 +822,15 @@ export function Conversation(props: ConversationProps) {
     setConnecting(true);
     setConnectionError(null);
     try {
+      const primaryProfile = configuration.current.profiles.find(
+        (profile) => profile.id === connection.provider.selectedProvider('llm'),
+      );
       const catalog = (await connection.provider.listModels(controller.signal))
         .filter(
           (item) =>
             item.supportsTools &&
             item.id !== 'openrouter/auto' &&
-            (connection.provider.selectedProvider('llm') !== 'openrouter' ||
+            (primaryProfile?.kind !== 'openrouter' ||
               item.contextLength > 256_000),
         )
         .sort((a, b) => a.name.localeCompare(b.name));

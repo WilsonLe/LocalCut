@@ -198,8 +198,14 @@ for (const base of ['/', '/LocalCut/']) {
               {
                 id: 'test/model',
                 name: 'Test model',
-                context_length: 32000,
-                supported_parameters: ['tools'],
+                context_length: 512000,
+                supported_parameters: ['tools', 'tool_choice'],
+              },
+              {
+                id: 'test/small',
+                name: 'Small context model',
+                context_length: 256000,
+                supported_parameters: ['tools', 'tool_choice'],
               },
             ],
           },
@@ -387,6 +393,24 @@ for (const base of ['/', '/LocalCut/']) {
         exact: true,
       }),
     ).toBeVisible();
+    const models = dialog.getByRole('combobox', {
+      name: 'AI model',
+      exact: true,
+    });
+    await models.click();
+    await expect(
+      page.getByRole('option', {
+        name: 'Test model · test/model',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('option', {
+        name: 'Small context model · test/small',
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await page.keyboard.press('Escape');
     await dialog
       .getByRole('combobox', { name: 'LLM provider 1', exact: true })
       .click();
