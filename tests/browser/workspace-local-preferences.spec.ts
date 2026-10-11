@@ -25,6 +25,11 @@ async function closeMenu(page: Page) {
 async function connect(page: Page) {
   await openAISettings(page);
   const dialog = page.getByRole('dialog', { name: 'AI connection' });
+  const add = dialog.getByRole('button', {
+    name: 'Add OpenRouter',
+    exact: true,
+  });
+  if (await add.isVisible()) await add.click();
   await dialog
     .getByLabel('OpenRouter API key', { exact: true })
     .fill('synthetic-preference-key');
@@ -577,7 +582,7 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Data & analytics', exact: true })
       .click();
     await dialog
-      .getByRole('button', { name: 'Disconnect', exact: true })
+      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
       .click();
     expect((await preferences(page)).aiModel).toBe(
       '~deepseek/deepseek-pro-latest',
@@ -592,7 +597,7 @@ for (const base of ['/', '/LocalCut/']) {
       '~deepseek/deepseek-pro-latest',
     );
     await dialog
-      .getByRole('button', { name: 'Disconnect', exact: true })
+      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
       .click();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     available = true;

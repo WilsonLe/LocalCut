@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
@@ -17,6 +18,8 @@ import type {
   ProviderProfile,
 } from './provider-preferences';
 export interface ProviderSettingsProps {
+  openRouterControls?: ReactNode;
+  modelControls?: ReactNode;
   providerConfiguration: ProviderConfiguration;
   connectedProviders: string[];
   connecting: boolean;
@@ -56,24 +59,27 @@ export function ProviderSettings(props: ProviderSettingsProps) {
   };
   return (
     <div className="space-y-4">
-      <CollapsibleDisclosure summary="Providers & services">
+      <div>
+        <h3 className="text-sm font-medium">Providers &amp; services</h3>
         <div className="space-y-6 pt-4 pb-2">
           <div className="space-y-2">
-            {config.profiles.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between gap-3 rounded-lg border p-4"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{p.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {props.connectedProviders.includes(p.id)
-                      ? 'Connected'
-                      : 'Disconnected'}
-                  </p>
-                </div>
-                <div className="flex gap-1">
-                  {p.kind !== 'openrouter' && (
+            {config.profiles.map((p) =>
+              p.kind === 'openrouter' ? (
+                <div key={p.id}>{props.openRouterControls}</div>
+              ) : (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border p-4"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{p.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {props.connectedProviders.includes(p.id)
+                        ? 'Connected'
+                        : 'Disconnected'}
+                    </p>
+                  </div>
+                  <div className="flex gap-1">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -95,22 +101,51 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                         ? 'Edit'
                         : 'Connect'}
                     </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={props.connecting}
-                    aria-label={`Disconnect ${p.name}`}
-                    onClick={() => props.removeProvider(p.id)}
-                  >
-                    <Trash2 />
-                  </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={props.connecting}
+                      aria-label={`Remove ${p.name}`}
+                      title={`Remove ${p.name}`}
+                      onClick={() => props.removeProvider(p.id)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ),
+            )}
+            {!config.profiles.some((p) => p.kind === 'openrouter') && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={props.connecting}
+                onClick={() =>
+                  patch((next) => {
+                    next.profiles.push({
+                      id: 'openrouter',
+                      name: 'OpenRouter',
+                      kind: 'openrouter',
+                    });
+                    next.routes.llm.push({
+                      providerId: 'openrouter',
+                      model: '',
+                    });
+                    next.routes.tts.push({
+                      providerId: 'openrouter',
+                      model: '',
+                    });
+                  })
+                }
+              >
+                <Plus />
+                Add OpenRouter
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
+              disabled={props.connecting}
               onClick={() => {
                 setEditing(null);
                 setKey('');
@@ -127,6 +162,7 @@ export function ProviderSettings(props: ProviderSettingsProps) {
               Add provider
             </Button>
           </div>
+          {props.modelControls}
           {showForm && (
             <div className="space-y-5 rounded-lg border p-4 sm:p-6">
               <SettingsSelect
@@ -385,6 +421,13 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                       )
                       .join(' → ') || 'Disabled'}
                   </p>
+                  {service === 'stt' && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Remote transcription sends selected audio only after
+                      approval and may incur charges. OpenRouter requires a
+                      timestamp-capable model such as openai/whisper-1.
+                    </p>
+                  )}
                   <fieldset
                     className="mt-3 space-y-2"
                     disabled={props.connecting}
@@ -525,7 +568,8 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                               ? p.kind !== 'compatible' || !!p.model
                               : service === 'tts'
                                 ? p.kind === 'openrouter' || !!p.speechModel
-                                : !!p.transcriptionModel),
+                                : p.kind === 'openrouter' ||
+                                  !!p.transcriptionModel),
                         )
                         .map((p) => (
                           <Button
@@ -542,7 +586,10 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                                       ? (p.model ?? '')
                                       : service === 'tts'
                                         ? (p.speechModel ?? '')
-                                        : (p.transcriptionModel ?? ''),
+                                        : (p.transcriptionModel ??
+                                          (p.kind === 'openrouter'
+                                            ? 'openai/whisper-1'
+                                            : '')),
                                   ...(service === 'tts' && p.voices?.[0]
                                     ? { voice: p.voices[0] }
                                     : {}),
@@ -560,13 +607,19 @@ export function ProviderSettings(props: ProviderSettingsProps) {
               </AccordionItem>
             ))}
           </Accordion>
-          <p className="text-xs text-muted-foreground">
-            Fallback shares this request with each listed provider in order and
-            may incur charges. Chat stops switching after output begins.
-            Indexing stays on OpenRouter.
-          </p>
+          {(['llm', 'tts', 'stt'] as const).some(
+            (service) =>
+              config.routes[service].filter((r) => r.providerId !== 'local')
+                .length > 1,
+          ) && (
+            <p className="text-xs text-muted-foreground">
+              Fallback shares this request with each listed provider in order
+              and may incur charges. Chat stops switching after output begins.
+              Indexing stays on OpenRouter.
+            </p>
+          )}
         </div>
-      </CollapsibleDisclosure>
+      </div>
     </div>
   );
 }

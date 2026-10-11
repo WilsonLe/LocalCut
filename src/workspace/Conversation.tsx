@@ -68,6 +68,8 @@ export interface ConversationProps {
   selectedClipId?: string;
   readOnly?: boolean;
   onApplied: () => Promise<void>;
+  onNewProject: () => void;
+  onOpenProjects: () => void;
   onError: (error: unknown) => void;
   registerCleanup?: (cleanup: () => Promise<void>) => void;
   collapsed: boolean;
@@ -439,6 +441,15 @@ export function Conversation(props: ConversationProps) {
       setApiKey('');
       setSpeechOpen(false);
       const client = providers.current.get(id)?.client;
+      // Even a disconnected row may have an outstanding same-tab OAuth flow.
+      if (forget && id === 'openrouter') {
+        try {
+          window.sessionStorage.removeItem('localcut-openrouter-oauth-v1');
+        } catch {
+          /* In-memory retirement still applies. */
+        }
+      }
+      let removalFailed = false;
       try {
         if (forget) {
           if (client) client.disconnect();
@@ -446,14 +457,14 @@ export function Conversation(props: ConversationProps) {
             window.localStorage.removeItem(CREDENTIAL_STORAGE_KEY);
         }
       } catch (error) {
+        removalFailed = true;
         report(id === 'openrouter' ? storageError() : error);
       }
       client?.dispose();
       providers.current.delete(id);
       const next = structuredClone(configuration.current);
-      if (forget) {
-        if (id !== 'openrouter')
-          next.profiles = next.profiles.filter((p) => p.id !== id);
+      if (forget && !removalFailed) {
+        next.profiles = next.profiles.filter((p) => p.id !== id);
         next.routes.llm = next.routes.llm.filter((r) => r.providerId !== id);
         next.routes.tts = next.routes.tts.filter((r) => r.providerId !== id);
         next.routes.stt = next.routes.stt.filter((r) => r.providerId !== id);
@@ -543,12 +554,21 @@ export function Conversation(props: ConversationProps) {
         });
         accepted = true;
         const next = structuredClone(configuration.current);
+        const added = !next.profiles.some((p) => p.id === 'openrouter');
+        if (added)
+          next.profiles.push({
+            id: 'openrouter',
+            name: 'OpenRouter',
+            kind: 'openrouter',
+          });
         if (
+          added &&
           kind !== 'saved' &&
           !next.routes.llm.some((r) => r.providerId === 'openrouter')
         )
           next.routes.llm.push({ providerId: 'openrouter', model: '' });
         if (
+          added &&
           kind !== 'saved' &&
           !next.routes.tts.some((r) => r.providerId === 'openrouter')
         )
@@ -559,6 +579,29 @@ export function Conversation(props: ConversationProps) {
         await publishConnection(api, token, controller, kind !== 'saved');
       } catch (error) {
         if (current()) {
+          if (kind === 'callback') {
+            setSettingsOpen(true);
+            // A declined or invalid refresh must keep the previously saved connection usable.
+            if (!accepted && provider) {
+              try {
+                if (provider.restoreCredential().connected) {
+                  providers.current.set('openrouter', {
+                    id: 'openrouter',
+                    name: 'OpenRouter',
+                    client: provider,
+                  });
+                  accepted = true;
+                  await publishConnection(
+                    moduleRef.current!,
+                    token,
+                    controller,
+                  );
+                }
+              } catch {
+                // Keep the original authorization error; never expose storage/provider bodies.
+              }
+            }
+          }
           // Speech-only connections need no tool-capable chat catalog. Background
           // restoration must not interrupt project navigation with a chat dialog.
           if (
@@ -909,6 +952,46 @@ export function Conversation(props: ConversationProps) {
           <div className="conversation-session">
             <div className="min-h-0 flex-1" />
             <div className="chat-composer">
+              {connection && (
+                <div className="space-y-2 px-1 pb-2">
+                  <p role="status" className="text-xs text-muted-foreground">
+                    {connecting
+                      ? 'Loading AI models…'
+                      : !selectedModel
+                        ? 'Choose an AI model to start chatting.'
+                        : 'Create or open a project to start chatting.'}
+                  </p>
+                  {!connecting &&
+                    (!selectedModel ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSettingsOpen(true)}
+                      >
+                        Choose AI model
+                      </Button>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label="Create project for chat"
+                          onClick={props.onNewProject}
+                        >
+                          New project
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label="Open project for chat"
+                          onClick={props.onOpenProjects}
+                        >
+                          Open project
+                        </Button>
+                      </div>
+                    ))}
+                </div>
+              )}
               <Textarea
                 aria-label="Describe your edit"
                 placeholder="What would you like to change?"

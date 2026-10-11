@@ -209,3 +209,8 @@ This is the project record of the user's durable product and workflow choices. U
 ## Screen recording — 11 October 2026
 
 - Create new local media by recording screens and app windows, with browser tabs available through the browser's source picker. Keep explicit source permission and use the existing local import, editing and persistence workflow.
+
+## AI Connector — 11 October 2026
+
+- Allow removing OpenRouter from configured providers, remember that removal, and offer an explicit way to add it again.
+- Let users reconnect OpenRouter or replace its key while connected; retain deliberately configured service routes and models. Keep provider identity, status and connection actions together, with optional details revealed progressively.

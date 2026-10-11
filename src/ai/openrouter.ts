@@ -530,7 +530,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
     async transcribeSpeech(request, signal) {
       assertActive();
       aiInvariant(
-        compatible?.transcriptionModel,
+        !compatible || compatible.transcriptionModel,
         'MODEL_UNSUPPORTED',
         'This connection does not support STT.',
       );
@@ -540,7 +540,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         'Connect the transcription provider.',
       );
       aiInvariant(
-        request.model === compatible.transcriptionModel,
+        !compatible || request.model === compatible.transcriptionModel,
         'MODEL_UNSUPPORTED',
         'Use the configured timestamp-capable transcription model.',
       );

@@ -161,10 +161,13 @@ export class AuthorizationFlow {
       );
     }
     const url = new URL('https://openrouter.ai/auth');
-    url.searchParams.set('callback_url', callback.href);
+    // Carry state in the callback itself: code-only redirects preserve it.
+    // OpenRouter documented this form before adding top-level state support.
+    const providerCallback = new URL(callback.href);
+    providerCallback.searchParams.set('state', state);
+    url.searchParams.set('callback_url', providerCallback.href);
     url.searchParams.set('code_challenge', challenge);
     url.searchParams.set('code_challenge_method', 'S256');
-    url.searchParams.set('state', state);
     url.searchParams.set('key_label', 'LocalCut');
     return { authorizationUrl: url.href, expiresAt: createdAt + OAUTH_TTL_MS };
   }

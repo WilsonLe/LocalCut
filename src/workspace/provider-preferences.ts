@@ -101,12 +101,6 @@ export function parseProviderConfiguration(raw: string): ProviderConfiguration {
       }
       profiles.push(profile);
     }
-    if (!profiles.some((p) => p.id === 'openrouter'))
-      profiles.unshift({
-        id: 'openrouter',
-        name: 'OpenRouter',
-        kind: 'openrouter',
-      });
     const routes: ServiceRoutes = {
       llm: [],
       tts: [],
@@ -138,7 +132,9 @@ export function parseProviderConfiguration(raw: string): ProviderConfiguration {
               (p.kind === 'compatible' && !p.speechModel))) ||
           (service === 'llm' && p.kind === 'compatible' && !p.model) ||
           (service === 'stt' &&
-            (p.kind !== 'compatible' || !p.transcriptionModel || !r.model))
+            (p.kind === 'chatgpt' ||
+              (p.kind === 'compatible' && !p.transcriptionModel) ||
+              !r.model))
         )
           return defaultProviderConfiguration();
         const route = {

@@ -1,3 +1,4 @@
+import { dismissNotifications } from './workspace-notifications-helper';
 import { openAISettings } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 
@@ -118,11 +119,7 @@ for (const base of ['/', '/LocalCut/']) {
     expect(requests).toBe(2);
     // On mobile the error toast covers Send; shared-browser focus can pause
     // its auto-dismiss. Close it through the same control a user can use.
-    await page
-      .getByRole('listitem')
-      .filter({ hasText: 'OpenRouter rejected the request (HTTP 404).' })
-      .getByRole('button', { name: 'Close toast', exact: true })
-      .click();
+    await dismissNotifications(page);
     reject = false;
     await composer.fill('Try again');
     await send.click();
@@ -278,14 +275,20 @@ for (const base of ['/', '/LocalCut/']) {
     await openAISettings(page);
     await expect(dialog).toBeVisible();
     await dialog
-      .getByRole('button', { name: 'Disconnect', exact: true })
+      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
       .click();
     await expect(
       dialog.getByLabel('OpenRouter API key', { exact: true }),
-    ).toHaveValue('');
+    ).toHaveCount(0);
+    await expect(
+      dialog.getByRole('button', { name: 'Add OpenRouter', exact: true }),
+    ).toBeVisible();
     await expect(
       dialog.getByText('Key connected', { exact: true }),
     ).toHaveCount(0);
+    await dialog
+      .getByRole('button', { name: 'Add OpenRouter', exact: true })
+      .click();
     await dialog
       .getByLabel('OpenRouter API key', { exact: true })
       .fill('synthetic-second-key');
