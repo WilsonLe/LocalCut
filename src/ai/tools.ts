@@ -61,6 +61,7 @@ const actionSchema = z.discriminatedUnion('type', [
         .optional(),
     })
     .strict(),
+  assetSchema.extend({ type: z.literal('index_asset') }),
   z.object({ type: z.literal('prepare_transcription') }).strict(),
 ]);
 const schemas = {
@@ -71,6 +72,7 @@ const schemas = {
         'storyboard',
         'export',
         'transcription',
+        'indexing',
         'history',
       ]),
     })
@@ -207,7 +209,9 @@ export function toolDefinitions(
           return true;
         case 'inspect_asset':
           return (
-            loadedSkills.has('editing') || loadedSkills.has('transcription')
+            loadedSkills.has('editing') ||
+            loadedSkills.has('transcription') ||
+            (loadedSkills.has('indexing') && !!capabilities.indexing)
           );
         case 'inspect_storyboard':
           return loadedSkills.has('storyboard');
@@ -258,7 +262,7 @@ export function toolDefinitions(
           name,
           description:
             name === 'propose_action'
-              ? `Propose one available action: ${[...permittedActions].join(', ')}. Nothing runs until explicit user approval. Source media stays local; Save is a separate user action.`
+              ? `Propose one available action: ${[...permittedActions].join(', ')}. Nothing runs until explicit user approval. Indexing shares separately consented derived evidence and may incur cost; source files stay local. Save is a separate user action.`
               : descriptions[name],
           parameters,
         },
@@ -271,6 +275,8 @@ export function allowedActions(
   loadedSkills: ReadonlySet<SkillId>,
 ) {
   const allowed = new Set<z.infer<typeof actionSchema>['type']>();
+  if (loadedSkills.has('indexing') && capabilities.indexing)
+    allowed.add('index_asset');
   if (loadedSkills.has('history')) {
     if (capabilities.undo) allowed.add('undo');
     if (capabilities.redo) allowed.add('redo');

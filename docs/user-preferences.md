@@ -333,7 +333,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 ## Task queue table — 11 October 2026
 
-- Render the task queue using the shadcn Base table. When columns overflow horizontally, show shaded left/right chevrons only in directions with more content; clicking moves one column in that direction.
+- Render the task queue using the shadcn Base table. When columns overflow horizontally, show shaded left/right chevrons only in directions with more content; clicking moves one column in that direction. Render standalone chevrons without visible button boxes over a shaded gradient using theme colors; retain accessible click targets and keyboard focus.
 
 ## Project switcher dialog — 11 October 2026
 
@@ -357,3 +357,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Put Editor and Storyboard tabs in the main project header. Editor contains the preview and timeline; Storyboard presents a project-owned Excalidraw diagram branded as the project's storyboard.
 - Give the editing agent the ability to inspect and work on the storyboard through the same shared engine and explicit edit approval used for timeline work.
+
+## Chat asset indexing — 11 October 2026
+
+- Let the chat agent index assets through the existing shared indexer. Keep remembered indexing consent and explicit proposal approval, disclose derived-evidence sharing and possible cost, and reuse progress/cancellation and saved local results.

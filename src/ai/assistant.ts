@@ -1,4 +1,5 @@
 import { storyboardContext } from './context';
+import type { AssetIndexRun } from '../core/asset-index';
 import type { CommandBatch, EditReceipt } from '../core/commands';
 import { assetIds, durationUs } from '../core/model';
 import type { ExportOptions, ExportResult } from '../media/export';
@@ -94,6 +95,12 @@ export interface AssistantOptions {
   /** Trusted service route, frozen with this session and disclosed on every transcription proposal. */
   transcription?: {
     execute: import('../editor').TranscriptionExecutor;
+    disclosure: string;
+  };
+  /** Trusted selected-model indexer; permission is checked again on approval. */
+  indexing?: {
+    run: (assetId: string, requestId: string) => Job<AssetIndexRun>;
+    consent: () => boolean;
     disclosure: string;
   };
   limits?: AssistantLimits;
@@ -250,6 +257,7 @@ export function createAssistant(options: AssistantOptions) {
   const transcription = options.transcription
     ? { ...options.transcription }
     : undefined;
+  const indexing = options.indexing ? { ...options.indexing } : undefined;
   const checkpoint = options.branch ? branches.get(options.branch) : undefined;
   const selectedAssetIds = checkpoint
     ? [...new Set([...checkpoint.assetIds, ...(options.assetIds ?? [])])]
@@ -266,6 +274,8 @@ export function createAssistant(options: AssistantOptions) {
   const { editor, provider, projectId, model } = options;
   const taskQueue = options.tasks ?? editor.tasks;
   const capabilities = assistantCapabilities(editor);
+  const canIndex = () => !!policy.includeAssetIndexes && !!indexing?.consent();
+  capabilities.indexing = canIndex();
   const listeners = new Set<(event: AssistantEvent) => void>();
   const proposals = new Map<string, EditProposal>();
   const applying = new Map<string, Promise<AssistantActionResult>>();
@@ -390,6 +400,7 @@ export function createAssistant(options: AssistantOptions) {
           }
           indexScope = scope;
         }
+        capabilities.indexing = canIndex();
         const user: ChatMessage = { role: 'user', content: prompt };
         const conversation: ChatMessage[] = [user];
         const liveConversation: ChatMessage[] = [user];
@@ -581,13 +592,16 @@ export function createAssistant(options: AssistantOptions) {
                   crossfade:
                     'explicit_overlap_between_adjacent_visual_clips_no_triple_overlap',
                 },
-                explicitApproval: ['all_edit_batches'],
+                explicitApproval: ['all_edit_batches', 'all_service_actions'],
+                indexing: capabilities.indexing
+                  ? { action: 'index_asset', dataSharing: indexing!.disclosure }
+                  : undefined,
                 userActions: [
                   'choose_or_relink_local_files',
                   'create_or_open_projects',
                   'save_export_artifacts',
                   'project_versions_backups_and_library_administration',
-                  'capture_generate_speech_and_start_asset_indexing',
+                  'capture_and_generate_speech',
                   'playback_selection_view_and_provider_settings',
                 ],
                 privacy: { rawMediaAvailable: false, ...policy },
@@ -736,14 +750,34 @@ export function createAssistant(options: AssistantOptions) {
                     ? capabilities.redo
                     : action.type === 'export'
                       ? capabilities.export
-                      : action.type === 'transcribe'
-                        ? capabilities.transcription
-                        : capabilities.transcriptionPreparation;
+                      : action.type === 'index_asset'
+                        ? canIndex()
+                        : action.type === 'transcribe'
+                          ? capabilities.transcription
+                          : capabilities.transcriptionPreparation;
               aiInvariant(
                 supported,
                 'TOOL_NOT_ALLOWED',
                 'This local service is unavailable.',
               );
+              if (action.type === 'index_asset') {
+                aiInvariant(
+                  availableAssets.has(action.assetId),
+                  'TOOL_NOT_ALLOWED',
+                  'Asset was not selected or referenced by this project.',
+                );
+                const asset = await interruptible(
+                  editor.assets.inspect(action.assetId),
+                  signal,
+                );
+                check();
+                aiInvariant(
+                  asset.status === 'ready' &&
+                    ['image', 'video', 'audio'].includes(asset.kind),
+                  'EDIT_REJECTED',
+                  'Indexing requires a ready image, video or audio asset.',
+                );
+              }
               if (action.type === 'transcribe') {
                 aiInvariant(
                   availableAssets.has(action.assetId),
@@ -783,6 +817,9 @@ export function createAssistant(options: AssistantOptions) {
                   operations: [],
                 },
                 action: structuredClone(action),
+                ...(action.type === 'index_asset' && indexing
+                  ? { dataSharing: indexing.disclosure }
+                  : {}),
                 ...(action.type === 'transcribe' && transcription
                   ? { dataSharing: transcription.disclosure }
                   : {}),
@@ -802,6 +839,7 @@ export function createAssistant(options: AssistantOptions) {
         };
         for (let round = 0; round < limits.maxRounds; round++) {
           check();
+          capabilities.indexing = canIndex();
           const tools = toolDefinitions(
             !!policy.includeTranscripts,
             capabilities,
@@ -1260,6 +1298,28 @@ export function createAssistant(options: AssistantOptions) {
                 name: `LocalCut.${artifact.format}`,
                 size: artifact.file.size,
                 durationUs: artifact.durationUs,
+              };
+            } else if (action.type === 'index_asset') {
+              aiInvariant(
+                indexing && canIndex(),
+                'TOOL_NOT_ALLOWED',
+                'Asset indexing permission is required.',
+              );
+              aiInvariant(
+                new Set([...assetIds(current), ...selectedAssetIds]).has(
+                  action.assetId,
+                ),
+                'TOOL_NOT_ALLOWED',
+                'Asset was not selected or referenced by this project.',
+              );
+              const run = await runJob(
+                indexing.run(action.assetId, proposal.batch.requestId),
+              );
+              result = {
+                kind: 'indexing',
+                runId: run.id,
+                assetId: run.assetId,
+                sceneCount: run.analysis.scenes.length,
               };
             } else if (action.type === 'transcribe') {
               aiInvariant(

@@ -3029,3 +3029,250 @@ it('uses shared generated-speech phrase metadata to propose a padded trim withou
     await privateSession.dispose();
   }
 });
+
+describe('approved chat asset indexing', () => {
+  function setup({
+    allowed = true,
+    includeIndexes = true,
+    supported = true,
+    assetId = 'asset',
+  } = {}) {
+    const f = fixture();
+    const jobs = new Jobs();
+    let consent = allowed;
+    const execute = vi.fn(() =>
+      jobs.start(async (_signal, progress) => {
+        progress({ stage: 'label', progress: 0.5 });
+        return {
+          id: 'saved-run',
+          assetId,
+          analysis: { scenes: [{ id: 'scene-0' }] },
+        } as import('../../src/core/asset-index').AssetIndexRun;
+      }),
+    );
+    const p = provider(
+      [
+        [final('', [call('load_skill', { skillId: 'indexing' })])],
+        [
+          final('', [
+            call('inspect_asset', { assetId }),
+            call(
+              'propose_action',
+              {
+                summary: 'Index this asset',
+                action: { type: 'index_asset', assetId },
+              },
+              'proposal',
+            ),
+          ]),
+        ],
+        [final()],
+      ],
+      false,
+    );
+    const assistant = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      context: { includeAssetIndexes: includeIndexes },
+      indexing: supported
+        ? {
+            run: execute,
+            consent: () => consent,
+            disclosure:
+              'Generated evidence goes to OpenRouter test/model; may incur cost.',
+          }
+        : undefined,
+    });
+    return {
+      ...f,
+      jobs,
+      execute,
+      provider: p,
+      assistant,
+      revoke: () => {
+        consent = false;
+      },
+    };
+  }
+  it('discovers indexing, discloses evidence and waits for approval, then exposes only result metadata', async () => {
+    const f = setup();
+    const events: AssistantEvent[] = [];
+    f.assistant.subscribe((event) => events.push(event));
+    try {
+      const turn = await f.assistant.run('Index my asset').completion;
+      expect(
+        f.provider.requests[0]!.tools.map((t) => t.function.name),
+      ).not.toContain('propose_action');
+      expect(JSON.stringify(f.provider.requests[0]!.messages)).toContain(
+        'indexing',
+      );
+      expect(JSON.stringify(f.provider.requests[1]!.tools)).toContain(
+        'index_asset',
+      );
+      expect(f.execute).not.toHaveBeenCalled();
+      const proposal = f.assistant.snapshot().proposals[0]!;
+      expect(proposal.dataSharing).toContain('may incur cost');
+      expect(() => f.assistant.applyProposal(proposal.id)).toThrow(
+        /approveProposal/,
+      );
+      const result = await f.assistant.approveProposal(turn.proposalIds[0]!);
+      expect(result).toEqual({
+        kind: 'indexing',
+        runId: 'saved-run',
+        assetId: 'asset',
+        sceneCount: 1,
+      });
+      expect(f.execute).toHaveBeenCalledExactlyOnceWith(
+        'asset',
+        proposal.batch.requestId,
+      );
+      expect(
+        events.some(
+          (e) => e.type === 'proposal_progress' && e.progress.stage === 'label',
+        ),
+      ).toBe(true);
+      expect(f.project().revision).toBe(0);
+      await expect(f.assistant.approveProposal(proposal.id)).resolves.toEqual(
+        result,
+      );
+      expect(f.execute).toHaveBeenCalledTimes(1);
+    } finally {
+      await f.assistant.dispose();
+      await f.jobs.dispose();
+    }
+  });
+  it('retains the request identity only for explicit reapproval of the failed proposal', async () => {
+    const f = setup();
+    f.execute.mockImplementationOnce(() =>
+      f.jobs.start(async () => {
+        throw new EditorError('WORKER_FAILED', 'Controlled failure');
+      }),
+    );
+    try {
+      const turn = await f.assistant.run('Index').completion;
+      const proposal = f.assistant.getProposal(turn.proposalIds[0]!);
+      await expect(
+        f.assistant.approveProposal(proposal.id),
+      ).rejects.toHaveProperty('code');
+      expect(f.assistant.getProposal(proposal.id).status).toBe('pending');
+      expect(f.execute).toHaveBeenCalledTimes(1);
+      await expect(
+        f.assistant.approveProposal(proposal.id),
+      ).resolves.toMatchObject({ kind: 'indexing' });
+      expect(f.execute).toHaveBeenNthCalledWith(
+        1,
+        'asset',
+        proposal.batch.requestId,
+      );
+      expect(f.execute).toHaveBeenNthCalledWith(
+        2,
+        'asset',
+        proposal.batch.requestId,
+      );
+    } finally {
+      await f.assistant.dispose();
+      await f.jobs.dispose();
+    }
+  });
+  it.each([
+    { allowed: false },
+    { includeIndexes: false },
+    { supported: false },
+  ])(
+    'does not grant indexing from a loaded skill when permission/capability is absent: %j',
+    async (options) => {
+      const f = setup(options);
+      try {
+        await f.assistant.run('Index').completion;
+        expect(
+          JSON.stringify(f.provider.requests[0]!.messages[1]),
+        ).not.toContain('"id":"indexing"');
+        expect(JSON.stringify(f.provider.requests[1]!.tools)).not.toContain(
+          'index_asset',
+        );
+        expect(f.assistant.snapshot().proposals).toEqual([]);
+        expect(f.execute).not.toHaveBeenCalled();
+      } finally {
+        await f.assistant.dispose();
+        await f.jobs.dispose();
+      }
+    },
+  );
+  it('rejects unselected library IDs without starting indexing', async () => {
+    const f = setup({ assetId: 'private-library-asset' });
+    try {
+      await f.assistant.run('Index').completion;
+      expect(f.assistant.snapshot().proposals).toEqual([]);
+      expect(f.execute).not.toHaveBeenCalled();
+      expect(JSON.stringify(f.provider.requests.at(-1))).toContain(
+        'TOOL_NOT_ALLOWED',
+      );
+    } finally {
+      await f.assistant.dispose();
+      await f.jobs.dispose();
+    }
+  });
+  it.each(['consent', 'revision', 'scope'] as const)(
+    'rechecks %s at approval',
+    async (change) => {
+      const f = setup();
+      try {
+        const turn = await f.assistant.run('Index').completion;
+        if (change === 'consent') f.revoke();
+        if (change === 'revision') f.changeRevision();
+        if (change === 'scope') f.project().tracks[0]!.clips = [];
+        await expect(
+          f.assistant.approveProposal(turn.proposalIds[0]!),
+        ).rejects.toMatchObject({
+          code:
+            change === 'revision' ? 'REVISION_CONFLICT' : 'TOOL_NOT_ALLOWED',
+        });
+        expect(f.execute).not.toHaveBeenCalled();
+      } finally {
+        await f.assistant.dispose();
+        await f.jobs.dispose();
+      }
+    },
+  );
+  it.each(['cancel', 'dispose'] as const)(
+    'aborts a running index job on %s and never publishes a late success',
+    async (action) => {
+      const f = setup();
+      const started = deferred<void>();
+      let aborted = false;
+      f.execute.mockImplementation(() =>
+        f.jobs.start(async (signal, progress) => {
+          progress({ stage: 'label' });
+          started.resolve();
+          await new Promise<void>((resolve) =>
+            signal.addEventListener(
+              'abort',
+              () => {
+                aborted = true;
+                resolve();
+              },
+              { once: true },
+            ),
+          );
+          throw new EditorError('CANCELLED', 'Cancelled');
+        }),
+      );
+      try {
+        const turn = await f.assistant.run('Index').completion;
+        const id = turn.proposalIds[0]!;
+        const operation = f.assistant.approveProposal(id);
+        await started.promise;
+        if (action === 'cancel') f.assistant.cancelProposal(id);
+        else await f.assistant.dispose();
+        await expect(operation).rejects.toMatchObject({ code: 'CANCELLED' });
+        expect(aborted).toBe(true);
+        expect(f.assistant.snapshot().proposals[0]?.result).toBeUndefined();
+      } finally {
+        await f.assistant.dispose();
+        await f.jobs.dispose();
+      }
+    },
+  );
+});

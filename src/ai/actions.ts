@@ -11,6 +11,7 @@ export type AssistantAction =
       assetId: string;
       options?: { language?: string; startUs?: number; endUs?: number };
     }
+  | { type: 'index_asset'; assetId: string }
   | { type: 'prepare_transcription' };
 
 export type AssistantActionResult =
@@ -31,6 +32,7 @@ export type AssistantActionResult =
       assetId: string;
       cueCount: number;
     }
+  | { kind: 'indexing'; runId: string; assetId: string; sceneCount: number }
   | { kind: 'preparation'; ready: boolean };
 
 /** An assistant may be embedded with just document editing, or the full engine. */
@@ -48,6 +50,7 @@ export interface AssistantEditor {
 }
 
 export interface AssistantCapabilities {
+  indexing?: boolean;
   undo: boolean;
   redo: boolean;
   export: boolean;
