@@ -778,6 +778,9 @@
   background: var(--border);
 }
 .timeline-clip {
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
   position: absolute;
   height: 100%;
   border: 1px solid var(--background);
@@ -2065,4 +2068,17 @@
 }
 .timeline-track[data-solo='true'] .track-label {
   color: var(--foreground);
+}
+
+.timeline-clip-container[data-moving='true'] {
+  opacity: 0.35;
+}
+.timeline-clip-move-placeholder {
+  border: 2px dashed var(--foreground);
+  pointer-events: none;
+  z-index: 6;
+  cursor: grabbing;
+}
+.playback-controls > div {
+  flex-wrap: nowrap;
 }

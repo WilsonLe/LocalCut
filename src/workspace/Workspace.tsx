@@ -1955,6 +1955,7 @@ export function Workspace() {
                         ]);
                       })
                     }
+                    onMoveClips={trackOperation}
                     onTrackOperation={trackOperation}
                   />
                 </Suspense>
