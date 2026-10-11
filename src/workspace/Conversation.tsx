@@ -945,7 +945,6 @@ export function Conversation(props: ConversationProps) {
                   composerControl={null}
                   retireSession={retireSession}
                   waitForRetired={waitForRetired}
-
                   onBusy={setSessionBusy}
                   onDraftChange={(hasDraft) =>
                     setChatSessions((sessions) =>
@@ -981,29 +980,49 @@ export function Conversation(props: ConversationProps) {
                 </EmptyMedia>
                 {chatProviderAvailable && (
                   <EmptyDescription>
-                    {!selectedModel
-                      ? 'Choose a chat model'
-                      : 'Open a project to chat'}
+                    {connecting
+                      ? 'Loading AI models…'
+                      : !selectedModel
+                        ? 'Choose an AI model to start chatting.'
+                        : 'Create or open a project to start chatting.'}
                   </EmptyDescription>
                 )}
               </EmptyHeader>
               <EmptyContent>
-                <Button
-                  variant={!chatProviderAvailable ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={(event) => {
-                    settingsReturnFocus.current = event.currentTarget;
-                    if (!chatProviderAvailable || !selectedModel)
+                {!chatProviderAvailable || !selectedModel ? (
+                  <Button
+                    variant={!chatProviderAvailable ? 'default' : 'outline'}
+                    size="sm"
+                    disabled={connecting}
+                    onClick={(event) => {
+                      settingsReturnFocus.current = event.currentTarget;
                       setSettingsOpen(true);
-                    else go('projects');
-                  }}
-                >
-                  {!chatProviderAvailable
-                    ? 'Connect provider'
-                    : !selectedModel
-                      ? 'Choose model'
-                      : 'Choose project'}
-                </Button>
+                    }}
+                  >
+                    {!chatProviderAvailable
+                      ? 'Connect provider'
+                      : 'Choose AI model'}
+                  </Button>
+                ) : (
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      aria-label="Create project for chat"
+                      onClick={props.onNewProject}
+                    >
+                      New project
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      aria-label="Open project for chat"
+                      onClick={props.onOpenProjects}
+                    >
+                      Open project
+                    </Button>
+                  </div>
+                )}
               </EmptyContent>
             </Empty>
           </div>
