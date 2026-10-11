@@ -1737,6 +1737,12 @@ export function Workspace() {
         {projectsOpen && !navigation.error && (
           <ProjectBrowser
             projects={catalog.projects}
+            editor={editor}
+            onRename={catalog.rename}
+            onDetails={catalog.updateDetails}
+            onExport={(id) =>
+              setTransfer({ mode: 'export', projectOnly: true, projectId: id })
+            }
             currentProjectId={project?.id}
             busy={busy}
             navigationBusy={operationBusy}

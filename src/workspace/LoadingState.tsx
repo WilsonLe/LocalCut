@@ -10,11 +10,11 @@ export function ProjectListSkeleton() {
       aria-label="Loading projects"
     >
       <span className="sr-only">Loading projects</span>
-      <div aria-hidden="true">
+      <div aria-hidden="true" className="project-browser-list">
         {[0, 1, 2].map((row) => (
-          <div className="project-skeleton-row" key={row}>
-            <Placeholder className="project-skeleton-icon" />
-            <div className="project-skeleton-details">
+          <div className="project-card grid gap-4 pb-4" key={row}>
+            <Placeholder className="aspect-video w-full" />
+            <div className="project-skeleton-details px-4">
               <Placeholder className="loading-title" />
               <Placeholder className="loading-detail" />
             </div>

@@ -219,6 +219,10 @@ Production Chrome captures: [mobile editor](screenshots/mobile-editor.png), [med
 
 When no configured chat provider is available, chat renders a centered, framed shadcn Empty state with a provider icon and a Connect provider button that opens the existing AI connection dialog, without helper copy. A connected provider without a selected model shows Choose AI model; a configured chat without a project offers New project and Open project. These states replace unavailable composer controls without starting any requests.
 
+### Project cards and actions
+
+Projects shows a responsive card list with Active and Archived controls beside the page title. Open a card to resume editing, or use its actions menu to Rename, Adjust thumbnail, Export backup, or Archive/Restore. Rename is undoable. Thumbnail adjustment accepts a local PNG, JPEG or WebP image and horizontal/vertical framing; Use automatic thumbnail resets to a frame from the first image/video clip (or a film placeholder when no source is available). Archive preserves edits, versions and originals and remains reversible in Archived. The current project remains open and identifiable while archived. Custom covers and archive organization stay in this browser and are excluded from exported editing backups.
+
 ## Track menu
 
 Each track has a compact ellipsis menu beneath its name. Rename, enable/disable, mute/unmute, solo/unsolo, lock/unlock, duplicate, move up/down, clear clips and delete use shared engine commands. Overlay tracks omit audio mute; first/last layers omit unavailable move directions. Locked tracks omit move/clear/delete and hide selected clip edit actions while retaining inspection. State icons show disabled, muted, solo and locked tracks; custom names remain discoverable in tooltips and accessible labels.

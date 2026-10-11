@@ -1258,6 +1258,7 @@ describe('headless assistant boundaries', () => {
   it('evaluates timing, dry-runs every canonical editing operation and redacts planning feedback', async () => {
     const f = fixture();
     const operations: EditOperation[] = [
+      { type: 'renameProject', name: 'Renamed film' },
       { type: 'addTrack', track: { id: 'temporary', kind: 'overlay' } },
       { type: 'reorderTrack', trackId: 'temporary', index: 0 },
       {
@@ -1437,6 +1438,7 @@ describe('headless assistant boundaries', () => {
       /Private client project|Private overlay text|Private cue text/,
     );
     await assistant.applyProposal(response.proposalIds[0]!);
+    expect(f.project().name).toBe('Renamed film');
     expect(
       f.project().tracks[0]!.clips.find((clip) => clip.id === 'right'),
     ).toMatchObject({ brightness: 1.2, crop: { width: 0.75 }, gain: 0.25 });
