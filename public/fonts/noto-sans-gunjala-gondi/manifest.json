@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-gunjala-gondi",
+  "weight": 400,
+  "files": [
+    {
+      "file": "gunjala-gondi.woff2",
+      "subset": "gunjala-gondi",
+      "unicodeRange": "U+0964-0965,U+200C-200D,U+25CC,U+11D60-11DAF",
+      "sha256": "b301206f4c89f9545b8b6c972f2e0430cf22fe82c8a9376e94841945fc4c94f9",
+      "bytes": 26756,
+      "source": "https://fonts.gstatic.com/s/notosansgunjalagondi/v21/bWtX7e7KfBziStx7lIzKPrcSMwcEnCv6DW7n5g0ef3PLtymzNxYL4YD0kJQu.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "cb03e661de345aed6367eedab2202635a2e71c7aead56a1af50a2c57c377c16d",
+      "bytes": 10392,
+      "source": "https://fonts.gstatic.com/s/notosansgunjalagondi/v21/bWtX7e7KfBziStx7lIzKPrcSMwcEnCv6DW7n5g0ef3PLtymzNxYL4YD055Qu.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "abb956ee2b90e28c00fb90c8eb2f55c0e1bc61d7fdc64175fe9562703a3c9b7b",
+      "bytes": 12952,
+      "source": "https://fonts.gstatic.com/s/notosansgunjalagondi/v21/bWtX7e7KfBziStx7lIzKPrcSMwcEnCv6DW7n5g0ef3PLtymzNxYL4YD06ZQu.woff2"
+    }
+  ]
+}

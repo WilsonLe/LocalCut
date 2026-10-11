@@ -1,0 +1,14 @@
+{
+  "family": "LocalCut amaranth",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "665b0ee97f6e98f695e48cdaebb0fa49a99ea7bb35b0eb6770810e0c4840bdec",
+      "bytes": 26216,
+      "source": "https://fonts.gstatic.com/s/amaranth/v19/KtkuALODe433f0j1zMnFHdA.woff2"
+    }
+  ]
+}

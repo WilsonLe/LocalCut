@@ -1,0 +1,46 @@
+{
+  "family": "LocalCut wix-madefor-display",
+  "weight": 400,
+  "files": [
+    {
+      "file": "cyrillic.woff2",
+      "subset": "cyrillic",
+      "unicodeRange": "U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116",
+      "sha256": "fe6c7e0a33f3e3d88fd8961b919b1dc3e8c02f32317da401311ab7424c7252ad",
+      "bytes": 17116,
+      "source": "https://fonts.gstatic.com/s/wixmadefordisplay/v12/SZcS3EX9IbbyeJ8aOluD52KXgUA_7Ed1I13G853Cp9duUYFhYmtntfw.woff2"
+    },
+    {
+      "file": "cyrillic-ext.woff2",
+      "subset": "cyrillic-ext",
+      "unicodeRange": "U+0460-052F,U+1C80-1C8A,U+20B4,U+2DE0-2DFF,U+A640-A69F,U+FE2E-FE2F",
+      "sha256": "bedcf536070e9dcd2a49ab5bd129b8958a51c4e4cae09c505efc1acfe04c6b27",
+      "bytes": 17584,
+      "source": "https://fonts.gstatic.com/s/wixmadefordisplay/v12/SZcS3EX9IbbyeJ8aOluD52KXgUA_7Ed1I13G853Cp9duUYFhYmtutfw.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "29ad1d97b5545da9f21c55b6b0e2c6a5be33e9bc8ed4c2e419e95ad2474b4498",
+      "bytes": 11600,
+      "source": "https://fonts.gstatic.com/s/wixmadefordisplay/v12/SZcS3EX9IbbyeJ8aOluD52KXgUA_7Ed1I13G853Cp9duUYFhYmtjtfw.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "6dd1f4a951c19fa9a50b75b9a5782542603c07dd429bca0b17f90442a4d34ef6",
+      "bytes": 15648,
+      "source": "https://fonts.gstatic.com/s/wixmadefordisplay/v12/SZcS3EX9IbbyeJ8aOluD52KXgUA_7Ed1I13G853Cp9duUYFhYmtttfw.woff2"
+    },
+    {
+      "file": "vietnamese.woff2",
+      "subset": "vietnamese",
+      "unicodeRange": "U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB",
+      "sha256": "89ea5191a1e1ef84416f83357fa42e27ed73e82efd3095a1293108712cf7a3bf",
+      "bytes": 13816,
+      "source": "https://fonts.gstatic.com/s/wixmadefordisplay/v12/SZcS3EX9IbbyeJ8aOluD52KXgUA_7Ed1I13G853Cp9duUYFhYmtstfw.woff2"
+    }
+  ]
+}

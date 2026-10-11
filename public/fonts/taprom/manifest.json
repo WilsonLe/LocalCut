@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut taprom",
+  "weight": 400,
+  "files": [
+    {
+      "file": "khmer.woff2",
+      "subset": "khmer",
+      "unicodeRange": "U+1780-17FF,U+19E0-19FF,U+200C-200D,U+25CC",
+      "sha256": "7f227f4fd188e4215a003e581f9b85d43592be132c1e897614ad9e2c32b2afd3",
+      "bytes": 80820,
+      "source": "https://fonts.gstatic.com/s/taprom/v29/UcCn3F82JHycULb1TyM2.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "04070081c0878569840d90ac6b32ff2b0d4e9d1efbbda91f172168de7b078f32",
+      "bytes": 50120,
+      "source": "https://fonts.gstatic.com/s/taprom/v29/UcCn3F82JHycULb1RCM2.woff2"
+    }
+  ]
+}

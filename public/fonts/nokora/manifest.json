@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut nokora",
+  "weight": 400,
+  "files": [
+    {
+      "file": "khmer.woff2",
+      "subset": "khmer",
+      "unicodeRange": "U+1780-17FF,U+19E0-19FF,U+200C-200D,U+25CC",
+      "sha256": "f606ac948eb0a1226a232c433e6343b2f0f4e8573435303232e9f449776aa760",
+      "bytes": 12756,
+      "source": "https://fonts.gstatic.com/s/nokora/v34/hYkVPuwgTubzaWxKMBj_emrD9wtMuj1fQb6jdQ.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "777593bc52fcca76cc8e4a4e8e38e33a3ace7fa4785b51a108142a341f999fea",
+      "bytes": 4812,
+      "source": "https://fonts.gstatic.com/s/nokora/v34/hYkVPuwgTubzaWxKMBj_emrD9wtMuj1fQbWjdQ.woff2"
+    }
+  ]
+}

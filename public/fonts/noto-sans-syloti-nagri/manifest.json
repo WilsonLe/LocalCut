@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-syloti-nagri",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "e98e50e55d90773607f2051dce237dc65a5ee493c118b7e864105fb6d29e1858",
+      "bytes": 15824,
+      "source": "https://fonts.gstatic.com/s/notosanssylotinagri/v25/uU9eCAQZ75uhfF9UoWDRiY3q7Sf_VFV3m4dGJVD7Ng.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "3afe96bfe63d9e050f85ff68b28fdcef520f9654931a7ed8b20503aedda85b19",
+      "bytes": 19084,
+      "source": "https://fonts.gstatic.com/s/notosanssylotinagri/v25/uU9eCAQZ75uhfF9UoWDRiY3q7Sf_VFV3m4dGJV77Ng.woff2"
+    },
+    {
+      "file": "syloti-nagri.woff2",
+      "subset": "syloti-nagri",
+      "unicodeRange": "U+0964-0965,U+09E6-09EF,U+200C-200D,U+2010-2011,U+2055,U+25CC,U+A800-A82C",
+      "sha256": "24e748ee44a01190919073e77f7f903a563f336fc21aa8433341303bba3c9ef7",
+      "bytes": 26120,
+      "source": "https://fonts.gstatic.com/s/notosanssylotinagri/v25/uU9eCAQZ75uhfF9UoWDRiY3q7Sf_VFV3m4dGJW_7Ng.woff2"
+    }
+  ]
+}

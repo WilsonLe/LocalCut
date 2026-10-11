@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-old-north-arabian",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "7adce1e96592c92124c13b01c40598704da76ca502f71c105b0efc6d821f25da",
+      "bytes": 15252,
+      "source": "https://fonts.gstatic.com/s/notosansoldnortharabian/v17/esDF30BdNv-KYGGJpKGk2tNiMt7Jar6olZDyNdr81zBgnkA-.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "8038b5c9d859a418ecf75adfddcd55a991058e99f0a66960e9d4c6a2e0a82927",
+      "bytes": 18296,
+      "source": "https://fonts.gstatic.com/s/notosansoldnortharabian/v17/esDF30BdNv-KYGGJpKGk2tNiMt7Jar6olZDyNdr81zBgkEA-.woff2"
+    },
+    {
+      "file": "old-north-arabian.woff2",
+      "subset": "old-north-arabian",
+      "unicodeRange": "U+10A80-10A9F",
+      "sha256": "266655aac3a0a6ff1fbfd06bda4748d187c45ef723ed042275dad2699ef21535",
+      "bytes": 19044,
+      "source": "https://fonts.gstatic.com/s/notosansoldnortharabian/v17/esDF30BdNv-KYGGJpKGk2tNiMt7Jar6olZDyNdr81zBgF2Ebyg.woff2"
+    }
+  ]
+}

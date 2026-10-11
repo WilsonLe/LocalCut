@@ -76,7 +76,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Offer searchable font names and style labels, including cute, minimal, script, serif, mono and display looks.
 - Offer editable placeholder text templates with a chosen font and formatting, including bold, curved, shadowed and highlighted text. Insert them as real timeline clips.
-- Keep workspace appearance fonts separate from authored text styles. Use local system font stacks under the existing no-download font policy; show that availability depends on the device.
+- Keep workspace appearance fonts separate from authored text styles. The 11 October bundled-font choice below supersedes the original system-only text-library restriction.
 
 ## Timeline editing and transition templates — 10 October 2026
 
@@ -209,3 +209,9 @@ This is the project record of the user's durable product and workflow choices. U
 ## Screen recording — 11 October 2026
 
 - Create new local media by recording screens and app windows, with browser tabs available through the browser's source picker. Keep explicit source permission and use the existing local import, editing and persistence workflow.
+
+## Bundled fonts and animated text — 11 October 2026
+
+- Expand authored text with as many redistributable fonts as practical, bundle the assets, and tag them for search by name and style/language. Keep the old text styles compatible and application appearance separate.
+- Remove “Local system fonts; the available typeface depends on your device.” from the Add text dialog.
+- Offer editable animated text templates, including typing and cute handcrafted loops that cycle through three, four or five variations. Preview and exported video must share the same animation.

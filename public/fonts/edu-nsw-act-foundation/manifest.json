@@ -1,0 +1,14 @@
+{
+  "family": "LocalCut edu-nsw-act-foundation",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "2ff9c25f3dd9e1065d62a384375fab0e9565a0447f53ee16b7fc6e75027ad170",
+      "bytes": 10332,
+      "source": "https://fonts.gstatic.com/s/edunswactfoundation/v5/raxRHjqJtsNBFUi8WO0vUBgc9D-2lV_oQdCAYlt_QTQ0vUxJki9tosGMci4.woff2"
+    }
+  ]
+}

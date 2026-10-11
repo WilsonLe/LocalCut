@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut arya",
+  "weight": 400,
+  "files": [
+    {
+      "file": "devanagari.woff2",
+      "subset": "devanagari",
+      "unicodeRange": "U+0900-097F,U+1CD0-1CF9,U+200C-200D,U+20A8,U+20B9,U+20F0,U+25CC,U+A830-A839,U+A8E0-A8FF,U+11B00-11B09",
+      "sha256": "78491c4a85559eb2447c771f7fead93fc4c4c0cfc50be1a859f8b84ba1c8c793",
+      "bytes": 54820,
+      "source": "https://fonts.gstatic.com/s/arya/v21/ga6CawNG-HJdxUD_-A.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "89ac97e8c92e1059b12913da9a0c133c295b11cb40b3344d6bf68f3b166822b6",
+      "bytes": 15252,
+      "source": "https://fonts.gstatic.com/s/arya/v21/ga6CawNG-HJdxUH_-A.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "7703439184c273358eb8b7680ddd66e8d71b17d8047d2540356d0f3e8099aee5",
+      "bytes": 19632,
+      "source": "https://fonts.gstatic.com/s/arya/v21/ga6CawNG-HJdxU__-A.woff2"
+    }
+  ]
+}

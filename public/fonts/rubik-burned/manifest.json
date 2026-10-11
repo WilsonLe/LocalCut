@@ -1,0 +1,46 @@
+{
+  "family": "LocalCut rubik-burned",
+  "weight": 400,
+  "files": [
+    {
+      "file": "cyrillic.woff2",
+      "subset": "cyrillic",
+      "unicodeRange": "U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116",
+      "sha256": "77a11b6625b936590271da2029ddd8c1c6839d4c5a64b3d5e155f53e2d04d181",
+      "bytes": 141020,
+      "source": "https://fonts.gstatic.com/s/rubikburned/v1/Jqzk5TmOVOqQHihKqPpscqnSHgGb.woff2"
+    },
+    {
+      "file": "cyrillic-ext.woff2",
+      "subset": "cyrillic-ext",
+      "unicodeRange": "U+0460-052F,U+1C80-1C8A,U+20B4,U+2DE0-2DFF,U+A640-A69F,U+FE2E-FE2F",
+      "sha256": "cd4f9dbe6fec05920b271b7b02dd5c141b3a842c6558416dd526de88b2a424af",
+      "bytes": 163936,
+      "source": "https://fonts.gstatic.com/s/rubikburned/v1/Jqzk5TmOVOqQHihKqPpscqnSFwGb.woff2"
+    },
+    {
+      "file": "hebrew.woff2",
+      "subset": "hebrew",
+      "unicodeRange": "U+0307-0308,U+0590-05FF,U+200C-2010,U+20AA,U+25CC,U+FB1D-FB4F",
+      "sha256": "639da0c7324f5292559e87908290d56891016590245bd4a8ebed7c21cd9d9540",
+      "bytes": 119524,
+      "source": "https://fonts.gstatic.com/s/rubikburned/v1/Jqzk5TmOVOqQHihKqPpscqnSGAGb.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "dc3bcfb8f1740858e6fb1a83f9f7002a2a2aacc4a9949aa8e0eeeadef6d7d5ff",
+      "bytes": 99224,
+      "source": "https://fonts.gstatic.com/s/rubikburned/v1/Jqzk5TmOVOqQHihKqPpscqnSGgGb.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "0bc0feed3b1ab864f8ea55e02e7a77e356f12f10383a4c25a5d91d9d61d02131",
+      "bytes": 123316,
+      "source": "https://fonts.gstatic.com/s/rubikburned/v1/Jqzk5TmOVOqQHihKqPpscqnSFAGb.woff2"
+    }
+  ]
+}

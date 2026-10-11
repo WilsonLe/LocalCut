@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-nabataean",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "e7bdf56602d9775971c7e07ff43946777e1cc676d0691c423b8ef6e6dfce01c7",
+      "bytes": 15172,
+      "source": "https://fonts.gstatic.com/s/notosansnabataean/v17/IFS4HfVJndhE3P4b5jnZ34DfsjO330dNkBV3hQ.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "27982bec9d472232b26da97b5ac9cf2879c240b3e4d89d8527293e8b08042a4a",
+      "bytes": 18276,
+      "source": "https://fonts.gstatic.com/s/notosansnabataean/v17/IFS4HfVJndhE3P4b5jnZ34DfsjO330dNkBt3hQ.woff2"
+    },
+    {
+      "file": "nabataean.woff2",
+      "subset": "nabataean",
+      "unicodeRange": "U+10880-108AF",
+      "sha256": "bd542e0bef0a23ed46529b5c34aef7638f08542cecb081b4c947906d1dadf94c",
+      "bytes": 20052,
+      "source": "https://fonts.gstatic.com/s/notosansnabataean/v17/IFS4HfVJndhE3P4b5jnZ34DfsjO330dNkINWoKI.woff2"
+    }
+  ]
+}

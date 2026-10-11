@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut anek-gujarati",
+  "weight": 400,
+  "files": [
+    {
+      "file": "gujarati.woff2",
+      "subset": "gujarati",
+      "unicodeRange": "U+0951-0952,U+0964-0965,U+0A80-0AFF,U+200C-200D,U+20B9,U+25CC,U+A830-A839",
+      "sha256": "4f93e9563be7316945bdcec63edd00a9ad6e569a8cbaeecdcddd32b1f6be1905",
+      "bytes": 76636,
+      "source": "https://fonts.gstatic.com/s/anekgujarati/v17/l7g_bj5oysqknvkCo2T_8FuiIRBA7lncQUmbIBEtPKiYYQhRwyBxCD-0F5CL30ih.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "3515b11af87c557f8fa8232ca4000be0b16d7f515a333b4989d0325b86f8bef0",
+      "bytes": 17400,
+      "source": "https://fonts.gstatic.com/s/anekgujarati/v17/l7g_bj5oysqknvkCo2T_8FuiIRBA7lncQUmbIBEtPKiYYQhRwyBxCD-0F5CLxEih.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "14edf7a35ce68f9cddaf3608d17db5b8f7b94a3c921c1d3bdd6a033beb167115",
+      "bytes": 17548,
+      "source": "https://fonts.gstatic.com/s/anekgujarati/v17/l7g_bj5oysqknvkCo2T_8FuiIRBA7lncQUmbIBEtPKiYYQhRwyBxCD-0F5CLykih.woff2"
+    }
+  ]
+}

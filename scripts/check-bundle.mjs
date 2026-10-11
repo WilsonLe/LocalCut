@@ -2,6 +2,7 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import assert from 'node:assert/strict';
+import { checkFonts } from './check-fonts.mjs';
 async function files(path) {
   const result = [];
   for (const name of await readdir(path)) {
@@ -12,6 +13,7 @@ async function files(path) {
   return result;
 }
 for (const root of ['dist', 'dist-root']) {
+  const fontFiles = await checkFonts(root);
   const manifest = JSON.parse(
     await readFile(`${root}/.vite/manifest.json`, 'utf8'),
   );
@@ -44,7 +46,7 @@ for (const root of ['dist', 'dist-root']) {
   }
   for (const file of await files(root)) {
     assert(
-      !/\.(onnx|wasm|woff2?)$/.test(file),
+      !/\.(onnx|wasm|woff2?)$/.test(file) || fontFiles.has(file),
       'Heavy model/runtime/font artifact shipped: ' + file,
     );
     assert(

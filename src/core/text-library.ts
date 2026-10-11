@@ -1,7 +1,7 @@
 import type { ClipInput } from './model';
+import bundledFonts from './bundled-fonts.json' with { type: 'json' };
 
-// Only local system families: no network or platform font enumeration.
-export const FONT_IDS = [
+export const LEGACY_FONT_IDS = [
   'sans',
   'rounded',
   'handwritten',
@@ -13,12 +13,17 @@ export const FONT_IDS = [
   'display',
   'condensed',
 ] as const;
-export type FontId = (typeof FONT_IDS)[number];
+export type FontId = (typeof LEGACY_FONT_IDS)[number] | `font-${string}`;
+export const FONT_IDS = [
+  ...LEGACY_FONT_IDS,
+  ...bundledFonts.map((font) => font.id as FontId),
+] as const;
 export const TEXT_FONTS: {
   id: FontId;
   name: string;
   family: string;
   labels: string[];
+  sample?: string;
 }[] = [
   {
     id: 'sans',
@@ -80,6 +85,7 @@ export const TEXT_FONTS: {
     family: '"Arial Narrow", "Avenir Next Condensed", sans-serif',
     labels: ['minimal', 'condensed', 'headline'],
   },
+  ...bundledFonts.map((font) => ({ ...font, id: font.id as FontId })),
 ];
 export function fontFamily(id: FontId = 'sans') {
   return TEXT_FONTS.find((font) => font.id === id)!.family;
@@ -92,6 +98,48 @@ export interface TextTemplate {
   style: TextStyleInput;
 }
 export const TEXT_TEMPLATES: TextTemplate[] = [
+  {
+    id: 'typewriter',
+    name: 'Typewriter',
+    labels: ['animated', 'typing', 'typewriter', 'minimal'],
+    style: {
+      text: 'Your story starts here',
+      fontSize: 88,
+      fontFamily: 'font-special-elite',
+      animation: { kind: 'typewriter', stepMs: 90, loop: false },
+    },
+  },
+  {
+    id: 'typing-loop',
+    name: 'Typing loop',
+    labels: ['animated', 'typing', 'loop', 'code'],
+    style: {
+      text: 'hello, world!',
+      fontSize: 88,
+      fontFamily: 'font-space-mono',
+      animation: { kind: 'typewriter', stepMs: 120, loop: true },
+    },
+  },
+  ...([3, 4, 5] as const).map((frames) => ({
+    id: `handmade-${frames}`,
+    name: `Handmade ${frames} frames`,
+    labels: [
+      'animated',
+      'cute',
+      'handcrafted',
+      'handmade',
+      'wiggle',
+      'loop',
+      'stop-motion',
+    ],
+    style: {
+      text: 'little happy things',
+      fontSize: 88,
+      fontFamily: 'font-patrick-hand' as FontId,
+      color: '#f9a8d4',
+      animation: { kind: 'handmade' as const, stepMs: 180, frames, loop: true },
+    },
+  })),
   {
     id: 'plain',
     name: 'Plain text',

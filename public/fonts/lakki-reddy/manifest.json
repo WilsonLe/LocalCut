@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut lakki-reddy",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "7c18f2a0c28757e8c936a01ca75796c5adef376e8ad996818e1ef56962deaf74",
+      "bytes": 28852,
+      "source": "https://fonts.gstatic.com/s/lakkireddy/v25/S6u5w49MUSzD9jlCPmvLZTfvzdg.woff2"
+    },
+    {
+      "file": "telugu.woff2",
+      "subset": "telugu",
+      "unicodeRange": "U+0951-0952,U+0964-0965,U+0C00-0C7F,U+1CDA,U+1CF2,U+200C-200D,U+25CC",
+      "sha256": "b3436374b0226af9f145f67316839b8ce8789cd14a33378a9d6361743eaa5bb2",
+      "bytes": 132804,
+      "source": "https://fonts.gstatic.com/s/lakkireddy/v25/S6u5w49MUSzD9jlCPmvLZTfzzdg.woff2"
+    }
+  ]
+}

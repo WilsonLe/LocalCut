@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-serif-armenian",
+  "weight": 400,
+  "files": [
+    {
+      "file": "armenian.woff2",
+      "subset": "armenian",
+      "unicodeRange": "U+0308,U+0530-058F,U+2010,U+2024,U+25CC,U+FB13-FB17",
+      "sha256": "5ecd284cbc93997abd2470456fd49b260f97e7e5967a302a99e86845bc1bded2",
+      "bytes": 19868,
+      "source": "https://fonts.gstatic.com/s/notoserifarmenian/v30/3XFMEqMt3YoFsciDRZxptyCUKJmytZ0kVU-XvF7QaZuL85rnQ_zDNzDe5xNnKxyZi8Kr0f_b.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "54af989f21ccb196741609bf6ac1c8177eed4b7458e0d0a09e379bc29a18a254",
+      "bytes": 11884,
+      "source": "https://fonts.gstatic.com/s/notoserifarmenian/v30/3XFMEqMt3YoFsciDRZxptyCUKJmytZ0kVU-XvF7QaZuL85rnQ_zDNzDe5xNnKxyZi8Krwf_b.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "28184cee885433ff9f689b1ede568cf081e8f535ff7c246d8b10ed0893cf8695",
+      "bytes": 14640,
+      "source": "https://fonts.gstatic.com/s/notoserifarmenian/v30/3XFMEqMt3YoFsciDRZxptyCUKJmytZ0kVU-XvF7QaZuL85rnQ_zDNzDe5xNnKxyZi8Krz__b.woff2"
+    }
+  ]
+}

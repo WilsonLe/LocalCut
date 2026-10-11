@@ -23,3 +23,9 @@ Transcript/context: https://www.jfklibrary.org/archives/other-resources/john-f-k
 SHA-256: 59dfb9a4acb36fe2a2affc14bacbee2920ff435cb13cc314a08c13f66ba7860e
 
 Generated color, gradient, and sinusoidal fixtures are created by LocalCut's tests and have no external media dependencies.
+
+## Bundled authored-text fonts
+
+The font catalog is generated from the pinned Fontsource Google Fonts metadata revision `77f00efe046239b4bff0c1b5569ae67813401315` (https://github.com/fontsource/google-font-metadata). Each family retains its copyright and complete license in `public/fonts/<id>/LICENSE.txt`. SIL OFL 1.1, Apache 2.0 and Ubuntu Font License 1.0 texts also appear in `public/notices/fonts/`. Original, unmodified upright WOFF2 subsets are locally served; each family's manifest records immutable upstream URLs and SHA-256 hashes. `public/fonts/catalog-lock.json` records source hashes, families and exclusions (missing verified licenses or upright faces).
+
+Maintainers may regenerate the snapshot with `node scripts/import-fonts.mjs`; this explicit operation fetches pinned upstream metadata and reuses existing local font bytes. Builds and application startup never invoke the importer or contact a third-party font host. Catalog fonts belong to authored video text, separately from system fonts used by the application interface.

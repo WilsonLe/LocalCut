@@ -1,0 +1,14 @@
+{
+  "family": "LocalCut bigshot-one",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "6dc98de0bbe4cede17494613580b816eb652d38269b3167b4f893867a003c84f",
+      "bytes": 14104,
+      "source": "https://fonts.gstatic.com/s/bigshotone/v31/u-470qukhRkkO6BD_7cM_jxpWwM.woff2"
+    }
+  ]
+}

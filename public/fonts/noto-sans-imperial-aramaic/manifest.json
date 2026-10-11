@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-imperial-aramaic",
+  "weight": 400,
+  "files": [
+    {
+      "file": "imperial-aramaic.woff2",
+      "subset": "imperial-aramaic",
+      "unicodeRange": "U+10840-1085F",
+      "sha256": "7b957edf5b8d905f30f3eb9ac4f06a3477e9b829246a87e8989ae7f832c961fe",
+      "bytes": 19028,
+      "source": "https://fonts.gstatic.com/s/notosansimperialaramaic/v18/a8IMNpjwKmHXpgXbMIsbTc_kvks91LlLetBr5itQruc8nXc.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "75e2ef66bda50aa8ba96e2cbd15663b7e5ec1558b5b2a73010b71bba92d4b86c",
+      "bytes": 15544,
+      "source": "https://fonts.gstatic.com/s/notosansimperialaramaic/v18/a8IMNpjwKmHXpgXbMIsbTc_kvks91LlLetBr5itQrudhnXc.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "a1d471b104612876c8bc14ff425022cef49defb374cc71712bc7d968385fa597",
+      "bytes": 18476,
+      "source": "https://fonts.gstatic.com/s/notosansimperialaramaic/v18/a8IMNpjwKmHXpgXbMIsbTc_kvks91LlLetBr5itQrudvnXc.woff2"
+    }
+  ]
+}

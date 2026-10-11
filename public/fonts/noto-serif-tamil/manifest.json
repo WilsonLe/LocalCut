@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-serif-tamil",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "f6257ecc4f8ba27a38f582efa7fd873092413c7ed592cdce0fce13c4251ccc65",
+      "bytes": 12384,
+      "source": "https://fonts.gstatic.com/s/notoseriftamil/v31/LYjndHr-klIgTfc40komjQ5OObazYp-6H94dBF-RX6nNRJfi-Gf55IgAecattN-h9_b2.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "3cbd469fe3e6ee681b2c3380ad907ddde1e9e5862c0aaee877e97246b05356fb",
+      "bytes": 15140,
+      "source": "https://fonts.gstatic.com/s/notoseriftamil/v31/LYjndHr-klIgTfc40komjQ5OObazYp-6H94dBF-RX6nNRJfi-Gf55IgAecattN-h-fb2.woff2"
+    },
+    {
+      "file": "tamil.woff2",
+      "subset": "tamil",
+      "unicodeRange": "U+0964-0965,U+0B82-0BFA,U+200C-200D,U+20B9,U+25CC",
+      "sha256": "2ab5054152f586225ac4e2e9345981e6e6570360f50494df294bc995d3268b7d",
+      "bytes": 26184,
+      "source": "https://fonts.gstatic.com/s/notoseriftamil/v31/LYjndHr-klIgTfc40komjQ5OObazYp-6H94dBF-RX6nNRJfi-Gf55IgAecattN-h4fb2.woff2"
+    }
+  ]
+}

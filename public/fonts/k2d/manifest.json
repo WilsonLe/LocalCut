@@ -1,0 +1,38 @@
+{
+  "family": "LocalCut k2d",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "e3bec2e3f25096a30cd87e380262e53e0e6e1d67034d233b22af9b8168106358",
+      "bytes": 13840,
+      "source": "https://fonts.gstatic.com/s/k2d/v13/J7aTnpF2V0EjcKUs.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "c4474fbc859f002ba2929c66878f0058d557438f39e16a3784ed37a9398f5d07",
+      "bytes": 20464,
+      "source": "https://fonts.gstatic.com/s/k2d/v13/J7aTnpF2V0EjfqUs.woff2"
+    },
+    {
+      "file": "thai.woff2",
+      "subset": "thai",
+      "unicodeRange": "U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC",
+      "sha256": "ca621979f7727004132e9009bd40b30d325602d3c12da6b3054a12d774bf448b",
+      "bytes": 23216,
+      "source": "https://fonts.gstatic.com/s/k2d/v13/J7aTnpF2V0EjZKUs.woff2"
+    },
+    {
+      "file": "vietnamese.woff2",
+      "subset": "vietnamese",
+      "unicodeRange": "U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB",
+      "sha256": "13bd0d9c968b22662d002646cff7426dffffaa22da2232d0a85501fd72bd02bd",
+      "bytes": 15988,
+      "source": "https://fonts.gstatic.com/s/k2d/v13/J7aTnpF2V0Ejf6Us.woff2"
+    }
+  ]
+}

@@ -7,3 +7,7 @@ playwright-report
 test-results
 
 .cache
+
+# Generated, hash-verified font snapshots
+public/fonts
+src/core/bundled-fonts.json

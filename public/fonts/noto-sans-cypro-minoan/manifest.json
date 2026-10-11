@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-cypro-minoan",
+  "weight": 400,
+  "files": [
+    {
+      "file": "cypro-minoan.woff2",
+      "subset": "cypro-minoan",
+      "unicodeRange": "U+10100-10101,U+12F90-12FF2",
+      "sha256": "a48c9f8c15bd73e2947c8f4397cd33ad813fc5f07aacf13204617e6a5e28e9a2",
+      "bytes": 22528,
+      "source": "https://fonts.gstatic.com/s/notosanscyprominoan/v1/2Eb2L_dtDUlkNmPHB_UVtEzp3ZlPGqZ_4nAGm325W8I.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "8f2fbcf711eb15621e86384f2b5deb40dc3dd7f5136440becb4c3597a07f9d30",
+      "bytes": 15192,
+      "source": "https://fonts.gstatic.com/s/notosanscyprominoan/v1/2Eb2L_dtDUlkNmPHB_UVtEzp3ZlPGqZ_4nAGm9CYfg.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "cf1173629d135fb3844614a23e0149160d949c280b064245cbe6087f719071ee",
+      "bytes": 18268,
+      "source": "https://fonts.gstatic.com/s/notosanscyprominoan/v1/2Eb2L_dtDUlkNmPHB_UVtEzp3ZlPGqZ_4nAGm96Yfg.woff2"
+    }
+  ]
+}

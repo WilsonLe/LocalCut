@@ -1,0 +1,14 @@
+{
+  "family": "LocalCut galdeano",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "0c6ca9adb4927384d1be520fbb96af9ba4de2460e7d552265d4caa78b4d2d284",
+      "bytes": 8208,
+      "source": "https://fonts.gstatic.com/s/galdeano/v23/uU9MCBoQ4YOqOW1boAP2-vE.woff2"
+    }
+  ]
+}

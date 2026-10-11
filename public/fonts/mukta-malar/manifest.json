@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut mukta-malar",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "24dd5ccf94af8b3d4cf504494e6cfb927d589923c48f4f5cbe85e6fc61564019",
+      "bytes": 21116,
+      "source": "https://fonts.gstatic.com/s/muktamalar/v14/MCoXzAXyz8LOE2FpJMxZqIv_J_U.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "5179df578e480c0fdec00e3d9b2ef05cbe9fb4432bcd9c4a8c4e67b743c9637a",
+      "bytes": 30432,
+      "source": "https://fonts.gstatic.com/s/muktamalar/v14/MCoXzAXyz8LOE2FpJMxZqIvxJ_U.woff2"
+    },
+    {
+      "file": "tamil.woff2",
+      "subset": "tamil",
+      "unicodeRange": "U+0964-0965,U+0B82-0BFA,U+200C-200D,U+20B9,U+25CC",
+      "sha256": "af2fcf8ae2ea6c713d79521e4ea94c8ac915a6ff174c982ee872174606b96277",
+      "bytes": 50976,
+      "source": "https://fonts.gstatic.com/s/muktamalar/v14/MCoXzAXyz8LOE2FpJMxZqIvpJ_U.woff2"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-lepcha",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "dffc2058b2afe289a3a7078297d5f755a3446d2f7709d76b3f1597a72782b7ad",
+      "bytes": 15688,
+      "source": "https://fonts.gstatic.com/s/notosanslepcha/v20/0QI7MWlB_JWgA166SKhu05TekNS36AVmtw.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "1370f36a6ece7580cf0c9a9bd9dc74739a47f1cf5e67002308e5877d27ddafd5",
+      "bytes": 18728,
+      "source": "https://fonts.gstatic.com/s/notosanslepcha/v20/0QI7MWlB_JWgA166SKhu05TekNS36Atmtw.woff2"
+    },
+    {
+      "file": "lepcha.woff2",
+      "subset": "lepcha",
+      "unicodeRange": "U+1C00-1C4F,U+200C-200D,U+25CC",
+      "sha256": "f1f714df8467ce048f4238e5fd231bf7bd2c5f6890a058d99f0cd0e35d99af96",
+      "bytes": 29552,
+      "source": "https://fonts.gstatic.com/s/notosanslepcha/v20/0QI7MWlB_JWgA166SKhu05TekNS36D1mtw.woff2"
+    }
+  ]
+}

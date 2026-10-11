@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut akatab",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "376d3be00d3a7dd271c134439a84b7ce273536861fb7d8bfcee5912995004a94",
+      "bytes": 10220,
+      "source": "https://fonts.gstatic.com/s/akatab/v9/VuJwdNrK3Z7gqJE_X4b4.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "2733745e11806c208b79c325ca844a64a6885e6c74b400d60a5d174c8ac2ff6e",
+      "bytes": 11776,
+      "source": "https://fonts.gstatic.com/s/akatab/v9/VuJwdNrK3Z7gqJE_UYb4.woff2"
+    },
+    {
+      "file": "tifinagh.woff2",
+      "subset": "tifinagh",
+      "unicodeRange": "U+02C7,U+0301-0302,U+0304,U+0306-0307,U+0309,U+0323,U+0331,U+200C-200D,U+202E,U+25CC,U+2D30-2D7F",
+      "sha256": "34d27f04664ae2ec337ccb7fda678dd59385f4e186ede5b4d792a07759f368bc",
+      "bytes": 24144,
+      "source": "https://fonts.gstatic.com/s/akatab/v9/VuJwdNrK3Z7gqJE_f4b4.woff2"
+    }
+  ]
+}

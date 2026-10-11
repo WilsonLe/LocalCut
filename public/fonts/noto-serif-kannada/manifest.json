@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-serif-kannada",
+  "weight": 400,
+  "files": [
+    {
+      "file": "kannada.woff2",
+      "subset": "kannada",
+      "unicodeRange": "U+0951-0952,U+0964-0965,U+0C80-0CF3,U+1CD0,U+1CD2-1CD3,U+1CDA,U+1CF2,U+1CF4,U+200C-200D,U+20B9,U+25CC,U+A830-A835",
+      "sha256": "09071ac23295f882590665a85d7d6b7341b2bb281a4cf7bd28435a0dbcfe13bc",
+      "bytes": 46456,
+      "source": "https://fonts.gstatic.com/s/notoserifkannada/v30/v6-8GZHLJFKIhClqUYqXDiWqpxQxWSPoW6bz-l4hGHiNgcYDQflD7g.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "32ac1f62050794b82118cf3f7af277fb022794cd5c6f1d4a02e8183287e3b5a7",
+      "bytes": 11856,
+      "source": "https://fonts.gstatic.com/s/notoserifkannada/v30/v6-8GZHLJFKIhClqUYqXDiWqpxQxWSPoW6bz-l4hGHiNgcYDQeND7g.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "ae5aa85f44f3b96b158d5ebcc4aa7f9f5ead6c0179abf4f0c77dafa3c914712b",
+      "bytes": 14600,
+      "source": "https://fonts.gstatic.com/s/notoserifkannada/v30/v6-8GZHLJFKIhClqUYqXDiWqpxQxWSPoW6bz-l4hGHiNgcYDQe1D7g.woff2"
+    }
+  ]
+}

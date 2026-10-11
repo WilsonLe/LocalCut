@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut stick-no-bills",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "d2f6228baec4f3e5a1c38b1d916ce7e89a77f96c4841aa8c4a316a42d8f63f68",
+      "bytes": 10232,
+      "source": "https://fonts.gstatic.com/s/sticknobills/v17/bWts7ffXZwHuAa9Uld-oEK4QKlxj9f9t_7uEmjcVv8QLLbKx.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "7d046497c3208109d1d4db6d81b9df532f221243d722e4e579c1076d64406f83",
+      "bytes": 11844,
+      "source": "https://fonts.gstatic.com/s/sticknobills/v17/bWts7ffXZwHuAa9Uld-oEK4QKlxj9f9t_7uEmjcVv8QLI7Kx.woff2"
+    },
+    {
+      "file": "sinhala.woff2",
+      "subset": "sinhala",
+      "unicodeRange": "U+0964-0965,U+0D81-0DF4,U+1CF2,U+200C-200D,U+25CC,U+111E1-111F4",
+      "sha256": "9d47bf23f80e604e6cc3436ddcd8e321a9a7d41f5c723e593a6baf8f68c8764b",
+      "bytes": 40580,
+      "source": "https://fonts.gstatic.com/s/sticknobills/v17/bWts7ffXZwHuAa9Uld-oEK4QKlxj9f9t_7uEmjcVv8QLMLKx.woff2"
+    }
+  ]
+}

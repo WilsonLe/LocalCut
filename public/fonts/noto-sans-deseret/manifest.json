@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-deseret",
+  "weight": 400,
+  "files": [
+    {
+      "file": "deseret.woff2",
+      "subset": "deseret",
+      "unicodeRange": "U+10400-1044F",
+      "sha256": "8ea197273c3ceea5d2523edbe7ca57d621080ab72dddc7779460dd77a47c56f8",
+      "bytes": 21868,
+      "source": "https://fonts.gstatic.com/s/notosansdeseret/v18/MwQsbgPp1eKH6QsAVuFb9AZM6MMr2WqGbHM.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "b6b98a39ecdd8bbdf24356db3c5571a2dde35eb9c2ae5f1f6a2ff9f08f9c2e80",
+      "bytes": 15164,
+      "source": "https://fonts.gstatic.com/s/notosansdeseret/v18/MwQsbgPp1eKH6QsAVuFb9AZM6MMr2Wq6bHM.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "8f3d25f0f3e023803a5a1afeea5da7bee90acb6a10cd81e3bfc1639c83cbc511",
+      "bytes": 18284,
+      "source": "https://fonts.gstatic.com/s/notosansdeseret/v18/MwQsbgPp1eKH6QsAVuFb9AZM6MMr2Wq0bHM.woff2"
+    }
+  ]
+}

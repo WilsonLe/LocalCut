@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut chathura",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "9850f055a4cebc9f497ffb8997862e0902854b1c55ea9d60a52fc8270de28f25",
+      "bytes": 6968,
+      "source": "https://fonts.gstatic.com/s/chathura/v22/_gP71R7-rzUuVjim428nq0E.woff2"
+    },
+    {
+      "file": "telugu.woff2",
+      "subset": "telugu",
+      "unicodeRange": "U+0951-0952,U+0964-0965,U+0C00-0C7F,U+1CDA,U+1CF2,U+200C-200D,U+25CC",
+      "sha256": "2b92e3c60ff4c4f9f4ffb0c28ca2559410c762a9ea4217497a8bf90e962a7529",
+      "bytes": 68228,
+      "source": "https://fonts.gstatic.com/s/chathura/v22/_gP71R7-rzUuVjim4287q0E.woff2"
+    }
+  ]
+}

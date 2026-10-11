@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-medefaidrin",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "4babdd50187ce370dce70b94fab72a55cd0f8d488a5c5ae17fd4599f08047c16",
+      "bytes": 9404,
+      "source": "https://fonts.gstatic.com/s/notosansmedefaidrin/v29/WwkzxOq6Dk-wranENynkfeVsNbRZtbOIdLb1exeM4ZeuabBfmErWpTr_8A.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "3804b280ecb23f4b8fb8cf29963ee63b52307e8b529a69719c3c011386581ede",
+      "bytes": 11724,
+      "source": "https://fonts.gstatic.com/s/notosansmedefaidrin/v29/WwkzxOq6Dk-wranENynkfeVsNbRZtbOIdLb1exeM4ZeuabBfmErWpTT_8A.woff2"
+    },
+    {
+      "file": "medefaidrin.woff2",
+      "subset": "medefaidrin",
+      "unicodeRange": "U+16E40-16E9A",
+      "sha256": "ba495f15772c9f2d54e212387247a4c2cb4770e4c127f0a20bed8564b86c1d3e",
+      "bytes": 22928,
+      "source": "https://fonts.gstatic.com/s/notosansmedefaidrin/v29/WwkzxOq6Dk-wranENynkfeVsNbRZtbOIdLb1exeM4ZeuabBfmErWpave1eM.woff2"
+    }
+  ]
+}

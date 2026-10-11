@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut suwannaphum",
+  "weight": 400,
+  "files": [
+    {
+      "file": "khmer.woff2",
+      "subset": "khmer",
+      "unicodeRange": "U+1780-17FF,U+19E0-19FF,U+200C-200D,U+25CC",
+      "sha256": "573c6c654c9306fc5b821f187ae9a72d82aac72fe5a70c063b7456b32d32dbde",
+      "bytes": 34720,
+      "source": "https://fonts.gstatic.com/s/suwannaphum/v33/jAnCgHV7GtDvc8jbe8hXXLWp9cE.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "a2db615d1975f10039ac2976d53957938ed800151527943a4afef6a34cb253ca",
+      "bytes": 11400,
+      "source": "https://fonts.gstatic.com/s/suwannaphum/v33/jAnCgHV7GtDvc8jbe8hXXLWi9cE.woff2"
+    }
+  ]
+}

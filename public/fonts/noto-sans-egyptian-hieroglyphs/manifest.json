@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-egyptian-hieroglyphs",
+  "weight": 400,
+  "files": [
+    {
+      "file": "egyptian-hieroglyphs.woff2",
+      "subset": "egyptian-hieroglyphs",
+      "unicodeRange": "U+13000-13455,U+13460-143FA",
+      "sha256": "e92ff7bf3d4fbe4edaa020f552621aaf7c55413be9bc7be11bd17fe825d8661b",
+      "bytes": 412180,
+      "source": "https://fonts.gstatic.com/s/notosansegyptianhieroglyphs/v30/vEF42-tODB8RrNDvZSUmRhcQHzx1s7y_F9-j3qSzEcbEYintdVi9.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "bc1159e0747771966c37c7c241d803fcd508a7514e2472277df4674731c49085",
+      "bytes": 15836,
+      "source": "https://fonts.gstatic.com/s/notosansegyptianhieroglyphs/v30/vEF42-tODB8RrNDvZSUmRhcQHzx1s7y_F9-j3qSzEcbEYintTli9.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "1ba9e582a8d854863961410d54d3b2ddad89b59adb622482fc9b8ef2cd94e6ba",
+      "bytes": 18996,
+      "source": "https://fonts.gstatic.com/s/notosansegyptianhieroglyphs/v30/vEF42-tODB8RrNDvZSUmRhcQHzx1s7y_F9-j3qSzEcbEYintQFi9.woff2"
+    }
+  ]
+}

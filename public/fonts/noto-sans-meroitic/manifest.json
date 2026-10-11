@@ -1,0 +1,46 @@
+{
+  "family": "LocalCut noto-sans-meroitic",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "577cd522ec0726b314f020e957815e818073060b712240fd9fcfd01bf4ba15a6",
+      "bytes": 14992,
+      "source": "https://fonts.gstatic.com/s/notosansmeroitic/v19/IFS5HfRJndhE3P4b5jnZ3ITPvC6i00UzhzJS.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "c79625051b67cab54620bf60049e47da13441594a6c4d8a3f1c4bac37701ddb3",
+      "bytes": 17944,
+      "source": "https://fonts.gstatic.com/s/notosansmeroitic/v19/IFS5HfRJndhE3P4b5jnZ3ITPvC6i00UziTJS.woff2"
+    },
+    {
+      "file": "meroitic.woff2",
+      "subset": "meroitic",
+      "unicodeRange": "U+205D,U+10980-109B7,U+109BC-109CF,U+109D2-109FF",
+      "sha256": "9b7d29725a3600d4c55bc4148b92ba125f1f8b37fbd50d625b2235e0b772d97a",
+      "bytes": 33476,
+      "source": "https://fonts.gstatic.com/s/notosansmeroitic/v19/IFS5HfRJndhE3P4b5jnZ3ITPvC6i00Uz7jJS.woff2"
+    },
+    {
+      "file": "meroitic-cursive.woff2",
+      "subset": "meroitic-cursive",
+      "unicodeRange": "U+109A0-109B7,U+109BC-109CF,U+109D2-109FF",
+      "sha256": "87e4aca04728ca936d2a0e4df429e9367673d355b9c42ce5a5a648a93b9a64f7",
+      "bytes": 26332,
+      "source": "https://fonts.gstatic.com/s/notosansmeroitic/v19/IFS5HfRJndhE3P4b5jnZ3ITPvC6i00UzLhN3hQ.woff2"
+    },
+    {
+      "file": "meroitic-hieroglyphs.woff2",
+      "subset": "meroitic-hieroglyphs",
+      "unicodeRange": "U+205D,U+10980-1099F",
+      "sha256": "34c9f086f63eff7dff74b2ebb4cbbe9afbddd398de32be35312324440f4c7093",
+      "bytes": 22908,
+      "source": "https://fonts.gstatic.com/s/notosansmeroitic/v19/IFS5HfRJndhE3P4b5jnZ3ITPvC6i00UzLxN3hQ.woff2"
+    }
+  ]
+}

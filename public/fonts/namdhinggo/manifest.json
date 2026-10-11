@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut namdhinggo",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "7f9e8f1c54b516ebdc419306572a4a5c9cfe21ec638c5995506bacc14c5ece88",
+      "bytes": 14052,
+      "source": "https://fonts.gstatic.com/s/namdhinggo/v2/uk-mEGe3rbgg8Xzoy5-TPnKp4g.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "514b7ce7c1daeccb641af8380a5ea57ab58d4f56a011fe96988611ad83788cb7",
+      "bytes": 14736,
+      "source": "https://fonts.gstatic.com/s/namdhinggo/v2/uk-mEGe3rbgg8Xzoy5-TPnyp4g.woff2"
+    },
+    {
+      "file": "limbu.woff2",
+      "subset": "limbu",
+      "unicodeRange": "U+0964-0965,U+1900-194F,U+200C-200D,U+25CC",
+      "sha256": "6265065198dd916c0501783829f0786d5133a0a52f1c386dfe1378b23237ceba",
+      "bytes": 26892,
+      "source": "https://fonts.gstatic.com/s/namdhinggo/v2/uk-mEGe3rbgg8Xzoy5-TPkep4g.woff2"
+    }
+  ]
+}

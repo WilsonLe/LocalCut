@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut laila",
+  "weight": 400,
+  "files": [
+    {
+      "file": "devanagari.woff2",
+      "subset": "devanagari",
+      "unicodeRange": "U+0900-097F,U+1CD0-1CF9,U+200C-200D,U+20A8,U+20B9,U+20F0,U+25CC,U+A830-A839,U+A8E0-A8FF,U+11B00-11B09",
+      "sha256": "a955ba80bb7b598e18d3612823075e5cd6ebc05d33c6f38b5f63b3335e93fe7a",
+      "bytes": 108376,
+      "source": "https://fonts.gstatic.com/s/laila/v20/LYjMdG_8nE8jDLRbgCY.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "83dcda96283e01cab57ab7e295f09ee8c52baa150e1421313d4fdc9396719d0d",
+      "bytes": 18684,
+      "source": "https://fonts.gstatic.com/s/laila/v20/LYjMdG_8nE8jDLRagCY.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "af69f41c0063156f71b1876436e27b258ee77a92e2f10c0025d3c11078ec4146",
+      "bytes": 19640,
+      "source": "https://fonts.gstatic.com/s/laila/v20/LYjMdG_8nE8jDLRUgCY.woff2"
+    }
+  ]
+}

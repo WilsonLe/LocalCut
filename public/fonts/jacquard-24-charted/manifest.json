@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut jacquard-24-charted",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "4094a98633abd5b28f03a52424ea500c0e106df65e5e5ef7b310f48e484b22bf",
+      "bytes": 138504,
+      "source": "https://fonts.gstatic.com/s/jacquard24charted/v5/mtGm4-dNK6HaudrE9VVKhENTsEXEYish4iNhMA.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "e4248ea9f9dfc9c6294428f88556ba926469739704a82dfbf258d57bfc085ed6",
+      "bytes": 219428,
+      "source": "https://fonts.gstatic.com/s/jacquard24charted/v5/mtGm4-dNK6HaudrE9VVKhENTsEXEYish4i1hMA.woff2"
+    }
+  ]
+}

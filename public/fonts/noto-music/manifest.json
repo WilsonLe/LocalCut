@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-music",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "d4b7113fa203a9147b07986ec5fae5052658cf3d20b267798d3e84eca5fc0753",
+      "bytes": 15528,
+      "source": "https://fonts.gstatic.com/s/notomusic/v21/pe0rMIiSN5pO63htf1sxEtCaBg.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "69999d474637e656992705d498845e5934f37832325f7a62d16625a2df193992",
+      "bytes": 18760,
+      "source": "https://fonts.gstatic.com/s/notomusic/v21/pe0rMIiSN5pO63htf1sxEt6aBg.woff2"
+    },
+    {
+      "file": "music.woff2",
+      "subset": "music",
+      "unicodeRange": "U+25CC,U+2669-266F,U+1D000-1D0F5,U+1D100-1D126,U+1D129-1D1EA,U+1D200-1D245",
+      "sha256": "729346bbb4b672bf4798e064ac7919fb8b19cf224624471edc93380135c88fb4",
+      "bytes": 69548,
+      "source": "https://fonts.gstatic.com/s/notomusic/v21/pe0rMIiSN5pO63htf1sxEkW7I9s.woff2"
+    }
+  ]
+}

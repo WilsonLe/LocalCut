@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-elymaic",
+  "weight": 400,
+  "files": [
+    {
+      "file": "elymaic.woff2",
+      "subset": "elymaic",
+      "unicodeRange": "U+10FE0-10FF6",
+      "sha256": "d9b6d8976f8d40ba3358748a549e321c0c1b7ddc01ecbafb4c8b8542ee3516b2",
+      "bytes": 18820,
+      "source": "https://fonts.gstatic.com/s/notosanselymaic/v18/UqyKK9YTJW5liNMhTMqe9vUFP65ZD7C_c8D5.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "111945ecc805b822947e82ae1046169dee7ad71a4d5121e0a02f0d503851f107",
+      "bytes": 16460,
+      "source": "https://fonts.gstatic.com/s/notosanselymaic/v18/UqyKK9YTJW5liNMhTMqe9vUFP65ZD7AkUuU.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "f06174c93c33c418cf377b9b500b286de347de5f3218e46131ba42adf2702f04",
+      "bytes": 20132,
+      "source": "https://fonts.gstatic.com/s/notosanselymaic/v18/UqyKK9YTJW5liNMhTMqe9vUFP65ZD7AqUuU.woff2"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-tai-viet",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "427ef18a30f22cf660a9b14dff02dc035dfee16d63befe77af06bbcdde48acb8",
+      "bytes": 15604,
+      "source": "https://fonts.gstatic.com/s/notosanstaiviet/v20/8QIUdj3HhN_lv4jf9vsE-9GMOLsaSPZb7IQe.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "88563b4113fe00bfbcfea9ca5f0ecb6f422eed03397df9818760acfe96ec979f",
+      "bytes": 18856,
+      "source": "https://fonts.gstatic.com/s/notosanstaiviet/v20/8QIUdj3HhN_lv4jf9vsE-9GMOLsaSPZb4oQe.woff2"
+    },
+    {
+      "file": "tai-viet.woff2",
+      "subset": "tai-viet",
+      "unicodeRange": "U+200C-200D,U+25CC,U+A78B-A78C,U+AA80-AADF",
+      "sha256": "f14cad841cb61ce5dad054a4bb01128105542c9a9a96b44ae4dc17dd778dd19e",
+      "bytes": 26420,
+      "source": "https://fonts.gstatic.com/s/notosanstaiviet/v20/8QIUdj3HhN_lv4jf9vsE-9GMOLsaSPZbpoQe.woff2"
+    }
+  ]
+}

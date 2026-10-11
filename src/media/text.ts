@@ -1,5 +1,6 @@
 import type { TextStyleInput } from '../core/text-library';
 import { fontFamily } from '../core/text-library';
+import { textAnimationFrame } from '../core/text-animation';
 
 /** Shared by gallery thumbnails, worker preview and native exports. Units are project pixels. */
 export function paintText(
@@ -7,8 +8,13 @@ export function paintText(
   style: TextStyleInput,
   width: number,
   height: number,
+  timeUs = 0,
 ) {
   ctx.save();
+  const frame = textAnimationFrame(style, timeUs);
+  ctx.translate(width / 2 + frame.x, height / 2 + frame.y);
+  ctx.rotate(frame.rotation);
+  ctx.translate(-width / 2, -height / 2);
   const size = style.fontSize ?? 64;
   const align = style.align ?? 'center';
   ctx.font = `${style.italic ? 'italic ' : ''}${style.fontWeight ?? 'normal'} ${size}px ${fontFamily(style.fontFamily)}`;
@@ -19,7 +25,7 @@ export function paintText(
     ctx.measureText(text).width +
     Math.max(0, Array.from(text).length - 1) * spacing;
   const lines: string[] = [];
-  for (const paragraph of style.text.split('\n')) {
+  for (const paragraph of frame.text.split('\n')) {
     let line = '';
     for (const word of paragraph.split(/\s+/)) {
       const next = line ? line + ' ' + word : word;

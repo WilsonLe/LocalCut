@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut boldonse",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "194108d492e4e29df9d75e1cb6dcad9c916899684d287791eb71d53ad0cb2098",
+      "bytes": 23496,
+      "source": "https://fonts.gstatic.com/s/boldonse/v1/ZgNQjPxGPbbJUZemjB37jGA.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "4873af1626f47c76dcdeaa6cd3b75e17d8c1828414ec46541e71d2a7330cc928",
+      "bytes": 28212,
+      "source": "https://fonts.gstatic.com/s/boldonse/v1/ZgNQjPxGPbbJUZemjB31jGA.woff2"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut jomolhari",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "8da944d03ab97230daeea6c97554a116cefef23182792da9d82632e92f0f4440",
+      "bytes": 26408,
+      "source": "https://fonts.gstatic.com/s/jomolhari/v21/EvONzA1M1Iw_CBd2hsQyEFgY.woff2"
+    },
+    {
+      "file": "tibetan.woff2",
+      "subset": "tibetan",
+      "unicodeRange": "U+0F00-0FFF,U+200C-200D,U+25CC,U+3008-300B",
+      "sha256": "ce62f07f02d4ba6e6bfa3552d73487c394a9b6f2b25b92f4785c4bb99e22c223",
+      "bytes": 385688,
+      "source": "https://fonts.gstatic.com/s/jomolhari/v21/EvONzA1M1Iw_CBd2hsQyBVgY.woff2"
+    }
+  ]
+}

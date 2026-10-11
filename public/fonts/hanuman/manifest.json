@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut hanuman",
+  "weight": 400,
+  "files": [
+    {
+      "file": "khmer.woff2",
+      "subset": "khmer",
+      "unicodeRange": "U+1780-17FF,U+19E0-19FF,U+200C-200D,U+25CC",
+      "sha256": "a0bd9dd0c73a6ec2ba6a0add11390505ef8d7dcfbc2cb0ca994123d3daaf36a6",
+      "bytes": 17100,
+      "source": "https://fonts.gstatic.com/s/hanuman/v24/VuJudNvD15HhpJJBYq31yFn72hxIv0sd5yDgWdQ.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "a10971f9a1cc2ef31cdf86647af27c8867fff7abc438492d1631407b4e6ad46d",
+      "bytes": 6788,
+      "source": "https://fonts.gstatic.com/s/hanuman/v24/VuJudNvD15HhpJJBYq31yFn72hxIv0sd5yDrWdQ.woff2"
+    }
+  ]
+}

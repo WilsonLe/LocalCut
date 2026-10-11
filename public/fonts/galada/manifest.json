@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut galada",
+  "weight": 400,
+  "files": [
+    {
+      "file": "bengali.woff2",
+      "subset": "bengali",
+      "unicodeRange": "U+0951-0952,U+0964-0965,U+0980-09FE,U+1CD0,U+1CD2,U+1CD5-1CD6,U+1CD8,U+1CE1,U+1CEA,U+1CED,U+1CF2,U+1CF5-1CF7,U+200C-200D,U+20B9,U+25CC,U+A8F1",
+      "sha256": "6dca32f68be78f5d29e5a9571fd01aca48c69b778ed175aed0dfbaf197d6bb47",
+      "bytes": 65036,
+      "source": "https://fonts.gstatic.com/s/galada/v21/H4cmBXyGmcjXlUXO5yY_.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "59a0eef63825de67115b8da2926f40c1c85c255b694d04832dcc43d9e4f69de8",
+      "bytes": 20244,
+      "source": "https://fonts.gstatic.com/s/galada/v21/H4cmBXyGmcjXlUXO9SY_.woff2"
+    }
+  ]
+}

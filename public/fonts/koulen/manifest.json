@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut koulen",
+  "weight": 400,
+  "files": [
+    {
+      "file": "khmer.woff2",
+      "subset": "khmer",
+      "unicodeRange": "U+1780-17FF,U+19E0-19FF,U+200C-200D,U+25CC",
+      "sha256": "9ec61f9a28ab740bfa4ac267b2d41e0d246e400f8842086bdfd90381fdc1d865",
+      "bytes": 20484,
+      "source": "https://fonts.gstatic.com/s/koulen/v30/AMOQz46as3KIBPemjno8.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "13539e8d14c8074c4d413b251e4d758e8a28c4cfef161b2876826e56f63f207a",
+      "bytes": 8384,
+      "source": "https://fonts.gstatic.com/s/koulen/v30/AMOQz46as3KIBPemhXo8.woff2"
+    }
+  ]
+}

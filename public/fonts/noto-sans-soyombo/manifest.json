@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-soyombo",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "5eec4b4909bcfaaf288ae4c6180cd5bd2f630ed0da45747d2167a84d5553e39a",
+      "bytes": 15380,
+      "source": "https://fonts.gstatic.com/s/notosanssoyombo/v18/RWmSoL-Y6-8q5LTtXs6MF6q7xsxgY3FsKlI.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "a37ffcc6c3e31e04200bab09508fa446e673dbe8fef305d436aec57c2a8b97e8",
+      "bytes": 18828,
+      "source": "https://fonts.gstatic.com/s/notosanssoyombo/v18/RWmSoL-Y6-8q5LTtXs6MF6q7xsxgY3FiKlI.woff2"
+    },
+    {
+      "file": "soyombo.woff2",
+      "subset": "soyombo",
+      "unicodeRange": "U+25CC,U+11A50-11AA2",
+      "sha256": "7f97f72b7023156c11d757746a751246482e11c95c96a237d959c39bd0b360de",
+      "bytes": 42396,
+      "source": "https://fonts.gstatic.com/s/notosanssoyombo/v18/RWmSoL-Y6-8q5LTtXs6MF6q7xsxgY3HsC3eR.woff2"
+    }
+  ]
+}

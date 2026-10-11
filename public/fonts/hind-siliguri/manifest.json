@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut hind-siliguri",
+  "weight": 400,
+  "files": [
+    {
+      "file": "bengali.woff2",
+      "subset": "bengali",
+      "unicodeRange": "U+0951-0952,U+0964-0965,U+0980-09FE,U+1CD0,U+1CD2,U+1CD5-1CD6,U+1CD8,U+1CE1,U+1CEA,U+1CED,U+1CF2,U+1CF5-1CF7,U+200C-200D,U+20B9,U+25CC,U+A8F1",
+      "sha256": "e3e45afe7d58095042a498e758371c1e5fbaa166235bde70126e1ff4a95c1547",
+      "bytes": 82808,
+      "source": "https://fonts.gstatic.com/s/hindsiliguri/v14/ijwTs5juQtsyLLR5jN4cxBEoTI7axw.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "cdc41415f366ef2966fc77e90d51391dec03657a6ed397fe59efd5ce34cf9549",
+      "bytes": 14472,
+      "source": "https://fonts.gstatic.com/s/hindsiliguri/v14/ijwTs5juQtsyLLR5jN4cxBEoTJzaxw.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "7b9200d5adfc5b9772ae40476a6c122f89e747cd71c84fe4252ee1c623894552",
+      "bytes": 18416,
+      "source": "https://fonts.gstatic.com/s/hindsiliguri/v14/ijwTs5juQtsyLLR5jN4cxBEoTJLaxw.woff2"
+    }
+  ]
+}

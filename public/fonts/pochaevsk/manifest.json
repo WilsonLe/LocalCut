@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut pochaevsk",
+  "weight": 400,
+  "files": [
+    {
+      "file": "cyrillic.woff2",
+      "subset": "cyrillic",
+      "unicodeRange": "U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116",
+      "sha256": "441bd5bc15074a19419c5bd0c3a2ef7a11ac0b4d146404cd27f1ab4b38f4c2a6",
+      "bytes": 39688,
+      "source": "https://fonts.gstatic.com/s/pochaevsk/v5/55xuey9_OdX_Om7ReYgVo515.woff2"
+    },
+    {
+      "file": "cyrillic-ext.woff2",
+      "subset": "cyrillic-ext",
+      "unicodeRange": "U+0460-052F,U+1C80-1C8A,U+20B4,U+2DE0-2DFF,U+A640-A69F,U+FE2E-FE2F",
+      "sha256": "b3119f87a7f7dc7bd847a33cfded20198a0d22c1b74b8745755e30528d948646",
+      "bytes": 59572,
+      "source": "https://fonts.gstatic.com/s/pochaevsk/v5/55xuey9_OdX_Om7ReYgVqp15.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "dfa3bd3420469652e40bd649380708da16bffb199687114ae72e82b04a2edf54",
+      "bytes": 26080,
+      "source": "https://fonts.gstatic.com/s/pochaevsk/v5/55xuey9_OdX_Om7ReYgVp515.woff2"
+    }
+  ]
+}

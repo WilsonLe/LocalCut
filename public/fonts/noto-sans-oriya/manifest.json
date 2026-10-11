@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-oriya",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "e9f66f3c537f7472ceb1f7f209feb48c0d169521404d58984715a990220f48e3",
+      "bytes": 10216,
+      "source": "https://fonts.gstatic.com/s/notosansoriya/v35/AYCppXfzfccDCstK_hrjDyADv5e9748vhj3CJBLHIARtgD6TJQS0dJT5Ivj0f5_b4rk.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "df5ead5c05c1d25f60cb4f64d7e2c4ea1b35273ebb27c8ad6f02a0a9b87152de",
+      "bytes": 12820,
+      "source": "https://fonts.gstatic.com/s/notosansoriya/v35/AYCppXfzfccDCstK_hrjDyADv5e9748vhj3CJBLHIARtgD6TJQS0dJT5Ivj0f5_V4rk.woff2"
+    },
+    {
+      "file": "oriya.woff2",
+      "subset": "oriya",
+      "unicodeRange": "U+0951-0952,U+0964-0965,U+0B01-0B77,U+1CDA,U+1CF2,U+200C-200D,U+20B9,U+25CC",
+      "sha256": "5ed7dadfadf9eab5d9c5b4f48278280aa0dd70505c87b09526d3b261a2166170",
+      "bytes": 49336,
+      "source": "https://fonts.gstatic.com/s/notosansoriya/v35/AYCppXfzfccDCstK_hrjDyADv5e9748vhj3CJBLHIARtgD6TJQS0dJT5Ivj0f5_C4rk.woff2"
+    }
+  ]
+}

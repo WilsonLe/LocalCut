@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-old-hungarian",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "068893007853f66020dfafbb384d5c9ec10a21d6c3e60227bde1fd667d4de359",
+      "bytes": 15604,
+      "source": "https://fonts.gstatic.com/s/notosansoldhungarian/v19/E213_cD6hP3GwCJPEUssHEM0KqLaHJXg2PiIgSfkZA8.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "d6fed05e4a311231dee057416611561e8983a15cddcf24ee61ded9072ad56dcb",
+      "bytes": 18784,
+      "source": "https://fonts.gstatic.com/s/notosansoldhungarian/v19/E213_cD6hP3GwCJPEUssHEM0KqLaHJXg2PiIgSfqZA8.woff2"
+    },
+    {
+      "file": "old-hungarian.woff2",
+      "subset": "old-hungarian",
+      "unicodeRange": "U+200D,U+205A,U+205D-205E,U+2E31,U+2E41,U+10C80-10CFF",
+      "sha256": "da2ae2ac2664ea8c7c37b233519727fabf5e408fd717b7063d2cef0057cd8e2f",
+      "bytes": 35520,
+      "source": "https://fonts.gstatic.com/s/notosansoldhungarian/v19/E213_cD6hP3GwCJPEUssHEM0KqLaHJXg2PiIgSdsRSpq.woff2"
+    }
+  ]
+}

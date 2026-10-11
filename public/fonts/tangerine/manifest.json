@@ -1,0 +1,14 @@
+{
+  "family": "LocalCut tangerine",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "cb4e7c0a159ec0cc2bdab8e3cd4b5541cf77748e1f07d4719eb5835c3afcabce",
+      "bytes": 23304,
+      "source": "https://fonts.gstatic.com/s/tangerine/v18/IurY6Y5j_oScZZow4VOxCZZM.woff2"
+    }
+  ]
+}

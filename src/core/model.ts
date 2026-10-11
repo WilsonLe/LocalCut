@@ -3,7 +3,8 @@ import { averageSpeed, nominalSourceBounds } from './speed';
 import { speedRampSchema } from './speed-schema';
 import { EditorError, invariant } from './errors';
 import { transitionPairs, TRANSITION_TEMPLATES } from './timeline';
-import { FONT_IDS } from './text-library';
+import { FONT_IDS, LEGACY_FONT_IDS } from './text-library';
+const knownFonts = new Set<string>(FONT_IDS);
 const id = z.string().min(1).max(200);
 const time = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const finite = z.number().finite();
@@ -52,9 +53,31 @@ export const textStyleSchema = z
     color: z.string().default('#ffffff'),
     background: z.string().default('transparent'),
     align: z.enum(['left', 'center', 'right']).default('center'),
-    fontFamily: z.enum(FONT_IDS).optional(),
+    // Keep provider-facing JSON schemas small; runtime still requires a catalog ID.
+    fontFamily: z
+      .union([
+        z.enum(LEGACY_FONT_IDS),
+        z
+          .templateLiteral(['font-', z.string().min(1)])
+          .refine((value) => knownFonts.has(value), 'Unknown bundled font'),
+      ])
+      .optional(),
     fontWeight: z.enum(['normal', 'bold']).optional(),
     italic: z.boolean().optional(),
+    animation: z
+      .object({
+        kind: z.enum(['typewriter', 'handmade']),
+        stepMs: finite.min(40).max(2000),
+        loop: z.boolean(),
+        frames: z.number().int().min(3).max(5).optional(),
+        variations: z
+          .array(z.string().min(1).max(100000))
+          .min(3)
+          .max(5)
+          .optional(),
+      })
+      .strict()
+      .optional(),
     letterSpacing: finite.min(-10).max(100).optional(),
     curve: finite.min(-180).max(180).optional(),
     outlineColor: z.string().optional(),

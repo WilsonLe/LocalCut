@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { applyOperations } from '../../src/core/commands';
 import {
   clipSchema,
@@ -53,6 +54,7 @@ describe('styled text contract', () => {
   it('rejects invalid families and out-of-range effects without changing the original', () => {
     for (const field of [
       { fontFamily: 'remote-font' },
+      { fontFamily: 'font-unavailable' },
       { curve: 181 },
       { outlineWidth: -1 },
       { letterSpacing: 101 },
@@ -63,12 +65,35 @@ describe('styled text contract', () => {
       ).toBe(false);
     }
   });
+  it('validates every bundled identity and searches combined names, styles and languages', () => {
+    expect(TEXT_FONTS.length).toBeGreaterThan(1700);
+    expect(
+      JSON.stringify(z.toJSONSchema(textStyleSchema.shape.fontFamily)).length,
+    ).toBeLessThan(1000);
+    for (const font of TEXT_FONTS)
+      expect(
+        textStyleSchema.safeParse({ text: 'test', fontFamily: font.id })
+          .success,
+      ).toBe(true);
+    expect(
+      TEXT_FONTS.filter((font) =>
+        matchesTextLabels(font, 'Inter vietnamese modern'),
+      ).map((font) => font.id),
+    ).toContain('font-inter');
+    expect(
+      TEXT_FONTS.filter((font) =>
+        matchesTextLabels(font, 'Patrick cute handwriting'),
+      ).map((font) => font.id),
+    ).toEqual(['font-patrick-hand']);
+  });
   it('finds font and template labels with case-insensitive multiword search', () => {
     expect(
       TEXT_FONTS.filter((font) => matchesTextLabels(font, ' CuTe ')).map(
         (font) => font.id,
       ),
-    ).toEqual(['rounded', 'handwritten']);
+    ).toEqual(
+      expect.arrayContaining(['rounded', 'handwritten', 'font-patrick-hand']),
+    );
     expect(
       TEXT_TEMPLATES.filter((item) =>
         matchesTextLabels(item, 'shadowed retro'),

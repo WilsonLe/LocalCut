@@ -1,0 +1,14 @@
+{
+  "family": "LocalCut acme",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "bb814ac86e7f409154ced702b9f3543761d09410e837ec728242e6b980a26aa0",
+      "bytes": 8236,
+      "source": "https://fonts.gstatic.com/s/acme/v29/RrQfboBx-C5_XxrBbg.woff2"
+    }
+  ]
+}

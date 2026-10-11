@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-bamum",
+  "weight": 400,
+  "files": [
+    {
+      "file": "bamum.woff2",
+      "subset": "bamum",
+      "unicodeRange": "U+A6A0-A6FF,U+16800-16A38",
+      "sha256": "6087b5f0489e7a89c698c8b97fab6a7d401ddfff246727b02a1886fb5e36daff",
+      "bytes": 85608,
+      "source": "https://fonts.gstatic.com/s/notosansbamum/v35/uk-0EGK3o6EruUbnwovcbBTkkklK_Ya_PBHfNGTPEddOy6wByw.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "0bd4573767437697d5c4e8c6bf1482d6a9df91d60198983abe36e9eb2008df00",
+      "bytes": 10096,
+      "source": "https://fonts.gstatic.com/s/notosansbamum/v35/uk-0EGK3o6EruUbnwovcbBTkkklK_Ya_PBHfNGTPEddOy_8Byw.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "dcb074822fcf1279576106e617e5aa631fab1e02e24f1a2ded3bb30960fea78f",
+      "bytes": 12572,
+      "source": "https://fonts.gstatic.com/s/notosansbamum/v35/uk-0EGK3o6EruUbnwovcbBTkkklK_Ya_PBHfNGTPEddOy_EByw.woff2"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut tasa-explorer",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "ab4392987d2329fdfe94322bedb422bc444ed4bbd7059bfe5658469eaa56327d",
+      "bytes": 17052,
+      "source": "https://fonts.gstatic.com/s/tasaexplorer/v2/K2FkfZdAt8xjBmxMCPK8UO_SPSH6kbsQNeItOI6o7ynBgLc.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "c562ee4f92dffe724587e7b2b29042e8399d75da9eaf2d53a4d7a4e6528a906b",
+      "bytes": 20596,
+      "source": "https://fonts.gstatic.com/s/tasaexplorer/v2/K2FkfZdAt8xjBmxMCPK8UO_SPSH6kbsQNeItOI6o7ynPgLc.woff2"
+    }
+  ]
+}

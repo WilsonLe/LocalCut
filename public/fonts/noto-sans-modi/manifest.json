@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-modi",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "94522291c0d51c9a60c76858f43384dca07082088d926f6314659a0c6d3f6935",
+      "bytes": 15536,
+      "source": "https://fonts.gstatic.com/s/notosansmodi/v25/pe03MIySN5pO62Z5YkFyT7jeas5tU1E.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "aaa23a8215818c6f96e283e30b4d8d10e46a8ec7c31aec10f5c568b4452e4bed",
+      "bytes": 18816,
+      "source": "https://fonts.gstatic.com/s/notosansmodi/v25/pe03MIySN5pO62Z5YkFyT7jeas5jU1E.woff2"
+    },
+    {
+      "file": "modi.woff2",
+      "subset": "modi",
+      "unicodeRange": "U+200C-200D,U+25CC,U+A830-A839,U+11600-1165F",
+      "sha256": "aaddb6599c8b42c290a38988d2f8b2a6b4e3c29660b40c1bde48d3f622a60a4e",
+      "bytes": 42104,
+      "source": "https://fonts.gstatic.com/s/notosansmodi/v25/pe03MIySN5pO62Z5YkFyT7jeas4QU1E.woff2"
+    }
+  ]
+}

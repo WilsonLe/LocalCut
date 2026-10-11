@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-myanmar",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "d74d6ac310bc4062a6e77234b67c4a291dd82a326992bcf5cc73297b5c5cfc6b",
+      "bytes": 10448,
+      "source": "https://fonts.gstatic.com/s/notosansmyanmar/v27/AlZU_y1ZtY3ymOryg38hOCSdOnFq0FP9_gnYM_ME0QeqLzz8-kqmtY3KLEbEGTOZptIRAA.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "4f2068f24774165bef0256cff3a0e7401d1687ddb7ca8fae0ba64b8498a11618",
+      "bytes": 13000,
+      "source": "https://fonts.gstatic.com/s/notosansmyanmar/v27/AlZU_y1ZtY3ymOryg38hOCSdOnFq0FP9_gnYM_ME0QeqLzz8-kqmtY3KLEbEGTOZptwRAA.woff2"
+    },
+    {
+      "file": "myanmar.woff2",
+      "subset": "myanmar",
+      "unicodeRange": "U+1000-109F,U+200C-200D,U+25CC,U+A92E,U+A9E0-A9FE,U+AA60-AA7F,U+116D0-116E3",
+      "sha256": "f9ee9be36fdaef57a77442752d3acda9d1a6d462b743998a645f7dff41f58bd8",
+      "bytes": 56528,
+      "source": "https://fonts.gstatic.com/s/notosansmyanmar/v27/AlZU_y1ZtY3ymOryg38hOCSdOnFq0FP9_gnYM_ME0QeqLzz8-kqmtY3KLEbEGTOZpswRAA.woff2"
+    }
+  ]
+}

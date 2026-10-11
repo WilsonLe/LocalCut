@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-serif-khitan-small-script",
+  "weight": 400,
+  "files": [
+    {
+      "file": "khitan-small-script.woff2",
+      "subset": "khitan-small-script",
+      "unicodeRange": "U+16FE4,U+18B00-18CD5,U+18CFF",
+      "sha256": "05d1dc258f23ab6c0796ee3fb4301c93a696f51667cfef32cf47884e4dcaa51e",
+      "bytes": 177468,
+      "source": "https://fonts.gstatic.com/s/notoserifkhitansmallscript/v4/jizzRFVKsm4Bt9PrbSzC4KLlQUF5lRJg5j-l5PvyhfTdd4Tcy-J_0g.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "6d67490e7455f52959b0cf2d15c89378af64b2119df89c3573a169af7c1b7a94",
+      "bytes": 17584,
+      "source": "https://fonts.gstatic.com/s/notoserifkhitansmallscript/v4/jizzRFVKsm4Bt9PrbSzC4KLlQUF5lRJg5j-l5PvyhfTdd4TcYMNa.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "4f31d0e9a61c577641a5ab7293f360e3ba40e7b0ab99e18e779c047ee19fc340",
+      "bytes": 20792,
+      "source": "https://fonts.gstatic.com/s/notoserifkhitansmallscript/v4/jizzRFVKsm4Bt9PrbSzC4KLlQUF5lRJg5j-l5PvyhfTdd4TcbsNa.woff2"
+    }
+  ]
+}

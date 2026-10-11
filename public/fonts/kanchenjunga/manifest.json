@@ -1,0 +1,22 @@
+{
+  "family": "LocalCut kanchenjunga",
+  "weight": 400,
+  "files": [
+    {
+      "file": "kirat-rai.woff2",
+      "subset": "kirat-rai",
+      "unicodeRange": "U+16D40-16D79",
+      "sha256": "b1f7cffd8041a86c8cab8439c60e0e4ad297c000a2ea55e8e1559e73ac20c97c",
+      "bytes": 18132,
+      "source": "https://fonts.gstatic.com/s/kanchenjunga/v2/RWmPoKKd5fUmrILiWsjCI6TSEaAiCQ.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "d0ef3855103ebf2d51080e79eda6be2c50d47321b0097417b74b86d4cc0d0bfe",
+      "bytes": 11348,
+      "source": "https://fonts.gstatic.com/s/kanchenjunga/v2/RWmPoKKd5fUmrILiWsjCI6TSroEH.woff2"
+    }
+  ]
+}

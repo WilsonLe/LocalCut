@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-serif-tibetan",
+  "weight": 400,
+  "files": [
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "4994b833e1d539c09afd7b89b98d5170428924ceed76e5f6a046f1e626eb7160",
+      "bytes": 11348,
+      "source": "https://fonts.gstatic.com/s/notoseriftibetan/v24/gokGH7nwAEdtF9N45n0Vaz7O-pk0wsvxHeDXMfqguoCmIrYcDSnhdA.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "44c2911c252ea92b31588270898584dfeb1c1d15a672dc592e46b5bffd56247c",
+      "bytes": 13972,
+      "source": "https://fonts.gstatic.com/s/notoseriftibetan/v24/gokGH7nwAEdtF9N45n0Vaz7O-pk0wsvxHeDXMfqguoCmIrYcDSfhdA.woff2"
+    },
+    {
+      "file": "tibetan.woff2",
+      "subset": "tibetan",
+      "unicodeRange": "U+0F00-0FFF,U+200C-200D,U+25CC,U+3008-300B",
+      "sha256": "20b6439bcb096348f45abaf2aa1fb4f8501ac7b8811a02bc63460ba38e7075f3",
+      "bytes": 170548,
+      "source": "https://fonts.gstatic.com/s/notoseriftibetan/v24/gokGH7nwAEdtF9N45n0Vaz7O-pk0wsvxHeDXMfqguoCmIrYcDTzhdA.woff2"
+    }
+  ]
+}

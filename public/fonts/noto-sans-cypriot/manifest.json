@@ -1,0 +1,30 @@
+{
+  "family": "LocalCut noto-sans-cypriot",
+  "weight": 400,
+  "files": [
+    {
+      "file": "cypriot.woff2",
+      "subset": "cypriot",
+      "unicodeRange": "U+10100-10102,U+10107-10133,U+10137-1013F,U+10800-1083F",
+      "sha256": "910aa4d55cd0ba03ff39fccf6d7359309fd5832b0d3001c70ef0555f0b437fef",
+      "bytes": 24524,
+      "source": "https://fonts.gstatic.com/s/notosanscypriot/v20/8AtzGta9PYqQDjyp79a6f8Cj-3a3cyJ0IZI.woff2"
+    },
+    {
+      "file": "latin.woff2",
+      "subset": "latin",
+      "unicodeRange": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+      "sha256": "9cb21fa2b8cfc5e254ce6eed5ce1cb03cb342e002cfd55bd9bcf73a2877d41ca",
+      "bytes": 15636,
+      "source": "https://fonts.gstatic.com/s/notosanscypriot/v20/8AtzGta9PYqQDjyp79a6f8Cj-3a3cyIrIZI.woff2"
+    },
+    {
+      "file": "latin-ext.woff2",
+      "subset": "latin-ext",
+      "unicodeRange": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+      "sha256": "2df33f93e7a83537591763433e8242350565f7d56ae46922a7bc7d2ae0be6154",
+      "bytes": 18864,
+      "source": "https://fonts.gstatic.com/s/notosanscypriot/v20/8AtzGta9PYqQDjyp79a6f8Cj-3a3cyIlIZI.woff2"
+    }
+  ]
+}
