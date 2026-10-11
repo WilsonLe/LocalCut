@@ -352,3 +352,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Use a dropdown of the selected TTS model's catalog voices in AI connector settings, rather than a raw voice text field.
 - Remove blank space above populated dropdown options across the app; empty-result messages retain their normal readable spacing.
+
+## Chat asset indexing — 11 October 2026
+
+- Let the chat agent index assets through the existing shared indexer. Keep remembered indexing consent and explicit proposal approval, disclose derived-evidence sharing and possible cost, and reuse progress/cancellation and saved local results.

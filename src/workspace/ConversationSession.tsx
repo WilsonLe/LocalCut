@@ -32,7 +32,12 @@ import type {
   EditProposal,
   Usage,
 } from '../ai';
-import type { Connection, ConversationProps } from './Conversation';
+import { getIndexConsent } from './index-consent';
+import type {
+  Connection,
+  IndexConnection,
+  ConversationProps,
+} from './Conversation';
 import { Button } from '../components/ui/button';
 import {
   Empty,
@@ -111,6 +116,7 @@ interface SessionProps extends ConversationProps {
   editor: Editor;
   project: Project;
   connection: Connection;
+  indexConnection: IndexConnection | null;
   model: string;
   privacy: Required<ContextPolicy>;
   registerSession: (cleanup: () => Promise<void>) => () => void;
@@ -126,6 +132,7 @@ export default function ConversationSession({
   project,
   selectedClipId,
   connection,
+  indexConnection,
   model,
   privacy,
   onApplied,
@@ -226,6 +233,7 @@ export default function ConversationSession({
   }, [messages, proposals, activity]);
   const ensureAssistant = () => {
     if (!assistant.current) {
+      const indexRuns = new Map<string, string>();
       assistant.current = connection.api.createAssistant({
         editor,
         tasks: editor.tasks,
@@ -235,6 +243,30 @@ export default function ConversationSession({
         model,
         context: privacy,
         transcription: connection.transcription,
+        indexing:
+          indexConnection &&
+          indexConnection.inputModalities.some(
+            (modality) => modality === 'image' || modality === 'audio',
+          )
+            ? {
+                consent: getIndexConsent,
+                disclosure: `Indexing sends generated stills${indexConnection.inputModalities.includes('video') ? ', video clips with sound' : ' (video frames only; motion and sound are not assessed)'}${indexConnection.inputModalities.includes('audio') ? ', and audio excerpts' : ''} to OpenRouter model ${indexConnection.model}. This may incur cost. Original source files remain local.`,
+                run: (assetId, requestId) => {
+                  const indexer = indexConnection.api.createAssetIndexer({
+                    editor,
+                    provider: indexConnection.provider,
+                    model: indexConnection.model,
+                    consent: getIndexConsent,
+                    onRunId: (runId) => indexRuns.set(requestId, runId),
+                  });
+                  const job = indexer.run(assetId, indexRuns.get(requestId));
+                  return {
+                    ...job,
+                    completion: job.completion.finally(() => indexer.dispose()),
+                  };
+                },
+              }
+            : undefined,
       });
       unsubscribe.current = assistant.current.subscribe((event) => {
         if (!mounted.current) return;
