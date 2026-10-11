@@ -24,6 +24,101 @@ async function snapshot(page: Page, base: string) {
 }
 
 for (const base of ['/', '/LocalCut/']) {
+  test(`project format extreme preview dimensions ${base}`, async ({
+    page,
+  }) => {
+    await page.goto(base);
+    for (const size of [
+      { width: 3840, height: 1, previewWidth: 960, previewHeight: 1 },
+      { width: 1, height: 2160, previewWidth: 1, previewHeight: 2160 },
+    ]) {
+      const dialog = await openForm(page);
+      await dialog.getByLabel('Project name').fill('Extreme format');
+      await dialog.getByLabel('Width (px)').fill(String(size.width));
+      await dialog.getByLabel('Height (px)').fill(String(size.height));
+      await dialog
+        .getByRole('button', { name: 'Create project', exact: true })
+        .click();
+      await expect(dialog).not.toBeVisible();
+      await page.evaluate(async (base) => {
+        const { createEditor } = (await import(
+          `${base}editor.js`
+        )) as typeof import('../../src/editor');
+        const editor = await createEditor();
+        try {
+          const project = await editor.projects.snapshot(
+            location.hash.split('/project/')[1]!,
+          );
+          const canvas = new OffscreenCanvas(32, 32);
+          const context = canvas.getContext('2d')!;
+          context.fillStyle = '#ff0000';
+          context.fillRect(0, 0, 32, 32);
+          const asset = await editor.assets.import(
+            new File(
+              [await canvas.convertToBlob({ type: 'image/png' })],
+              'red.png',
+              { type: 'image/png' },
+            ),
+          ).completion;
+          await editor.commands.apply({
+            projectId: project.id,
+            expectedRevision: project.revision,
+            requestId: crypto.randomUUID(),
+            operations: [
+              {
+                type: 'addTrack',
+                track: { id: 'extreme-track', kind: 'video' },
+              },
+              {
+                type: 'insertClip',
+                trackId: 'extreme-track',
+                clip: {
+                  id: 'extreme-clip',
+                  kind: 'image',
+                  assetId: asset.id,
+                  startUs: 0,
+                  durationUs: 500000,
+                  width: project.width,
+                  height: project.height,
+                },
+              },
+            ],
+          });
+        } finally {
+          await editor.dispose();
+        }
+      }, base);
+      await page.reload();
+      const preview = page.getByLabel('Video preview', { exact: true });
+      await expect(preview).toHaveAttribute('width', String(size.previewWidth));
+      await expect(preview).toHaveAttribute(
+        'height',
+        String(size.previewHeight),
+      );
+      // A one-pixel source height becomes subpixel coverage when scaled down;
+      // require actual red image content rather than an opaque full red pixel.
+      await expect
+        .poll(() =>
+          preview.evaluate((canvas: HTMLCanvasElement) => {
+            const [red, green, blue, alpha] = canvas
+              .getContext('2d')!
+              .getImageData(
+                Math.floor(canvas.width / 2),
+                Math.floor(canvas.height / 2),
+                1,
+                1,
+              ).data;
+            return red! > 0 && green === 0 && blue === 0 && alpha === 255;
+          }),
+        )
+        .toBe(true);
+      expect(await snapshot(page, base)).toMatchObject({
+        width: size.width,
+        height: size.height,
+      });
+    }
+  });
+
   test(`project format presets custom dimensions validation and reload ${base}`, async ({
     page,
   }) => {

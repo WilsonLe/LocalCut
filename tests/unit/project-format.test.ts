@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { newProject } from '../../src/core/model';
+import { previewFrameSize } from '../../src/workspace/helpers';
 import {
   ASPECT_RATIOS,
   FRAME_RATES,
@@ -8,6 +9,21 @@ import {
 } from '../../src/workspace/project-format';
 
 describe('project creation formats', () => {
+  it('bounds preview rasters for all valid project shapes', () => {
+    expect(previewFrameSize(null)).toEqual({ width: 960, height: 540 });
+    expect(previewFrameSize({ width: 3840, height: 1 })).toEqual({
+      width: 960,
+      height: 1,
+    });
+    expect(previewFrameSize({ width: 1, height: 2160 })).toEqual({
+      width: 1,
+      height: 2160,
+    });
+    expect(previewFrameSize({ width: 1080, height: 1920 })).toEqual({
+      width: 540,
+      height: 960,
+    });
+  });
   it('offers supported dimensions for every aspect ratio and FPS', () => {
     for (const ratio of ASPECT_RATIOS) {
       const presets = resolutionPresets(ratio.value);
