@@ -1,3 +1,4 @@
+import { dismissNotifications } from './workspace-notifications-helper';
 import { dragPlayhead } from './workspace-playhead-helper';
 import { openAISettings } from './workspace-settings-helper';
 import { readFile } from 'node:fs/promises';
@@ -242,6 +243,8 @@ for (const base of ['/', '/LocalCut/']) {
       [image, [255, 0, 0]],
       [video, [0, 255, 0]],
     ] as const) {
+      // Timeline previews start only when their clip enters the viewport.
+      await clip.scrollIntoViewIfNeeded();
       await expect(clip.locator('.timeline-thumbnail')).toBeAttached();
       const pixel = await clip
         .locator('.timeline-thumbnail')
@@ -268,6 +271,7 @@ for (const base of ['/', '/LocalCut/']) {
             Number(m[1]),
           ),
         );
+    await audio.scrollIntoViewIfNeeded();
     await expect(audio.locator('.timeline-waveform')).toBeAttached();
     expect((await heights()).slice(0, 60)).toEqual(Array(60).fill(1));
     expect(Math.min(...(await heights()).slice(65))).toBeGreaterThan(8);
@@ -280,7 +284,9 @@ for (const base of ['/', '/LocalCut/']) {
       path: `.artifacts/timeline-previews-desktop-${base === '/' ? 'root' : 'pages'}.png`,
     });
     await page.reload();
+    await image.scrollIntoViewIfNeeded();
     await expect(image.locator('.timeline-thumbnail')).toBeAttached();
+    await audio.scrollIntoViewIfNeeded();
     await expect(audio.locator('.timeline-waveform')).toBeAttached();
     await page.evaluate(async (base) => {
       const { createEditor } = (await import(
@@ -1021,10 +1027,7 @@ for (const base of ['/', '/LocalCut/']) {
     const properties = async () => {
       // A success toast can cover the scrolled mobile track and pause when
       // hovered. Use its real close control before selecting the next edit.
-      for (const close of await page
-        .getByRole('button', { name: 'Close toast', exact: true })
-        .all())
-        await close.click();
+      await dismissNotifications(page);
       await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
       await track.click();
       await page
@@ -1116,10 +1119,7 @@ for (const base of ['/', '/LocalCut/']) {
     ]);
     expect(saved.sourceOutUs).toBe(4000000);
     // The success toast overlaps the mobile media toggle and pauses while hovered.
-    for (const close of await page
-      .getByRole('button', { name: 'Close toast', exact: true })
-      .all())
-      await close.click();
+    await dismissNotifications(page);
     await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
     // Mobile media starts closed independently of the desktop rail preference.
     await page

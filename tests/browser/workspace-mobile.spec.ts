@@ -1,3 +1,4 @@
+import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test, type Page } from '@playwright/test';
 
 test.use({ hasTouch: true });
@@ -482,10 +483,7 @@ for (const base of ['/', '/LocalCut/']) {
         await expect(
           page.getByRole('button', { name: 'Play preview', exact: true }),
         ).toBeInViewport();
-        for (const close of await page
-          .getByRole('button', { name: 'Close toast', exact: true })
-          .all())
-          await close.click();
+        await dismissNotifications(page);
         await page.screenshot({
           path: info.outputPath('mobile-editor-start.png'),
         });
