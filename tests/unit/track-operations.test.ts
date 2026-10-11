@@ -3,7 +3,7 @@ import { appendAsset } from '../../src/workspace/helpers';
 import { assetSchema, newProject, validateProject } from '../../src/core/model';
 import { applyOperations, parseBatch } from '../../src/core/commands';
 import type { EditOperation } from '../../src/core/commands';
-import { outputTracks } from '../../src/core/timeline';
+import { outputAssetIds, outputTracks } from '../../src/core/timeline';
 import { projectContext, timelineContext } from '../../src/ai/context';
 import { supportedEditOperations, proposalBatch } from '../../src/ai/tools';
 import { legacyCommandReceiptContent } from '../../src/core/receipt-content';
@@ -62,6 +62,23 @@ const fixture = () =>
     ],
   });
 describe('track operations', () => {
+  it('requires only consumed originals while preserving visual sources when muted', () => {
+    const p = fixture();
+    expect(outputAssetIds(p)).toEqual(['source', 'speech']);
+    p.tracks[0]!.disabled = true;
+    p.tracks[1]!.muted = true;
+    expect(outputAssetIds(p)).toEqual([]);
+    p.tracks[0]!.disabled = false;
+    p.tracks[0]!.muted = true;
+    expect(outputAssetIds(p)).toEqual(['source']);
+    p.tracks[2]!.solo = true;
+    expect(outputAssetIds(p)).toEqual([]);
+    p.tracks[1]!.muted = false;
+    p.tracks[1]!.clips[0]!.muted = true;
+    expect(outputAssetIds(p)).toEqual([]);
+    p.tracks[1]!.clips[0]!.muted = false;
+    expect(outputAssetIds(p)).toEqual(['speech']);
+  });
   it('keeps legacy defaults and partial patches, validates names and exposes every command to AI', () => {
     const p = fixture();
     expect(p.tracks[0]).toMatchObject({ muted: false });

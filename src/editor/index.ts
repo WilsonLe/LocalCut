@@ -12,7 +12,8 @@ import { Jobs, checkAbort } from '../services/jobs';
 import type { JobEvent } from '../services/jobs';
 import { WorkerClient } from '../services/worker-client';
 import { EditorError, invariant, asEditorError } from '../core/errors';
-import { newProject, validateProject, assetIds } from '../core/model';
+import { newProject, validateProject } from '../core/model';
+import { outputAssetIds } from '../core/timeline';
 import type { Asset, Project, Transcript } from '../core/model';
 import { applyOperations, parseBatch } from '../core/commands';
 import { repairLegacyIdentities } from '../core/legacy-identities';
@@ -652,7 +653,8 @@ export async function createEditor(options: EditorOptions = {}) {
           async (signal, progress, id) => {
             const p = await store.getProject(projectId);
             return store.lock('project-assets-' + p.id, 'shared', async () => {
-              for (const assetId of assetIds(p)) await store.file(assetId);
+              for (const assetId of outputAssetIds(p))
+                await store.file(assetId);
               const result = await background.run<ExportResult>(
                 'export',
                 { namespace, jobId: id, project: p, options },
