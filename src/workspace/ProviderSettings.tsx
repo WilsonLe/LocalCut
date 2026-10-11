@@ -1,11 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import type { OpenRouterModel } from '../ai';
 import type { ServiceKind } from '../ai/providers';
 import { ModelPicker } from './ModelPicker';
 import { ProviderPicker } from './ProviderPicker';
 import { Tooltip } from '../components/ui/tooltip';
-import { ArrowDown, ArrowUp, Plus, Trash2, Info } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Plus,
+  Trash2,
+  Info,
+  ShieldCheck,
+  Unplug,
+  Check,
+  LoaderCircle,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -17,6 +27,12 @@ import {
   AccordionTrigger,
 } from '../components/ui/accordion';
 import { CollapsibleDisclosure } from '../components/ui/collapsible';
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  PopoverTitle,
+} from '../components/ui/popover';
 import { SettingsSelect } from './SettingsSelect';
 import type {
   ProviderConfiguration,
@@ -45,6 +61,11 @@ export interface ProviderSettingsProps {
   removeProvider: (id: string) => void;
   disconnectProvider: (id: string) => void;
   verifyProvider: (id: string) => Promise<string>;
+  loadServiceModels: (
+    id: string,
+    service: 'tts' | 'stt',
+    signal: AbortSignal,
+  ) => Promise<{ id: string; name: string }[]>;
 }
 export function ProviderSettings(props: ProviderSettingsProps) {
   const { providerConfiguration: config } = props;
@@ -61,6 +82,22 @@ export function ProviderSettings(props: ProviderSettingsProps) {
   const [newId, setNewId] = useState(() => crypto.randomUUID());
   const [editing, setEditing] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const resetDraft = () => {
+    setEditing(null);
+    setNewId(crypto.randomUUID());
+    setKey('');
+    setName('');
+    setBaseUrl('');
+    setSpeechModel('');
+    setTranscriptionModel('');
+    setVoices('');
+    setCallback('');
+    setAuthUrl('');
+  };
+  const finishConnection = () => {
+    setShowForm(false);
+    resetDraft();
+  };
   const chatgpt: ProviderProfile = {
     id:
       editing ??
@@ -175,16 +212,19 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                               Connect
                             </Button>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            disabled={props.connecting}
-                            aria-label={`Remove ${p.name}`}
-                            title={`Remove ${p.name}`}
-                            onClick={() => props.removeProvider(p.id)}
-                          >
-                            <Trash2 />
-                          </Button>
+                          {!props.connectedProviders.includes(p.id) && (
+                            <Tooltip content="Forget disconnected account">
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                disabled={props.connecting}
+                                aria-label={`Disconnect ${p.name}`}
+                                onClick={() => props.removeProvider(p.id)}
+                              >
+                                <Unplug />
+                              </Button>
+                            </Tooltip>
+                          )}
                         </div>
                       </div>
                     ),
@@ -216,314 +256,327 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                       Add OpenRouter
                     </Button>
                   )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={props.connecting}
-                    onClick={() => {
-                      setEditing(null);
-                      setNewId(crypto.randomUUID());
-                      setKey('');
-                      setName('');
-                      setBaseUrl('');
-                      setSpeechModel('');
-                      setTranscriptionModel('');
-                      setVoices('');
-                      setShowForm(!showForm);
-                    }}
-                  >
-                    <Plus />
-                    Add provider
-                  </Button>
-                </div>
-                {showForm && (
-                  <div className="space-y-5 rounded-lg border p-4 sm:p-6">
-                    <SettingsSelect
-                      label="Provider type"
-                      value={kind}
-                      selectedLabel={
-                        kind === 'compatible'
-                          ? 'OpenAI-compatible endpoint'
-                          : kind === 'openrouter'
-                            ? 'OpenRouter'
-                            : 'ChatGPT plan'
-                      }
-                      onChange={(value) => {
-                        setKind(value);
-                        setKey('');
-                        setCallback('');
-                      }}
-                      options={[
-                        {
-                          value: 'compatible',
-                          label: 'OpenAI-compatible endpoint',
-                        },
-                        { value: 'chatgpt', label: 'ChatGPT plan' },
-                        { value: 'openrouter', label: 'OpenRouter' },
-                      ]}
-                    />
-                    {kind !== 'compatible' && (
-                      <div className="space-y-1">
-                        <Label htmlFor="provider-account-name">
-                          Account name
-                        </Label>
-                        <Input
-                          id="provider-account-name"
-                          value={name}
-                          maxLength={80}
-                          placeholder={
-                            kind === 'openrouter'
-                              ? 'OpenRouter account'
-                              : 'ChatGPT account'
-                          }
-                          onChange={(event) => setName(event.target.value)}
+                  <Popover open={showForm} onOpenChange={setShowForm}>
+                    <PopoverTrigger
+                      render={
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={props.connecting}
                         />
-                      </div>
-                    )}
-                    {kind === 'openrouter' ? (
-                      <Button
-                        disabled={props.connecting}
-                        onClick={() => {
-                          patch((next) => {
-                            const id = editing ?? newId;
-                            next.profiles.push({
-                              id,
-                              name:
-                                name.trim() ||
-                                `OpenRouter ${config.profiles.filter((p) => p.kind === 'openrouter').length + 1}`,
-                              kind: 'openrouter',
-                            });
-                          });
-                          setShowForm(false);
-                        }}
-                      >
-                        Add OpenRouter account
-                      </Button>
-                    ) : kind === 'compatible' ? (
-                      <form
-                        className="space-y-5"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          const profile: ProviderProfile = {
-                            id: editing ?? crypto.randomUUID(),
-                            kind: 'compatible',
-                            name: name.trim(),
-                            baseUrl: baseUrl.trim(),
-                            // Preserve legacy declarations when restoring an existing endpoint.
-                            ...(editing &&
-                            config.profiles.find((p) => p.id === editing)?.model
-                              ? {
-                                  model: config.profiles.find(
-                                    (p) => p.id === editing,
-                                  )!.model,
-                                }
-                              : {}),
-                            ...(transcriptionModel.trim()
-                              ? {
-                                  transcriptionModel: transcriptionModel.trim(),
-                                }
-                              : {}),
-                            ...(speechModel.trim()
-                              ? {
-                                  speechModel: speechModel.trim(),
-                                  voices: voices
-                                    .split(',')
-                                    .map((v) => v.trim())
-                                    .filter(Boolean),
-                                }
-                              : {}),
-                          };
-                          const credential = key;
+                      }
+                      onClick={() => {
+                        if (!showForm && editing) {
+                          resetDraft();
+                        }
+                      }}
+                    >
+                      <Plus />
+                      Add provider
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-[min(32rem,calc(var(--app-viewport-width)-2rem))] space-y-5"
+                      aria-label="Add provider connection"
+                    >
+                      <PopoverTitle className="text-sm font-medium">
+                        {editing ? 'Connect provider' : 'Add provider'}
+                      </PopoverTitle>
+                      <SettingsSelect
+                        label="Provider type"
+                        value={kind}
+                        selectedLabel={
+                          kind === 'compatible'
+                            ? 'OpenAI-compatible endpoint'
+                            : kind === 'openrouter'
+                              ? 'OpenRouter'
+                              : 'ChatGPT plan'
+                        }
+                        onChange={(value) => {
+                          setKind(value);
                           setKey('');
-                          void props
-                            .connectProvider(profile, credential)
-                            .then((connected) => {
-                              if (connected) setShowForm(false);
-                            });
+                          setCallback('');
                         }}
-                      >
+                        options={[
+                          {
+                            value: 'compatible',
+                            label: 'OpenAI-compatible endpoint',
+                          },
+                          { value: 'chatgpt', label: 'ChatGPT plan' },
+                          { value: 'openrouter', label: 'OpenRouter' },
+                        ]}
+                      />
+                      {kind !== 'compatible' && (
                         <div className="space-y-1">
-                          <Label htmlFor="provider-name">Name</Label>
-                          <Input
-                            id="provider-name"
-                            value={name}
-                            maxLength={80}
-                            onChange={(e) => setName(e.target.value)}
-                            required
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="provider-url">API base URL</Label>
-                          <Input
-                            id="provider-url"
-                            value={baseUrl}
-                            onChange={(e) => setBaseUrl(e.target.value)}
-                            placeholder="https://api.example.com/v1"
-                            required
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="provider-key">
-                            API key (optional for local servers)
+                          <Label htmlFor="provider-account-name">
+                            Account name
                           </Label>
                           <Input
-                            id="provider-key"
-                            type="password"
-                            autoComplete="off"
-                            value={key}
-                            onChange={(e) => setKey(e.target.value)}
+                            id="provider-account-name"
+                            value={name}
+                            maxLength={80}
+                            placeholder={
+                              kind === 'openrouter'
+                                ? 'OpenRouter account'
+                                : 'ChatGPT account'
+                            }
+                            onChange={(event) => setName(event.target.value)}
                           />
                         </div>
-                        <CollapsibleDisclosure summary="Text to speech">
-                          <div className="mt-3 space-y-2">
-                            <Label htmlFor="provider-speech-model">
-                              Speech model
-                            </Label>
-                            <Input
-                              id="provider-speech-model"
-                              value={speechModel}
-                              onChange={(e) => setSpeechModel(e.target.value)}
-                            />
-                            <Label htmlFor="provider-voices">
-                              Voices (comma separated)
-                            </Label>
-                            <Input
-                              id="provider-voices"
-                              value={voices}
-                              onChange={(e) => setVoices(e.target.value)}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Endpoint must accept delivery instructions and
-                              return 24 kHz mono PCM.
-                            </p>
-                          </div>
-                        </CollapsibleDisclosure>
-                        <CollapsibleDisclosure summary="Speech to text">
-                          <div className="mt-3 space-y-2">
-                            <Label htmlFor="provider-transcription-model">
-                              Transcription model
-                            </Label>
-                            <Input
-                              id="provider-transcription-model"
-                              value={transcriptionModel}
-                              onChange={(e) =>
-                                setTranscriptionModel(e.target.value)
-                              }
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Requires verbose JSON segment timestamps (for
-                              example whisper-1). Selected source audio is sent
-                              only after transcription approval.
-                            </p>
-                          </div>
-                        </CollapsibleDisclosure>
+                      )}
+                      {kind === 'openrouter' ? (
                         <Button
-                          type="submit"
-                          disabled={
-                            props.connecting || !name.trim() || !baseUrl.trim()
-                          }
-                        >
-                          Connect endpoint
-                        </Button>
-                      </form>
-                    ) : (
-                      <div className="space-y-3">
-                        <Button
-                          disabled={signingIn || props.connecting}
+                          disabled={props.connecting}
                           onClick={() => {
-                            setSigningIn(true);
-                            setCallback('');
-                            const popup = window.open('about:blank', '_blank');
-                            if (popup) popup.opener = null;
-                            void props
-                              .authorizeChatGPT(chatgpt)
-                              .then((url) => {
-                                setAuthUrl(url);
-                                if (popup) popup.location.href = url;
-                              })
-                              .catch(() => {
-                                popup?.close();
-                                toast.error(
-                                  'Could not start ChatGPT sign-in. Allow browser storage and retry.',
-                                );
-                              })
-                              .finally(() => setSigningIn(false));
+                            patch((next) => {
+                              const id = editing ?? newId;
+                              next.profiles.push({
+                                id,
+                                name:
+                                  name.trim() ||
+                                  `OpenRouter ${config.profiles.filter((p) => p.kind === 'openrouter').length + 1}`,
+                                kind: 'openrouter',
+                              });
+                            });
+                            finishConnection();
                           }}
                         >
-                          Continue with ChatGPT
+                          Add OpenRouter account
                         </Button>
-                        {signingIn && (
-                          <p role="status" className="text-sm">
-                            Preparing sign-in…
-                          </p>
-                        )}
-                        {authUrl && (
-                          <a
-                            href={authUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block text-sm underline"
-                          >
-                            Open ChatGPT sign-in
-                          </a>
-                        )}
-                        <div className="flex items-center gap-2">
-                          <Label htmlFor="chatgpt-callback">Callback URL</Label>
-                          <Tooltip
-                            toggleOnClick
-                            content="After signing in, copy the full 127.0.0.1 callback URL from the address bar, even if that page cannot load. Paste it here. Tokens are saved in this browser; Disconnect removes them."
-                          >
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label="ChatGPT connection help"
-                              type="button"
-                            >
-                              <Info aria-hidden="true" />
-                            </Button>
-                          </Tooltip>
-                        </div>
-                        <Input
-                          id="chatgpt-callback"
-                          type="password"
-                          autoComplete="off"
-                          value={callback}
-                          onChange={(e) => setCallback(e.target.value)}
-                        />
-                        <Button
-                          disabled={props.connecting || !callback.trim()}
-                          onClick={() => {
-                            const url = callback.trim();
-                            setCallback('');
-                            setAuthUrl('');
+                      ) : kind === 'compatible' ? (
+                        <form
+                          className="space-y-5"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            const profile: ProviderProfile = {
+                              id: editing ?? crypto.randomUUID(),
+                              kind: 'compatible',
+                              name: name.trim(),
+                              baseUrl: baseUrl.trim(),
+                              // Preserve legacy declarations when restoring an existing endpoint.
+                              ...(editing &&
+                              config.profiles.find((p) => p.id === editing)
+                                ?.model
+                                ? {
+                                    model: config.profiles.find(
+                                      (p) => p.id === editing,
+                                    )!.model,
+                                  }
+                                : {}),
+                              ...(transcriptionModel.trim()
+                                ? {
+                                    transcriptionModel:
+                                      transcriptionModel.trim(),
+                                  }
+                                : {}),
+                              ...(speechModel.trim()
+                                ? {
+                                    speechModel: speechModel.trim(),
+                                    voices: voices
+                                      .split(',')
+                                      .map((v) => v.trim())
+                                      .filter(Boolean),
+                                  }
+                                : {}),
+                            };
+                            const credential = key;
+                            setKey('');
                             void props
-                              .connectProvider(chatgpt, url)
+                              .connectProvider(profile, credential)
                               .then((connected) => {
-                                if (connected) setShowForm(false);
+                                if (connected) finishConnection();
                               });
                           }}
                         >
-                          Complete sign-in
-                        </Button>
-                        {editing && (
+                          <div className="space-y-1">
+                            <Label htmlFor="provider-name">Name</Label>
+                            <Input
+                              id="provider-name"
+                              value={name}
+                              maxLength={80}
+                              onChange={(e) => setName(e.target.value)}
+                              required
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="provider-url">API base URL</Label>
+                            <Input
+                              id="provider-url"
+                              value={baseUrl}
+                              onChange={(e) => setBaseUrl(e.target.value)}
+                              placeholder="https://api.example.com/v1"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="provider-key">
+                              API key (optional for local servers)
+                            </Label>
+                            <Input
+                              id="provider-key"
+                              type="password"
+                              autoComplete="off"
+                              value={key}
+                              onChange={(e) => setKey(e.target.value)}
+                            />
+                          </div>
+                          <CollapsibleDisclosure summary="Text to speech">
+                            <div className="mt-3 space-y-2">
+                              <Label htmlFor="provider-speech-model">
+                                Speech model
+                              </Label>
+                              <Input
+                                id="provider-speech-model"
+                                value={speechModel}
+                                onChange={(e) => setSpeechModel(e.target.value)}
+                              />
+                              <Label htmlFor="provider-voices">
+                                Voices (comma separated)
+                              </Label>
+                              <Input
+                                id="provider-voices"
+                                value={voices}
+                                onChange={(e) => setVoices(e.target.value)}
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Endpoint must accept delivery instructions and
+                                return 24 kHz mono PCM.
+                              </p>
+                            </div>
+                          </CollapsibleDisclosure>
+                          <CollapsibleDisclosure summary="Speech to text">
+                            <div className="mt-3 space-y-2">
+                              <Label htmlFor="provider-transcription-model">
+                                Transcription model
+                              </Label>
+                              <Input
+                                id="provider-transcription-model"
+                                value={transcriptionModel}
+                                onChange={(e) =>
+                                  setTranscriptionModel(e.target.value)
+                                }
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Requires verbose JSON segment timestamps (for
+                                example whisper-1). Selected source audio is
+                                sent only after transcription approval.
+                              </p>
+                            </div>
+                          </CollapsibleDisclosure>
                           <Button
-                            variant="outline"
-                            disabled={props.connecting}
-                            onClick={() =>
-                              void props
-                                .connectProvider(chatgpt, '', true)
-                                .then((connected) => {
-                                  if (connected) setShowForm(false);
-                                })
+                            type="submit"
+                            disabled={
+                              props.connecting ||
+                              !name.trim() ||
+                              !baseUrl.trim()
                             }
                           >
-                            Connect
+                            Connect endpoint
                           </Button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
+                        </form>
+                      ) : (
+                        <div className="space-y-3">
+                          <Button
+                            disabled={signingIn || props.connecting}
+                            onClick={() => {
+                              setSigningIn(true);
+                              setCallback('');
+                              const popup = window.open(
+                                'about:blank',
+                                '_blank',
+                              );
+                              if (popup) popup.opener = null;
+                              void props
+                                .authorizeChatGPT(chatgpt)
+                                .then((url) => {
+                                  setAuthUrl(url);
+                                  if (popup) popup.location.href = url;
+                                })
+                                .catch(() => {
+                                  popup?.close();
+                                  toast.error(
+                                    'Could not start ChatGPT sign-in. Allow browser storage and retry.',
+                                  );
+                                })
+                                .finally(() => setSigningIn(false));
+                            }}
+                          >
+                            Continue with ChatGPT
+                          </Button>
+                          {signingIn && (
+                            <p role="status" className="text-sm">
+                              Preparing sign-in…
+                            </p>
+                          )}
+                          {authUrl && (
+                            <a
+                              href={authUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block text-sm underline"
+                            >
+                              Open ChatGPT sign-in
+                            </a>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="chatgpt-callback">
+                              Callback URL
+                            </Label>
+                            <Tooltip
+                              toggleOnClick
+                              content="After signing in, copy the full 127.0.0.1 callback URL from the address bar, even if that page cannot load. Paste it here. Tokens are saved in this browser; Disconnect removes them."
+                            >
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="ChatGPT connection help"
+                                type="button"
+                              >
+                                <Info aria-hidden="true" />
+                              </Button>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="chatgpt-callback"
+                            type="password"
+                            autoComplete="off"
+                            value={callback}
+                            onChange={(e) => setCallback(e.target.value)}
+                          />
+                          <Button
+                            disabled={props.connecting || !callback.trim()}
+                            onClick={() => {
+                              const url = callback.trim();
+                              setCallback('');
+                              setAuthUrl('');
+                              void props
+                                .connectProvider(chatgpt, url)
+                                .then((connected) => {
+                                  if (connected) finishConnection();
+                                });
+                            }}
+                          >
+                            Complete sign-in
+                          </Button>
+                          {editing && (
+                            <Button
+                              variant="outline"
+                              disabled={props.connecting}
+                              onClick={() =>
+                                void props
+                                  .connectProvider(chatgpt, '', true)
+                                  .then((connected) => {
+                                    if (connected) finishConnection();
+                                  })
+                              }
+                            >
+                              Connect
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </AccordionContent>
             </AccordionItem>
             {(['llm', 'tts', 'stt'] as const).map((service) => (
@@ -540,21 +593,16 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                       : 'STT · Transcription'}
                 </AccordionTrigger>
                 <AccordionContent keepMounted>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {config.routes[service]
-                      .map((r) =>
-                        r.providerId === 'local'
-                          ? 'Local Whisper'
-                          : config.profiles.find((p) => p.id === r.providerId)
-                              ?.name,
-                      )
-                      .join(' → ') || 'Disabled'}
-                  </p>
-                  {service === 'stt' && (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Remote transcription sends selected audio only after
-                      approval and may incur charges. OpenRouter requires a
-                      timestamp-capable model such as openai/whisper-1.
+                  {service === 'llm' && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {config.routes.llm
+                        .map(
+                          (route) =>
+                            config.profiles.find(
+                              (profile) => profile.id === route.providerId,
+                            )?.name,
+                        )
+                        .join(' → ') || 'Disabled'}
                     </p>
                   )}
                   <fieldset className="mt-3 space-y-2">
@@ -664,6 +712,27 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                               loading={props.connecting}
                               refresh={props.refreshCatalog}
                             />
+                          ) : service !== 'llm' ? (
+                            <ServiceModelPicker
+                              key={`${route.providerId}:${props.connectedProviders.includes(route.providerId)}`}
+                              providerId={route.providerId}
+                              service={service}
+                              model={route.model}
+                              label={`${profile.name} ${service} route model`}
+                              disabled={
+                                props.connecting ||
+                                route.providerId === 'local' ||
+                                !props.connectedProviders.includes(
+                                  route.providerId,
+                                )
+                              }
+                              load={props.loadServiceModels}
+                              onChange={(model) =>
+                                patch((next) => {
+                                  next.routes[service][index]!.model = model;
+                                })
+                              }
+                            />
                           ) : (
                             <Input
                               disabled={
@@ -772,46 +841,126 @@ function ProviderActions({
   verify: (id: string) => Promise<string>;
 }) {
   const [verifying, setVerifying] = useState(false);
-  const [feedback, setFeedback] = useState('');
+  const [verified, setVerified] = useState('');
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled={disabled || verifying}
-        aria-label={`Verify ${profile.name}`}
-        onClick={() => {
-          setVerifying(true);
-          setFeedback('');
-          void verify(profile.id)
-            .then(setFeedback)
-            .catch(() =>
-              setFeedback(
-                'Verification failed. Check this account and endpoint.',
-              ),
-            )
-            .finally(() => setVerifying(false));
-        }}
-      >
-        {verifying ? 'Verifying…' : 'Verify'}
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled={disabled}
-        aria-label={`Disconnect ${profile.name}`}
-        onClick={() => disconnect(profile.id)}
-      >
-        Disconnect
-      </Button>
-      {verifying && (
-        <p role="status" className="w-full text-xs text-muted-foreground">
-          Verifying connection…
-        </p>
+    <div className="ml-auto flex items-center gap-1">
+      {verified && (
+        <Check
+          className="size-4 text-green-600"
+          role="img"
+          aria-label={`${profile.name} verified`}
+        />
       )}
-      {feedback && (
-        <p role="status" className="w-full text-xs text-muted-foreground">
-          {feedback}
+      <Tooltip content={verified || `Verify ${profile.name}`}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          disabled={disabled || verifying}
+          aria-label={`Verify ${profile.name}`}
+          onClick={() => {
+            setVerifying(true);
+            setVerified('');
+            void verify(profile.id)
+              .then(setVerified)
+              .catch(() =>
+                toast.error(
+                  'Verification failed. Check this account and endpoint.',
+                ),
+              )
+              .finally(() => setVerifying(false));
+          }}
+        >
+          {verifying ? (
+            <LoaderCircle className="motion-safe:animate-spin" />
+          ) : (
+            <ShieldCheck />
+          )}
+        </Button>
+      </Tooltip>
+      <Tooltip content={`Disconnect ${profile.name}`}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          disabled={disabled}
+          aria-label={`Disconnect ${profile.name}`}
+          onClick={() => disconnect(profile.id)}
+        >
+          <Unplug />
+        </Button>
+      </Tooltip>
+    </div>
+  );
+}
+
+function ServiceModelPicker({
+  providerId,
+  service,
+  model,
+  label,
+  disabled,
+  load,
+  onChange,
+}: {
+  providerId: string;
+  service: 'tts' | 'stt';
+  model: string;
+  label: string;
+  disabled: boolean;
+  load: ProviderSettingsProps['loadServiceModels'];
+  onChange: (model: string) => void;
+}) {
+  const [models, setModels] = useState<{ id: string; name: string }[]>(
+    providerId === 'local' ? [{ id: 'whisper', name: 'Local Whisper' }] : [],
+  );
+  const [loading, setLoading] = useState(false);
+  const [failure, setFailure] = useState('');
+  const request = useRef<AbortController | null>(null);
+  useEffect(
+    () => () => {
+      request.current?.abort();
+      request.current = null;
+    },
+    [],
+  );
+  useEffect(() => {
+    if (disabled) {
+      request.current?.abort();
+    }
+  }, [disabled]);
+  const refresh = async () => {
+    if (disabled) return;
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
+    setLoading(true);
+    setFailure('');
+    try {
+      const result = await load(providerId, service, controller.signal);
+      if (!controller.signal.aborted) setModels(result);
+    } catch {
+      if (!controller.signal.aborted)
+        setFailure('Could not load models. Try refreshing.');
+    } finally {
+      if (request.current === controller) setLoading(false);
+    }
+  };
+  return (
+    <div className="space-y-1">
+      <ModelPicker
+        models={models}
+        model={model}
+        label={label}
+        disabled={disabled}
+        loading={loading}
+        refresh={refresh}
+        onOpen={() => {
+          if (!models.length && !loading) void refresh();
+        }}
+        onChange={onChange}
+      />
+      {failure && (
+        <p role="alert" className="text-xs text-destructive">
+          {failure}
         </p>
       )}
     </div>

@@ -28,6 +28,21 @@ for (const base of ['/', '/LocalCut/']) {
             ],
           },
         });
+      if (
+        route
+          .request()
+          .url()
+          .endsWith('/models?output_modalities=transcription')
+      )
+        return route.fulfill({
+          headers: cors,
+          json: {
+            data: [
+              { id: 'openai/whisper-1', name: 'Whisper' },
+              { id: 'openai/whisper-large-v3', name: 'Whisper Large V3' },
+            ],
+          },
+        });
       paid++;
       return route.abort();
     });
@@ -49,7 +64,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page.goto(base);
     await openAISettings(page);
     await dialog
-      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
+      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
     await expect(
       dialog.getByRole('button', { name: 'Add OpenRouter', exact: true }),
@@ -94,9 +109,32 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('combobox', { name: 'Add STT provider', exact: true })
       .click();
     await page.getByRole('option', { name: 'OpenRouter', exact: true }).click();
-    await expect(dialog.getByLabel('OpenRouter stt route model')).toHaveValue(
+    await expect(dialog.getByLabel('OpenRouter stt route model')).toContainText(
       'openai/whisper-1',
     );
+    await dialog
+      .getByRole('combobox', {
+        name: 'OpenRouter stt route model',
+        exact: true,
+      })
+      .click();
+    await page
+      .getByRole('combobox', { name: 'Search models', exact: true })
+      .fill('large');
+    await page
+      .getByRole('option', {
+        name: 'Whisper Large V3 · openai/whisper-large-v3',
+        exact: true,
+      })
+      .click();
+    expect((await config()).routes.stt[1].model).toBe(
+      'openai/whisper-large-v3',
+    );
+    await expect(
+      dialog.getByText('Remote transcription sends selected audio', {
+        exact: false,
+      }),
+    ).toHaveCount(0);
     await dialog
       .getByRole('button', { name: 'Move OpenRouter up in stt', exact: true })
       .click();
@@ -110,11 +148,17 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await connections.click();
     await expect(
-      dialog.getByRole('button', { name: 'Remove OpenRouter', exact: true }),
+      dialog.getByRole('button', {
+        name: 'Disconnect OpenRouter',
+        exact: true,
+      }),
     ).toBeHidden();
     await connections.click();
     await expect(
-      dialog.getByRole('button', { name: 'Remove OpenRouter', exact: true }),
+      dialog.getByRole('button', {
+        name: 'Disconnect OpenRouter',
+        exact: true,
+      }),
     ).toBeVisible();
     await page.reload();
     await openAISettings(page);
@@ -131,9 +175,13 @@ for (const base of ['/', '/LocalCut/']) {
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
     await page.screenshot({ path: info.outputPath('connector-mobile.png') });
     await dialog
-      .getByRole('button', { name: 'Remove OpenRouter', exact: true })
+      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
     expect(await credential()).toBeNull();
+    // A disconnected account can be forgotten through the same control.
+    await dialog
+      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
+      .click();
     expect((await config()).routes.stt).toEqual([
       { providerId: 'local', model: 'whisper' },
     ]);

@@ -1,11 +1,4 @@
-import {
-  lazy,
-  Suspense,
-  useEffect,
-  useState,
-  useRef,
-  type PointerEvent,
-} from 'react';
+import { lazy, useEffect, useState, useRef, type PointerEvent } from 'react';
 import {
   Files,
   AudioLines,
@@ -18,7 +11,6 @@ import {
 } from 'lucide-react';
 import type { Asset, Editor } from '../editor';
 import type { IndexConnection } from './Conversation';
-const TaskQueueControl = lazy(() => import('./TaskQueueControl'));
 const AssetIndexControls = lazy(() => import('./AssetIndexControls'));
 import { Menu } from '@base-ui/react/menu';
 import { assetMenuItemClass } from './AssetMenu';
@@ -38,7 +30,6 @@ import { MEDIA_DRAG_EVENT, formatTime } from './helpers';
 
 export default function MediaLibrary({
   editor,
-  queueOwner = editor,
   indexConnection,
   readOnly,
   assets,
@@ -53,7 +44,6 @@ export default function MediaLibrary({
   onAssetDrag,
 }: {
   editor: Editor | null;
-  queueOwner?: Pick<Editor, 'tasks'> | null;
   indexConnection: IndexConnection | null;
   readOnly: boolean;
   assets: Asset[];
@@ -163,36 +153,33 @@ export default function MediaLibrary({
     <section className="media-library" aria-label="Project media">
       <div className="section-heading">
         <h2>Media</h2>
-        {queueOwner && (
-          <Suspense fallback={null}>
-            <TaskQueueControl editor={queueOwner} />
-          </Suspense>
-        )}
-        {onSpeech && !readOnly && (
-          <Tooltip content="Generate a spoken narration from your script">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Text to speech"
-              onClick={onSpeech}
-            >
-              <AudioLines />
-            </Button>
-          </Tooltip>
-        )}
+        <div className="ml-auto flex items-center gap-1">
+          {onSpeech && !readOnly && (
+            <Tooltip content="Generate a spoken narration from your script">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Text to speech"
+                onClick={onSpeech}
+              >
+                <AudioLines />
+              </Button>
+            </Tooltip>
+          )}
+          {canEdit && (
+            <Tooltip content="Record screen">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Record screen"
+                onClick={onRecord}
+              >
+                <ScreenShare aria-hidden="true" />
+              </Button>
+            </Tooltip>
+          )}
+        </div>
         {headerActions}
-        {canEdit && (
-          <Tooltip content="Record screen">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Record screen"
-              onClick={onRecord}
-            >
-              <ScreenShare aria-hidden="true" />
-            </Button>
-          </Tooltip>
-        )}
       </div>
       <div className="media-grid">
         {assets.map((asset) => (

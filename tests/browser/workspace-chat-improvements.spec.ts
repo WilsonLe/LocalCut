@@ -277,7 +277,7 @@ for (const base of ['/', '/LocalCut/']) {
   test(`chat response actions, branch isolation, dictation and image dragging ${base}`, async ({
     page,
     context,
-  }) => {
+  }, info) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await context.addInitScript(() => {
       class Recognition {
@@ -337,6 +337,27 @@ for (const base of ['/', '/LocalCut/']) {
       exact: true,
     });
     await expect(
+      page.getByText('What would you like to create?', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Send edit request', exact: true }),
+    ).toHaveCount(0);
+    const mic = page.getByRole('button', {
+      name: 'Dictate message',
+      exact: true,
+    });
+    const composerBounds = (await page
+      .locator('.chat-composer')
+      .boundingBox())!;
+    const emptyMic = (await mic.boundingBox())!;
+    expect(
+      composerBounds.x + composerBounds.width - emptyMic.x - emptyMic.width,
+    ).toBeLessThan(20);
+    await expect(
+      page.getByRole('button', { name: 'Record screen', exact: true }),
+    ).toBeVisible();
+    await page.screenshot({ path: info.outputPath('chat-empty-controls.png') });
+    await expect(
       page.getByRole('button', { name: 'Request context' }),
     ).toHaveCount(0);
     await page
@@ -347,6 +368,23 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Stop dictation', exact: true })
       .click();
     await input.fill('First idea');
+    const micBounds = (await mic.boundingBox())!;
+    const sendBounds = (await page
+      .getByRole('button', { name: 'Send edit request', exact: true })
+      .boundingBox())!;
+    expect(micBounds.x + micBounds.width).toBeLessThanOrEqual(sendBounds.x);
+    expect(Math.abs(micBounds.y - sendBounds.y)).toBeLessThan(2);
+    const queue = page.getByRole('button', { name: 'Task queue', exact: true });
+    await expect(
+      page
+        .locator('.workspace-header')
+        .getByRole('button', { name: 'Task queue', exact: true }),
+    ).toBeVisible();
+    expect((await queue.boundingBox())!.x).toBeLessThan(
+      (await page
+        .getByRole('button', { name: 'Commands', exact: true })
+        .boundingBox())!.x,
+    );
     await page
       .getByRole('button', { name: 'Send edit request', exact: true })
       .click();

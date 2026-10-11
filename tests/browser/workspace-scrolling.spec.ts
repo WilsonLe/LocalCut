@@ -162,7 +162,7 @@ for (const base of ['/', '/LocalCut/']) {
         expect(await positions(page)).toEqual(workspaceBefore);
         await page.keyboard.press('Escape');
         await dialog
-          .getByRole('button', { name: 'Remove OpenRouter', exact: true })
+          .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
           .click();
         await page.keyboard.press('Escape');
         await expect(dialog).toBeHidden();
