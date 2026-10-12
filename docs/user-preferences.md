@@ -9,6 +9,11 @@ This is the project record of the user's durable product and workflow choices. U
 - Hide OpenRouter connection terms behind an inline information tooltip beside its account name, accessible by keyboard and touch.
 - Confirm Disconnect before removing an account’s credentials or forgetting a disconnected account.
 
+## Mobile tools — 13 October 2026
+
+- Put the clip picker inline in the horizontal timeline toolbar with Undo and Redo, removing its separate row.
+- Press and hold mobile tools to reveal their tooltips. A hold must not activate the tool; ordinary taps retain their actions.
+
 ## Media interaction — 12 October 2026
 
 - Keep the asset drag preview close to the cursor.
