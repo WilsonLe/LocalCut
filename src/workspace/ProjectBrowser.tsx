@@ -1,3 +1,4 @@
+import { onDemandDialog } from './on-demand-dialog';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
@@ -16,10 +17,15 @@ const ProjectActions = lazy(() =>
     default: module.ProjectActions,
   })),
 );
-const ProjectDetailsDialog = lazy(() =>
-  import('./ProjectManagement').then((module) => ({
-    default: module.ProjectDetailsDialog,
-  })),
+const ProjectDetailsDialog = onDemandDialog(
+  async () => {
+    const { ProjectDetailsDialog } = await import('./ProjectManagement');
+    return { default: ProjectDetailsDialog };
+  },
+  ({ mode, onClose }) => ({
+    title: mode === 'rename' ? 'Rename project' : 'Project thumbnail',
+    onClose,
+  }),
 );
 import type { ProjectSummary } from './project-catalog-cache';
 import { ProjectListSkeleton } from './LoadingState';

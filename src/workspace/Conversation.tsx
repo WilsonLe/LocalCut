@@ -1,3 +1,4 @@
+import { onDemandDialog } from './on-demand-dialog';
 import ChatSessionTitle from './ChatSessionTitle';
 import {
   accountStorage,
@@ -52,10 +53,20 @@ import { Tooltip } from '../components/ui/tooltip';
 import { toast } from './notifications';
 import { captureChatExport, CHAT_EXPORT_TASK } from '../services/chat-export';
 import type { ChatExportSource } from '../services/chat-export';
-const AIConnectionDialog = lazy(() => import('./AIConnectionDialog'));
+const AIConnectionDialog = onDemandDialog(
+  () => import('./AIConnectionDialog'),
+  ({ setSettingsOpen, returnFocus }) => ({
+    title: 'AI connection',
+    onClose: () => setSettingsOpen(false),
+    finalFocus: returnFocus,
+  }),
+);
 const ChatSessionPicker = lazy(() => import('./ChatSessionPicker'));
 const ConversationSession = lazy(() => import('./ConversationSession'));
-const SpeechDialog = lazy(() => import('./SpeechDialog'));
+const SpeechDialog = onDemandDialog(
+  () => import('./SpeechDialog'),
+  ({ open, onClose }) => ({ open, title: 'Text to speech', onClose }),
+);
 const SpeechTasks = lazy(() => import('./SpeechTasks'));
 import {
   getWorkspacePreferences,

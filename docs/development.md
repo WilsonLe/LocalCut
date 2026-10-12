@@ -243,3 +243,9 @@ Run `pnpm test tests/unit/chat-persistence.test.ts tests/unit/assistant.test.ts`
 ## Chat export checks
 
 Run `pnpm test tests/unit/chat-export.test.ts tests/unit/task-queue.test.ts`, then `pnpm test:ui --grep 'chat export queues|chat export captures|chat export recovers'`. The Chrome journey verifies the chat-header icon, immutable queued snapshots, cancellation/retry, queued and abandoned-running reload recovery, actual ZIP downloads, Markdown/JSON contents, session switching and mobile bounds at both hosting bases. Chat export is a user-owned download boundary and adds no assistant editing operation. Native rendering/transcription paths are unchanged.
+
+## Dialog opening checks
+
+For on-demand dialog code, loading focus or command-palette preparation, run `pnpm test:ui --grep 'first dialog opening|dialog loading shell|commands load metadata|simple dialogs keep heavy|failed dialog chunks'`. The production Chrome cases cover both hosting bases, full motion, pre-imported first openings versus repeats, slow/failed chunks, dismissal before completion, focus return, parallel command preparation, heavy-body isolation and inert bare startup. The pre-import probe retains a 250 ms mount budget to catch the former roughly 300 ms Suspense retry floor; diagnostic timing attachments distinguish shell and resolved dialog mounts.
+
+Run affected existing consumer journeys as well, including `project switcher dialog`, `error stack trace`, `task queue table`, `workspace settings`, `screen recording`, `searchable fonts`, `speed rounding` and relevant speech/backup cases. Keep engine, transcription, storage and native export gates separate; changing only UI-module loading does not change their owners.

@@ -1,3 +1,4 @@
+import { onDemandDialog } from './on-demand-dialog';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { LoaderCircle, RefreshCw } from 'lucide-react';
 import { toast } from './notifications';
@@ -5,7 +6,17 @@ import { showErrorToast } from './error-toast';
 import { Button } from '../components/ui/button';
 import { checkForUpdate } from './update';
 
-const UpdateDialog = lazy(() => import('./UpdateDialog'));
+const UpdateDialog = onDemandDialog(
+  () => import('./UpdateDialog'),
+  ({ onOpenChange }) => ({
+    title: 'Update available',
+    onClose: () => onOpenChange(false),
+    finalFocus: () =>
+      document.querySelector<HTMLButtonElement>(
+        '[aria-label="Check for update"]',
+      ),
+  }),
+);
 const Tooltip = lazy(() =>
   import('../components/ui/tooltip').then(({ Tooltip }) => ({
     default: Tooltip,
