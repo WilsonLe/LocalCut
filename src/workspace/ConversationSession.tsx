@@ -216,7 +216,6 @@ export default function ConversationSession({
     titleLocked || !!initialContent.messages.length,
   );
   const titleRequest = useRef<AbortController | null>(null);
-  const applyingRef = useRef(false);
   useLayoutEffect(() => {
     if (titleLocked) {
       titleAttempted.current = true;
@@ -348,6 +347,7 @@ export default function ConversationSession({
         provider: connection.provider,
         projectId: project.id,
         model,
+        execution: 'requested',
         context: privacy,
         transcription: connection.transcription,
         indexing:
@@ -378,11 +378,20 @@ export default function ConversationSession({
       });
       unsubscribe.current = assistant.current.subscribe((event) => {
         if (!mounted.current) return;
-        if (event.type === 'proposal')
+        if (event.type === 'proposal') {
           setProposals((current) => ({
             ...current,
             [event.proposal.id]: event.proposal,
           }));
+          if (event.proposal.status === 'applied')
+            void onApplied().catch((error) => {
+              if (mounted.current)
+                setFailure(
+                  'The action completed, but the workspace could not refresh.',
+                );
+              onError(error);
+            });
+        }
         if (event.type === 'proposal_progress')
           setProposals((current) => {
             const proposal = current[event.proposalId];
@@ -405,13 +414,7 @@ export default function ConversationSession({
     if (readOnly || !active || document.visibilityState === 'hidden') return;
     const resuming = prompt.length === 0 ? pausedRequest : null;
     const text = prompt.trim();
-    if (
-      (!text && !resuming) ||
-      attaching ||
-      runningRef.current ||
-      applyingRef.current
-    )
-      return;
+    if ((!text && !resuming) || attaching || runningRef.current) return;
     runningRef.current = true;
     setFailure(null);
     setActivity('Thinking…');
@@ -518,8 +521,8 @@ export default function ConversationSession({
             ),
           );
           setActivity(
-            event.name === 'propose_edits'
-              ? 'Preparing a proposal…'
+            event.name === 'propose_edits' || event.name === 'propose_action'
+              ? 'Performing requested action…'
               : 'Inspecting project context…',
           );
         }
@@ -542,19 +545,25 @@ export default function ConversationSession({
     } catch (error) {
       if (!mounted.current) return;
       const paused = pausedByNavigation.current;
+      const completedActions = assistant.current
+        ?.snapshot()
+        .proposals.some(
+          (proposal) => proposal.turnId === activeTurn?.id && proposal.result,
+        );
+      const resumable = paused && !completedActions;
       const cancelled = paused || errorCode(error) === 'CANCELLED';
       const text = cancelled
         ? 'Response stopped. No unfinished proposal was saved.'
         : errorText(error);
       setFailure(paused ? null : text);
-      if (paused && submitted) setPausedRequest(submitted);
+      if (resumable && submitted) setPausedRequest(submitted);
       if (activeTurn)
         setMessages((current) =>
           current.map((message) =>
             message.id === activeTurn!.id
               ? {
                   ...message,
-                  status: paused
+                  status: resumable
                     ? 'paused'
                     : cancelled
                       ? 'interrupted'
@@ -575,43 +584,6 @@ export default function ConversationSession({
         onBusy(false);
         setCancelling(false);
       }
-    }
-  };
-  const apply = async (proposal: EditProposal) => {
-    if (
-      readOnly ||
-      !assistant.current ||
-      runningRef.current ||
-      applyingRef.current
-    )
-      return;
-    applyingRef.current = true;
-    onBusy(true);
-    try {
-      const result = await assistant.current.approveProposal(proposal.id);
-      try {
-        await onApplied();
-      } catch (error) {
-        if (mounted.current)
-          setFailure(
-            'The edit was applied, but the workspace could not refresh.',
-          );
-        onError(error);
-      }
-      if (
-        mounted.current &&
-        result.kind !== 'edit' &&
-        result.kind !== 'history'
-      )
-        toast.success('Action completed');
-    } catch (error) {
-      if (mounted.current) {
-        setFailure(errorText(error));
-        onError(error);
-      }
-    } finally {
-      applyingRef.current = false;
-      if (mounted.current) onBusy(false);
     }
   };
   const cancelAction = (id: string) => {
@@ -809,10 +781,10 @@ export default function ConversationSession({
                   · No pending changes
                 </p>
               )}
-              {message.status === 'complete' &&
-                message.proposalIds.map((id) => {
-                  const proposal = proposals[id];
-                  if (!proposal) return null;
+              {Object.values(proposals)
+                .filter((proposal) => proposal.turnId === message.id)
+                .map((proposal) => {
+                  const id = proposal.id;
                   const stale =
                     proposal.status === 'pending' &&
                     project.revision !== proposal.batch.expectedRevision;
@@ -820,7 +792,7 @@ export default function ConversationSession({
                     <div
                       key={id}
                       className="space-y-2 border-l-2 border-blue-500 py-1 pl-3"
-                      aria-label="Edit proposal"
+                      aria-label="Chat action"
                     >
                       <p className="text-sm font-medium">{proposal.summary}</p>
                       {proposal.dataSharing && (
@@ -842,12 +814,10 @@ export default function ConversationSession({
                                 ? 'Committing edit…'
                                 : 'Running action…'
                               : stale
-                                ? 'Project changed. Ask for a new proposal.'
-                                : proposal.action
-                                  ? `${proposal.action.type.replaceAll('_', ' ')} · Project revision ${proposal.batch.expectedRevision}`
-                                  : `${proposal.batch.operations.length} edit${proposal.batch.operations.length === 1 ? '' : 's'} · Project revision ${proposal.batch.expectedRevision}`}
+                                ? 'Project changed. Send a new request.'
+                                : 'Action failed. Send a new request to retry.'}
                       </p>
-                      <AccordionDisclosure summary="Review changes">
+                      <AccordionDisclosure summary="Action details">
                         <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-all rounded bg-background p-3 text-xs">
                           {JSON.stringify(
                             proposal.action ?? proposal.batch.operations,
@@ -902,33 +872,6 @@ export default function ConversationSession({
                             Save video
                           </Button>
                         )}
-                      {proposal.status === 'pending' && (
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            aria-label="Apply proposal"
-                            disabled={readOnly || stale || running || applying}
-                            onClick={() => void apply(proposal)}
-                          >
-                            {proposal.action ? 'Approve' : 'Apply'}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            aria-label="Discard proposal"
-                            disabled={applying}
-                            onClick={() => {
-                              try {
-                                assistant.current?.discardProposal(id);
-                              } catch (error) {
-                                onError(error);
-                              }
-                            }}
-                          >
-                            Discard
-                          </Button>
-                        </div>
-                      )}
                     </div>
                   );
                 })}

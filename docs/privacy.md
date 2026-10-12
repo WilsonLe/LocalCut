@@ -4,18 +4,18 @@ LocalCut is a static browser application. It has no application backend or cloud
 
 ## Data boundaries
 
-| Action or data                                        | Where it goes / persists                                                                                                                                                                                   |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Imported originals, editing, preview and video export | Browser-local media processing; originals in OPFS, project records in IndexedDB                                                                                                                            |
-| Saved projects, versions and workspace preferences    | This browser profile and origin; no automatic cross-device transfer                                                                                                                                        |
-| Default local Whisper transcription                   | Selected audio stays local; explicit preparation downloads pinned model/runtime assets into the named cache                                                                                                |
-| Chat                                                  | User prompt and permitted project context go to the configured LLM route; names, text and transcripts have separate session sharing options, off by default                                                |
-| Asset indexing                                        | OpenRouter connection plus explicit Index or approved chat proposal can send generated stills, audio/video excerpts with sound to the selected OpenRouter model; it does not send the original source file |
-| Text to speech                                        | Explicit Generate sends the authored script, voice, languages and delivery instructions through the configured TTS route; resulting audio becomes a local asset when added                                 |
-| Remote transcription                                  | Explicitly configured STT routes plus an approved transcription job may send selected decoded audio to the disclosed endpoints; local Whisper remains the default                                          |
-| Portable backups                                      | The user downloads selected preferences/projects/versions and optional originals; provider credentials and sharing consent are excluded                                                                    |
+| Action or data                                        | Where it goes / persists                                                                                                                                                                              |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Imported originals, editing, preview and video export | Browser-local media processing; originals in OPFS, project records in IndexedDB                                                                                                                       |
+| Saved projects, versions and workspace preferences    | This browser profile and origin; no automatic cross-device transfer                                                                                                                                   |
+| Default local Whisper transcription                   | Selected audio stays local; explicit preparation downloads pinned model/runtime assets into the named cache                                                                                           |
+| Chat                                                  | User prompt and permitted project context go to the configured LLM route; names, text and transcripts have separate session sharing options, off by default                                           |
+| Asset indexing                                        | OpenRouter connection plus explicit Index or user chat request can send generated stills, audio/video excerpts with sound to the selected OpenRouter model; it does not send the original source file |
+| Text to speech                                        | Explicit Generate sends the authored script, voice, languages and delivery instructions through the configured TTS route; resulting audio becomes a local asset when added                            |
+| Remote transcription                                  | Explicitly configured STT routes plus an requested transcription job may send selected decoded audio to the disclosed endpoints; local Whisper remains the default                                    |
+| Portable backups                                      | The user downloads selected preferences/projects/versions and optional originals; provider credentials and sharing consent are excluded                                                               |
 
-Service routes may include ordered fallbacks. Each possible remote transcription recipient is disclosed before approval, and a failed provider attempt may still incur a charge. Indexing does not fail over to custom endpoints/ChatGPT. See the [AI contract](ai.md#providers-and-fallback) for exact service capabilities, limits and cancellation behavior.
+Service routes may include ordered fallbacks. Each possible remote transcription recipient is disclosed by the configured route and action details, and a failed provider attempt may still incur a charge. Indexing does not fail over to custom endpoints/ChatGPT. See the [AI contract](ai.md#providers-and-fallback) for exact service capabilities, limits and cancellation behavior.
 
 ## Credentials and consent
 
@@ -38,3 +38,5 @@ Embedded capture dates and GPS are retained locally with imported assets and bac
 ## Chat exports
 
 Explicit Export chat captures a local transcript and unsent draft in a durable task, including displayed tool details, proposal records and local attachment IDs/names. Treat the downloaded archive as private conversation data. Generation sends nothing to a provider and excludes credentials, opaque continuation and media files. Queue inputs and outputs stay in browser storage until their task is removed or site data is cleared; saved downloads are user-owned files.
+
+Workspace chat treats the user request as authorization and uses text questions only for missing information or ambiguous intent. No approval UI is shown. Headless clients retain review mode by default; see [requested execution](ai.md#workspace-requested-execution).

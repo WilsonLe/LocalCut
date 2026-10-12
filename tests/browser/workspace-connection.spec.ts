@@ -203,14 +203,9 @@ for (const base of ['/', '/LocalCut/']) {
       ).toContainText('Try a short opening montage.');
       const successfulRequests = kind === 'standard' ? 1 : 3;
       expect(requests).toBe(successfulRequests);
-      if (kind !== 'standard') {
-        await expect(
-          page.getByRole('button', { name: 'Apply proposal', exact: true }),
-        ).toBeVisible();
-        await page
-          .getByRole('button', { name: 'Discard proposal', exact: true })
-          .click();
-      }
+      await expect(
+        page.getByRole('button', { name: 'Apply proposal', exact: true }),
+      ).toHaveCount(0);
       reject = true;
       await composer.fill('Another idea');
       await send.click();
@@ -235,10 +230,6 @@ for (const base of ['/', '/LocalCut/']) {
         page.getByRole('article', { name: 'Assistant response' }).last(),
       ).toContainText('Try a short opening montage.');
       expect(requests).toBe(successfulRequests * 2 + 1);
-      if (kind !== 'standard')
-        await page
-          .getByRole('button', { name: 'Discard proposal', exact: true })
-          .click();
       truncate = true;
       await composer.fill('Make another edit');
       await send.click();
