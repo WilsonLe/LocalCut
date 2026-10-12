@@ -277,8 +277,35 @@ for (const base of ['/', '/LocalCut/']) {
     await image(page);
     let dialog = await connect(page);
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    const assetId = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const project = (await editor.projects.list()).find(
+          (item) => item.name === 'Chat indexing',
+        )!;
+        return (
+          await editor.library.forProject(project.id).list()
+        ).entries.find((entry) => entry.assetId)!.assetId!;
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
     const send = async (text: string) => {
       await dismissNotifications(page);
+      // Library-only uploads require an explicit attachment for each chat turn.
+      const transfer = await page.evaluateHandle((id) => {
+        const data = new DataTransfer();
+        data.setData('application/x-localcut-image', id);
+        return data;
+      }, assetId);
+      await page
+        .locator('.conversation-session:not([hidden]) .chat-composer')
+        .dispatchEvent('drop', { dataTransfer: transfer });
+      await transfer.dispose();
+      await expect(page.getByLabel('Attached images')).toContainText('red.png');
       await page
         .getByRole('textbox', { name: 'Describe your edit' })
         .fill(text);
