@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 
-export async function openAISettings(page: Page) {
+export async function waitForWorkspaceSettings(page: Page) {
   // Hidden does not mean the closing popup has released its focus manager.
   // Wait for the non-retained project dialog to unmount before opening a menu.
   await expect(
@@ -21,6 +21,10 @@ export async function openAISettings(page: Page) {
         requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
       ),
   );
+}
+
+export async function openAISettings(page: Page) {
+  await waitForWorkspaceSettings(page);
   await page
     .getByRole('button', { name: 'Workspace settings', exact: true })
     .click();
