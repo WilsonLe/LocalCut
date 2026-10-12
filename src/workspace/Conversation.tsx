@@ -928,6 +928,8 @@ export function Conversation(props: ConversationProps) {
         {
           id: 'unconfigured',
           title: 'New chat',
+          archived: false,
+          titleLocked: false,
           hasMessages: false,
           hasDraft: false,
           content: { prompt: '', attachmentIds: [], messages: [] },
@@ -943,7 +945,8 @@ export function Conversation(props: ConversationProps) {
   }
   const newConversation = () => {
     const empty = chatSessions.find(
-      (session) => !session.hasMessages && !session.hasDraft,
+      (session) =>
+        !session.archived && !session.hasMessages && !session.hasDraft,
     );
     if (empty) chats.select(empty.id);
     else chats.add();
@@ -1012,12 +1015,14 @@ export function Conversation(props: ConversationProps) {
               group: 'Chat',
               run: openSessionPicker,
             },
-            ...chatSessions.map((session) => ({
-              id: `chat-session-${session.id}`,
-              label: `Switch to ${session.title} (${session.id + 1})`,
-              group: 'Chat',
-              run: () => setConversationNumber(session.id),
-            })),
+            ...chatSessions
+              .filter((session) => !session.archived)
+              .map((session, index) => ({
+                id: `chat-session-${session.id}`,
+                label: `Switch to ${session.title} (${index + 1})`,
+                group: 'Chat',
+                run: () => setConversationNumber(session.id),
+              })),
           ]
         : []),
     ],
@@ -1091,6 +1096,18 @@ export function Conversation(props: ConversationProps) {
                 busy={sessionBusy}
                 onSelect={setConversationNumber}
                 onNew={newConversation}
+                managed={chats.loaded}
+                onRename={chats.rename}
+                onFork={chats.fork}
+                onRestore={chats.restore}
+                onArchive={(id) => {
+                  setChatBranches((current) => {
+                    const next = { ...current };
+                    delete next[id];
+                    return next;
+                  });
+                  chats.archive(id);
+                }}
               />
             </Suspense>
           ) : (
@@ -1112,61 +1129,67 @@ export function Conversation(props: ConversationProps) {
           </p>
         ) : ready && chats.loaded ? (
           <Suspense fallback={<div className="flex-1" />}>
-            {chatSessions.map((session) => (
-              <div
-                key={`${sessionKey}:${session.id}`}
-                className="conversation-session"
-                hidden={session.id !== conversationNumber}
-              >
-                <ConversationSession
-                  {...props}
-                  editor={props.editor!}
-                  project={props.project!}
-                  connection={connection}
-                  indexConnection={indexConnection}
-                  model={model}
-                  privacy={{ ...privacy, includeAssetIndexes: indexingAllowed }}
-                  registerSession={registerSession}
-                  composerControl={null}
-                  active={
-                    session.id === conversationNumber &&
-                    !props.collapsed &&
-                    props.active !== false
-                  }
-                  initialBranch={chatBranches[session.id]}
-                  sessionId={session.id}
-                  initialContent={session.content}
-                  onSave={chats.saveContent}
-                  onBranch={(branch) => {
-                    const id = chats.add(
-                      {
-                        prompt: '',
-                        attachmentIds: [],
-                        messages: branch.messages,
-                        historyTurnIds: branch.historyTurnIds,
-                        historyIndexScope: branch.historyIndexScope,
-                      },
-                      `Branch of ${session.title}`,
-                    );
-                    setChatBranches((current) => ({
-                      ...current,
-                      [id]: branch,
-                    }));
-                    requestAnimationFrame(() =>
-                      document
-                        .querySelector<HTMLElement>(
-                          '.conversation-session:not([hidden]) textarea',
-                        )
-                        ?.focus(),
-                    );
-                  }}
-                  retireSession={retireSession}
-                  waitForRetired={waitForRetired}
-                  onBusy={setSessionBusy}
-                  onTitle={(title) => chats.update(session.id, { title })}
-                />
-              </div>
-            ))}
+            {chatSessions
+              .filter((session) => !session.archived)
+              .map((session) => (
+                <div
+                  key={`${sessionKey}:${session.id}`}
+                  className="conversation-session"
+                  hidden={session.id !== conversationNumber}
+                >
+                  <ConversationSession
+                    {...props}
+                    editor={props.editor!}
+                    project={props.project!}
+                    connection={connection}
+                    indexConnection={indexConnection}
+                    model={model}
+                    privacy={{
+                      ...privacy,
+                      includeAssetIndexes: indexingAllowed,
+                    }}
+                    registerSession={registerSession}
+                    composerControl={null}
+                    active={
+                      session.id === conversationNumber &&
+                      !props.collapsed &&
+                      props.active !== false
+                    }
+                    initialBranch={chatBranches[session.id]}
+                    sessionId={session.id}
+                    titleLocked={session.titleLocked}
+                    initialContent={session.content}
+                    onSave={chats.saveContent}
+                    onBranch={(branch) => {
+                      const id = chats.add(
+                        {
+                          prompt: '',
+                          attachmentIds: [],
+                          messages: branch.messages,
+                          historyTurnIds: branch.historyTurnIds,
+                          historyIndexScope: branch.historyIndexScope,
+                        },
+                        `Branch of ${session.title}`,
+                      );
+                      setChatBranches((current) => ({
+                        ...current,
+                        [id]: branch,
+                      }));
+                      requestAnimationFrame(() =>
+                        document
+                          .querySelector<HTMLElement>(
+                            '.conversation-session:not([hidden]) textarea',
+                          )
+                          ?.focus(),
+                      );
+                    }}
+                    retireSession={retireSession}
+                    waitForRetired={waitForRetired}
+                    onBusy={setSessionBusy}
+                    onTitle={(title) => chats.autoTitle(session.id, title)}
+                  />
+                </div>
+              ))}
           </Suspense>
         ) : (
           <div className="conversation-session conversation-empty-session">

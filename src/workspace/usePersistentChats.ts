@@ -5,7 +5,14 @@ import {
   useRef,
   useState,
 } from 'react';
-import { ChatStore, chatContentSchema, newChatSession } from '../storage/chats';
+import {
+  ChatStore,
+  chatContentSchema,
+  newChatSession,
+  renameChatSession,
+  automaticChatTitle,
+  forkChatSession,
+} from '../storage/chats';
 import type { ChatContent, SavedChatSession } from '../storage/chats';
 interface ChatState {
   scope: string | null;
@@ -70,6 +77,18 @@ export function usePersistentChats(
       if (!loaded.sessions.length) {
         const session = newChatSession(scope);
         loaded = { sessions: [session], selected: session.id };
+      }
+      if (
+        !loaded.sessions.some(
+          (session) => session.id === loaded.selected && !session.archived,
+        )
+      ) {
+        const active =
+          loaded.sessions.find((session) => !session.archived) ??
+          newChatSession(scope);
+        if (!loaded.sessions.some((session) => session.id === active.id))
+          loaded.sessions.push(active);
+        loaded.selected = active.id;
       }
       setState({ scope, ...loaded, loaded: true });
     };
@@ -156,6 +175,60 @@ export function usePersistentChats(
       ),
     [scope],
   );
+  const transform = (
+    id: string,
+    change: (session: SavedChatSession) => SavedChatSession,
+  ) =>
+    setState((current) =>
+      current.scope === scope
+        ? {
+            ...current,
+            sessions: current.sessions.map((session) =>
+              session.id === id ? change(session) : session,
+            ),
+          }
+        : current,
+    );
+  const archive = (id: string) =>
+    setState((current) => {
+      if (current.scope !== scope || !scope) return current;
+      const sessions = current.sessions.map((session) =>
+        session.id === id ? { ...session, archived: true } : session,
+      );
+      const active =
+        sessions.find((session) => !session.archived) ?? newChatSession(scope);
+      if (!sessions.some((session) => session.id === active.id))
+        sessions.push(active);
+      return {
+        ...current,
+        sessions,
+        selected: current.selected === id ? active.id : current.selected,
+      };
+    });
+  const restore = (id: string) =>
+    setState((current) =>
+      current.scope === scope
+        ? {
+            ...current,
+            sessions: current.sessions.map((session) =>
+              session.id === id ? { ...session, archived: false } : session,
+            ),
+            selected: id,
+          }
+        : current,
+    );
+  const fork = (id: string) =>
+    setState((current) => {
+      if (current.scope !== scope) return current;
+      const source = current.sessions.find((session) => session.id === id);
+      if (!source) return current;
+      const copy = forkChatSession(source);
+      return {
+        ...current,
+        sessions: [...current.sessions, copy],
+        selected: copy.id,
+      };
+    });
   const add = (content?: ChatContent, title = 'New chat') => {
     if (!scope) return '';
     const session = {
@@ -180,6 +253,13 @@ export function usePersistentChats(
     loaded: !!scope && state.scope === scope && state.loaded,
     saved,
     update,
+    autoTitle: (id: string, title: string) =>
+      transform(id, (session) => automaticChatTitle(session, title)),
+    rename: (id: string, title: string) =>
+      transform(id, (session) => renameChatSession(session, title)),
+    archive,
+    restore,
+    fork,
     saveContent,
     select,
     add,

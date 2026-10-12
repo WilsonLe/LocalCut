@@ -212,7 +212,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Save pasted and OAuth-issued OpenRouter credentials locally in this browser/origin and restore the connection after refresh or navigation. This supersedes the earlier memory-only credential choices.
 - Keep credentials separate from preferences, project data and all portable backups. Disconnect removes the saved credential; ordinary cleanup preserves it. Removing or replacing it in another tab retires the old connection.
-- Restoring a connection may refresh the model catalog, but never sends chat, generates speech or indexes media automatically. Text/name/transcript sharing remains off after reload; conversations remain session-only. Active project restoration follows the newer project-routing choice above.
+- Restoring a connection may refresh the model catalog, but never sends chat, generates speech or indexes media automatically. Text/name/transcript sharing remains off after reload; the newer persistent chat choice below supersedes the original session-only conversation lifetime. Active project restoration follows the newer project-routing choice above.
 
 ## Mobile usability — 10 October 2026
 
@@ -399,3 +399,5 @@ This is the project record of the user's durable product and workflow choices. U
 ## Persistent chat sessions — 12 October 2026
 
 - Persist chat sessions locally in the existing workspace system, including titles, messages, branches, drafts and selection across refreshes and returning to a project. Preserve current sharing/approval boundaries and require explicit Send for further model work.
+
+- Allow renaming chat titles, archiving/restoring sessions and creating independent session forks in the existing chat picker. Preserve local persistence and explicit model-request boundaries.

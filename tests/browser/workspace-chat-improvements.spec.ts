@@ -285,8 +285,62 @@ for (const base of ['/', '/LocalCut/']) {
     await expect.poll(() => pending.length).toBe(1);
     await page.reload();
     pending.shift()!();
-    await expect(trigger).toHaveText('New chat');
+    await expect(trigger).toHaveText('Retired request');
     expect(naming).toHaveLength(5);
+    // A manual rename wins over delayed automatic naming, including after reload.
+    await create();
+    await input.fill('Rename while naming');
+    await input.press('Enter');
+    await expect(responses.last()).toContainText('Ready to edit.');
+    await expect.poll(() => pending.length).toBe(1);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('button', { name: 'Chat', exact: true }).click();
+    await trigger.click();
+    await page
+      .getByRole('menuitem', { name: 'Rename chat', exact: true })
+      .click();
+    const dialog = page.getByRole('dialog', {
+      name: 'Rename chat',
+      exact: true,
+    });
+    await dialog
+      .getByLabel('Chat title', { exact: true })
+      .fill('My chosen title');
+    await dialog.getByLabel('Chat title', { exact: true }).press('Enter');
+    await expect(trigger).toHaveText('My chosen title');
+    expect((await trigger.boundingBox())!.width).toBeGreaterThan(180);
+    await page.screenshot({
+      path: testInfo.outputPath('renamed-chat-narrow.png'),
+    });
+    pending.shift()!();
+    await expect(trigger).toHaveText('My chosen title');
+    await expect
+      .poll(() =>
+        page.evaluate(async () => {
+          const db = await new Promise<IDBDatabase>((resolve) => {
+            const request = indexedDB.open('localcut-chats-v1');
+            request.onsuccess = () => resolve(request.result);
+          });
+          const records = await new Promise<
+            { title: string; titleLocked: boolean }[]
+          >((resolve) => {
+            const request = db
+              .transaction('sessions')
+              .objectStore('sessions')
+              .getAll();
+            request.onsuccess = () => resolve(request.result);
+          });
+          db.close();
+          return records.some(
+            (chat) => chat.title === 'My chosen title' && chat.titleLocked,
+          );
+        }),
+      )
+      .toBe(true);
+    await page.reload();
+    await page.getByRole('button', { name: 'Chat', exact: true }).click();
+    await expect(trigger).toHaveText('My chosen title');
+    expect(naming).toHaveLength(6);
   });
   test(`chat navigation pauses quietly with Resume and Send composer actions ${base}`, async ({
     page,

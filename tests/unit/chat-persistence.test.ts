@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { newChatSession, restoreChatSession } from '../../src/storage/chats';
+import {
+  newChatSession,
+  restoreChatSession,
+  renameChatSession,
+  automaticChatTitle,
+  forkChatSession,
+} from '../../src/storage/chats';
 import { completedChatTurns } from '../../src/workspace/chat-transcript';
 
 describe('local chat records', () => {
@@ -111,4 +117,55 @@ it('does not reintroduce compacted or retired turns from the visible transcript'
     { id: 'a2', user: 'Current request', assistant: 'Current answer' },
   ]);
   expect(completedChatTurns(messages, [])).toEqual([]);
+});
+
+it('keeps manual titles authoritative and supports old records without lifecycle fields', () => {
+  const chat = newChatSession('scope');
+  const { archived: _archived, titleLocked: _locked, ...legacy } = chat;
+  expect([_archived, _locked]).toEqual([false, false]);
+  expect(restoreChatSession(legacy)).toMatchObject({
+    archived: false,
+    titleLocked: false,
+  });
+  const renamed = renameChatSession(chat, '  My edit  ');
+  expect(renamed.title).toBe('My edit');
+  expect(automaticChatTitle(renamed, 'Delayed generated title')).toBe(renamed);
+  expect(() => renameChatSession(chat, '   ')).toThrow();
+  expect(() => renameChatSession(chat, 'x'.repeat(121))).toThrow();
+});
+it('forks an independent active snapshot without unfinished authority', () => {
+  const source = {
+    ...newChatSession('scope'),
+    archived: true,
+    content: {
+      prompt: 'Draft',
+      attachmentIds: ['image'],
+      historyTurnIds: ['done'],
+      historyIndexScope: 'current-index',
+      messages: [
+        {
+          id: 'partial',
+          role: 'assistant' as const,
+          status: 'paused' as const,
+          text: 'Partial reply',
+        },
+      ],
+    },
+  };
+  const fork = forkChatSession(source);
+  expect(fork.id).not.toBe(source.id);
+  expect(fork).toMatchObject({
+    archived: false,
+    titleLocked: true,
+    title: 'Fork of New chat',
+    content: {
+      historyTurnIds: ['done'],
+      historyIndexScope: 'current-index',
+      messages: [{ status: 'interrupted' }],
+    },
+  });
+  fork.content.attachmentIds.push('other');
+  fork.content.messages[0]!.text = 'Changed';
+  expect(source.content.attachmentIds).toEqual(['image']);
+  expect(source.content.messages[0]!.text).toBe('Partial reply');
 });

@@ -217,6 +217,103 @@ for (const base of ['/', '/LocalCut/']) {
     ).toContainText('Branch of Editing session title');
     expect(completions).toBe(2);
 
+    await test.step('rename, fork, archive and restore retain independent sessions', async () => {
+      const picker = page.getByRole('button', {
+        name: 'Chat sessions',
+        exact: true,
+      });
+      await picker.click();
+      await page
+        .getByRole('menuitem', { name: 'Rename chat', exact: true })
+        .click();
+      const dialog = page.getByRole('dialog', {
+        name: 'Rename chat',
+        exact: true,
+      });
+      await dialog.getByLabel('Chat title', { exact: true }).fill('   ');
+      await expect(
+        dialog.getByRole('button', { name: 'Save title', exact: true }),
+      ).toHaveCount(0);
+      await expect(dialog.getByRole('status')).toContainText('Enter a title');
+      await dialog
+        .getByLabel('Chat title', { exact: true })
+        .fill('  My project edit  ');
+      await dialog.getByLabel('Chat title', { exact: true }).press('Enter');
+      await expect(picker).toContainText('My project edit');
+      await expect(picker).toBeFocused();
+      await picker.click();
+      await page
+        .getByRole('menuitem', { name: 'Fork chat', exact: true })
+        .click();
+      await expect(picker).toContainText('Fork of My project edit');
+      await expect(composer).toHaveValue('A branch draft');
+      await expect(
+        page.getByRole('log', { name: 'Conversation messages' }),
+      ).toContainText('Hello again');
+      await composer.fill('Fork-only draft');
+      await expect
+        .poll(async () =>
+          (await savedChats(page)).some(
+            (chat) =>
+              chat.title === 'Fork of My project edit' &&
+              chat.content.prompt === 'Fork-only draft',
+          ),
+        )
+        .toBe(true);
+      await picker.click();
+      await page
+        .getByRole('menuitem', { name: 'Archive chat', exact: true })
+        .click();
+      await expect(picker).not.toContainText('Fork of My project edit');
+      await expect
+        .poll(async () =>
+          (await savedChats(page)).some(
+            (chat) => chat.title === 'Fork of My project edit' && chat.archived,
+          ),
+        )
+        .toBe(true);
+      await page.reload();
+      await expect(composer).toBeEnabled();
+      await picker.click();
+      await expect(
+        page.getByRole('menuitemradio', {
+          name: 'Fork of My project edit',
+          exact: true,
+        }),
+      ).toHaveCount(0);
+      await page
+        .getByRole('button', { name: 'Show archived chats', exact: true })
+        .click();
+      await page.screenshot({
+        path: testInfo.outputPath('chat-archive-picker.png'),
+      });
+      await page
+        .getByRole('menuitem', {
+          name: 'Restore Fork of My project edit',
+          exact: true,
+        })
+        .click();
+      await expect(picker).toContainText('Fork of My project edit');
+      await expect(composer).toHaveValue('Fork-only draft');
+      await expect
+        .poll(async () =>
+          (await savedChats(page)).some(
+            (chat) =>
+              chat.title === 'Fork of My project edit' && !chat.archived,
+          ),
+        )
+        .toBe(true);
+      await page.reload();
+      await expect(picker).toContainText('Fork of My project edit');
+      await picker.click();
+      await page
+        .getByRole('menuitemradio', { name: 'My project edit', exact: true })
+        .click();
+      await expect(composer).toHaveValue('A branch draft');
+      expect(completions).toBe(2);
+      expect(titles).toBe(1);
+    });
+
     // Tabs create distinct sessions and patch only their own record.
     await page
       .getByRole('button', { name: 'Chat sessions', exact: true })
@@ -509,5 +606,39 @@ for (const base of ['/', '/LocalCut/']) {
       'Saved reference.png',
     );
     expect(completions).toBe(2);
+    await test.step('archiving the final active chat creates an empty usable chat', async () => {
+      const picker = page.getByRole('button', {
+        name: 'Chat sessions',
+        exact: true,
+      });
+      const count = (await savedChats(page)).filter(
+        (chat) =>
+          chat.version === 1 && chat.scope === retained.scope && !chat.archived,
+      ).length;
+      for (let i = 0; i < count; i++) {
+        await picker.click();
+        await page
+          .getByRole('menuitem', { name: 'Archive chat', exact: true })
+          .click();
+      }
+      await expect(composer).toHaveValue('');
+      await expect(picker).toHaveText('New chat');
+      await expect
+        .poll(
+          async () =>
+            (await savedChats(page)).filter(
+              (chat) =>
+                chat.version === 1 &&
+                chat.scope === retained.scope &&
+                !chat.archived,
+            ).length,
+        )
+        .toBe(1);
+      await page.reload();
+      await expect(composer).toHaveValue('');
+      await expect(picker).toHaveText('New chat');
+      expect(completions).toBe(2);
+      expect(titles).toBe(1);
+    });
   });
 }

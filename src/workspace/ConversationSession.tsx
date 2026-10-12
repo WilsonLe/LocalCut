@@ -117,6 +117,7 @@ export interface ChatBranch {
 }
 interface SessionProps extends ConversationProps {
   sessionId: string;
+  titleLocked: boolean;
   initialContent: ChatContent;
   onSave: (id: string, content: ChatContent) => void;
   initialBranch?: ChatBranch;
@@ -155,6 +156,7 @@ export default function ConversationSession({
   initialBranch,
   initialContent,
   sessionId,
+  titleLocked,
   onSave,
   onBranch,
   active,
@@ -200,9 +202,17 @@ export default function ConversationSession({
   const cancelBeforeRun = useRef(false);
   const pausedByNavigation = useRef(false);
   const runningRef = useRef(false);
-  const titleAttempted = useRef(!!initialContent.messages.length);
+  const titleAttempted = useRef(
+    titleLocked || !!initialContent.messages.length,
+  );
   const titleRequest = useRef<AbortController | null>(null);
   const applyingRef = useRef(false);
+  useLayoutEffect(() => {
+    if (titleLocked) {
+      titleAttempted.current = true;
+      titleRequest.current?.abort();
+    }
+  }, [titleLocked]);
   useLayoutEffect(() =>
     registerErrorSession(
       () => ({

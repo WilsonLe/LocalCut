@@ -50,6 +50,8 @@ const sessionSchema = z.object({
   scope: z.string().min(1),
   id: identity,
   title: z.string(),
+  titleLocked: z.boolean().default(false),
+  archived: z.boolean().default(false),
   createdAt: z.number().int().nonnegative(),
   content: chatContentSchema,
 });
@@ -68,9 +70,36 @@ export function newChatSession(scope: string): SavedChatSession {
     scope,
     id: crypto.randomUUID(),
     title: 'New chat',
+    titleLocked: false,
+    archived: false,
     createdAt: Date.now(),
     content: { prompt: '', attachmentIds: [], messages: [] },
   };
+}
+export const chatRenameSchema = z.string().trim().min(1).max(120);
+export function renameChatSession(
+  session: SavedChatSession,
+  title: string,
+): SavedChatSession {
+  return {
+    ...session,
+    title: chatRenameSchema.parse(title),
+    titleLocked: true,
+  };
+}
+export function automaticChatTitle(
+  session: SavedChatSession,
+  title: string,
+): SavedChatSession {
+  return session.titleLocked ? session : { ...session, title };
+}
+export function forkChatSession(session: SavedChatSession): SavedChatSession {
+  return restoreChatSession({
+    ...newChatSession(session.scope),
+    title: `Fork of ${session.title}`.slice(0, 200),
+    titleLocked: true,
+    content: structuredClone(session.content),
+  })!;
 }
 export function restoreChatSession(value: unknown): SavedChatSession | null {
   const parsed = sessionSchema.safeParse(value);
