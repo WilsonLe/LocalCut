@@ -420,3 +420,9 @@ This is the project record of the user's durable product and workflow choices. U
 ## Asset capture context — 12 October 2026
 
 - Preserve embedded photo capture/video recording dates and locations on upload. Retain them with asset metadata, give indexing that context and let the editing agent discover them through the shared inspection tools. Unknown dates/locations stay unknown; never substitute upload or file modification time.
+
+## Indexing authorization — 12 October 2026
+
+- Remove the separate Allow asset indexing permission. Connecting OpenRouter acknowledges the indexing disclosure and authorizes generated evidence and saved labels in chat. This supersedes the remembered/revocable indexing permission recorded above.
+- Keep indexing explicit through Index or an approved chat proposal; connection, import and reload never start paid indexing. Text, names, transcripts and capture dates/GPS keep their separate sharing choices.
+- Indexing authorization must not split or hide saved chats. Recover conversations from both legacy indexing-permission scopes, preserving drafts, titles, archives and selection while retaining the other project/model/sharing boundaries.

@@ -56,6 +56,28 @@ const sessionSchema = z.object({
   content: chatContentSchema,
 });
 export type SavedChatSession = z.infer<typeof sessionSchema>;
+/** Only the obsolete indexing bit is merged; all remaining sharing stays scoped. */
+export function legacyIndexChatScopes(scope: string): string[] {
+  try {
+    const parts: unknown = JSON.parse(scope);
+    if (
+      !Array.isArray(parts) ||
+      (parts.length !== 7 && parts.length !== 8) ||
+      typeof parts[0] !== 'string' ||
+      !Array.isArray(parts[1]) ||
+      !Array.isArray(parts[2]) ||
+      typeof parts[3] !== 'string' ||
+      !parts.slice(4, 7).every((part) => typeof part === 'boolean') ||
+      (parts.length === 8 && parts[7] !== 'capture-metadata')
+    )
+      return [];
+    return [true, false].map((allowed) =>
+      JSON.stringify([...parts.slice(0, 7), allowed, ...parts.slice(7)]),
+    );
+  } catch {
+    return [];
+  }
+}
 interface ChatDatabase extends DBSchema {
   sessions: {
     key: [string, string];
@@ -153,9 +175,61 @@ export class ChatStore {
       throw error;
     }));
   }
-  async load(scope: string) {
+  private async migrateIndexScopes(scope: string) {
     const db = await this.db();
-    const tx = db.transaction(['sessions', 'selection']);
+    const legacyScopes = legacyIndexChatScopes(scope);
+    const probe = db.transaction('sessions');
+    const legacyRecords = await Promise.all(
+      legacyScopes.map((legacyScope) =>
+        probe.store.index('scope').getAll(legacyScope),
+      ),
+    );
+    await probe.done;
+    const needsMigration = legacyRecords.some((records, index) =>
+      records.some((record) => {
+        const restored = restoreChatSession(record);
+        return restored?.scope === legacyScopes[index];
+      }),
+    );
+    // Once migrated, loading must remain usable even when storage cannot write.
+    if (!needsMigration) return;
+    const tx = db.transaction(['sessions', 'selection'], 'readwrite');
+    const store = tx.objectStore('sessions');
+    const selection = tx.objectStore('selection');
+    const records = await store.index('scope').getAll(scope);
+    let selected = await selection.get(scope);
+    const ids = new Set(
+      records.flatMap((record) =>
+        restoreChatSession(record)?.scope === scope ? [record.id] : [],
+      ),
+    );
+    for (const legacyScope of legacyScopes) {
+      const legacyRecords = await store.index('scope').getAll(legacyScope);
+      for (const record of legacyRecords) {
+        const restored = restoreChatSession(record);
+        if (!restored || restored.scope !== legacyScope) continue;
+        if (!ids.has(restored.id)) {
+          const migrated = { ...restored, scope };
+          await store.put(migrated);
+          records.push(migrated);
+          ids.add(migrated.id);
+        }
+        await store.delete([legacyScope, restored.id]);
+      }
+      const previous = await selection.get(legacyScope);
+      if (!records.some((record) => record.id === selected && !record.archived))
+        if (
+          records.some((record) => record.id === previous && !record.archived)
+        )
+          selected = previous;
+      await selection.delete(legacyScope);
+    }
+    if (selected) await selection.put(selected, scope);
+    await tx.done;
+  }
+  async load(scope: string) {
+    await this.migrateIndexScopes(scope);
+    const tx = (await this.db()).transaction(['sessions', 'selection']);
     const records = await tx
       .objectStore('sessions')
       .index('scope')

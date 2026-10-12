@@ -16,7 +16,6 @@ import { Menu } from '@base-ui/react/menu';
 import { AssetMenu, assetMenuItemClass } from './AssetMenu';
 import type { Asset, AssetIndexRun, Editor, Job, JobEvent } from '../editor';
 import type { IndexConnection } from './Conversation';
-import { getIndexConsent, useIndexConsent } from './index-consent';
 import { Button } from '../components/ui/button';
 import { Tooltip } from '../components/ui/tooltip';
 import {
@@ -63,7 +62,6 @@ export default function AssetIndexControls({
   actions: ReactNode;
 }) {
   const trigger = useRef<HTMLButtonElement>(null);
-  const allowed = useIndexConsent();
   const [runs, setRuns] = useState<AssetIndexRun[]>([]),
     [busy, setBusy] = useState(false),
     [progress, setProgress] = useState<JobEvent | null>(null),
@@ -115,7 +113,7 @@ export default function AssetIndexControls({
   }, [editor, asset.id, asset.status]);
   useEffect(() => {
     const owner = current.current;
-    if (!allowed || !connection || readOnly) {
+    if (!connection || readOnly) {
       owner?.job.cancel();
       void owner?.indexer.dispose();
     }
@@ -123,22 +121,14 @@ export default function AssetIndexControls({
       current.current?.job.cancel();
       void current.current?.indexer.dispose();
     };
-  }, [allowed, connection, readOnly]);
+  }, [connection, readOnly]);
   const start = async (runId?: string) => {
-    if (
-      !editor ||
-      !connection ||
-      current.current ||
-      busy ||
-      !allowed ||
-      readOnly
-    )
-      return;
+    if (!editor || !connection || current.current || busy || readOnly) return;
     const indexer = connection.api.createAssetIndexer({
       editor,
       provider: connection.provider,
       model: connection.model,
-      consent: getIndexConsent,
+      consent: () => true,
       includeCaptureMetadata: connection.includeCaptureMetadata,
     });
     const job = indexer.run(asset.id, runId);
@@ -210,20 +200,20 @@ export default function AssetIndexControls({
         content={
           <>
             {details}
-            {allowed && !compatible && !readOnly && (
+            {!compatible && !readOnly && (
               <div>
                 {connection
                   ? `Choose a chat model supporting ${asset.kind === 'video' ? 'image' : asset.kind} inputs to index this asset.`
                   : 'Connect AI and choose a compatible model to index this asset.'}
               </div>
             )}
-            {allowed && latest?.label && (
+            {latest?.label && (
               <>
                 <div>{latest.label.summary}</div>
                 <div>{latest.label.tags.slice(0, 4).join(' · ')}</div>
               </>
             )}
-            {allowed && duplicate && <div>Visually similar image indexed</div>}
+            {duplicate && <div>Visually similar image indexed</div>}
           </>
         }
       >
@@ -245,7 +235,7 @@ export default function AssetIndexControls({
         </span>
       )}
       <AssetMenu name={asset.name} triggerRef={trigger}>
-        {allowed && editor && (
+        {editor && (
           <>
             <Menu.Item
               className={assetMenuItemClass}
@@ -315,7 +305,7 @@ export default function AssetIndexControls({
         )}
         {actions}
       </AssetMenu>
-      {allowed && editor && (
+      {editor && (
         <>
           {busy && (
             <div

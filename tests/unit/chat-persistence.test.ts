@@ -5,6 +5,7 @@ import {
   renameChatSession,
   automaticChatTitle,
   forkChatSession,
+  legacyIndexChatScopes,
 } from '../../src/storage/chats';
 import { completedChatTurns } from '../../src/workspace/chat-transcript';
 
@@ -186,4 +187,37 @@ it('forks an independent active snapshot without unfinished authority', () => {
   fork.content.messages[0]!.text = 'Changed';
   expect(source.content.attachmentIds).toEqual(['image']);
   expect(source.content.messages[0]!.text).toBe('Partial reply');
+});
+
+it('merges only legacy indexing scopes and keeps every other identity boundary', () => {
+  const parts = [
+    'project',
+    [{ providerId: 'openrouter', model: 'test/model' }],
+    [{ id: 'openrouter', kind: 'openrouter' }],
+    'test/model',
+    false,
+    true,
+    false,
+  ];
+  for (const suffix of [[], ['capture-metadata']]) {
+    const scope = JSON.stringify([...parts, ...suffix]);
+    expect(legacyIndexChatScopes(scope)).toEqual([
+      JSON.stringify([...parts, true, ...suffix]),
+      JSON.stringify([...parts, false, ...suffix]),
+    ]);
+  }
+  for (const raw of [
+    '{',
+    'scope',
+    'null',
+    JSON.stringify([...parts, false]),
+    JSON.stringify([...parts, 'other-sharing']),
+    JSON.stringify([...parts.slice(0, 4), 'false', true, false]),
+  ])
+    expect(legacyIndexChatScopes(raw)).toEqual([]);
+  expect(
+    legacyIndexChatScopes(
+      JSON.stringify(['another-project', ...parts.slice(1)]),
+    ),
+  ).not.toEqual(legacyIndexChatScopes(JSON.stringify(parts)));
 });
