@@ -475,6 +475,7 @@ for (const base of ['/', '/LocalCut/']) {
     };
     let authParams = new URLSearchParams();
     let exchanges = 0;
+    let rejectIdentity = true;
     const catalogCredentials: string[] = [];
     await context.route(
       'https://auth.openai.com/api/accounts/authorize**',
@@ -498,7 +499,7 @@ for (const base of ['/', '/LocalCut/']) {
         );
         const encode = (v: unknown) =>
           Buffer.from(JSON.stringify(v)).toString('base64url');
-        const data = `${encode({ alg: 'RS256', kid: 'synthetic-key' })}.${encode({ iss: 'https://auth.openai.com', aud: 'oaiapp_localcut_test', sub: 'test-subject', exp: Math.floor(Date.now() / 1000) + 3600, nonce: authParams.get('nonce') })}`;
+        const data = `${encode({ alg: 'RS256', kid: 'synthetic-key' })}.${encode({ iss: 'https://auth.openai.com', aud: ['oaiapp_localcut_test'], sub: 'test-subject', exp: Math.floor(Date.now() / 1000) + 3600, nonce: rejectIdentity ? 'synthetic-wrong-nonce' : authParams.get('nonce') })}`;
         const signature = Buffer.from(
           await crypto.subtle.sign(
             'RSASSA-PKCS1-v1_5',
@@ -587,6 +588,34 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Complete sign-in', exact: true })
       .click();
+    await expect(dialog.getByRole('alert')).toContainText(
+      'The ChatGPT identity token does not match this sign-in attempt.',
+    );
+    await expect(page.getByLabel('Callback URL', { exact: true })).toHaveValue(
+      '',
+    );
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem('localcut.chatgpt-credentials.v1'),
+      ),
+    ).toBeNull();
+    expect(exchanges).toBe(1);
+    await popup.close();
+    rejectIdentity = false;
+    const retryPopupPromise = context.waitForEvent('page');
+    await page
+      .getByRole('button', { name: 'Continue with ChatGPT', exact: true })
+      .click();
+    const retryPopup = await retryPopupPromise;
+    await expect(
+      retryPopup.getByText('Synthetic sign-in complete'),
+    ).toBeVisible();
+    callback.searchParams.set('state', authParams.get('state')!);
+    callback.searchParams.set('code', 'synthetic-fresh-code');
+    await page.getByLabel('Callback URL', { exact: true }).fill(callback.href);
+    await page
+      .getByRole('button', { name: 'Complete sign-in', exact: true })
+      .click();
     await expect(
       dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toBeVisible();
@@ -626,7 +655,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page.screenshot({
       path: testInfo.outputPath('chatgpt-connection.png'),
     });
-    await popup.close();
+    await retryPopup.close();
     await dialog
       .getByRole('button', { name: 'Add provider', exact: true })
       .click();
@@ -819,7 +848,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toBeVisible();
-    expect(exchanges).toBe(3);
+    expect(exchanges).toBe(4);
     await dialog
       .getByRole('button', { name: 'Disconnect ChatGPT work', exact: true })
       .click();

@@ -23,6 +23,8 @@ A connection or successful model catalog is not proof that every inference servi
 
 For OpenRouter sign-in, use the same application origin and current pending attempt. For ChatGPT, paste the entire callback URL only into LocalCut's Callback URL input, using the fresh pending sign-in; see [ChatGPT sign-in](ai.md#chatgpt-sign-in). Never post that URL in an issue. A rejected/expired attempt needs a new sign-in, not replaying a saved callback.
 
+A ChatGPT identity-verification error means the callback reached token verification; copying the same callback again cannot repair it. Start a fresh sign-in. Expired or not-yet-valid token messages also warrant checking the device clock. For persistent failures, use Notifications → View stack trace to report the local stage/reason and build revision, without posting callback URLs, tokens or identity claims.
+
 If you replace a key or disconnect, old operations/sessions must retire. If that fails, report redacted status and reproduction steps. Revoke compromised credentials at the provider; a local disconnect alone is not remote revocation. Review [privacy](privacy.md) before enabling indexing or a remote transcription route.
 
 ## Development setup and checks

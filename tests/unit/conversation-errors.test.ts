@@ -3,6 +3,26 @@ import { AiError, httpError } from '../../src/ai/errors';
 import { errorText } from '../../src/workspace/conversation-errors';
 
 describe('safe conversation request diagnostics', () => {
+  it.each(['SECRET', '__proto__', 'constructor', undefined])(
+    'does not render unknown ChatGPT verification reasons: %s',
+    (reason) => {
+      expect(
+        errorText(
+          new AiError('AUTH_FLOW_INVALID', 'SECRET', {
+            stage: 'chatgpt_identity',
+            reason,
+          }),
+        ),
+      ).toBe(
+        'ChatGPT identity verification failed. Start a new connection with Continue with ChatGPT.',
+      );
+    },
+  );
+  it('keeps generic flow failures separate from token verification', () => {
+    expect(errorText(new AiError('AUTH_FLOW_INVALID', 'SECRET'))).toBe(
+      'Sign-in could not be verified. Start a new connection.',
+    );
+  });
   it('explains empty replies without hiding committed actions or exposing provider text', () => {
     const text = errorText(
       new AiError('RESPONSE_INCOMPLETE', 'SECRET', {
