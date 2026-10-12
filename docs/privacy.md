@@ -34,3 +34,7 @@ Disconnecting locally does not necessarily revoke a provider-issued credential o
 Do not publish private media, project archives, transcripts, callback addresses, tokens or raw storage/network traces in support reports. Use generated samples and redact screenshots/logs. Follow [SECURITY.md](../SECURITY.md) for suspected data disclosure or credential vulnerabilities.
 
 Embedded capture dates and GPS are retained locally with imported assets and backups. Remote sharing is independently off by default; opt in through AI connection → Data & analytics. The session-only choice applies to chat inspection and explicit indexing prompts. Revoking it retires chat context and hides all labels generated with capture context, as descriptions may repeat those facts. Local asset details and originals remain available. No location lookup or browser geolocation request runs. See [capture access](ai.md#capture-metadata-access-and-sharing).
+
+## Chat exports
+
+Explicit Export chat captures a local transcript and unsent draft in a durable task, including displayed tool details, proposal records and local attachment IDs/names. Treat the downloaded archive as private conversation data. Generation sends nothing to a provider and excludes credentials, opaque continuation and media files. Queue inputs and outputs stay in browser storage until their task is removed or site data is cleared; saved downloads are user-owned files.
