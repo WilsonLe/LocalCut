@@ -1,6 +1,5 @@
 import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { dismissNotifications } from './workspace-notifications-helper';
-import { selectAISettingsTab } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 
 for (const base of ['/', '/LocalCut/']) {
@@ -139,7 +138,7 @@ for (const base of ['/', '/LocalCut/']) {
     ).toHaveCount(0);
   });
 
-  test(`compact workspace imports via card, backs up from settings and connects any chat provider ${base}`, async ({
+  test(`compact workspace imports via card, backs up from settings and connects OpenRouter ${base}`, async ({
     page,
     context,
   }, testInfo) => {
@@ -298,41 +297,17 @@ for (const base of ['/', '/LocalCut/']) {
       path: testInfo.outputPath('compact-workspace-desktop.png'),
     });
 
-    // A compatible endpoint works independently of OpenRouter, without a paid request.
+    // A disconnected account offers one OpenRouter connection and no alternative endpoint.
     await connect.click();
-    await selectAISettingsTab(page, 'Providers');
-    await dialog
-      .getByRole('button', { name: 'Add provider', exact: true })
-      .click();
-    await page.getByLabel('Name', { exact: true }).fill('Local model');
-    await page
-      .getByLabel('API base URL', { exact: true })
-      .fill('http://localhost:1234/v1');
-    await page
-      .getByRole('button', { name: 'Connect endpoint', exact: true })
-      .click();
-    await selectAISettingsTab(page, 'LLM - Chat');
-    await dialog.getByLabel('Local model llm route model').fill('local-editor');
-    await selectAISettingsTab(page, 'LLM - Chat');
-    await dialog.getByLabel('Local model llm route model').press('Tab');
-    await selectAISettingsTab(page, 'LLM - Chat');
     await expect(
-      dialog.getByLabel('Local model llm route model'),
-    ).toBeEnabled();
-
+      dialog.getByRole('button', { name: 'I have an API key', exact: true }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByLabel('API base URL', { exact: true }),
+    ).toHaveCount(0);
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-    const composer = chat.getByRole('textbox', { name: 'Describe your edit' });
-    await expect(composer).toBeEnabled();
-    await composer.fill('Keep my draft');
-    await page
-      .getByRole('button', { name: 'Collapse chat', exact: true })
-      .click();
-    await page
-      .getByRole('button', { name: 'Expand chat', exact: true })
-      .click();
-    await expect(composer).toHaveValue('Keep my draft');
     await page.reload();
-    await expect(connect).toBeVisible(); // Compatible credentials stay session-only.
+    await expect(connect).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
     const nav = page.getByRole('navigation', { name: 'Workspace sections' });
     await nav.getByRole('button', { name: 'Chat', exact: true }).click();

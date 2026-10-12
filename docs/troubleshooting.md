@@ -19,11 +19,9 @@ Avoid repeated export retries without reading the error. If a new browser revisi
 
 ## AI providers
 
-A connection or successful model catalog is not proof that every inference service is authorized. Check the configured service route, exact model/voice, account access/credits and endpoint CORS. Compatible endpoints require the protocol described in [AI routing](ai.md#providers-and-fallback). Do not disable browser security or add keys to query strings to work around CORS.
+A connected key or model catalog does not prove inference access. Check the selected OpenRouter model/voice, account credits and service access. A failed service stops; choose another model or retry explicitly. See [AI service selections](ai.md#openrouter-service-selections).
 
-For OpenRouter sign-in, use the same application origin and current pending attempt. For ChatGPT, paste the entire callback URL only into LocalCut's Callback URL input, using the fresh pending sign-in; see [ChatGPT sign-in](ai.md#chatgpt-sign-in). Never post that URL in an issue. A rejected/expired attempt needs a new sign-in, not replaying a saved callback.
-
-A ChatGPT identity-verification error means the callback reached token verification; copying the same callback again cannot repair it. Start a fresh sign-in. Expired or not-yet-valid token messages also warrant checking the device clock. For persistent failures, use Notifications → View stack trace to report the local stage/reason and build revision, without posting callback URLs, tokens or identity claims.
+For OpenRouter sign-in, use the same application origin and a fresh pending attempt. A rejected or expired attempt requires a new sign-in. Never post callback URLs or keys in an issue.
 
 If you replace a key or disconnect, old operations/sessions must retire. If that fails, report redacted status and reproduction steps. Revoke compromised credentials at the provider; a local disconnect alone is not remote revocation. Review [privacy](privacy.md) before enabling indexing or a remote transcription route.
 

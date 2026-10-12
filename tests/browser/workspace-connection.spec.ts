@@ -403,18 +403,6 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       dialog.getByRole('button', { name: 'I have an API key', exact: true }),
     ).toBeVisible();
-    // Forget the disconnected profile through its replacement account control.
-    await selectAISettingsTab(page, 'Providers');
-    await dialog
-      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
-      .click();
-    await confirmProviderDisconnect(page);
-    await expect(
-      dialog.getByLabel('OpenRouter API key', { exact: true }),
-    ).toHaveCount(0);
-    await expect(
-      dialog.getByRole('button', { name: 'Add provider', exact: true }),
-    ).toBeVisible();
     await expect(
       dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toHaveCount(0);

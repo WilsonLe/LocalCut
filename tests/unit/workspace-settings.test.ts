@@ -17,6 +17,48 @@ import {
 } from '../../src/workspace/preferences';
 
 afterEach(() => vi.unstubAllGlobals());
+it('imports legacy provider settings through the single OpenRouter migration without credentials or backups', () => {
+  const records = new Map<string, string>();
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => records.get(key) ?? null,
+    setItem: (key: string, value: string) => records.set(key, value),
+  });
+  const aiProviders = JSON.stringify({
+    profiles: [
+      {
+        id: 'chatgpt',
+        name: 'ChatGPT',
+        kind: 'chatgpt',
+        accessToken: 'SECRET',
+      },
+      { id: 'openrouter', name: 'OpenRouter', kind: 'openrouter' },
+    ],
+    routes: {
+      llm: [
+        { providerId: 'openrouter', model: 'selected' },
+        { providerId: 'chatgpt', model: 'backup' },
+      ],
+      tts: [{ providerId: 'openrouter', model: 'speech', voice: 'Kore' }],
+      stt: [{ providerId: 'local', model: 'whisper' }],
+    },
+  });
+  const workspace = { ...defaultWorkspacePreferences, aiProviders };
+  expect(importWorkspaceSettings({ workspace }, false, true)).toEqual([]);
+  const stored = records.get('localcut.workspace-preferences.v1')!;
+  expect(stored).not.toMatch(/SECRET|chatgpt|backup/);
+  expect(JSON.parse(JSON.parse(stored).preferences.aiProviders)).toEqual({
+    profiles: [{ id: 'openrouter', name: 'OpenRouter', kind: 'openrouter' }],
+    routes: {
+      llm: [{ providerId: 'openrouter', model: 'selected' }],
+      tts: [{ providerId: 'openrouter', model: 'speech', voice: 'Kore' }],
+      stt: [{ providerId: 'local', model: 'whisper' }],
+    },
+  });
+  expect(workspace.aiProviders).toBe(aiProviders);
+  expect(() =>
+    validateWorkspaceSettings({ workspace: { ...workspace, chatWidth: -1 } }),
+  ).toThrow('Invalid workspace settings');
+});
 it('accepts the complete text font catalog in appearance backups and rejects unknown faces', () => {
   for (const font of TEXT_FONTS) {
     expect(() =>

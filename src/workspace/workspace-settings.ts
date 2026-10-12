@@ -14,6 +14,7 @@ import {
 } from './preferences';
 import type { WorkspacePreferences } from './preferences';
 import type { WorkspaceSettings } from '../editor';
+import { parseProviderConfiguration } from './provider-preferences';
 
 export function workspaceSettings(): WorkspaceSettings {
   return {
@@ -50,6 +51,9 @@ export function validateWorkspaceSettings(
       ...settings.workspace,
     };
     if (!('aiProviders' in p)) p.aiProviders = '';
+    // Provider settings have an explicit legacy migration; other fields stay strict.
+    if (typeof p.aiProviders === 'string' && p.aiProviders)
+      p.aiProviders = JSON.stringify(parseProviderConfiguration(p.aiProviders));
     const parsed = parseWorkspacePreferences(
       JSON.stringify({ version: 1, preferences: p }),
     );
