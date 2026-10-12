@@ -1,10 +1,12 @@
-import { closeMediaImportAndPlace } from './workspace-import-helper';
-import { selectAISettingsTab } from './workspace-settings-helper';
 import {
+  confirmProviderDisconnect,
+  showOpenRouterTerms,
+  selectAISettingsTab,
   prepareOpenRouterKey,
   openAISettings,
   openVideoExport,
 } from './workspace-settings-helper';
+import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { secondaryTab } from './workspace-tab';
 import { settingsJourney } from './workspace-settings-journey';
 import { expect, test, type Page } from '@playwright/test';
@@ -546,9 +548,11 @@ for (const base of ['/', '/LocalCut/']) {
       })
       .click();
     await selectAISettingsTab(page, 'Providers');
-    await expect(
-      dialog.getByRole('region', { name: 'OpenRouter connection terms' }),
-    ).toContainText('context categories stay enabled');
+    const terms1 = await showOpenRouterTerms(page);
+    await expect(terms1).toContainText('context categories stay enabled');
+    await page
+      .getByRole('button', { name: 'OpenRouter connection terms', exact: true })
+      .click();
     await expect(
       dialog.getByRole('button', { name: 'Data & analytics' }),
     ).toHaveCount(0);
@@ -575,9 +579,11 @@ for (const base of ['/', '/LocalCut/']) {
       dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toContainText('Preference model');
     await selectAISettingsTab(page, 'Providers');
-    await expect(
-      dialog.getByRole('region', { name: 'OpenRouter connection terms' }),
-    ).toContainText('including after reload');
+    const terms2 = await showOpenRouterTerms(page);
+    await expect(terms2).toContainText('including after reload');
+    await page
+      .getByRole('button', { name: 'OpenRouter connection terms', exact: true })
+      .click();
     await expect(
       dialog.getByRole('button', { name: 'Data & analytics' }),
     ).toHaveCount(0);
@@ -585,6 +591,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
+    await confirmProviderDisconnect(page);
     expect((await preferences(page)).aiModel).toBe(
       '~deepseek/deepseek-pro-latest',
     );
@@ -602,6 +609,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
+    await confirmProviderDisconnect(page);
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     available = true;
     dialog = await connect(page);

@@ -1,11 +1,13 @@
 import {
+  selectAISettingsTab,
+  confirmProviderDisconnect,
   prepareOpenRouterKey,
   openAISettings,
 } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 
 for (const base of ['/', '/LocalCut/']) {
-  test(`AI settings tabs preserve input and keyboard focus on desktop and phone ${base}`, async ({
+  test(`AI settings sections preserve input and keyboard focus on desktop and phone ${base}`, async ({
     page,
   }, testInfo) => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
@@ -19,14 +21,21 @@ for (const base of ['/', '/LocalCut/']) {
     await expect
       .poll(async () => (await dialog.boundingBox())!.width)
       .toBeGreaterThanOrEqual(760);
-    await expect(dialog.getByRole('tab')).toHaveText([
-      'Providers',
-      'LLM - Chat',
-      'TTS - Speech',
-      'STT - Transcription',
-    ]);
+    const section = dialog.getByRole('combobox', {
+      name: 'AI settings section',
+      exact: true,
+    });
+    await expect(section).toContainText('Providers');
+    await expect(dialog.getByRole('tab')).toHaveCount(0);
+    const header = dialog.locator('[data-slot="dialog-header"]');
+    await expect(header.getByRole('combobox')).toBeVisible();
+    await expect(header).toHaveCSS('border-bottom-width', '1px');
+    await expect(dialog.locator('[data-slot="dialog-footer"]')).toHaveCSS(
+      'border-top-width',
+      '1px',
+    );
     await expect(
-      dialog.getByRole('tabpanel', { name: 'Providers', exact: true }),
+      dialog.getByRole('region', { name: 'Providers', exact: true }),
     ).toBeVisible();
     await dialog
       .getByRole('button', { name: 'Add provider', exact: true })
@@ -58,34 +67,37 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(name).toHaveValue('');
     await page.keyboard.press('Escape');
     await key.fill('synthetic-retained-draft');
-    const providers = dialog.getByRole('tab', {
-      name: 'Providers',
+    await dialog
+      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
+      .click();
+    const forgetConfirmation = page.getByRole('dialog', {
+      name: 'Disconnect OpenRouter?',
       exact: true,
     });
-    await providers.focus();
-    await providers.press('ArrowRight');
-    const chat = dialog.getByRole('tab', { name: 'LLM - Chat', exact: true });
-    await expect(chat).toBeFocused();
-    await chat.press('Enter');
-    await expect(chat).toHaveAttribute('aria-selected', 'true');
-    await expect(key).toBeHidden();
-    await chat.press('End');
-    const service = dialog.getByRole('tab', {
-      name: 'STT - Transcription',
-      exact: true,
-    });
-    await expect(service).toBeFocused();
-    await service.press('Enter');
-    await expect(
-      dialog.getByRole('combobox', {
-        name: 'STT provider 1',
-        exact: true,
-      }),
-    ).toBeVisible();
-    await service.press('Home');
-    await providers.press('Enter');
+    await forgetConfirmation
+      .getByRole('button', { name: 'Cancel', exact: true })
+      .click();
+    await expect(forgetConfirmation).toHaveCount(0);
     await expect(key).toHaveValue('synthetic-retained-draft');
-    await expect(dialog.getByRole('tabpanel')).toHaveCount(1);
+
+    await section.focus();
+    await section.press('Enter');
+    await page
+      .getByRole('option', { name: 'LLM - Chat', exact: true })
+      .press('Enter');
+    await expect(section).toBeFocused();
+    await expect(section).toContainText('LLM - Chat');
+    await expect(key).toBeHidden();
+    await section.press('Enter');
+    await page
+      .getByRole('option', { name: 'STT - Transcription', exact: true })
+      .press('Enter');
+    await expect(
+      dialog.getByRole('combobox', { name: 'STT provider 1', exact: true }),
+    ).toBeVisible();
+    await selectAISettingsTab(page, 'Providers');
+    await expect(key).toHaveValue('synthetic-retained-draft');
+    await expect(dialog.getByRole('region')).toHaveCount(1);
     await page.screenshot({
       path: testInfo.outputPath('ai-settings-desktop.png'),
     });
@@ -113,9 +125,9 @@ for (const base of ['/', '/LocalCut/']) {
       path: testInfo.outputPath('ai-settings-phone.png'),
     });
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await service.click();
-    await expect(service).toHaveAttribute('aria-selected', 'true');
-    await providers.click();
+    await selectAISettingsTab(page, 'STT - Transcription');
+    await expect(section).toContainText('STT - Transcription');
+    await selectAISettingsTab(page, 'Providers');
     await expect(key).toHaveValue('synthetic-retained-draft');
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await expect(dialog).not.toBeVisible();
@@ -239,14 +251,14 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
-    await dialog.getByRole('tab', { name: 'LLM - Chat', exact: true }).click();
+    await selectAISettingsTab(page, 'LLM - Chat');
     const addLLM = dialog.getByRole('combobox', {
       name: 'Add LLM provider',
       exact: true,
     });
     await expect(
       dialog
-        .getByRole('tabpanel', { name: 'LLM - Chat', exact: true })
+        .getByRole('region', { name: 'LLM - Chat', exact: true })
         .getByText(
           'No connected providers. Connect a provider in the Providers tab.',
           {
@@ -310,7 +322,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('link', { name: 'Return to LocalCut', exact: true })
       .click();
-    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       dialog.getByRole('button', {
         name: 'Verify OpenRouter work',
@@ -332,7 +344,7 @@ for (const base of ['/', '/LocalCut/']) {
       ['TTS', 'TTS - Speech'],
       ['STT', 'STT - Transcription'],
     ] as const) {
-      await dialog.getByRole('tab', { name: title, exact: true }).click();
+      await selectAISettingsTab(page, title);
       await dialog
         .getByRole('combobox', {
           name:
@@ -459,25 +471,57 @@ for (const base of ['/', '/LocalCut/']) {
       'Bearer synthetic-first-account',
     ]);
     await page.setViewportSize({ width: 390, height: 844 });
-    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
+    await selectAISettingsTab(page, 'Providers');
     await page.screenshot({
       path: info.outputPath('provider-accounts-mobile.png'),
     });
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
-    await dialog.getByRole('tab', { name: 'LLM - Chat', exact: true }).click();
+    const confirmation = page.getByRole('dialog', {
+      name: 'Disconnect OpenRouter?',
+      exact: true,
+    });
+    await expect(
+      confirmation.getByRole('button', { name: 'Cancel', exact: true }),
+    ).toBeFocused();
+    await confirmation
+      .getByRole('button', { name: 'Cancel', exact: true })
+      .click();
+    await expect(confirmation).toHaveCount(0);
+    await expect(
+      dialog.getByRole('button', {
+        name: 'Disconnect OpenRouter',
+        exact: true,
+      }),
+    ).toBeFocused();
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem('localcut.openrouter-credential.v1'),
+      ),
+    ).toContain('synthetic-first-account');
+    await dialog
+      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
+      .click();
+    await page.keyboard.press('Escape');
+    await expect(confirmation).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+    await dialog
+      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
+      .click();
+    await confirmProviderDisconnect(page);
+    await selectAISettingsTab(page, 'LLM - Chat');
     await expect(
       dialog.getByRole('combobox', { name: 'LLM provider 1', exact: true }),
     ).toContainText('Disconnected');
-    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       dialog.getByRole('button', {
         name: 'Verify OpenRouter work',
         exact: true,
       }),
     ).toBeVisible();
-    await dialog.getByRole('tab', { name: 'LLM - Chat', exact: true }).click();
+    await selectAISettingsTab(page, 'LLM - Chat');
     const models = dialog.getByRole('combobox', {
       name: 'AI model',
       exact: true,
@@ -508,7 +552,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page.keyboard.press('Escape');
     await page.reload();
     await openAISettings(page);
-    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       dialog.getByRole('button', {
         name: 'Verify OpenRouter work',
@@ -521,6 +565,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
+    await confirmProviderDisconnect(page);
     const saved = await page.evaluate(() => ({
       config: JSON.parse(
         JSON.parse(localStorage.getItem('localcut.workspace-preferences.v1')!)

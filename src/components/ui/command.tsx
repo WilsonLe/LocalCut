@@ -60,7 +60,7 @@ export function CommandInput({
   return (
     <div
       data-slot="command-input-wrapper"
-      className="m-1 flex items-center gap-2 rounded-lg bg-input/30 px-3"
+      className="m-1 flex items-center gap-2 rounded-lg border-b bg-input/30 px-3"
     >
       <Search
         aria-hidden="true"

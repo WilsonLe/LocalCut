@@ -1,3 +1,4 @@
+import { chatGPTNetworkErrorText } from '../ai/chatgpt-network';
 export function errorCode(error: unknown): string {
   return error &&
     typeof error === 'object' &&
@@ -7,6 +8,18 @@ export function errorCode(error: unknown): string {
     : '';
 }
 export function errorText(error: unknown): string {
+  if (
+    errorCode(error) === 'NETWORK_ERROR' &&
+    error &&
+    typeof error === 'object' &&
+    'details' in error &&
+    error.details &&
+    typeof error.details === 'object' &&
+    'stage' in error.details
+  ) {
+    const text = chatGPTNetworkErrorText(error.details.stage);
+    if (text) return text;
+  }
   if (
     errorCode(error) === 'AUTH_FLOW_INVALID' &&
     error &&

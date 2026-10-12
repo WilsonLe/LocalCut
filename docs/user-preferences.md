@@ -2,6 +2,13 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Dialog structure and AI settings — 13 October 2026
+
+- Separate visible dialog headers and action footers from their contents with horizontal dividers across the application.
+- Select Providers, LLM - Chat, TTS - Speech and STT - Transcription from one dropdown inline with the AI connection heading, displaying the active section. This supersedes the earlier tab strip.
+- Hide OpenRouter connection terms behind an inline information tooltip beside its account name, accessible by keyboard and touch.
+- Confirm Disconnect before removing an account’s credentials or forgetting a disconnected account.
+
 ## Mobile tools — 13 October 2026
 
 - Put the clip picker inline in the horizontal timeline toolbar with Undo and Redo, removing its separate row.

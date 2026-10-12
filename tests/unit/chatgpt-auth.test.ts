@@ -124,6 +124,110 @@ async function setup(
   };
 }
 describe('ChatGPT OAuth', () => {
+  it.each(['chatgpt_code_exchange', 'chatgpt_signing_keys'] as const)(
+    'identifies blocked %s without exposing callback, tokens or fetch errors',
+    async (stage) => {
+      const s = await setup();
+      const client = createChatGPT({
+        credentialStorage: s.persistent,
+        oauthStorage: s.temporary,
+        now: () => 1000000,
+        fetch: async (url, init) => {
+          if (
+            String(url).endsWith(
+              stage === 'chatgpt_signing_keys' ? 'jwks.json' : '/token',
+            )
+          )
+            throw new TypeError('private-code private-token private-url');
+          return s.request(String(url), init);
+        },
+      });
+      try {
+        const begin = await client.beginAuthorization({ callbackUrl: '' });
+        const params = new URL(begin.authorizationUrl).searchParams;
+        s.nonce(params.get('nonce')!);
+        const callback = new URL(CHATGPT_CALLBACK);
+        callback.searchParams.set('state', params.get('state')!);
+        callback.searchParams.set('code', 'private-code');
+        callback.searchParams.set('client_id', 'oaiapp_test');
+        const error = await client
+          .completeAuthorization({ callbackUrl: callback.href })
+          .catch((error: unknown) => error);
+        expect(error).toMatchObject({
+          code: 'NETWORK_ERROR',
+          details: { stage },
+        });
+        expect(errorDiagnostic(error).details).toEqual({ stage });
+        expect(errorText(error)).toContain(
+          stage === 'chatgpt_signing_keys'
+            ? 'signing keys'
+            : 'authorization code',
+        );
+        expect(errorText(error)).toContain('cross-origin');
+        expect(JSON.stringify(errorDiagnostic(error))).not.toMatch(
+          /private-code|private-token|private-url|synthetic/,
+        );
+        expect(client.status().connected).toBe(false);
+        expect(s.persistent.getItem(CHATGPT_CREDENTIAL_KEY)).toBeNull();
+      } finally {
+        client.dispose();
+      }
+    },
+  );
+  it.each([
+    'chatgpt_models',
+    'chatgpt_token_refresh',
+    'chatgpt_response',
+  ] as const)(
+    'identifies blocked %s for a restored connection',
+    async (stage) => {
+      const s = await setup();
+      await s.auth.complete(s.callback.href);
+      if (stage === 'chatgpt_token_refresh') {
+        const saved = JSON.parse(s.persistent.getItem(CHATGPT_CREDENTIAL_KEY)!);
+        s.persistent.setItem(
+          CHATGPT_CREDENTIAL_KEY,
+          JSON.stringify({ ...saved, expiresAt: 1000000 }),
+        );
+      }
+      const client = createChatGPT({
+        credentialStorage: s.persistent,
+        oauthStorage: memory(),
+        now: () => 1000000,
+        fetch: async () => {
+          throw new TypeError('private-token');
+        },
+      });
+      try {
+        client.restore();
+        const run = async () => {
+          if (stage === 'chatgpt_response') {
+            for await (const event of client.stream(
+              {
+                model: 'test',
+                messages: [{ role: 'user', content: 'Hello' }],
+                tools: [],
+              },
+              new AbortController().signal,
+            ))
+              void event;
+          } else await client.listModels();
+        };
+        const error = await run().catch((error: unknown) => error);
+        expect(error).toMatchObject({
+          code: 'NETWORK_ERROR',
+          details: { stage },
+        });
+        expect(errorText(error)).not.toContain('Start a new sign-in');
+        expect(JSON.stringify(errorDiagnostic(error))).not.toContain(
+          'private-token',
+        );
+      } finally {
+        client.dispose();
+      }
+    },
+  );
+
   it.each(['token_response', 'signature'] as const)(
     'reports %s without publishing credentials or leaking tokens',
     async (reason) => {

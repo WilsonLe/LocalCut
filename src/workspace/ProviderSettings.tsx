@@ -28,12 +28,6 @@ import {
 } from '../components/ui/empty';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '../components/ui/tabs';
 import { CollapsibleDisclosure } from '../components/ui/collapsible';
 import {
   Popover,
@@ -47,7 +41,7 @@ import type {
   ProviderProfile,
 } from './provider-preferences';
 export interface ProviderSettingsProps {
-  initialTab?: 'providers' | 'llm' | 'tts' | 'stt';
+  activeTab: 'providers' | 'llm' | 'tts' | 'stt';
   openRouterControls?: (
     profile: ProviderProfile,
     management: ReactNode,
@@ -81,9 +75,6 @@ export interface ProviderSettingsProps {
 }
 export function ProviderSettings(props: ProviderSettingsProps) {
   const { providerConfiguration: config } = props;
-  const [activeTab, setActiveTab] = useState<string>(
-    props.initialTab ?? 'providers',
-  );
   const [kind, setKind] = useState('compatible');
   const [name, setName] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
@@ -157,20 +148,12 @@ export function ProviderSettings(props: ProviderSettingsProps) {
     };
   };
   return (
-    <Tabs
-      value={activeTab}
-      onValueChange={(value) => setActiveTab(String(value))}
-    >
-      <TabsList
-        aria-label="AI settings"
-        className="grid grid-cols-2 gap-1 sm:grid-cols-4"
+    <div>
+      <div
+        role="region"
+        aria-label="Providers"
+        hidden={props.activeTab !== 'providers'}
       >
-        <TabsTrigger value="providers">Providers</TabsTrigger>
-        <TabsTrigger value="llm">LLM - Chat</TabsTrigger>
-        <TabsTrigger value="tts">TTS - Speech</TabsTrigger>
-        <TabsTrigger value="stt">STT - Transcription</TabsTrigger>
-      </TabsList>
-      <TabsContent value="providers" keepMounted>
         <div className="space-y-2">
           {config.profiles.map((p) =>
             p.kind === 'openrouter' ? (
@@ -590,9 +573,20 @@ export function ProviderSettings(props: ProviderSettingsProps) {
             </PopoverContent>
           </Popover>
         </div>
-      </TabsContent>
+      </div>
       {(['llm', 'tts', 'stt'] as const).map((service) => (
-        <TabsContent value={service} key={service} keepMounted>
+        <div
+          role="region"
+          aria-label={
+            service === 'llm'
+              ? 'LLM - Chat'
+              : service === 'tts'
+                ? 'TTS - Speech'
+                : 'STT - Transcription'
+          }
+          hidden={props.activeTab !== service}
+          key={service}
+        >
           <fieldset className="space-y-4">
             {config.routes[service].map((route, index) => {
               const profile =
@@ -711,7 +705,7 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                       label={`${profile.name} ${service} route model`}
                       disabled={
                         props.connecting ||
-                        activeTab !== service ||
+                        props.activeTab !== service ||
                         route.providerId === 'local' ||
                         !props.connectedProviders.includes(route.providerId)
                       }
@@ -802,9 +796,9 @@ export function ProviderSettings(props: ProviderSettingsProps) {
                 : 'Fallback shares this request with each listed provider in order and may incur charges.'}
             </p>
           )}
-        </TabsContent>
+        </div>
       ))}
-    </Tabs>
+    </div>
   );
 }
 

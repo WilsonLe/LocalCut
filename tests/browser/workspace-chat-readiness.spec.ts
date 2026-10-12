@@ -1,4 +1,9 @@
-import { selectAISettingsTab } from './workspace-settings-helper';
+import {
+  showOpenRouterTerms,
+  selectAISettingsTab,
+  prepareOpenRouterKey,
+  openAISettings,
+} from './workspace-settings-helper';
 import { fulfillChatTitle } from './chat-title-fixture';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -23,11 +28,6 @@ async function savedChats(page: Page): Promise<SavedChatSession[]> {
     }
   });
 }
-
-import {
-  prepareOpenRouterKey,
-  openAISettings,
-} from './workspace-settings-helper';
 
 const cors = {
   'access-control-allow-origin': '*',
@@ -120,8 +120,11 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Choose AI model', exact: true })
       .click();
     await expect(
-      settings.getByRole('tab', { name: 'LLM - Chat', exact: true }),
-    ).toHaveAttribute('aria-selected', 'true');
+      settings.getByRole('combobox', {
+        name: 'AI settings section',
+        exact: true,
+      }),
+    ).toContainText('LLM - Chat');
     await settings
       .getByRole('combobox', { name: 'AI model', exact: true })
       .click();
@@ -493,9 +496,11 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       settings.getByRole('button', { name: 'Data & analytics' }),
     ).toHaveCount(0);
-    await expect(
-      settings.getByRole('region', { name: 'OpenRouter connection terms' }),
-    ).toContainText('including after reload');
+    const terms1 = await showOpenRouterTerms(page);
+    await expect(terms1).toContainText('including after reload');
+    await page
+      .getByRole('button', { name: 'OpenRouter connection terms', exact: true })
+      .click();
     await settings.getByRole('button', { name: 'Done', exact: true }).click();
     await page.reload();
     await expect(composer).toHaveValue('Second tab draft');

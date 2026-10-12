@@ -301,7 +301,7 @@ for (const base of ['/', '/LocalCut/']) {
 
     // A compatible endpoint works independently of OpenRouter, without a paid request.
     await connect.click();
-    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
+    await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Add provider', exact: true })
       .click();
