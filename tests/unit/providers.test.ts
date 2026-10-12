@@ -18,9 +18,57 @@ import type {
 import {
   defaultProviderConfiguration,
   parseProviderConfiguration,
+  workspaceContextPolicy,
 } from '../../src/workspace/provider-preferences';
 import { parseResponses, responsesBody } from '../../src/ai/responses';
 const signal = () => new AbortController().signal;
+it('grants all workspace context only while an actual OpenRouter account is connected', () => {
+  const profiles = parseProviderConfiguration(
+    JSON.stringify({
+      profiles: [
+        { id: 'router-one', name: 'One', kind: 'openrouter' },
+        { id: 'router-two', name: 'Two', kind: 'openrouter' },
+        {
+          id: 'endpoint',
+          name: 'Endpoint',
+          kind: 'compatible',
+          baseUrl: 'https://example.test/v1',
+        },
+        { id: 'chatgpt', name: 'ChatGPT', kind: 'chatgpt' },
+      ],
+      routes: {
+        llm: [],
+        tts: [],
+        stt: [{ providerId: 'local', model: 'whisper' }],
+      },
+    }),
+  ).profiles;
+  expect(profiles).toHaveLength(4);
+  const denied = {
+    includeText: false,
+    includeAssetNames: false,
+    includeTranscripts: false,
+    includeCaptureMetadata: false,
+    includeAssetIndexes: true,
+  };
+  for (const connected of [[], ['endpoint', 'chatgpt'], ['removed-account']])
+    expect(workspaceContextPolicy(profiles, connected)).toEqual(denied);
+  const allowed = {
+    ...denied,
+    includeText: true,
+    includeAssetNames: true,
+    includeTranscripts: true,
+    includeCaptureMetadata: true,
+  };
+  for (const connected of [
+    ['router-one', 'router-two'],
+    ['router-two'],
+    ['router-one', 'endpoint'],
+  ])
+    expect(workspaceContextPolicy(profiles, connected)).toEqual(allowed);
+  expect(workspaceContextPolicy([], ['router-one'])).toEqual(denied);
+  expect(workspaceContextPolicy(profiles, [])).toEqual(denied);
+});
 const chat: ChatRequest = {
   model: 'primary-model',
   messages: [{ role: 'user', content: 'Hello' }],

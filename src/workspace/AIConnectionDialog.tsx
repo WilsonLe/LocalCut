@@ -1,16 +1,9 @@
 import { useState } from 'react';
-import type { Dispatch, FormEvent, SetStateAction, ReactNode } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import type { ProviderProfile } from './provider-preferences';
-import {
-  ChartNoAxesColumn,
-  KeyRound,
-  ArrowLeft,
-  LoaderCircle,
-  Unplug,
-} from 'lucide-react';
-import type { ContextPolicy, OpenRouterModel } from '../ai';
+import { KeyRound, ArrowLeft, LoaderCircle, Unplug } from 'lucide-react';
+import type { OpenRouterModel } from '../ai';
 import { Button } from '../components/ui/button';
-import { Checkbox } from '../components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -20,13 +13,6 @@ import {
 } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import {
-  Popover,
-  PopoverContent,
-  PopoverDescription,
-  PopoverTitle,
-  PopoverTrigger,
-} from '../components/ui/popover';
 import { ProviderSettings } from './ProviderSettings';
 import type { ProviderSettingsProps } from './ProviderSettings';
 interface Props extends Omit<
@@ -48,8 +34,6 @@ interface Props extends Omit<
   setModel: (value: string) => void;
   models: OpenRouterModel[];
   refreshCatalog: () => Promise<void>;
-  privacy: Required<ContextPolicy>;
-  setPrivacy: Dispatch<SetStateAction<Required<ContextPolicy>>>;
   connectionError: string | null;
 }
 export default function AIConnectionDialog({
@@ -63,8 +47,6 @@ export default function AIConnectionDialog({
   setModel,
   models,
   refreshCatalog,
-  privacy,
-  setPrivacy,
   connectionError,
   ...providerProps
 }: Props) {
@@ -128,68 +110,7 @@ export default function AIConnectionDialog({
             )}
           />
         </div>
-        <div className="flex shrink-0 items-center justify-between">
-          <Popover>
-            <PopoverTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Data & analytics"
-                  title="Data & analytics"
-                />
-              }
-            >
-              <ChartNoAxesColumn aria-hidden="true" />
-            </PopoverTrigger>
-            <PopoverContent aria-label="Data & analytics">
-              <PopoverTitle className="font-medium">
-                Data & analytics
-              </PopoverTitle>
-              <PopoverDescription className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Optional project context for configured LLM providers.
-              </PopoverDescription>
-              <fieldset
-                className="mt-4 space-y-3"
-                disabled={models.length === 0}
-              >
-                <legend className="sr-only">
-                  Project context shared with configured LLM providers
-                </legend>
-                {(
-                  [
-                    ['includeText', 'Share overlay and caption text'],
-                    ['includeAssetNames', 'Share project and media names'],
-                    ['includeTranscripts', 'Share source transcripts'],
-                    [
-                      'includeCaptureMetadata',
-                      'Share capture dates and GPS with chat and indexing',
-                    ],
-                  ] as const
-                ).map(([key, label]) => (
-                  <div className="flex items-center gap-2" key={key}>
-                    <Checkbox
-                      id={`share-${key}`}
-                      disabled={models.length === 0}
-                      checked={privacy[key]}
-                      onCheckedChange={(checked) =>
-                        setPrivacy((value) => ({
-                          ...value,
-                          [key]: checked === true,
-                        }))
-                      }
-                    />
-                    <Label
-                      htmlFor={`share-${key}`}
-                      className="text-sm font-normal"
-                    >
-                      {label}
-                    </Label>
-                  </div>
-                ))}
-              </fieldset>
-            </PopoverContent>
-          </Popover>
+        <div className="flex shrink-0 justify-end">
           <Button
             variant="outline"
             onClick={() => {
@@ -250,13 +171,53 @@ function OpenRouterConnection({
           )}
         </div>
       </div>
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        Connecting OpenRouter allows asset indexing: Index or an approved chat
-        proposal sends generated images, audio excerpts and video excerpts with
-        sound to your selected model. Saved labels can be shared in chat.
-        Capture dates and GPS require the separate sharing choice in Data &
-        analytics.
-      </p>
+      <section
+        aria-label="OpenRouter connection terms"
+        className="space-y-2 text-xs leading-relaxed text-muted-foreground"
+      >
+        <h3 className="font-medium text-foreground">Connection terms</h3>
+        <p>
+          By connecting OpenRouter, you agree to share project and media names,
+          overlay, caption and storyboard text (including frame names), source
+          transcript text, and embedded capture dates and GPS with your
+          configured AI chat providers and fallback routes when you send a
+          request. All these context categories stay enabled while an OpenRouter
+          account is connected, including after reload.
+        </p>
+        <p>
+          Explicit Index or a chat indexing request can also send generated
+          images, audio excerpts and video excerpts with sound to your selected
+          OpenRouter model. Saved index labels are available in chat. AI
+          requests may incur provider charges. Connecting, importing and
+          reloading do not start chat or indexing requests. Original media files
+          stay local; a requested remote transcription job may send selected
+          audio to its disclosed recipients.
+        </p>
+        <p>
+          Your key is saved only in this browser and is excluded from backups.
+          Disconnect removes that account’s saved key. Sharing authorization
+          ends when the last OpenRouter account is disconnected. Provider
+          processing is governed by the{' '}
+          <a
+            className="underline underline-offset-4"
+            href="https://openrouter.ai/terms"
+            target="_blank"
+            rel="noreferrer"
+          >
+            OpenRouter Terms of Service
+          </a>{' '}
+          and{' '}
+          <a
+            className="underline underline-offset-4"
+            href="https://openrouter.ai/privacy"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Privacy Policy
+          </a>
+          , along with your selected model providers’ policies.
+        </p>
+      </section>
       {!connected && (
         <div className="space-y-3">
           {method === 'choice' && (

@@ -317,7 +317,7 @@ for (const base of ['/', '/LocalCut/']) {
       dialog.getByRole('checkbox', { name: 'Allow asset indexing' }),
     ).toHaveCount(0);
     await expect(dialog).toContainText(
-      'Connecting OpenRouter allows asset indexing',
+      'Explicit Index or a chat indexing request',
     );
     await expect(
       dialog.getByRole('button', { name: 'Refresh models', exact: true }),
@@ -364,29 +364,12 @@ for (const base of ['/', '/LocalCut/']) {
     await search.focus();
     await page.keyboard.press('Escape');
     await expect(dialog).toBeVisible();
-    await dialog
-      .getByRole('button', { name: 'Data & analytics', exact: true })
-      .click();
-    const sharing = page.getByRole('dialog', {
-      name: 'Data & analytics',
-      exact: true,
-    });
-    await expect(sharing).toBeVisible();
-    for (const box of await sharing.getByRole('checkbox').all())
-      await expect(box).not.toBeChecked();
-    await sharing
-      .getByRole('checkbox', { name: 'Share source transcripts', exact: true })
-      .click();
     await expect(
-      sharing.getByRole('checkbox', {
-        name: 'Share source transcripts',
-        exact: true,
-      }),
-    ).toBeChecked();
-    await page.keyboard.press('Escape');
+      dialog.getByRole('region', { name: 'OpenRouter connection terms' }),
+    ).toContainText('source transcript text');
     await expect(
-      dialog.getByRole('button', { name: 'Data & analytics', exact: true }),
-    ).toBeFocused();
+      dialog.getByRole('button', { name: 'Data & analytics' }),
+    ).toHaveCount(0);
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await openAISettings(page);
     await expect(
@@ -424,15 +407,9 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Use API key', exact: true })
       .click();
-    await dialog
-      .getByRole('button', { name: 'Data & analytics', exact: true })
-      .click();
     await expect(
-      sharing.getByRole('checkbox', {
-        name: 'Share source transcripts',
-        exact: true,
-      }),
-    ).not.toBeChecked();
+      dialog.getByRole('region', { name: 'OpenRouter connection terms' }),
+    ).toContainText('context categories stay enabled');
     expect(completions).toBe(0);
   });
   test(`AI model loading and empty catalog can refresh on a narrow viewport ${base}`, async ({

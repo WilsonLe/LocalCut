@@ -71,7 +71,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Keep the AI connection dialog compact. Show a clear connected status and disconnect action; remove explanatory filler from the default view.
 - Use one shadcn searchable single-select model dropdown. Search names and IDs inside its popup; place refresh as an icon at the far right of the search row.
-- Reveal optional OpenRouter sharing through a Data & analytics popover, with all choices off initially. Keep credentials in their separate local record and source media local.
+- Reveal optional OpenRouter sharing through a Data & analytics popover, with all choices off initially. Keep credentials in their separate local record and source media local. The OpenRouter context terms choice below supersedes the separate sharing controls and reload reset.
 - Put the model/provider information behind a small icon in the composer footer, revealing configuration progressively. Use the CYOBot instructor chat's searchable session switcher, transcript, and rounded composer structure.
 
 ## Chat controls — 10 October 2026
@@ -93,7 +93,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Persist chat sidebar width as a local browser user preference; restore the preferred width across reloads and temporary responsive/layout constraints.
 - Audit all configurable UI state and use judgement to remember durable choices. Save chat collapse, deliberate media visibility, export format and preferred AI model alongside appearance. Keep authored project data in its existing storage and temporary navigation/operation state in the session.
-- Keep preferences local to the browser/origin. Remembering a model does not authorize reconnecting, paid requests or sharing content; credentials use their separate persistent local record; text/name/transcript sharing consent remains session-only. The newer asset-indexing choice below is remembered separately.
+- Keep preferences local to the browser/origin. Remembering a model does not authorize reconnecting, paid requests or sharing content; credentials use their separate persistent local record; the later OpenRouter context terms choice supersedes session-only sharing consent. Indexing authorization follows its later connection choice.
 
 ## Project versions — 10 October 2026
 
@@ -255,7 +255,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Save pasted and OAuth-issued OpenRouter credentials locally in this browser/origin and restore the connection after refresh or navigation. This supersedes the earlier memory-only credential choices.
 - Keep credentials separate from preferences, project data and all portable backups. Disconnect removes the saved credential; ordinary cleanup preserves it. Removing or replacing it in another tab retires the old connection.
-- Restoring a connection may refresh the model catalog, but never sends chat, generates speech or indexes media automatically. Text/name/transcript sharing remains off after reload; the newer persistent chat choice below supersedes the original session-only conversation lifetime. Active project restoration follows the newer project-routing choice above.
+- Restoring a connection may refresh the model catalog, but never sends chat, generates speech or indexes media automatically. Text/name/transcript sharing remains off after reload; the newer persistent chat choice below supersedes the original session-only conversation lifetime. Active project restoration follows the newer project-routing choice above. The OpenRouter context terms choice below supersedes the separate sharing controls and reload reset.
 
 ## Mobile usability — 10 October 2026
 
@@ -462,10 +462,17 @@ This is the project record of the user's durable product and workflow choices. U
 ## Indexing authorization — 12 October 2026
 
 - Remove the separate Allow asset indexing permission. Connecting OpenRouter acknowledges the indexing disclosure and authorizes generated evidence and saved labels in chat. This supersedes the remembered/revocable indexing permission recorded above.
-- Keep indexing explicit through Index or an approved chat proposal; connection, import and reload never start paid indexing. Text, names, transcripts and capture dates/GPS keep their separate sharing choices.
+- Keep indexing explicit through Index or an approved chat proposal; connection, import and reload never start paid indexing. Text, names, transcripts and capture dates/GPS keep their separate sharing choices. The OpenRouter context terms choice below supersedes the separate sharing controls and reload reset.
 - Indexing authorization must not split or hide saved chats. Recover conversations from both legacy indexing-permission scopes, preserving drafts, titles, archives and selection while retaining the other project/model/sharing boundaries.
 
 ## Creative editing features — 12 October 2026
 
 - Add LUTs/color presets, audio editing, video blending and masking, with UI and assistant access through the shared engine.
 - Include advanced tools in this release: automatic local mask tracking with editable motion points, chroma key/spill controls and local audio noise reduction, alongside .cube import, EQ, balance, fades and geometric masks.
+
+## OpenRouter context terms — 12 October 2026
+
+- Remove Data & analytics and all text/name/transcript/capture sharing switches. Connecting OpenRouter always enables project/media names, overlay/caption/storyboard text including frame names, source transcripts and embedded capture dates/GPS for configured chat providers/fallbacks, including after reload.
+- Disclose these categories in visible connection terms before either API-key use or OAuth login. Include indexing excerpts, charges, credential storage/removal, original-media boundaries and links to OpenRouter terms/privacy. No extra approval checkbox or confirmation step.
+- Derive permission from actual connected OpenRouter accounts. Imported profiles alone grant nothing; disconnecting the last account retires shared context. Keep headless caller-controlled policies and compatible/ChatGPT-only boundaries.
+- Preserve matching saved chats from old sharing/indexing scopes, with exact project/model/provider isolation. Connecting, importing and reloading must not submit chat or indexing requests.
