@@ -204,6 +204,7 @@ export class AssetIndexStore {
     return this.update(
       id,
       (run) => {
+        if (manifest.captureIncluded) run.captureShared = true;
         run.requests.push(manifest);
         run.status = 'labeling';
         delete run.error;

@@ -379,34 +379,37 @@ for (const base of ['/', '/LocalCut/']) {
     await page.reload();
     await expect(composer).toHaveValue('Second tab draft');
 
-    // Sharing changes isolate history and do not remember consent across reload.
-    await openAISettings(page);
-    await settings
-      .getByRole('button', { name: 'Data & analytics', exact: true })
-      .click();
-    await page
-      .getByRole('checkbox', {
-        name: 'Share overlay and caption text',
-        exact: true,
-      })
-      .check();
-    await page.keyboard.press('Escape');
-    await settings.getByRole('button', { name: 'Done', exact: true }).click();
-    await expect(composer).toHaveValue('');
-    await expect(
-      page.getByRole('log', { name: 'Conversation messages' }),
-    ).not.toContainText('Hello');
-    await composer.fill('Text-sharing scope draft');
-    await expect
-      .poll(async () =>
-        (await savedChats(page)).some(
-          (chat) => chat.content.prompt === 'Text-sharing scope draft',
-        ),
-      )
-      .toBe(true);
-    await page.reload();
-    await expect(composer).toHaveValue('Second tab draft');
-    expect(completions).toBe(2);
+    // Each sharing choice isolates saved history and resets across reload.
+    for (const [name, draft] of [
+      ['Share overlay and caption text', 'Text-sharing scope draft'],
+      [
+        'Share capture dates and GPS with chat and indexing',
+        'Capture-sharing scope draft',
+      ],
+    ] as const) {
+      await openAISettings(page);
+      await settings
+        .getByRole('button', { name: 'Data & analytics', exact: true })
+        .click();
+      await page.getByRole('checkbox', { name, exact: true }).check();
+      await page.keyboard.press('Escape');
+      await settings.getByRole('button', { name: 'Done', exact: true }).click();
+      await expect(composer).toHaveValue('');
+      await expect(
+        page.getByRole('log', { name: 'Conversation messages' }),
+      ).not.toContainText('Hello');
+      await composer.fill(draft);
+      await expect
+        .poll(async () =>
+          (await savedChats(page)).some(
+            (chat) => chat.content.prompt === draft,
+          ),
+        )
+        .toBe(true);
+      await page.reload();
+      await expect(composer).toHaveValue('Second tab draft');
+      expect(completions).toBe(2);
+    }
 
     // Model changes keep a separate context and restore it on return.
     await openAISettings(page);

@@ -1,3 +1,8 @@
+import {
+  imageCapture,
+  containerCapture,
+  containerCreation,
+} from './capture-metadata';
 import { withQuotaRecovery } from '../storage/quota';
 import { commitWithSignal } from '../storage/transaction';
 import {
@@ -70,6 +75,8 @@ export async function inspect(
       status: 'ready',
     };
     bitmap.close();
+    const capture = await imageCapture(file, imageType);
+    if (capture) asset.capture = capture;
     return asset;
   }
   const input = inputFile(file);
@@ -92,7 +99,16 @@ export async function inspect(
       );
     const durationUs = Math.round((await input.computeDuration()) * 1e6);
     invariant(durationUs > 0, 'INVALID_DOCUMENT', 'Media has no duration');
+    let capture = await input
+      .getMetadataTags()
+      .then(containerCapture)
+      .catch(() => undefined);
+    if (!capture?.time) {
+      const time = await containerCreation(file);
+      if (time) capture = { ...capture, time };
+    }
     return {
+      ...(capture ? { capture } : {}),
       id,
       name,
       kind: video ? 'video' : 'audio',

@@ -326,6 +326,21 @@ function MediaAssetCard({
               <div>{formatTime(asset.durationUs)}</div>
             )}
             <div>{Math.ceil(asset.size / 1024)} KiB</div>
+            {asset.capture?.time && (
+              <div>
+                Recorded date: {asset.capture.time.value} ·{' '}
+                {asset.capture.time.source}
+              </div>
+            )}
+            {asset.capture?.location && (
+              <div>
+                GPS: {asset.capture.location.latitude},{' '}
+                {asset.capture.location.longitude}
+                {asset.capture.location.altitudeMeters !== undefined
+                  ? ` · ${asset.capture.location.altitudeMeters} m`
+                  : ''}
+              </div>
+            )}
             {asset.status === 'missing' && <div>Missing · relink file</div>}
           </>
         }

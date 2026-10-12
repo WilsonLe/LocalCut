@@ -407,3 +407,7 @@ This is the project record of the user's durable product and workflow choices. U
 ## Assistant caps — 12 October 2026
 
 - Remove all default caps and hard application ceilings from editing chat: rounds, tool calls/payloads, operations/proposals, retained history/context, request/response size, composer attachments/typed or dictated text, chat naming and default chat duration. Do not force a final response because a LocalCut budget was reached, truncate activity details, or exclude tool-capable models by context size. The previous context-compaction preference is superseded. Providers/models determine their own capacity; retain cancellation, privacy, valid editor data, complete terminal validation, explicit proposal approval and manual retry.
+
+## Asset capture context — 12 October 2026
+
+- Preserve embedded photo capture/video recording dates and locations on upload. Retain them with asset metadata, give indexing that context and let the editing agent discover them through the shared inspection tools. Unknown dates/locations stay unknown; never substitute upload or file modification time.

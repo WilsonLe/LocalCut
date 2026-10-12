@@ -1,3 +1,4 @@
+import { captureFixture } from '../capture-metadata-fixture';
 import { describe, expect, it } from 'vitest';
 import {
   measureFrame,
@@ -195,6 +196,28 @@ describe('deterministic asset evidence', () => {
   });
 });
 describe('saved index context', () => {
+  it('shares structured capture only by permission and withholds capture-informed labels after revocation', () => {
+    const asset = run('capture', 'allowed', 2);
+    asset.source.capture = captureFixture;
+    const policy = { includeCaptureMetadata: true };
+    expect(indexCatalog([asset]).assets[0]).not.toHaveProperty('capture');
+    expect(readIndex(asset)).not.toHaveProperty('capture');
+    expect(searchIndexes([asset], '2024-06-15').total).toBe(0);
+    expect(indexCatalog([asset], 10000, policy).assets[0]?.capture).toEqual(
+      captureFixture,
+    );
+    expect(readIndex(asset, 0, 20, policy).capture).toEqual(captureFixture);
+    expect(searchIndexes([asset], '153.25', 0, 20, policy).total).toBe(1);
+    asset.captureShared = true;
+    asset.label = { ...asset.label!, summary: 'Private trip on 2024-06-15' };
+    expect(newestIndexes([asset], new Set(['allowed']))).toEqual([]);
+    expect(newestIndexes([asset], new Set(['allowed']), policy)).toEqual([
+      asset,
+    ]);
+    expect(indexCatalog([asset]).assets).toEqual([]);
+    expect(searchIndexes([asset], '').total).toBe(0);
+    expect(() => readIndex(asset)).toThrow(/permission/);
+  });
   it('selects only the newest complete valid authorized run', () => {
     const old = run('old', 'allowed', 1),
       fresh = run('fresh', 'allowed', 2),

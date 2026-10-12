@@ -1,3 +1,4 @@
+import { captureFixture } from '../capture-metadata-fixture';
 import { describe, expect, it, vi } from 'vitest';
 import { createAssistant } from '../../src/ai/assistant';
 import type { AssistantEditor, AssistantEvent } from '../../src/ai/assistant';
@@ -107,6 +108,7 @@ function fixture() {
         assetSchema.parse({
           id: 'asset',
           name: 'Private recording.mov',
+          capture: captureFixture,
           kind: 'video',
           size: 10,
           type: 'video/mp4',
@@ -450,6 +452,42 @@ describe('headless assistant boundaries', () => {
     gate.resolve();
     expect((await result).appliedRevision).toBe(1);
     expect(f.assistant.getProposal(id).status).toBe('applied');
+  });
+  it('finds permitted capture metadata through inspect_asset with independent sharing and scope', async () => {
+    for (const includeCaptureMetadata of [false, true]) {
+      const f = fixture(),
+        p = provider([
+          [final('', [call('inspect_asset', { assetId: 'asset' })])],
+          [final()],
+        ]);
+      const assistant = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test',
+        context: { includeCaptureMetadata },
+      });
+      try {
+        await assistant.run('When and where was this filmed?').completion;
+        const request = p.requests.at(-1)!;
+        const tool = JSON.parse(
+          request.messages.find(
+            (m) => m.role === 'tool' && m.tool_call_id === 'call',
+          )!.content!,
+        );
+        expect(tool.capture).toEqual(
+          includeCaptureMetadata ? captureFixture : undefined,
+        );
+        expect(tool).not.toHaveProperty('name');
+        expect(request.messages[0]!.content).toContain(
+          'inspect_asset(assetId).capture',
+        );
+        if (!includeCaptureMetadata)
+          expect(JSON.stringify(p.requests)).not.toContain('2024-06-15');
+      } finally {
+        await assistant.dispose();
+      }
+    }
   });
   it('redacts local text and names, sends no media, and restricts inspection to referenced assets', async () => {
     const f = setup([

@@ -82,6 +82,7 @@ export async function analyzeAsset(
                     assetId,
                     createdAt: Date.now(),
                     source: {
+                      ...(asset.capture ? { capture: asset.capture } : {}),
                       size: file.size,
                       lastModified: file.lastModified,
                       kind: asset.kind,

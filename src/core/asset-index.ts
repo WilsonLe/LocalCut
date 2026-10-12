@@ -1,3 +1,4 @@
+import type { CaptureMetadata } from './capture-metadata';
 import { z } from 'zod';
 
 const time = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -69,6 +70,7 @@ export interface IndexRequestManifest {
   artifactIds: string[];
   createdAt: number;
   purpose?: 'summary-part';
+  captureIncluded?: boolean;
   label?: IndexLabel;
   response?: string;
   actualModel?: string;
@@ -92,6 +94,7 @@ export interface AssetIndexRun {
     height: number;
     durationUs: number;
     hasAudio: boolean;
+    capture?: CaptureMetadata;
   };
   status:
     'analyzing' | 'analyzed' | 'labeling' | 'complete' | 'failed' | 'cancelled';
@@ -100,6 +103,8 @@ export interface AssetIndexRun {
   analysis: AssetAnalysis;
   label?: IndexLabel;
   requests: IndexRequestManifest[];
+  /** Labels may repeat private capture context; gate the entire run when sharing is off. */
+  captureShared?: boolean;
   error?: string;
 }
 

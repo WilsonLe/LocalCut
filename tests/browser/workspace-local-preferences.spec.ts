@@ -554,6 +554,13 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('checkbox', { name: 'Share source transcripts' })
       .click();
+    const captureSharing = page.getByRole('checkbox', {
+      name: 'Share capture dates and GPS with chat and indexing',
+      exact: true,
+    });
+    await expect(captureSharing).not.toBeChecked();
+    await captureSharing.click();
+    await expect(captureSharing).toBeChecked();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     expect((await preferences(page)).aiModel).toBe(
       '~deepseek/deepseek-pro-latest',
@@ -567,6 +574,7 @@ for (const base of ['/', '/LocalCut/']) {
     delete storage['localcut.openrouter-credential.v1'];
     expect(JSON.stringify(storage)).not.toContain('synthetic-preference-key');
     expect(JSON.stringify(storage)).not.toContain('includeText');
+    expect(JSON.stringify(storage)).not.toContain('includeCaptureMetadata');
     await page.reload();
     await openAISettings(page);
     await expect.poll(() => requests).toBe(2);
@@ -577,7 +585,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Data & analytics', exact: true })
       .click();
-    await expect(page.getByRole('checkbox')).toHaveCount(4);
+    await expect(page.getByRole('checkbox')).toHaveCount(5);
     for (const checkbox of await page.getByRole('checkbox').all())
       await expect(checkbox).not.toBeChecked();
     await dialog
