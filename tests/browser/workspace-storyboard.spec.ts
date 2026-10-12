@@ -240,6 +240,39 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'Storyboard',
       exact: true,
     });
+    const checkHeader = async () => {
+      const tabs = page.getByRole('tablist', { name: 'Project views' });
+      await expect(editorTab).toBeVisible();
+      await expect(storyboardTab).toBeVisible();
+      const heading = page.locator(
+        '.workspace-header:visible, .mobile-edit-heading:visible',
+      );
+      const actions = await heading.locator('.header-actions').boundingBox();
+      const views = await tabs.boundingBox();
+      const first = await editorTab.boundingBox();
+      const second = await storyboardTab.boundingBox();
+      expect(actions).not.toBeNull();
+      expect(views).not.toBeNull();
+      expect(first).not.toBeNull();
+      expect(second).not.toBeNull();
+      expect(views!.x).toBeGreaterThanOrEqual(actions!.x + actions!.width);
+      expect(first!.x).toBeCloseTo(views!.x, 0);
+      expect(second!.x).toBeGreaterThan(first!.x);
+      expect(views!.x + views!.width).toBeLessThanOrEqual(
+        await page.evaluate(() => innerWidth),
+      );
+      await expect(
+        heading
+          .getByRole('button', { name: 'Open project', exact: true })
+          .locator('svg'),
+      ).toHaveCount(0);
+    };
+    await checkHeader();
+    await expect(page.locator('.brand')).toHaveText('LocalCut');
+    await expect(
+      page.getByRole('button', { name: 'LocalCut home' }),
+    ).toHaveCount(0);
+    await expect(page.locator('.brand')).toHaveJSProperty('tagName', 'SPAN');
     await expect(editorTab).toHaveAttribute('aria-selected', 'true');
     await editorTab.focus();
     await page.keyboard.press('ArrowRight');
@@ -476,6 +509,7 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(storyboardTab).toBeVisible();
+    await checkHeader();
     await expect(canvas).toBeVisible();
     await expect
       .poll(() =>
