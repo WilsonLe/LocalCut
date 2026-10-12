@@ -503,8 +503,20 @@ for (const base of ['/', '/LocalCut/']) {
           .completion;
         await editor.dispose();
         editor = await createEditor({ namespace });
-        const replay = await editor.masks.track(project.id, 'clip', 1)
-          .completion;
+        const NativeWorker = window.Worker;
+        let replay;
+        try {
+          window.Worker = new Proxy(NativeWorker, {
+            construct() {
+              throw new Error(
+                'A cached tracking result must not start a new worker',
+              );
+            },
+          });
+          replay = await editor.masks.track(project.id, 'clip', 1).completion;
+        } finally {
+          window.Worker = NativeWorker;
+        }
         let round = 0;
         const provider = {
           stream: async function* () {
