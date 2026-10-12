@@ -1,9 +1,13 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { onDemandDialog } from './on-demand-dialog';
+import { Suspense, useEffect, useState } from 'react';
 import { ListTodo } from 'lucide-react';
 import type { Editor, TaskRecord } from '../editor';
 import { Button } from '../components/ui/button';
 import { Tooltip } from '../components/ui/tooltip';
-const TaskQueueDialog = lazy(() => import('./TaskQueueDialog'));
+const TaskQueueDialog = onDemandDialog(
+  () => import('./TaskQueueDialog'),
+  ({ onClose }) => ({ title: 'Task queue', onClose: onClose }),
+);
 export default function TaskQueueControl({
   editor,
 }: {

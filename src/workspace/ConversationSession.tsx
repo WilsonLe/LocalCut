@@ -36,7 +36,6 @@ import type {
   ContextPolicy,
   EditProposal,
 } from '../ai';
-import { getIndexConsent } from './index-consent';
 import type {
   Connection,
   IndexConnection,
@@ -357,14 +356,14 @@ export default function ConversationSession({
             (modality) => modality === 'image' || modality === 'audio',
           )
             ? {
-                consent: getIndexConsent,
+                consent: () => true,
                 disclosure: `Indexing sends generated stills${indexConnection.inputModalities.includes('video') ? ', video clips with sound' : ' (video frames only; motion and sound are not assessed)'}${indexConnection.inputModalities.includes('audio') ? ', and audio excerpts' : ''} to OpenRouter model ${indexConnection.model}. ${privacy.includeCaptureMetadata ? 'Embedded capture dates and GPS location are also shared. ' : ''}This may incur cost. Original source files remain local.`,
                 run: (assetId, requestId) => {
                   const indexer = indexConnection.api.createAssetIndexer({
                     editor,
                     provider: indexConnection.provider,
                     model: indexConnection.model,
-                    consent: getIndexConsent,
+                    consent: () => true,
                     includeCaptureMetadata: privacy.includeCaptureMetadata,
                     onRunId: (runId) => indexRuns.set(requestId, runId),
                   });

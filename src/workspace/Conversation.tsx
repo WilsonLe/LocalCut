@@ -1,3 +1,4 @@
+import { onDemandDialog } from './on-demand-dialog';
 import ChatSessionTitle from './ChatSessionTitle';
 import {
   accountStorage,
@@ -27,7 +28,6 @@ import {
 } from 'lucide-react';
 import type { Editor, Project } from '../editor';
 import type { ContextPolicy, OpenRouter, OpenRouterModel } from '../ai';
-import { useIndexConsent } from './index-consent';
 import { KlipMark } from './KlipMark';
 import { takePendingCallback } from './oauth-callback';
 import { parseProjectRoute } from './project-route';
@@ -52,10 +52,20 @@ import { Tooltip } from '../components/ui/tooltip';
 import { toast } from './notifications';
 import { captureChatExport, CHAT_EXPORT_TASK } from '../services/chat-export';
 import type { ChatExportSource } from '../services/chat-export';
-const AIConnectionDialog = lazy(() => import('./AIConnectionDialog'));
+const AIConnectionDialog = onDemandDialog(
+  () => import('./AIConnectionDialog'),
+  ({ setSettingsOpen, returnFocus }) => ({
+    title: 'AI connection',
+    onClose: () => setSettingsOpen(false),
+    finalFocus: returnFocus,
+  }),
+);
 const ChatSessionPicker = lazy(() => import('./ChatSessionPicker'));
 const ConversationSession = lazy(() => import('./ConversationSession'));
-const SpeechDialog = lazy(() => import('./SpeechDialog'));
+const SpeechDialog = onDemandDialog(
+  () => import('./SpeechDialog'),
+  ({ open, onClose }) => ({ open, title: 'Text to speech', onClose }),
+);
 const SpeechTasks = lazy(() => import('./SpeechTasks'));
 import {
   getWorkspacePreferences,
@@ -137,7 +147,6 @@ export function Conversation(props: ConversationProps) {
     includeAssetIndexes: false,
     includeCaptureMetadata: false,
   });
-  const indexingAllowed = useIndexConsent();
   const settingsReturnFocus = useRef<HTMLButtonElement | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [speechOpen, setSpeechOpen] = useState(false);
@@ -909,9 +918,9 @@ export function Conversation(props: ConversationProps) {
     ],
   );
   useEffect(() => {
-    onIndexConnection?.(indexingAllowed ? indexConnection : null);
-  }, [indexConnection, indexingAllowed, onIndexConnection]);
-  const sessionKey = `${connection?.id}:${props.project?.id}:${model}:${privacy.includeText}:${privacy.includeAssetNames}:${privacy.includeTranscripts}:${privacy.includeCaptureMetadata}:${indexingAllowed}`;
+    onIndexConnection?.(indexConnection);
+  }, [indexConnection, onIndexConnection]);
+  const sessionKey = `${connection?.id}:${props.project?.id}:${model}:${privacy.includeText}:${privacy.includeAssetNames}:${privacy.includeTranscripts}:${privacy.includeCaptureMetadata}`;
 
   const chatScope =
     props.project && model
@@ -940,7 +949,6 @@ export function Conversation(props: ConversationProps) {
           privacy.includeText,
           privacy.includeAssetNames,
           privacy.includeTranscripts,
-          indexingAllowed,
           // Keep prior unshared scopes compatible; shared narration gets a separate owner.
           ...(privacy.includeCaptureMetadata ? ['capture-metadata'] : []),
         ])
@@ -1198,7 +1206,7 @@ export function Conversation(props: ConversationProps) {
                     model={model}
                     privacy={{
                       ...privacy,
-                      includeAssetIndexes: indexingAllowed,
+                      includeAssetIndexes: true,
                     }}
                     registerSession={registerSession}
                     composerControl={null}

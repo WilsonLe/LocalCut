@@ -212,6 +212,63 @@ async function snapshot(page: Page, base: string): Promise<Project> {
   }, base);
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`retained speech dialog returns focus to each opener and keeps its draft ${base}`, async ({
+    page,
+    context,
+  }) => {
+    const initial = await connect(page, context, base);
+    await initial.getByRole('button', { name: 'Close', exact: true }).click();
+    // Reset the component instance while retaining the configured local account.
+    // The first speech opening on this page must come from Commands.
+    await page.reload();
+    const media = page.getByRole('button', {
+      name: 'Text to speech',
+      exact: true,
+    });
+    await expect(media).toBeEnabled();
+    const commands = page.getByRole('button', {
+      name: 'Commands',
+      exact: true,
+    });
+    const fromCommands = async () => {
+      await commands.click();
+      const palette = page.getByRole('dialog', {
+        name: 'Commands',
+        exact: true,
+      });
+      await palette
+        .getByRole('combobox', { name: 'Search commands', exact: true })
+        .fill('Text to speech');
+      await palette
+        .getByRole('option', { name: 'Text to speech', exact: true })
+        .click();
+    };
+    const dialog = page.getByRole('dialog', {
+      name: 'Text to speech',
+      exact: true,
+    });
+    await fromCommands();
+    await expect(dialog.getByLabel('Script', { exact: true })).toBeVisible();
+    await dialog
+      .getByLabel('Script', { exact: true })
+      .fill('Keep this retained draft.');
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible();
+    await expect(commands).toBeFocused();
+    await media.click();
+    await expect(dialog.getByLabel('Script', { exact: true })).toHaveValue(
+      'Keep this retained draft.',
+    );
+    await page.keyboard.press('Escape');
+    await expect(media).toBeFocused();
+    await fromCommands();
+    await expect(dialog.getByLabel('Script', { exact: true })).toHaveValue(
+      'Keep this retained draft.',
+    );
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(commands).toBeFocused();
+  });
+
   test(`text to speech saves a favorite reference voice for future scripts at ${base}`, async ({
     page,
     context,
