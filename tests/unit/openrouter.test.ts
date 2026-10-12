@@ -56,6 +56,61 @@ async function collect(
 }
 
 describe('OpenRouter transport', () => {
+  it('groups explicit chat sessions and gives unrelated standalone requests distinct IDs', async () => {
+    const { client, fetch } = setup();
+    await collect(client, { ...request(), sessionId: 'chat:stable-1' });
+    await collect(client, { ...request(), sessionId: 'chat:stable-1' });
+    await collect(client);
+    await collect(client);
+    const bodies = fetch.mock.calls
+      .filter(([url]) => String(url).endsWith('/chat/completions'))
+      .map(([, init]) => JSON.parse(String(init?.body)));
+    expect(bodies.map((body) => body.session_id).slice(0, 2)).toEqual([
+      'chat:stable-1',
+      'chat:stable-1',
+    ]);
+    expect(bodies[2].session_id).toMatch(/^[a-f\d-]{36}$/);
+    expect(bodies[3].session_id).not.toBe(bodies[2].session_id);
+    expect(bodies[0]).not.toHaveProperty('user');
+    expect(bodies[0]).not.toHaveProperty('stream_options');
+    client.dispose();
+  });
+  it.each(['', 'a'.repeat(257), 'private name', 'bad\r\nheader', null, 7])(
+    'rejects invalid session IDs before any network request (%s)',
+    async (sessionId) => {
+      const { client, fetch } = setup();
+      await expect(
+        collect(client, { ...request(), sessionId } as ChatRequest),
+      ).rejects.toMatchObject({ code: 'INVALID_REQUEST' });
+      expect(fetch).not.toHaveBeenCalled();
+      client.dispose();
+    },
+  );
+  it('keeps audio correlation in headers and lets fetch own multipart boundaries', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({ segments: [{ text: 'Hello', start: 0, end: 0.5 }] }),
+    );
+    const client = createOpenRouter({ fetch });
+    client.setKey('synthetic-key');
+    await client.transcribeSpeech!(
+      {
+        model: 'test/stt',
+        audio: new Float32Array(16000),
+        sessionId: 'transcription:task-1',
+      },
+      new AbortController().signal,
+    );
+    const init = fetch.mock.calls[0]![1]!;
+    const headers = new Headers(init.headers);
+    expect(headers.get('x-session-id')).toBe('transcription:task-1');
+    expect(headers.get('HTTP-Referer')).toBe(
+      'https://wilsonle.github.io/LocalCut/',
+    );
+    expect(headers.has('Content-Type')).toBe(false);
+    expect(init.body).toBeInstanceOf(FormData);
+    expect((init.body as FormData).has('session_id')).toBe(false);
+    client.dispose();
+  });
   it('discovers bounded transcription choices without inference and rejects stale credentials', async () => {
     let resolve!: (response: Response) => void;
     const fetch = vi.fn<typeof globalThis.fetch>(
@@ -214,7 +269,11 @@ describe('OpenRouter transport', () => {
       redirect: 'error',
       cache: 'no-store',
       referrerPolicy: 'no-referrer',
-      headers: { Authorization: 'Bearer test-key-private' },
+      headers: {
+        authorization: 'Bearer test-key-private',
+        'HTTP-Referer': 'https://wilsonle.github.io/LocalCut/',
+        'X-OpenRouter-Title': 'LocalCut',
+      },
     });
     expect(JSON.parse(String(init!.body))).toMatchObject({
       model: model.id,
@@ -279,7 +338,9 @@ describe('OpenRouter transport', () => {
     );
     const client = createOpenRouter({ fetch });
     const models = await client.listModels();
-    expect(fetch.mock.calls[0]![1]?.headers).toEqual({});
+    expect(
+      new Headers(fetch.mock.calls[0]![1]?.headers).has('authorization'),
+    ).toBe(false);
     expect(models[0]).toMatchObject({
       supportsTools: true,
       contextLength: 512000,

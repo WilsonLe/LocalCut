@@ -32,6 +32,9 @@ const messageSchema = z.object({
       completionTokens: z.number().nonnegative(),
       totalTokens: z.number().nonnegative(),
       cost: z.number().optional(),
+      cachedTokens: z.number().int().nonnegative().optional(),
+      cacheWriteTokens: z.number().int().nonnegative().optional(),
+      reasoningTokens: z.number().int().nonnegative().optional(),
     })
     .optional(),
   // Model continuation is canonical text context; display tools have no provenance.

@@ -11,6 +11,28 @@ import {
 import { restoredChatTurns } from '../../src/workspace/chat-transcript';
 
 describe('local chat records', () => {
+  it('retains additive cache and reasoning accounting through restore and fork', () => {
+    const chat = newChatSession('project:model:private');
+    const usage = {
+      promptTokens: 10,
+      completionTokens: 5,
+      totalTokens: 15,
+      cachedTokens: 8,
+      cacheWriteTokens: 2,
+      reasoningTokens: 3,
+    };
+    chat.content.messages.push({
+      id: 'reply',
+      role: 'assistant',
+      text: 'Done',
+      status: 'complete',
+      usage,
+    });
+    expect(restoreChatSession(chat)?.content.messages[0]?.usage).toEqual(usage);
+    expect(
+      restoreChatSession(forkChatSession(chat))?.content.messages[0]?.usage,
+    ).toEqual(usage);
+  });
   it('retains history and attachments beyond the former workspace caps', () => {
     const chat = newChatSession('project:model:private');
     chat.content.historyTurnIds = Array.from(
