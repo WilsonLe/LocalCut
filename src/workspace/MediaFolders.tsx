@@ -190,7 +190,7 @@ export function FolderNavigation({
             key={folder.id}
             variant="ghost"
             size="sm"
-            className="max-w-32 truncate"
+            className="min-w-0 max-w-32 justify-start truncate"
             data-library-folder={folder.id}
             onClick={() => state.setParentId(folder.id)}
           >

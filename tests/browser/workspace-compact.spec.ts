@@ -85,10 +85,23 @@ for (const base of ['/', '/LocalCut/']) {
           exact: true,
         }),
       ).toBeVisible();
+      const boxes = [];
       for (const button of await heading.getByRole('button').all()) {
         const bounds = (await button.boundingBox())!;
         expect(bounds.x).toBeGreaterThanOrEqual(0);
         expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+        boxes.push(bounds);
+      }
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          const a = boxes[i]!;
+          const b = boxes[j]!;
+          const overlapWidth =
+            Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+          const overlapHeight =
+            Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+          expect(overlapWidth <= 0 || overlapHeight <= 0).toBe(true);
+        }
       }
       expect(
         await media.evaluate(

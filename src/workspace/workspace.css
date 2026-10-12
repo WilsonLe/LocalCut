@@ -630,6 +630,9 @@
   align-items: center;
   gap: 4px;
 }
+.media-folder-navigation > [data-library-folder] {
+  max-width: min(8rem, 100%);
+}
 .media-library .section-heading h2 {
   flex-shrink: 0;
 }
@@ -2335,6 +2338,10 @@
   .conversation-heading .header-actions,
   .media-library .header-actions {
     flex-wrap: nowrap;
+  }
+  .media-library .header-actions {
+    flex-basis: 100%;
+    justify-content: flex-end;
   }
   &[data-composer-focused='true'] {
     position: fixed;
