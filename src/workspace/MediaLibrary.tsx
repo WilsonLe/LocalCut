@@ -28,6 +28,7 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogFooter,
   DialogTitle,
   DialogDescription,
 } from '../components/ui/dialog';
@@ -692,7 +693,7 @@ function MediaAssetCard({
                 {failure}
               </p>
             )}
-            <div className="flex justify-end gap-2">
+            <DialogFooter className="flex-wrap">
               <Button
                 variant="outline"
                 disabled={saving}
@@ -713,7 +714,7 @@ function MediaAssetCard({
                     ? 'Save name'
                     : 'Delete asset'}
               </Button>
-            </div>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>

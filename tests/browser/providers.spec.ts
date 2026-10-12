@@ -1,9 +1,10 @@
-import { fulfillChatTitle } from './chat-title-fixture';
 import {
+  confirmProviderDisconnect,
   prepareOpenRouterKey,
   openAISettings,
   selectAISettingsTab,
 } from './workspace-settings-helper';
+import { fulfillChatTitle } from './chat-title-fixture';
 import { expect, test } from '@playwright/test';
 const cors = {
   'access-control-allow-origin': '*',
@@ -20,7 +21,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
-    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
+    await selectAISettingsTab(page, 'Providers');
     for (const name of ['OpenRouter work', 'OpenRouter personal']) {
       await dialog
         .getByRole('button', { name: 'Add provider', exact: true })
@@ -68,7 +69,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
-    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
+    await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Add provider', exact: true })
       .click();
@@ -99,10 +100,14 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(dialog.getByText('OpenRouter', { exact: true })).toHaveCount(
       0,
     );
-    await expect(dialog).toContainText('STT - Transcription');
     await selectAISettingsTab(page, 'STT - Transcription');
+    await expect(
+      dialog.getByRole('combobox', {
+        name: 'AI settings section',
+        exact: true,
+      }),
+    ).toContainText('STT - Transcription');
     await expect(dialog).toContainText('Local Whisper');
-    await dialog.getByText('STT - Transcription', { exact: true }).click();
     await dialog
       .getByRole('button', { name: 'Move Local server up in stt', exact: true })
       .click();
@@ -128,7 +133,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await page.reload();
     await openAISettings(page);
-    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
+    await selectAISettingsTab(page, 'Providers');
     await selectAISettingsTab(page, 'LLM - Chat');
     await expect(
       dialog.getByRole('combobox', { name: 'LLM provider 1', exact: true }),
@@ -136,9 +141,6 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(dialog.getByText('OpenRouter', { exact: true })).toHaveCount(
       0,
     );
-    await dialog
-      .getByRole('tab', { name: 'STT - Transcription', exact: true })
-      .click();
     await selectAISettingsTab(page, 'STT - Transcription');
     await expect(
       dialog.getByRole('combobox', { name: 'STT provider 1', exact: true }),
@@ -274,7 +276,7 @@ for (const base of ['/', '/LocalCut/']) {
           .click();
         await expect(dialog.getByRole('alert')).toContainText('unavailable');
       }
-      await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
+      await selectAISettingsTab(page, 'Providers');
       await dialog
         .getByRole('button', { name: 'Connect', exact: true })
         .click();
@@ -490,6 +492,7 @@ for (const base of ['/', '/LocalCut/']) {
     let authParams = new URLSearchParams();
     let exchanges = 0;
     let rejectIdentity = true;
+    let blockSigningKeys = false;
     const catalogCredentials: string[] = [];
     await context.route(
       'https://auth.openai.com/api/accounts/authorize**',
@@ -500,7 +503,10 @@ for (const base of ['/', '/LocalCut/']) {
     );
     await context.route(
       'https://auth.openai.com/.well-known/jwks.json',
-      (route) => route.fulfill({ headers: cors, json: { keys: [jwk] } }),
+      (route) =>
+        blockSigningKeys
+          ? route.abort()
+          : route.fulfill({ headers: cors, json: { keys: [jwk] } }),
     );
     await context.route(
       'https://auth.openai.com/api/accounts/oauth/token',
@@ -567,7 +573,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
-    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
+    await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Add provider', exact: true })
       .click();
@@ -616,16 +622,46 @@ for (const base of ['/', '/LocalCut/']) {
     expect(exchanges).toBe(1);
     await popup.close();
     rejectIdentity = false;
+    blockSigningKeys = true;
     const retryPopupPromise = context.waitForEvent('page');
     await page
       .getByRole('button', { name: 'Continue with ChatGPT', exact: true })
       .click();
-    const retryPopup = await retryPopupPromise;
+    let retryPopup = await retryPopupPromise;
     await expect(
       retryPopup.getByText('Synthetic sign-in complete'),
     ).toBeVisible();
     callback.searchParams.set('state', authParams.get('state')!);
     callback.searchParams.set('code', 'synthetic-fresh-code');
+    await page.getByLabel('Callback URL', { exact: true }).fill(callback.href);
+    await page
+      .getByRole('button', { name: 'Complete sign-in', exact: true })
+      .click();
+    await expect(dialog.getByRole('alert')).toContainText(
+      'OpenAI’s signing keys',
+    );
+    await expect(dialog.getByRole('alert')).toContainText('cross-origin');
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem('localcut.chatgpt-credentials.v1'),
+      ),
+    ).toBeNull();
+    await expect(page.getByLabel('Callback URL', { exact: true })).toHaveValue(
+      '',
+    );
+    expect(exchanges).toBe(2);
+    await retryPopup.close();
+    blockSigningKeys = false;
+    const recoveryPopupPromise = context.waitForEvent('page');
+    await page
+      .getByRole('button', { name: 'Continue with ChatGPT', exact: true })
+      .click();
+    retryPopup = await recoveryPopupPromise;
+    await expect(
+      retryPopup.getByText('Synthetic sign-in complete'),
+    ).toBeVisible();
+    callback.searchParams.set('state', authParams.get('state')!);
+    callback.searchParams.set('code', 'synthetic-recovery-code');
     await page.getByLabel('Callback URL', { exact: true }).fill(callback.href);
     await page
       .getByRole('button', { name: 'Complete sign-in', exact: true })
@@ -745,6 +781,7 @@ for (const base of ['/', '/LocalCut/']) {
           exact: true,
         })
         .click();
+      await confirmProviderDisconnect(page);
       await selectAISettingsTab(page, 'Providers');
       await dialog
         .getByRole('button', {
@@ -752,6 +789,7 @@ for (const base of ['/', '/LocalCut/']) {
           exact: true,
         })
         .click();
+      await confirmProviderDisconnect(page);
     });
     const sibling = await context.newPage();
     await sibling.goto(base);
@@ -843,6 +881,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Disconnect ChatGPT', exact: true })
       .click();
+    await confirmProviderDisconnect(page);
     expect(
       await page.evaluate(() =>
         localStorage.getItem('localcut.chatgpt-credentials.v1'),
@@ -858,7 +897,7 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBe(1);
     await page.reload();
     await openAISettings(page);
-    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
+    await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Connect', exact: true })
       .last()
@@ -872,11 +911,12 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toBeVisible();
-    expect(exchanges).toBe(4);
+    expect(exchanges).toBe(5);
     await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Disconnect ChatGPT work', exact: true })
       .click();
+    await confirmProviderDisconnect(page);
     expect(
       await page.evaluate(
         () =>

@@ -1,11 +1,13 @@
-import { fulfillChatTitle } from './chat-title-fixture';
-import { dismissNotifications } from './workspace-notifications-helper';
 import {
+  confirmProviderDisconnect,
+  showOpenRouterTerms,
   addOpenRouter,
   prepareOpenRouterKey,
   openAISettings,
   selectAISettingsTab,
 } from './workspace-settings-helper';
+import { fulfillChatTitle } from './chat-title-fixture';
+import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test } from '@playwright/test';
 import type { BrowserContext, Page, Route } from '@playwright/test';
 import type { Project } from '../../src/core/model';
@@ -509,6 +511,7 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
     await page
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
+    await confirmProviderDisconnect(page);
     await expect(
       page.getByRole('button', { name: 'I have an API key', exact: true }),
     ).toBeVisible();
@@ -517,6 +520,7 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
     await page
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
+    await confirmProviderDisconnect(page);
     await expect(
       page.getByLabel('OpenRouter API key', { exact: true }),
     ).toHaveCount(0);
@@ -578,9 +582,11 @@ for (const base of ['/', '/LocalCut/']) {
     await page.screenshot({
       path: `.artifacts/persist-openrouter/connection-${base === '/' ? 'root' : 'pages'}.png`,
     });
-    await expect(
-      dialog.getByRole('region', { name: 'OpenRouter connection terms' }),
-    ).toContainText('context categories stay enabled');
+    const terms1 = await showOpenRouterTerms(page);
+    await expect(terms1).toContainText('context categories stay enabled');
+    await page
+      .getByRole('button', { name: 'OpenRouter connection terms', exact: true })
+      .click();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await page.reload();
     await openConnectedSettings(page);
@@ -588,9 +594,11 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toBeVisible();
-    await expect(
-      dialog.getByRole('region', { name: 'OpenRouter connection terms' }),
-    ).toContainText('including after reload');
+    const terms2 = await showOpenRouterTerms(page);
+    await expect(terms2).toContainText('including after reload');
+    await page
+      .getByRole('button', { name: 'OpenRouter connection terms', exact: true })
+      .click();
     await expect(
       dialog.getByRole('button', { name: 'Data & analytics' }),
     ).toHaveCount(0);
@@ -627,6 +635,7 @@ for (const base of ['/', '/LocalCut/']) {
     await other
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
+    await confirmProviderDisconnect(other);
     await openAISettings(page);
     await expect(
       dialog.getByRole('button', { name: 'I have an API key', exact: true }),
@@ -708,7 +717,7 @@ for (const base of ['/', '/LocalCut/']) {
       page.getByRole('button', { name: 'Text to speech', exact: true }),
     ).toHaveCount(0);
     await openConnectedSettings(page);
-    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
+    await selectAISettingsTab(page, 'Providers');
     await dialog.getByRole('button', { name: 'Connect', exact: true }).click();
     await page
       .getByRole('button', { name: 'Connect endpoint', exact: true })
@@ -813,6 +822,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
+    await confirmProviderDisconnect(page);
     await expect(dialog.getByRole('alert')).toContainText(
       'Allow local browser storage',
     );
@@ -837,6 +847,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
+    await confirmProviderDisconnect(page);
     await expect(dialog.getByRole('alert')).toHaveCount(0);
     expect(
       await page.evaluate(() =>

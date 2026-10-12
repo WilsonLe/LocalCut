@@ -23,6 +23,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogFooter,
   DialogTitle,
 } from '../components/ui/dialog';
 import { formatTime } from './helpers';
@@ -417,41 +418,43 @@ export default function AssetIndexControls({
                         )}
                       </div>
                     ))}
-                  <div className="flex justify-between gap-2">
+                  <DialogFooter className="flex-col sm:flex-col">
+                    <div className="flex justify-between gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!offset}
+                        onClick={() => setOffset((v) => Math.max(0, v - 5))}
+                      >
+                        Previous scenes
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={offset + 5 >= viewing.analysis.scenes.length}
+                        onClick={() => setOffset((v) => v + 5)}
+                      >
+                        Next scenes
+                      </Button>
+                    </div>
                     <Button
+                      variant="destructive"
                       size="sm"
-                      variant="outline"
-                      disabled={!offset}
-                      onClick={() => setOffset((v) => Math.max(0, v - 5))}
+                      disabled={busy || readOnly}
+                      onClick={() =>
+                        void editor.assets.indexes
+                          .remove(viewing.id)
+                          .then(() => {
+                            setSelected(undefined);
+                            return refresh();
+                          })
+                          .catch((e) => showErrorToast(e, indexError(e)))
+                      }
                     >
-                      Previous scenes
+                      <Trash2 />
+                      Delete this run
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={offset + 5 >= viewing.analysis.scenes.length}
-                      onClick={() => setOffset((v) => v + 5)}
-                    >
-                      Next scenes
-                    </Button>
-                  </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={busy || readOnly}
-                    onClick={() =>
-                      void editor.assets.indexes
-                        .remove(viewing.id)
-                        .then(() => {
-                          setSelected(undefined);
-                          return refresh();
-                        })
-                        .catch((e) => showErrorToast(e, indexError(e)))
-                    }
-                  >
-                    <Trash2 />
-                    Delete this run
-                  </Button>
+                  </DialogFooter>
                 </>
               )}
             </DialogContent>

@@ -1,9 +1,10 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
+  confirmProviderDisconnect,
   prepareOpenRouterKey,
   openAISettings,
   selectAISettingsTab,
 } from './workspace-settings-helper';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 async function wheel(page: Page, target: Locator, delta: number) {
   const box = (await target.boundingBox())!;
@@ -181,6 +182,7 @@ for (const base of ['/', '/LocalCut/']) {
         await dialog
           .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
           .click();
+        await confirmProviderDisconnect(page);
         await page.keyboard.press('Escape');
         await expect(dialog).toBeHidden();
         await expect(

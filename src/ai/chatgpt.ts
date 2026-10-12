@@ -3,6 +3,7 @@ import {
   CHATGPT_CREDENTIAL_KEY,
   ChatGPTAuthorization,
 } from './chatgpt-auth';
+import { chatGPTNetworkErrorText } from './chatgpt-network';
 import { AiError, aiInvariant, httpError } from './errors';
 import { readJson, requestDeadline } from './protocol';
 import { parseResponses, responsesBody } from './responses';
@@ -113,10 +114,21 @@ export function createChatGPT(options: ChatGPTOptions = {}): ChatGPTClient {
       if (error instanceof AiError) throw error;
       if (signal?.aborted)
         throw new AiError('CANCELLED', 'ChatGPT request cancelled.');
-      throw new AiError(
-        'NETWORK_ERROR',
-        'Could not connect to ChatGPT. Check browser access and retry sign-in.',
-      );
+      // Fixed labels only: never retain the URL, request body, token or fetch error.
+      const stage =
+        url === 'https://auth.openai.com/.well-known/jwks.json'
+          ? 'chatgpt_signing_keys'
+          : url === 'https://auth.openai.com/api/accounts/oauth/token'
+            ? new URLSearchParams(String(init.body)).get('grant_type') ===
+              'refresh_token'
+              ? 'chatgpt_token_refresh'
+              : 'chatgpt_code_exchange'
+            : url === 'https://api.openai.com/v1/models'
+              ? 'chatgpt_models'
+              : 'chatgpt_response';
+      throw new AiError('NETWORK_ERROR', chatGPTNetworkErrorText(stage)!, {
+        stage,
+      });
     }
   }
   const auth = new ChatGPTAuthorization(

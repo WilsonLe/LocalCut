@@ -1,22 +1,30 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { ProviderProfile } from './provider-preferences';
-import { KeyRound, ArrowLeft, LoaderCircle, Unplug } from 'lucide-react';
+import { KeyRound, ArrowLeft, LoaderCircle, Unplug, Info } from 'lucide-react';
 import type { OpenRouterModel } from '../ai';
 import { Button } from '../components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from '../components/ui/popover';
+import SelectField from './SelectField';
 import { ProviderSettings } from './ProviderSettings';
 import type { ProviderSettingsProps } from './ProviderSettings';
 interface Props extends Omit<
   ProviderSettingsProps,
+  | 'activeTab'
   | 'connecting'
   | 'openRouterControls'
   | 'models'
@@ -24,6 +32,7 @@ interface Props extends Omit<
   | 'setModel'
   | 'refreshCatalog'
 > {
+  initialTab?: ProviderSettingsProps['activeTab'];
   returnFocus?: () => HTMLElement | null;
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
@@ -38,6 +47,7 @@ interface Props extends Omit<
 }
 export default function AIConnectionDialog({
   returnFocus,
+  initialTab = 'providers',
   settingsOpen,
   setSettingsOpen,
   connecting,
@@ -50,6 +60,30 @@ export default function AIConnectionDialog({
   connectionError,
   ...providerProps
 }: Props) {
+  const [activeTab, setActiveTab] =
+    useState<ProviderSettingsProps['activeTab']>(initialTab);
+  const [confirmation, setConfirmation] = useState<{
+    id: string;
+    remove: boolean;
+  } | null>(null);
+  const sections = [
+    { value: 'providers', label: 'Providers' },
+    { value: 'llm', label: 'LLM - Chat' },
+    { value: 'tts', label: 'TTS - Speech' },
+    { value: 'stt', label: 'STT - Transcription' },
+  ];
+  const account = providerProps.providerConfiguration.profiles.find(
+    (p) => p.id === confirmation?.id,
+  );
+  const connectionDialog = useRef<HTMLDivElement | null>(null);
+  const confirmationOpener = useRef<HTMLElement | null>(null);
+  const confirmDisconnect = (id: string, remove = false) => {
+    confirmationOpener.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    setConfirmation({ id, remove });
+  };
   return (
     <Dialog
       open={settingsOpen}
@@ -58,14 +92,30 @@ export default function AIConnectionDialog({
       }}
     >
       <DialogContent
+        ref={connectionDialog}
         finalFocus={
           returnFocus ??
           (() => document.getElementById('workspace-settings-trigger'))
         }
         className="ai-settings-dialog flex flex-col gap-6 overflow-hidden p-6 sm:max-w-3xl sm:p-8"
       >
-        <DialogHeader>
-          <DialogTitle>AI connection</DialogTitle>
+        <DialogHeader className="pr-6">
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <DialogTitle className="shrink-0">AI connection</DialogTitle>
+            <div className="min-w-0 max-w-[55%]">
+              <SelectField
+                label="AI settings section"
+                value={activeTab}
+                selectedLabel={
+                  sections.find((section) => section.value === activeTab)?.label
+                }
+                options={sections}
+                onChange={(value) =>
+                  setActiveTab(value as ProviderSettingsProps['activeTab'])
+                }
+              />
+            </div>
+          </div>
           <DialogDescription className="sr-only">
             Configure providers, service routes and models.
           </DialogDescription>
@@ -89,6 +139,9 @@ export default function AIConnectionDialog({
           )}
           <ProviderSettings
             {...providerProps}
+            activeTab={activeTab}
+            disconnectProvider={(id) => confirmDisconnect(id)}
+            removeProvider={(id) => confirmDisconnect(id, true)}
             connecting={connecting}
             models={models}
             model={model}
@@ -105,12 +158,12 @@ export default function AIConnectionDialog({
                 connecting={connecting}
                 authorize={authorize}
                 connect={connect}
-                remove={providerProps.removeProvider}
+                remove={(id) => confirmDisconnect(id, true)}
               />
             )}
           />
         </div>
-        <div className="flex shrink-0 justify-end">
+        <DialogFooter>
           <Button
             variant="outline"
             onClick={() => {
@@ -119,8 +172,58 @@ export default function AIConnectionDialog({
           >
             Done
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
+      <Dialog
+        open={!!confirmation && !!account}
+        onOpenChange={(open) => {
+          if (!open) setConfirmation(null);
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          finalFocus={() => {
+            if (!connectionDialog.current?.hasAttribute('data-open'))
+              return false;
+            return confirmationOpener.current?.isConnected
+              ? confirmationOpener.current
+              : connectionDialog.current.querySelector<HTMLElement>(
+                  '[aria-label="AI settings section"]',
+                );
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Disconnect {account?.name}?</DialogTitle>
+            <DialogDescription>
+              {confirmation?.remove
+                ? 'Forget this account and remove its saved credentials and provider routes from this browser?'
+                : 'Remove this account’s saved credentials from this browser? You can connect it again later.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              autoFocus
+              onClick={() => setConfirmation(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={connecting}
+              onClick={() => {
+                if (!confirmation || !account) return;
+                const action = confirmation;
+                setConfirmation(null);
+                if (action.remove) providerProps.removeProvider(action.id);
+                else providerProps.disconnectProvider(action.id);
+              }}
+            >
+              Disconnect
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
@@ -144,6 +247,7 @@ function OpenRouterConnection({
 }) {
   const [apiKey, setApiKey] = useState('');
   const [method, setMethod] = useState<'choice' | 'key'>('choice');
+  const termsContent = useRef<HTMLDivElement | null>(null);
   return (
     <div
       role="group"
@@ -151,7 +255,85 @@ function OpenRouterConnection({
       className="space-y-4 rounded-lg border p-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="min-w-0 truncate text-sm font-medium">{profile.name}</p>
+        <div className="flex min-w-0 items-center gap-1">
+          <p className="min-w-0 truncate text-sm font-medium">{profile.name}</p>
+          <Popover>
+            <PopoverTrigger
+              openOnHover
+              delay={200}
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`${profile.name} connection terms`}
+                />
+              }
+            >
+              <Info aria-hidden="true" />
+            </PopoverTrigger>
+            <PopoverContent
+              ref={termsContent}
+              aria-label={`${profile.name} connection terms`}
+              initialFocus={(type) =>
+                type === 'keyboard' || type === 'touch'
+                  ? termsContent.current
+                  : false
+              }
+              className="max-h-[min(32rem,var(--available-height))] w-64 border-0 bg-foreground px-3 py-2 text-xs text-background shadow-md"
+            >
+              <section
+                aria-label="OpenRouter connection terms"
+                className="space-y-2 text-xs leading-relaxed select-text"
+              >
+                <h3 className="font-medium">Connection terms</h3>
+                <p>
+                  By connecting OpenRouter, you agree to share project and media
+                  names, overlay, caption and storyboard text (including frame
+                  names), source transcript text, and embedded capture dates and
+                  GPS with your configured AI chat providers and fallback routes
+                  when you send a request. All these context categories stay
+                  enabled while an OpenRouter account is connected, including
+                  after reload.
+                </p>
+                <p>
+                  Explicit Index or a chat indexing request can also send
+                  generated images, audio excerpts and video excerpts with sound
+                  to your selected OpenRouter model. Saved index labels are
+                  available in chat. AI requests may incur provider charges.
+                  Connecting, importing and reloading do not start chat or
+                  indexing requests. Original media files stay local; a
+                  requested remote transcription job may send selected audio to
+                  its disclosed recipients.
+                </p>
+                <p>
+                  Your key is saved only in this browser and is excluded from
+                  backups. Disconnect removes that account’s saved key. Sharing
+                  authorization ends when the last OpenRouter account is
+                  disconnected. Provider processing is governed by the{' '}
+                  <a
+                    className="underline underline-offset-4"
+                    href="https://openrouter.ai/terms"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    OpenRouter Terms of Service
+                  </a>{' '}
+                  and{' '}
+                  <a
+                    className="underline underline-offset-4"
+                    href="https://openrouter.ai/privacy"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Privacy Policy
+                  </a>
+                  , along with your selected model providers’ policies.
+                </p>
+              </section>
+            </PopoverContent>
+          </Popover>
+        </div>
         <div className="flex items-center gap-2">
           {management}
           {!connected && (
@@ -161,63 +343,13 @@ function OpenRouterConnection({
               disabled={connecting}
               aria-label={`Disconnect ${profile.name}`}
               title="Forget disconnected account"
-              onClick={() => {
-                setApiKey('');
-                remove(profile.id);
-              }}
+              onClick={() => remove(profile.id)}
             >
               <Unplug />
             </Button>
           )}
         </div>
       </div>
-      <section
-        aria-label="OpenRouter connection terms"
-        className="space-y-2 text-xs leading-relaxed text-muted-foreground"
-      >
-        <h3 className="font-medium text-foreground">Connection terms</h3>
-        <p>
-          By connecting OpenRouter, you agree to share project and media names,
-          overlay, caption and storyboard text (including frame names), source
-          transcript text, and embedded capture dates and GPS with your
-          configured AI chat providers and fallback routes when you send a
-          request. All these context categories stay enabled while an OpenRouter
-          account is connected, including after reload.
-        </p>
-        <p>
-          Explicit Index or a chat indexing request can also send generated
-          images, audio excerpts and video excerpts with sound to your selected
-          OpenRouter model. Saved index labels are available in chat. AI
-          requests may incur provider charges. Connecting, importing and
-          reloading do not start chat or indexing requests. Original media files
-          stay local; a requested remote transcription job may send selected
-          audio to its disclosed recipients.
-        </p>
-        <p>
-          Your key is saved only in this browser and is excluded from backups.
-          Disconnect removes that account’s saved key. Sharing authorization
-          ends when the last OpenRouter account is disconnected. Provider
-          processing is governed by the{' '}
-          <a
-            className="underline underline-offset-4"
-            href="https://openrouter.ai/terms"
-            target="_blank"
-            rel="noreferrer"
-          >
-            OpenRouter Terms of Service
-          </a>{' '}
-          and{' '}
-          <a
-            className="underline underline-offset-4"
-            href="https://openrouter.ai/privacy"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Privacy Policy
-          </a>
-          , along with your selected model providers’ policies.
-        </p>
-      </section>
       {!connected && (
         <div className="space-y-3">
           {method === 'choice' && (

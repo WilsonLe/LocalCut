@@ -1,9 +1,11 @@
-import { fulfillChatTitle } from './chat-title-fixture';
 import {
+  confirmProviderDisconnect,
+  showOpenRouterTerms,
   prepareOpenRouterKey,
   openAISettings,
   selectAISettingsTab,
 } from './workspace-settings-helper';
+import { fulfillChatTitle } from './chat-title-fixture';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test } from '@playwright/test';
 
@@ -319,9 +321,13 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       dialog.getByRole('checkbox', { name: 'Allow asset indexing' }),
     ).toHaveCount(0);
-    await expect(dialog).toContainText(
+    const indexingTerms = await showOpenRouterTerms(page);
+    await expect(indexingTerms).toContainText(
       'Explicit Index or a chat indexing request',
     );
+    await page
+      .getByRole('button', { name: 'OpenRouter connection terms', exact: true })
+      .click();
     await expect(
       dialog.getByRole('button', { name: 'Refresh models', exact: true }),
     ).toHaveCount(0);
@@ -369,9 +375,11 @@ for (const base of ['/', '/LocalCut/']) {
     await page.keyboard.press('Escape');
     await expect(dialog).toBeVisible();
     await selectAISettingsTab(page, 'Providers');
-    await expect(
-      dialog.getByRole('region', { name: 'OpenRouter connection terms' }),
-    ).toContainText('source transcript text');
+    const terms1 = await showOpenRouterTerms(page);
+    await expect(terms1).toContainText('source transcript text');
+    await page
+      .getByRole('button', { name: 'OpenRouter connection terms', exact: true })
+      .click();
     await expect(
       dialog.getByRole('button', { name: 'Data & analytics' }),
     ).toHaveCount(0);
@@ -391,6 +399,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
+    await confirmProviderDisconnect(page);
     await expect(
       dialog.getByRole('button', { name: 'I have an API key', exact: true }),
     ).toBeVisible();
@@ -399,6 +408,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
+    await confirmProviderDisconnect(page);
     await expect(
       dialog.getByLabel('OpenRouter API key', { exact: true }),
     ).toHaveCount(0);
@@ -416,9 +426,11 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Use API key', exact: true })
       .click();
     await selectAISettingsTab(page, 'Providers');
-    await expect(
-      dialog.getByRole('region', { name: 'OpenRouter connection terms' }),
-    ).toContainText('context categories stay enabled');
+    const terms2 = await showOpenRouterTerms(page);
+    await expect(terms2).toContainText('context categories stay enabled');
+    await page
+      .getByRole('button', { name: 'OpenRouter connection terms', exact: true })
+      .click();
     expect(completions).toBe(0);
   });
   test(`AI model loading and empty catalog can refresh on a narrow viewport ${base}`, async ({

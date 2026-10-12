@@ -73,9 +73,6 @@ for (const base of ['/', '/LocalCut/']) {
         .evaluate((el) => el.getBoundingClientRect().height),
     ).toBe(0);
     await page.keyboard.press('Escape');
-    await dialog
-      .getByRole('tab', { name: 'TTS - Speech', exact: true })
-      .click();
     await selectAISettingsTab(page, 'TTS - Speech');
     const model = dialog.getByRole('combobox', {
       name: 'OpenRouter tts route model',
@@ -107,7 +104,7 @@ for (const base of ['/', '/LocalCut/']) {
     await search.press('ArrowDown');
     await search.press('Enter');
     await voice.click();
-    const select = page.locator('[data-slot="select-content"]');
+    const select = page.locator('[data-slot="select-content"][data-open]');
     const option = page.getByRole('option', { name: 'Zephyr', exact: true });
     await expect(option).toBeVisible();
     const top =
@@ -174,9 +171,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await page.reload();
     await openAISettings(page);
-    await dialog
-      .getByRole('tab', { name: 'TTS - Speech', exact: true })
-      .click();
+    await selectAISettingsTab(page, 'TTS - Speech');
     await expect(voice).toContainText('Puck');
     expect(paid).toBe(0);
   });
