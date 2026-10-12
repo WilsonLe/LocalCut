@@ -2,6 +2,10 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Chat agent capability discovery — 12 October 2026
+
+- Make chat indexing and other supported workflows discoverable through accurate agent guidance. Distinguish supported features from disabled sharing, missing connections and pending approval; explain the concrete next step instead of denying a feature because its domain tools are not loaded. Keep existing consent and approval boundaries.
+
 ## Chat export — 12 October 2026
 
 - Provide chat-session export as an icon in the chat UI header, outside the primary application header. Use the existing task queue for local archive generation and saved downloads.

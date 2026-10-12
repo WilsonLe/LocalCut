@@ -888,7 +888,6 @@ export function Conversation(props: ConversationProps) {
     () =>
       connection &&
       selectedModel &&
-      indexingAllowed &&
       providerConfiguration.profiles.find(
         (p) => p.id === providerConfiguration.routes.llm[0]?.providerId,
       )?.kind === 'openrouter' &&
@@ -904,15 +903,14 @@ export function Conversation(props: ConversationProps) {
     [
       connection,
       selectedModel,
-      indexingAllowed,
       providerConfiguration,
       model,
       privacy.includeCaptureMetadata,
     ],
   );
   useEffect(() => {
-    onIndexConnection?.(indexConnection);
-  }, [indexConnection, onIndexConnection]);
+    onIndexConnection?.(indexingAllowed ? indexConnection : null);
+  }, [indexConnection, indexingAllowed, onIndexConnection]);
   const sessionKey = `${connection?.id}:${props.project?.id}:${model}:${privacy.includeText}:${privacy.includeAssetNames}:${privacy.includeTranscripts}:${privacy.includeCaptureMetadata}:${indexingAllowed}`;
 
   const chatScope =

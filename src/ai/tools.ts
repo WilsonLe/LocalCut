@@ -178,7 +178,7 @@ export function toolDefinitions(
     inspect_timeline:
       'Evaluate active clips at a timeline time: exact frame time, source positions, animated transforms, effects, audio gain, captions and transition weights. Structural metadata only; never renders or uploads a frame.',
     inspect_capabilities:
-      'Read all supported edit operations and property fields, keyframe parameters/interpolation, timing rules, catalog discovery, edit approval requirements and user-owned actions.',
+      'Discover domain skills, supported service actions, indexing support and permission blockers, plus edit operations, properties, timing rules and approval boundaries. Read before claiming a requested workflow is unavailable.',
     search_text_library:
       'Search the shared text templates or font catalog by name/labels. Paginated read-only results include stable font IDs or complete template styles for insertClip/updateClip. Empty query browses every entry. No private text, media, downloads or inference.',
     inspect_transcription:
@@ -206,12 +206,14 @@ export function toolDefinitions(
         case 'load_skill':
         case 'inspect_project':
         case 'inspect_proposals':
+        case 'inspect_capabilities':
           return true;
         case 'inspect_asset':
           return (
             loadedSkills.has('editing') ||
             loadedSkills.has('transcription') ||
-            (loadedSkills.has('indexing') && !!capabilities.indexing)
+            (loadedSkills.has('indexing') &&
+              !!(capabilities.indexingSupported || capabilities.indexing))
           );
         case 'inspect_storyboard':
           return loadedSkills.has('storyboard');
@@ -219,7 +221,6 @@ export function toolDefinitions(
         case 'propose_edits':
           return loadedSkills.has('editing') || loadedSkills.has('storyboard');
         case 'inspect_timeline':
-        case 'inspect_capabilities':
         case 'search_text_library':
           return loadedSkills.has('editing');
         case 'read_transcript':

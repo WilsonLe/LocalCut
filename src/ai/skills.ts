@@ -25,7 +25,7 @@ export const skillCatalog = [
   {
     id: 'indexing',
     description:
-      'Inspect selected media and propose asset indexing with derived-evidence sharing and explicit approval.',
+      'Index or reindex assets: inspect permitted media, explain consent blockers, and propose derived-evidence indexing for explicit approval.',
   },
   {
     id: 'history',
@@ -42,7 +42,8 @@ export function availableSkills(
     ({ id }) =>
       id === 'editing' ||
       id === 'storyboard' ||
-      (id === 'indexing' && capabilities.indexing) ||
+      (id === 'indexing' &&
+        (capabilities.indexingSupported || capabilities.indexing)) ||
       (id === 'export' && capabilities.export) ||
       (id === 'history' && (capabilities.undo || capabilities.redo)) ||
       (id === 'transcription' &&

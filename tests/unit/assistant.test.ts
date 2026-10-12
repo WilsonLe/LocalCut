@@ -230,7 +230,7 @@ function provider(rounds: ProviderEvent[][], loadDomains = true) {
             }),
         );
         // History cannot authorize this turn; infer current loads from declared tools instead.
-        if (names.size === 3) loaded.clear();
+        if (names.size === 4) loaded.clear();
         const required = new Set<string>();
         for (const tool of calls) {
           const name = tool.function.name;
@@ -2467,7 +2467,12 @@ describe('incremental assistant skills', () => {
     call('load_skill', { skillId }, id);
   const names = (request: ChatRequest) =>
     request.tools.map((tool) => tool.function.name);
-  const baseTools = ['load_skill', 'inspect_project', 'inspect_proposals'];
+  const baseTools = [
+    'load_skill',
+    'inspect_project',
+    'inspect_capabilities',
+    'inspect_proposals',
+  ];
   const rawSetup = (rounds: ProviderEvent[][]) => {
     const f = fixture(),
       p = provider(rounds, false);
@@ -2864,6 +2869,7 @@ it('retires index-bearing model history when relinking invalidates saved labels'
       'search_asset_index',
       'read_asset_index',
       'inspect_project',
+      'inspect_capabilities',
       'inspect_proposals',
     ]);
     run.invalidated = true;
@@ -3402,7 +3408,12 @@ describe('approved chat asset indexing', () => {
     );
     const p = provider(
       [
-        [final('', [call('load_skill', { skillId: 'indexing' })])],
+        [
+          final('', [
+            call('inspect_capabilities', {}, 'caps'),
+            call('load_skill', { skillId: 'indexing' }),
+          ]),
+        ],
         [
           final('', [
             call('inspect_asset', { assetId }),
@@ -3526,6 +3537,99 @@ describe('approved chat asset indexing', () => {
       await f.jobs.dispose();
     }
   });
+  it('proposes all authorized assets separately and executes only individually approved requests', async () => {
+    const f = fixture();
+    const jobs = new Jobs();
+    const asset = await f.editor.assets.inspect('asset');
+    f.editor.assets.inspect = vi.fn(async (id) => ({ ...asset, id }));
+    const execute = vi.fn((assetId: string) =>
+      jobs.start(
+        async () =>
+          ({
+            id: `run-${assetId}`,
+            assetId,
+            analysis: { scenes: [] },
+          }) as unknown as import('../../src/core/asset-index').AssetIndexRun,
+      ),
+    );
+    const p = provider(
+      [
+        [
+          final('', [
+            call('inspect_capabilities', {}, 'caps'),
+            call('load_skill', { skillId: 'indexing' }, 'load'),
+          ]),
+        ],
+        [
+          final('', [
+            call('inspect_asset', { assetId: 'asset' }, 'inspect-project'),
+            call('inspect_asset', { assetId: 'attached' }, 'inspect-attached'),
+          ]),
+        ],
+        [
+          final(
+            '',
+            ['asset', 'attached', 'unselected'].map((assetId) =>
+              call(
+                'propose_action',
+                {
+                  summary: 'Index asset',
+                  action: { type: 'index_asset', assetId },
+                },
+                `index-${assetId}`,
+              ),
+            ),
+          ),
+        ],
+        [
+          final(
+            'Two indexing proposals await approval; the unselected file must be attached.',
+          ),
+        ],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      assetIds: ['attached'],
+      context: { includeAssetIndexes: true },
+      indexing: {
+        consent: () => true,
+        run: execute,
+        disclosure: 'Generated evidence may incur cost.',
+      },
+    });
+    try {
+      const turn = await a.run('Index all assets').completion;
+      expect(
+        JSON.parse(p.requests[0]!.messages[1]!.content!).availableAssetIds,
+      ).toEqual(['asset', 'attached']);
+      expect(turn.proposalIds).toHaveLength(2);
+      expect(a.snapshot().proposals.map((proposal) => proposal.action)).toEqual(
+        [
+          { type: 'index_asset', assetId: 'asset' },
+          { type: 'index_asset', assetId: 'attached' },
+        ],
+      );
+      expect(execute).not.toHaveBeenCalled();
+      expect(f.editor.assets.inspect).not.toHaveBeenCalledWith('unselected');
+      await a.approveProposal(turn.proposalIds[0]!);
+      expect(execute).toHaveBeenCalledTimes(1);
+      expect(a.getProposal(turn.proposalIds[1]!).status).toBe('pending');
+      await a.approveProposal(turn.proposalIds[1]!);
+      expect(execute.mock.calls.map(([id]) => id)).toEqual([
+        'asset',
+        'attached',
+      ]);
+      expect(f.project().revision).toBe(0);
+    } finally {
+      await a.dispose();
+      await jobs.dispose();
+    }
+  });
   it.each([
     { allowed: false },
     { includeIndexes: false },
@@ -3537,8 +3641,39 @@ describe('approved chat asset indexing', () => {
       try {
         await f.assistant.run('Index').completion;
         expect(
-          JSON.stringify(f.provider.requests[0]!.messages[1]),
-        ).not.toContain('"id":"indexing"');
+          JSON.parse(
+            f.provider.requests[0]!.messages[1]!.content!,
+          ).skillCatalog.some(
+            (skill: { id: string }) => skill.id === 'indexing',
+          ),
+        ).toBe(options.supported !== false);
+        const discovery = f.provider.requests[1]!.messages.find(
+          (message) =>
+            message.role === 'tool' && message.tool_call_id === 'caps',
+        )!;
+        const caps = JSON.parse(discovery.content!);
+        expect(caps.indexing).toMatchObject({
+          supported: options.supported !== false,
+          canPropose: false,
+        });
+        expect(caps.indexing.blockers).not.toHaveLength(0);
+        expect(caps.serviceActions.includes('index_asset')).toBe(
+          options.supported !== false,
+        );
+        expect(JSON.stringify(f.provider.requests)).not.toContain(
+          'Private recording.mov',
+        );
+        expect(
+          f.provider.requests[1]!.tools.map(
+            (tool) => tool.function.name,
+          ).includes('inspect_asset'),
+        ).toBe(options.supported !== false);
+        expect(
+          f.provider.requests[1]!.tools.map((tool) => tool.function.name),
+        ).not.toContain('search_asset_index');
+        expect(
+          f.provider.requests[1]!.tools.map((tool) => tool.function.name),
+        ).not.toContain('read_asset_index');
         expect(JSON.stringify(f.provider.requests[1]!.tools)).not.toContain(
           'index_asset',
         );
@@ -3668,6 +3803,7 @@ it('restores completed text history without tool, proposal or skill authority an
   expect(request.tools.map((tool) => tool.function.name)).toEqual([
     'load_skill',
     'inspect_project',
+    'inspect_capabilities',
     'inspect_proposals',
   ]);
   expect(f.editor.commands.apply).not.toHaveBeenCalled();

@@ -156,7 +156,46 @@ for (const base of ['/', '/LocalCut/']) {
           const permitted = scope.skillCatalog.some(
             (skill: { id: string }) => skill.id === 'indexing',
           );
-          if (!permitted) reply = 'Enable asset indexing to continue.';
+          const last = body.messages.at(-1);
+          const caps =
+            last.role === 'tool' &&
+            last.tool_call_id === 'indexing-capabilities'
+              ? JSON.parse(last.content)
+              : undefined;
+          if (caps && !caps.indexing.canPropose) {
+            expect(caps.indexing.supported).toBe(true);
+            expect(caps.serviceActions).toContain('index_asset');
+            expect(caps.indexing.blockers.join(' ')).toContain(
+              'Allow asset indexing',
+            );
+            expect(
+              caps.skillCatalog.some(
+                (skill: { id: string }) => skill.id === 'indexing',
+              ),
+            ).toBe(true);
+            expect(JSON.stringify(body.tools)).not.toContain('index_asset');
+            expect(scope.assetIndex).toBeUndefined();
+            reply =
+              'Indexing is supported. Enable Allow asset indexing in AI connection → Data & analytics to continue.';
+          } else if (last.role === 'user' && !scope.assetIndex) {
+            expect(permitted).toBe(true);
+            expect(
+              body.tools.some(
+                (tool: { function: { name: string } }) =>
+                  tool.function.name === 'inspect_capabilities',
+              ),
+            ).toBe(true);
+            reply = null;
+            tool_calls = [
+              {
+                index: 0,
+                id: 'indexing-capabilities',
+                type: 'function',
+                function: { name: 'inspect_capabilities', arguments: '{}' },
+              },
+            ];
+          } else if (!permitted)
+            reply = 'No compatible indexing connection is available.';
           else if (chatRound === 0) {
             reply = null;
             tool_calls = [
@@ -256,10 +295,13 @@ for (const base of ['/', '/LocalCut/']) {
     };
     await send('Index this image');
     await expect(
-      page.getByText('Enable asset indexing to continue.', { exact: true }),
+      page.getByText(
+        'Indexing is supported. Enable Allow asset indexing in AI connection → Data & analytics to continue.',
+        { exact: true },
+      ),
     ).toBeVisible();
     expect(evidenceRequests).toBe(0);
-    expect(JSON.stringify(bodies[0])).not.toContain('index_asset');
+    expect(JSON.stringify(bodies[0]!.tools)).not.toContain('index_asset');
     dialog = await settings(page);
     await dialog
       .getByRole('checkbox', { name: 'Allow asset indexing' })
@@ -365,24 +407,15 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await send('Index again');
     // A restored earlier denial is historical; inspect this newly sent request.
-    await expect
-      .poll(() => {
-        const body = bodies.at(-1);
-        const messages = body?.messages as
-          { role: string; content: unknown }[] | undefined;
-        return (
-          !!body?.tools &&
-          messages?.at(-1)?.role === 'user' &&
-          String(messages.at(-1)?.content).endsWith('Index again')
-        );
-      })
-      .toBe(true);
     await expect(
-      response.getByText('Enable asset indexing to continue.', { exact: true }),
+      response.getByText(
+        'Indexing is supported. Enable Allow asset indexing in AI connection → Data & analytics to continue.',
+        { exact: true },
+      ),
     ).toBeVisible();
     expect(evidenceRequests).toBe(5);
     expect(JSON.stringify(bodies.at(-1))).not.toContain(label.summary);
-    expect(JSON.stringify(bodies.at(-1))).not.toContain('index_asset');
+    expect(JSON.stringify(bodies.at(-1)!.tools)).not.toContain('index_asset');
   });
 
   test(`mobile media keeps indexing alive while closed ${base}`, async ({
