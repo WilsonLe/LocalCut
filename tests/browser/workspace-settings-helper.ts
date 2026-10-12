@@ -23,7 +23,7 @@ export async function waitForWorkspaceSettings(page: Page) {
   );
 }
 
-export async function openAISettings(page: Page) {
+async function openWorkspaceSettings(page: Page) {
   await waitForWorkspaceSettings(page);
   // A late project focus handoff can dismiss a menu just opened by the fixture.
   // Reopen a dismissed menu and require its real popup before choosing an item.
@@ -38,15 +38,17 @@ export async function openAISettings(page: Page) {
       page.getByRole('menu', { name: 'Workspace settings', exact: true }),
     ).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 10000 });
+}
+
+export async function openAISettings(page: Page) {
+  await openWorkspaceSettings(page);
   await page
     .getByRole('menuitem', { name: 'AI settings', exact: true })
     .click();
 }
 
 export async function openWorkspaceGroup(page: Page, name: string) {
-  await page
-    .getByRole('button', { name: 'Workspace settings', exact: true })
-    .click();
+  await openWorkspaceSettings(page);
   await page
     .getByRole('menu', { name: 'Workspace settings', exact: true })
     .getByRole('menuitem', { name, exact: true })
