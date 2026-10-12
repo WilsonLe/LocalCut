@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 import { closeMediaImport } from './workspace-import-helper';
 import { mediaVideo } from './workspace-video-fixture';
 import { openVersions } from './workspace-settings-helper';
@@ -243,9 +244,15 @@ for (const base of ['/', '/LocalCut/']) {
       await page.setViewportSize({ width: 390, height: 844 });
       // Pause inspection inside the real worker, not the main browser realm.
       await page.route('**/media.worker-*.js', async (route) => {
-        const response = await route.fetch();
+        // Use the current production asset without a response handle that
+        // navigation can dispose while the worker request is intercepted.
+        const name = new URL(route.request().url()).pathname.split('/').pop();
+        const script = await readFile(
+          `${base === '/' ? 'dist-root' : 'dist'}/assets/${name}`,
+          'utf8',
+        );
         await route.fulfill({
-          response,
+          contentType: 'text/javascript',
           body:
             `
         const originalBitmap = self.createImageBitmap.bind(self);
@@ -261,7 +268,7 @@ for (const base of ['/', '/LocalCut/']) {
             event.stopImmediatePropagation();
           }
         }, true);
-      ` + (await response.text()),
+      ` + script,
         });
       });
       await page.goto(base);

@@ -181,6 +181,32 @@ test('large hosts scale past old ceilings, narrowing overrides never exceed live
   );
 });
 
+test('shared pools use generous memory headroom without a fixed worker ceiling', () => {
+  const env = { LOCALCUT_BROWSER_MODE: 'shared' };
+  assert.equal(
+    allocation({ ...host, freeBytes: 7 * GiB }, env).browserWorkers,
+    12,
+  );
+  assert.equal(allocation({ ...host, freeBytes: 7 * GiB }).browserWorkers, 4);
+  assert.equal(
+    allocation(
+      { ...host, cpus: 64, freeBytes: 40 * GiB, totalBytes: 128 * GiB },
+      env,
+    ).browserWorkers,
+    64,
+  );
+  assert.equal(allocation({ ...host, cpuLimit: 3 }, env).browserWorkers, 3);
+  assert.equal(
+    allocation({ ...host, freeBytes: 7 * GiB, load: 14 }, env).browserWorkers,
+    2,
+  );
+  assert.equal(
+    allocation({ ...host, memoryLimit: 3 * GiB, memoryUsed: GiB }, env)
+      .browserWorkers,
+    2,
+  );
+});
+
 test('running reservations are accounted once while external pressure narrows new launches', () => {
   assert.equal(
     allocation({ ...host, load: 8, freeBytes: 12 * GiB }, {}, 8).slots,
@@ -321,4 +347,96 @@ test('nested runner grants avoid subtracting parent load twice but retain RAM/qu
     1,
   );
   assert.throws(() => allocation(host, { LOCALCUT_TEST_GRANTED_SLOTS: '0' }));
+});
+
+test('check refreshes recovered CPU headroom before granting the Chrome phase', async () => {
+  const { runChecks } = await import('../../scripts/check.mjs');
+  let load = 14;
+  const capacity = { ...host, freeBytes: 40 * GiB, totalBytes: 48 * GiB };
+  const events = [];
+  await runChecks(
+    {},
+    {
+      run: async ([command], env) => {
+        events.push(command);
+        if (command === 'test:browser') {
+          assert.equal(env.LOCALCUT_BROWSER_WORKERS, '16');
+          assert.ok(events.includes('check:bundle'));
+        }
+      },
+      build: async () => assert.equal(load, 14),
+      sample: async (env) => {
+        if (env.LOCALCUT_BROWSER_MODE === 'shared') load = 0;
+        return allocation({ ...capacity, load }, env);
+      },
+      getResources: (env, used) =>
+        allocation({ ...capacity, load: load + used }, env, used),
+    },
+  );
+  assert.ok(events.includes('test:browser'));
+});
+
+test('check preserves ordinary low-memory admission before granting the generous Chrome phase', async () => {
+  const { runChecks } = await import('../../scripts/check.mjs');
+  const capacity = { ...host, freeBytes: 3 * GiB };
+  const events = [];
+  const budgets = [];
+  const run = async ([command], env) => {
+    events.push(command);
+    if (command === 'test') assert.equal(env.LOCALCUT_UNIT_WORKERS, '2');
+    if (command === 'test:browser') {
+      assert.equal(env.LOCALCUT_BROWSER_WORKERS, '4');
+      assert.equal(env.LOCALCUT_TEST_GRANTED_SLOTS, '4');
+      assert.ok(events.includes('test'));
+      assert.ok(events.includes('check:bundle'));
+    }
+  };
+  await runChecks(
+    {},
+    {
+      run,
+      build: async () => events.push('build'),
+      sample: async (env) => allocation(capacity, env),
+      getResources: (env, used) => {
+        const shared = env.LOCALCUT_BROWSER_MODE === 'shared';
+        // Reflect running reservations in free memory as the real host does.
+        const result = allocation(
+          {
+            ...capacity,
+            freeBytes: capacity.freeBytes - used * (shared ? 0.5 : 0.75) * GiB,
+            load: used,
+          },
+          env,
+          used,
+        );
+        budgets.push({ shared, slots: result.slots });
+        return result;
+      },
+    },
+  );
+  assert.deepEqual(events.slice(0, 2), ['format:check', 'lint']);
+  assert.equal(events.at(-1), 'test:browser');
+  assert.ok(budgets.filter((b) => !b.shared).every((b) => b.slots === 2));
+  assert.ok(budgets.some((b) => b.shared && b.slots === 4));
+});
+
+test('check drains an earlier failure without admitting Chrome', async () => {
+  const { runChecks } = await import('../../scripts/check.mjs');
+  const events = [];
+  await assert.rejects(
+    runChecks(
+      {},
+      {
+        sample: async () => ({ slots: 2 }),
+        getResources: () => ({ slots: 2 }),
+        build: () => assert.fail('failed static phase must not build'),
+        run: async ([command]) => {
+          events.push(command);
+          if (command === 'format:check') throw new Error('format failed');
+        },
+      },
+    ),
+    /format failed/,
+  );
+  assert.deepEqual(events, ['format:check', 'lint']);
 });

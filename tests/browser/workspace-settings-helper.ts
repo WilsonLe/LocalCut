@@ -1,6 +1,15 @@
 import { expect, type Page } from '@playwright/test';
 
 export async function openAISettings(page: Page) {
+  // Hidden does not mean the closing popup has released its focus manager.
+  // Wait for the non-retained project dialog to unmount before opening a menu.
+  await expect(
+    page.getByRole('dialog', {
+      name: 'New project',
+      exact: true,
+      includeHidden: true,
+    }),
+  ).toHaveCount(0);
   // Restoration closes stale menus and focuses the editor on its next frame.
   // Wait for that navigation handoff before starting a settings interaction.
   await expect(

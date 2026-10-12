@@ -8,9 +8,11 @@ import {
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const GiB = 1024 ** 3;
-const slotBytes = 0.75 * GiB;
+const slotBytes = (env: NodeJS.ProcessEnv) =>
+  (env.LOCALCUT_BROWSER_MODE === 'shared' ? 0.5 : 0.75) * GiB;
 const read = (path: string) => {
   try {
     return readFileSync(path, 'utf8').trim();
@@ -125,12 +127,12 @@ export function allocation(
     capacity.freeBytes,
     (capacity.memoryLimit ?? capacity.totalBytes) - (capacity.memoryUsed ?? 0),
   );
-  // Slots reserve 0.75 GiB. Shared-browser workers reserve one; separately
-  // launched browsers reserve two. Keep one GiB for the OS and browser parent.
+  // Shared-browser pools reserve 0.5 GiB per slot; other pools reserve 0.75.
+  // Separately launched browsers use two slots. Keep one GiB for the parent/OS.
   // Running tasks are already reflected in load/free RAM: add their reservation back once.
   const memorySlots = Math.max(
     1,
-    reservedSlots + Math.floor((memory - GiB) / slotBytes),
+    reservedSlots + Math.floor((memory - GiB) / slotBytes(env)),
   );
   const idleCpus = Math.max(
     1,
@@ -225,6 +227,13 @@ function currentLoad() {
     previousCpu = snapshot;
   }
   return measuredLoad ?? loadavg()[0] ?? 0;
+}
+// Sample current utilization before admitting a pool. A one-minute load average
+// can retain already-finished work and unnecessarily serialize a fresh run.
+export async function sampleResources(env: NodeJS.ProcessEnv = process.env) {
+  currentLoad();
+  await delay(100);
+  return resources(env);
 }
 export function resources(
   env: NodeJS.ProcessEnv = process.env,

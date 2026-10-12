@@ -98,6 +98,48 @@ test('runner failure closes Chrome and preserves the original failure', async ()
   assert.deepEqual(signals.eventNames(), []);
 });
 
+test('direct browser admission passes one fresh shared-pool grant to child configuration', async () => {
+  const env = { LOCALCUT_BROWSER_WORKERS: '2' };
+  await runBrowserTests([], env, {
+    measure: async (actualEnv) => {
+      assert.equal(actualEnv.LOCALCUT_BROWSER_MODE, 'shared');
+      assert.equal(actualEnv.LOCALCUT_BROWSER_WORKERS, '2');
+      return { slots: 9, browserWorkers: 2 };
+    },
+    launchServer: async () => ({
+      wsEndpoint: () => 'ws://127.0.0.1/owned',
+      close: async () => {},
+    }),
+    run: async (_args, actualEnv) => {
+      assert.equal(actualEnv.LOCALCUT_TEST_GRANTED_SLOTS, '9');
+      assert.equal(actualEnv.LOCALCUT_BROWSER_MODE, 'shared');
+      assert.equal(actualEnv.LOCALCUT_BROWSER_WORKERS, '2');
+    },
+  });
+  assert.deepEqual(env, { LOCALCUT_BROWSER_WORKERS: '2' });
+});
+
+test('interruption during capacity sampling never starts Chrome or a runner', async () => {
+  const signals = new EventEmitter();
+  assert.equal(
+    await runBrowserTests(
+      [],
+      {},
+      {
+        signals,
+        measure: async () => {
+          signals.emit('SIGTERM');
+          return { slots: 1 };
+        },
+        launchServer: () => assert.fail('cancelled admission must not launch'),
+        run: () => assert.fail('cancelled admission must not run tests'),
+      },
+    ),
+    143,
+  );
+  assert.deepEqual(signals.eventNames(), []);
+});
+
 test('interruption waits for runner cleanup before closing its shared browser', async () => {
   const signals = new EventEmitter();
   const events = [];

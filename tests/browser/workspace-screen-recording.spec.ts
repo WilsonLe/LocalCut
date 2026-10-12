@@ -541,7 +541,9 @@ test('screen recording native tab capture at both static bases', async ({
             Object.assign(window, { fixtureAudio: audio });
             const oscillator = audio.createOscillator();
             const gain = audio.createGain();
-            gain.gain.value = 0.1;
+            // Leave signal margin for native tab-capture attenuation while
+            // keeping the decoded waveform assertion at its existing level.
+            gain.gain.value = 0.25;
             oscillator.connect(gain).connect(audio.destination);
             oscillator.start();
             void audio.resume();
