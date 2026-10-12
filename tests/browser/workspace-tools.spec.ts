@@ -233,7 +233,7 @@ for (const base of ['/', '/LocalCut/']) {
     });
   });
 
-  test(`chat cannot cancel a pending atomic edit commit ${base}`, async ({
+  test(`chat executes atomic edits without approval controls ${base}`, async ({
     page,
     context,
   }) => {
@@ -254,6 +254,44 @@ for (const base of ['/', '/LocalCut/']) {
         },
       }),
     );
+    // Keep an actual IDB transaction alive to queue the production command,
+    // without replacing the editor, command implementation or saved result.
+    const holdCommit = () =>
+      page.evaluate(async () => {
+        const db = await new Promise<IDBDatabase>((resolve, reject) => {
+          const request = indexedDB.open('localcut-v1');
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        let holding = true;
+        const tx = db.transaction('receipts', 'readonly');
+        const complete = new Promise<void>((resolve) => {
+          tx.oncomplete = tx.onabort = () => {
+            db.close();
+            resolve();
+          };
+        });
+        const target = window as Window & {
+          releaseAtomicCommit?: () => Promise<void>;
+        };
+        target.releaseAtomicCommit = async () => {
+          holding = false;
+          await complete;
+          delete target.releaseAtomicCommit;
+        };
+        await new Promise<void>((resolve, reject) => {
+          const keepAlive = () => {
+            const request = tx.objectStore('receipts').count();
+            request.onsuccess = () => {
+              if (holding) keepAlive();
+              resolve();
+            };
+            request.onerror = () => reject(request.error);
+          };
+          keepAlive();
+        });
+      });
+
     let rounds = 0;
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
@@ -301,7 +339,8 @@ for (const base of ['/', '/LocalCut/']) {
                   },
                 ],
               }
-            : { content: 'The overlay track is ready for approval.' };
+            : { content: 'The overlay track was added.' };
+        if (rounds === 1) await holdCommit();
         await route.fulfill({
           headers: cors,
           contentType: 'text/event-stream',
@@ -351,53 +390,10 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByLabel('Describe your edit', { exact: true })
       .fill('Add an overlay track.');
-    await page
-      .getByRole('button', { name: 'Send edit request', exact: true })
-      .click();
-    const apply = page.getByRole('button', {
-      name: 'Apply proposal',
-      exact: true,
-    });
-    await expect(apply).toBeEnabled();
-
-    // Keep an actual IDB transaction alive to queue the production command,
-    // without replacing the editor, command implementation or saved result.
-    await page.evaluate(async () => {
-      const db = await new Promise<IDBDatabase>((resolve, reject) => {
-        const request = indexedDB.open('localcut-v1');
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-      });
-      let holding = true;
-      const tx = db.transaction('projects', 'readwrite');
-      const complete = new Promise<void>((resolve) => {
-        tx.oncomplete = tx.onabort = () => {
-          db.close();
-          resolve();
-        };
-      });
-      const target = window as Window & {
-        releaseAtomicCommit?: () => Promise<void>;
-      };
-      target.releaseAtomicCommit = async () => {
-        holding = false;
-        await complete;
-        delete target.releaseAtomicCommit;
-      };
-      await new Promise<void>((resolve, reject) => {
-        const keepAlive = () => {
-          const request = tx.objectStore('projects').count();
-          request.onsuccess = () => {
-            if (holding) keepAlive();
-            resolve();
-          };
-          request.onerror = () => reject(request.error);
-        };
-        keepAlive();
-      });
-    });
     try {
-      await apply.click();
+      await page
+        .getByRole('button', { name: 'Send edit request', exact: true })
+        .click();
       await expect(
         page.getByText('Committing edit…', { exact: true }),
       ).toBeVisible();

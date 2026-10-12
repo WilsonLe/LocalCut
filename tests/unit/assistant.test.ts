@@ -4235,3 +4235,329 @@ describe('complete capability discovery and recovery', () => {
     }
   });
 });
+
+describe('requested chat execution', () => {
+  const requested = (
+    f: ReturnType<typeof fixture>,
+    p: ReturnType<typeof provider>,
+  ) =>
+    createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      execution: 'requested',
+    });
+  it('commits sequential tools against fresh revisions and returns actual receipts before narration', async () => {
+    const f = fixture();
+    const p = provider([
+      [
+        final('', [
+          call(
+            'propose_edits',
+            {
+              summary: 'Move',
+              operations: [
+                {
+                  type: 'moveClip',
+                  clipId: 'video',
+                  trackId: 'main',
+                  startUs: 1e6,
+                },
+              ],
+            },
+            'move',
+          ),
+          call(
+            'propose_edits',
+            {
+              summary: 'Fade',
+              operations: [
+                {
+                  type: 'updateClip',
+                  clipId: 'video',
+                  patch: { opacity: 0.5 },
+                },
+              ],
+            },
+            'fade',
+          ),
+          call('inspect_project', {}, 'inspect'),
+        ]),
+      ],
+      [final('Done.')],
+    ]);
+    const a = requested(f, p);
+    const result = await a.run('Move and fade the clip').completion;
+    expect(f.project().revision).toBe(2);
+    expect(f.project().tracks[0]!.clips[0]).toMatchObject({
+      startUs: 1e6,
+      opacity: 0.5,
+    });
+    const replies = p.requests
+      .at(-1)!
+      .messages.filter((m) => m.role === 'tool')
+      .map((m) => JSON.parse(m.content!));
+    expect(
+      replies
+        .filter((r) => r.status === 'completed')
+        .map((r) => r.result.receipt.appliedRevision),
+    ).toEqual([1, 2]);
+    expect(replies.at(-1).revision).toBe(2);
+    expect(result.proposalIds.map((id) => a.getProposal(id).status)).toEqual([
+      'applied',
+      'applied',
+    ]);
+    await a.dispose();
+  });
+  it('refreshes the project after a rejected concurrent revision before recovery', async () => {
+    const f = fixture();
+    const apply = f.editor.commands.apply;
+    let conflict = true;
+    f.editor.commands.apply = vi.fn(async (batch) => {
+      if (conflict) {
+        conflict = false;
+        f.changeRevision();
+        throw new EditorError('REVISION_CONFLICT', 'Changed concurrently');
+      }
+      return apply(batch);
+    });
+    const p = provider([
+      [proposal()],
+      [
+        final('', [
+          call('inspect_project', {}, 'fresh'),
+          call('propose_edits', {
+            summary: 'Move against current revision',
+            operations: [
+              {
+                type: 'moveClip',
+                clipId: 'video',
+                trackId: 'main',
+                startUs: 1e6,
+              },
+            ],
+          }),
+        ]),
+      ],
+      [final('Moved.')],
+    ]);
+    const a = requested(f, p);
+    await a.run('Move').completion;
+    const replies = p.requests
+      .at(-1)!
+      .messages.filter((m) => m.role === 'tool')
+      .map((m) => JSON.parse(m.content!));
+    expect(replies.some((r) => r.error?.code === 'REVISION_CONFLICT')).toBe(
+      true,
+    );
+    expect(replies.find((r) => r.id === f.project().id)?.revision).toBe(1);
+    expect(f.project().revision).toBe(2);
+    await a.dispose();
+  });
+  it('preserves an atomic commit when Stop arrives after submission', async () => {
+    const f = fixture();
+    const apply = f.editor.commands.apply;
+    const started = deferred<void>();
+    const finish = deferred<void>();
+    f.editor.commands.apply = vi.fn(async (batch) => {
+      started.resolve();
+      await finish.promise;
+      return apply(batch);
+    });
+    const a = requested(f, provider([[proposal()], [final('Moved.')]]));
+    const turn = a.run('Move');
+    await started.promise;
+    turn.cancel();
+    finish.resolve();
+    await expect(turn.completion).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(f.project().revision).toBe(1);
+    expect(a.snapshot().proposals[0]!.result).toMatchObject({
+      kind: 'edit',
+      receipt: { appliedRevision: 1 },
+    });
+    await a.dispose();
+  });
+  it('leaves clarification as ordinary text until a new user reply requests execution', async () => {
+    const f = fixture();
+    const p = provider([
+      [final('Should I move the clip to one second?')],
+      [proposal()],
+      [final('Moved.')],
+    ]);
+    const a = requested(f, p);
+    const question = await a.run('Improve the opening').completion;
+    expect(question.proposalIds).toEqual([]);
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+    await a.run('Yes, move it to one second.').completion;
+    expect(f.project().revision).toBe(1);
+    expect(
+      p.requests
+        .at(-1)!
+        .messages.some(
+          (m) =>
+            m.role === 'user' && m.content === 'Yes, move it to one second.',
+        ),
+    ).toBe(true);
+    await a.dispose();
+  });
+  it('retains a committed result when cancellation wins during a later provider round', async () => {
+    const f = fixture();
+    const waiting = deferred<void>();
+    let round = 0;
+    const p = {
+      stream: async function* () {
+        if (round++ === 0)
+          yield final('', [call('load_skill', { skillId: 'editing' })]);
+        else if (round === 2) yield proposal();
+        else {
+          waiting.resolve();
+          await new Promise(() => {});
+        }
+      },
+    };
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      execution: 'requested',
+    });
+    const turn = a.run('Move');
+    await waiting.promise;
+    turn.cancel();
+    await expect(turn.completion).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(f.project().revision).toBe(1);
+    expect(a.snapshot().proposals[0]!.result).toMatchObject({
+      kind: 'edit',
+      receipt: { appliedRevision: 1 },
+    });
+    await a.dispose();
+  });
+  it('cancels requested service work with the response and retains no successful receipt', async () => {
+    const f = fixture();
+    const jobs = new Jobs();
+    const started = deferred<void>();
+    const cancelled = deferred<void>();
+    f.editor.transcription.prepare = () =>
+      jobs.start(async (signal) => {
+        started.resolve();
+        await new Promise<void>((resolve) =>
+          signal.addEventListener(
+            'abort',
+            () => {
+              cancelled.resolve();
+              resolve();
+            },
+            { once: true },
+          ),
+        );
+        throw new AiError('CANCELLED', 'Stopped');
+      });
+    const p = provider([
+      [
+        final('', [
+          call('propose_action', {
+            summary: 'Prepare',
+            action: { type: 'prepare_transcription' },
+          }),
+        ]),
+      ],
+    ]);
+    const a = requested(f, p);
+    const turn = a.run('Prepare transcription');
+    await started.promise;
+    turn.cancel();
+    await cancelled.promise;
+    await expect(turn.completion).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(a.snapshot().proposals[0]!.result).toBeUndefined();
+    await a.dispose();
+    await jobs.dispose();
+  });
+  it('does not retry a failed indexing request in the same turn even if the model asks', async () => {
+    const f = fixture();
+    const jobs = new Jobs();
+    const execute = vi.fn(() =>
+      jobs.start(async () => {
+        throw new AiError('NETWORK_ERROR', 'Failed');
+      }),
+    );
+    const action = () =>
+      final('', [
+        call('propose_action', {
+          summary: 'Index',
+          action: { type: 'index_asset', assetId: 'asset' },
+        }),
+      ]);
+    const p = provider(
+      [
+        [final('', [call('load_skill', { skillId: 'indexing' })])],
+        [action()],
+        [action()],
+        [final('Send a new request to retry.')],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      execution: 'requested',
+      context: { includeAssetIndexes: true },
+      indexing: {
+        run: execute,
+        consent: () => true,
+        disclosure: 'Generated stills; may incur cost.',
+      },
+    });
+    await a.run('Index').completion;
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(p.requests.at(-1))).toContain(
+      'explicit retry in a new turn',
+    );
+    expect(a.snapshot().proposals).toHaveLength(1);
+    expect(a.snapshot().proposals[0]!.status).toBe('pending');
+    await a.dispose();
+    await jobs.dispose();
+  });
+  it('keeps requested mode inside the current asset allowlist', async () => {
+    const f = fixture();
+    const jobs = new Jobs();
+    const execute = vi.fn();
+    const p = provider(
+      [
+        [final('', [call('load_skill', { skillId: 'indexing' })])],
+        [
+          final('', [
+            call('propose_action', {
+              summary: 'Index unrelated file',
+              action: { type: 'index_asset', assetId: 'unselected' },
+            }),
+          ]),
+        ],
+        [final('Attach the file first.')],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      execution: 'requested',
+      context: { includeAssetIndexes: true },
+      indexing: {
+        run: execute,
+        consent: () => true,
+        disclosure: 'Generated evidence.',
+      },
+    });
+    expect(
+      (await a.run('Index unrelated file').completion).proposalIds,
+    ).toEqual([]);
+    expect(execute).not.toHaveBeenCalled();
+    await a.dispose();
+    await jobs.dispose();
+  });
+});
