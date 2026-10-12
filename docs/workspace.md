@@ -156,6 +156,8 @@ Nudging preserves group offsets and clamps the earliest member at zero. Q/W shor
 
 The pass covers existing LocalCut workflows. Source-monitor insert/overwrite, markers, dedicated slip/slide/roll tools and reverse/rate shuttle have no supported workflow/API and receive no misleading bindings. Historical versions allow selection, navigation, properties and view gestures; mutation and clipboard shortcuts remain unavailable.
 
+Dialog opening shows cancellable feedback immediately while optional UI code loads, then a modal loading shell and the requested controls. Escape or Cancel dismisses opening feedback; close/Escape also dismisses a loading shell. Completing a dismissed download never reopens it. Loaded dialogs reuse their code on reopening and retain normal focus return and reduced-motion behavior. Simple forms do not load the text library or clip-properties editor. Commands downloads its metadata and palette together and shows command controls only when both are ready.
+
 Mod+K opens Commands from outside text fields and dialogs. The header search icon and Workspace settings → Commands also open it. Search project, media, editing, clip selection, playback, version, export, view, appearance and chat operations; use arrows and Enter to run an available action. File, property, export and AI configuration commands open their existing workflows. AI proposals still require explicit approval. Unavailable actions are omitted, including mutations and export in a historical version. Escape dismisses the palette and returns focus to its header control.
 
 See the [desktop palette](images/workspace-commands.png) and [narrow palette](images/workspace-commands-narrow.png).
