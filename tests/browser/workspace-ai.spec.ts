@@ -4,6 +4,7 @@ import {
   addOpenRouter,
   prepareOpenRouterKey,
   openAISettings,
+  selectAISettingsTab,
 } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 import type { BrowserContext, Page, Route } from '@playwright/test';
@@ -75,9 +76,11 @@ async function chooseModel(page: Page) {
     name: 'AI connection',
     exact: true,
   });
+  await selectAISettingsTab(page, 'Providers');
   await expect(
     dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
   ).toBeVisible();
+  await selectAISettingsTab(page, 'LLM - Chat');
   const choice = dialog.getByRole('combobox', {
     name: 'AI model',
     exact: true,
@@ -421,6 +424,7 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
     await page
       .getByRole('link', { name: 'Authorize LocalCut', exact: true })
       .click();
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       page
         .getByRole('dialog', { name: 'AI connection', exact: true })
@@ -493,6 +497,7 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
         page.getByRole('button', { name: 'Add text', exact: true }),
       ).toBeEnabled();
     await openConnectedSettings(page);
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       page.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toBeVisible();
@@ -500,6 +505,7 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
       page.getByLabel('OpenRouter API key', { exact: true }),
     ).not.toBeVisible();
     expect(exchanges).toBe(1);
+    await selectAISettingsTab(page, 'Providers');
     await page
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
@@ -507,6 +513,7 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
       page.getByRole('button', { name: 'I have an API key', exact: true }),
     ).toBeVisible();
     // Forget the disconnected profile through its replacement account control.
+    await selectAISettingsTab(page, 'Providers');
     await page
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
@@ -561,6 +568,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       dialog.getByRole('button', {
         name: 'Disconnect OpenRouter',
@@ -576,6 +584,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await page.reload();
     await openConnectedSettings(page);
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toBeVisible();
@@ -610,9 +619,11 @@ for (const base of ['/', '/LocalCut/']) {
     const other = await context.newPage();
     await other.goto(base);
     await openConnectedSettings(other);
+    await selectAISettingsTab(other, 'Providers');
     await expect(
       other.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toBeVisible();
+    await selectAISettingsTab(other, 'Providers');
     await other
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
@@ -687,6 +698,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toBeVisible();
@@ -696,11 +708,12 @@ for (const base of ['/', '/LocalCut/']) {
       page.getByRole('button', { name: 'Text to speech', exact: true }),
     ).toHaveCount(0);
     await openConnectedSettings(page);
-    await dialog.getByText('Providers & services', { exact: true }).click();
+    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
     await dialog.getByRole('button', { name: 'Connect', exact: true }).click();
     await page
       .getByRole('button', { name: 'Connect endpoint', exact: true })
       .click();
+    await selectAISettingsTab(page, 'LLM - Chat');
     await expect(
       dialog.getByLabel('Local backup llm route model', { exact: true }),
     ).toBeEnabled();
@@ -718,6 +731,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toHaveCount(0);
+    await selectAISettingsTab(page, 'LLM - Chat');
     await expect(
       dialog.getByLabel('Local backup llm route model', { exact: true }),
     ).toBeEnabled();
@@ -795,6 +809,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
+    await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
@@ -818,6 +833,7 @@ for (const base of ['/', '/LocalCut/']) {
         window as unknown as { allowCredentialRemoval(): void }
       ).allowCredentialRemoval();
     });
+    await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();

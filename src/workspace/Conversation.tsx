@@ -149,6 +149,9 @@ export function Conversation(props: ConversationProps) {
   );
   const settingsReturnFocus = useRef<HTMLButtonElement | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'providers' | 'llm'>(
+    'providers',
+  );
   const [speechOpen, setSpeechOpen] = useState(false);
   const [speechLoaded, setSpeechLoaded] = useState(false);
   const openSpeech = () => {
@@ -301,7 +304,10 @@ export function Conversation(props: ConversationProps) {
       });
       setModels([]);
       setModel('');
-      if (showSettings) setSettingsOpen(true);
+      if (showSettings) {
+        setSettingsTab('providers');
+        setSettingsOpen(true);
+      }
       if (
         !configuration.current.routes.llm.some((route) => {
           const profile = configuration.current.profiles.find(
@@ -682,6 +688,7 @@ export function Conversation(props: ConversationProps) {
       } catch (error) {
         if (current()) {
           if (kind === 'callback') {
+            setSettingsTab('providers');
             setSettingsOpen(true);
             // A declined or invalid refresh must keep the previously saved connection usable.
             if (!accepted && provider) {
@@ -714,7 +721,10 @@ export function Conversation(props: ConversationProps) {
             (error as { code?: string })?.code === 'MODEL_UNSUPPORTED'
           )
             return;
-          if (kind === 'saved' && !accepted) setSettingsOpen(true);
+          if (kind === 'saved' && !accepted) {
+            setSettingsTab('providers');
+            setSettingsOpen(true);
+          }
           report(error);
         }
       } finally {
@@ -757,6 +767,7 @@ export function Conversation(props: ConversationProps) {
               await connect('saved', '', profile.id);
           }
         } catch {
+          setSettingsTab('providers');
           setSettingsOpen(true);
           report(storageError());
         }
@@ -989,6 +1000,7 @@ export function Conversation(props: ConversationProps) {
     },
     openSettings: () => {
       settingsReturnFocus.current = null;
+      setSettingsTab('providers');
       setSettingsOpen(true);
     },
     commands: () => [
@@ -1008,6 +1020,7 @@ export function Conversation(props: ConversationProps) {
         group: 'Chat',
         run: () => {
           settingsReturnFocus.current = null;
+          setSettingsTab('providers');
           setSettingsOpen(true);
         },
       },
@@ -1267,6 +1280,9 @@ export function Conversation(props: ConversationProps) {
                     disabled={connecting}
                     onClick={(event) => {
                       settingsReturnFocus.current = event.currentTarget;
+                      setSettingsTab(
+                        chatProviderAvailable ? 'llm' : 'providers',
+                      );
                       setSettingsOpen(true);
                     }}
                   >
@@ -1308,6 +1324,7 @@ export function Conversation(props: ConversationProps) {
                 ? target
                 : document.getElementById('workspace-settings-trigger');
             }}
+            initialTab={settingsTab}
             settingsOpen={settingsOpen}
             setSettingsOpen={setSettingsOpen}
             providerConfiguration={providerConfiguration}

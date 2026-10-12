@@ -1,3 +1,4 @@
+import { selectAISettingsTab } from './workspace-settings-helper';
 import { strFromU8, unzipSync } from 'fflate';
 import { expect, test } from '@playwright/test';
 import type { Download, Page, BrowserContext } from '@playwright/test';
@@ -51,6 +52,7 @@ async function setup(page: Page, context: BrowserContext, base: string) {
   await settings
     .getByRole('button', { name: 'Use API key', exact: true })
     .click();
+  await selectAISettingsTab(page, 'LLM - Chat');
   await settings
     .getByRole('combobox', { name: 'AI model', exact: true })
     .click();

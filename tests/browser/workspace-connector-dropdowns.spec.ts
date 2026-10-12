@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   openAISettings,
+  selectAISettingsTab,
   prepareOpenRouterKey,
 } from './workspace-settings-helper';
 
@@ -59,6 +60,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Use API key', exact: true })
       .click();
+    await selectAISettingsTab(page, 'LLM - Chat');
     await dialog
       .getByRole('combobox', { name: 'LLM provider 1', exact: true })
       .click();
@@ -72,8 +74,9 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBe(0);
     await page.keyboard.press('Escape');
     await dialog
-      .getByRole('button', { name: 'TTS · Speech', exact: true })
+      .getByRole('tab', { name: 'TTS - Speech', exact: true })
       .click();
+    await selectAISettingsTab(page, 'TTS - Speech');
     const model = dialog.getByRole('combobox', {
       name: 'OpenRouter tts route model',
       exact: true,
@@ -172,7 +175,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page.reload();
     await openAISettings(page);
     await dialog
-      .getByRole('button', { name: 'TTS · Speech', exact: true })
+      .getByRole('tab', { name: 'TTS - Speech', exact: true })
       .click();
     await expect(voice).toContainText('Puck');
     expect(paid).toBe(0);

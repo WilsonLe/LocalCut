@@ -1,3 +1,4 @@
+import { selectAISettingsTab } from './workspace-settings-helper';
 import { fulfillChatTitle } from './chat-title-fixture';
 import {
   prepareOpenRouterKey,
@@ -240,6 +241,7 @@ test('CYOBot chat structure keeps local sessions, markdown, drafts and keyboard 
     .getByLabel('OpenRouter API key')
     .fill('synthetic-structure-key');
   await settings.getByRole('button', { name: 'Use API key' }).click();
+  await selectAISettingsTab(page, 'LLM - Chat');
   await settings
     .getByRole('combobox', { name: 'AI model', exact: true })
     .click();

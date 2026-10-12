@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   prepareOpenRouterKey,
   openAISettings,
+  selectAISettingsTab,
 } from './workspace-settings-helper';
 
 async function wheel(page: Page, target: Locator, delta: number) {
@@ -134,6 +135,7 @@ for (const base of ['/', '/LocalCut/']) {
         await dialog
           .getByRole('button', { name: 'Use API key', exact: true })
           .click();
+        await selectAISettingsTab(page, 'LLM - Chat');
         const models = dialog.getByRole('combobox', {
           name: 'AI model',
           exact: true,
@@ -175,6 +177,7 @@ for (const base of ['/', '/LocalCut/']) {
         ).toEqual(dialogBefore);
         expect(await positions(page)).toEqual(workspaceBefore);
         await page.keyboard.press('Escape');
+        await selectAISettingsTab(page, 'Providers');
         await dialog
           .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
           .click();

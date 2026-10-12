@@ -7,6 +7,10 @@ This is the project record of the user's durable product and workflow choices. U
 - Keep the asset drag preview close to the cursor.
 - Support Cmd+A / Ctrl+A to select all assets in the focused media library, while retaining native text selection and timeline clip selection.
 
+## AI settings tabs — 12 October 2026
+
+- Divide AI settings into Providers, LLM - Chat, TTS - Speech and STT - Transcription tabs. Manage connections in Providers; expose a primary provider and ordered backup providers in LLM - Chat.
+
 ## Test allocation and runtime — 12 October 2026
 
 - Target under five minutes for the full normal local test run using broadly applicable improvements and best practices. Preserve correctness, production Chrome codecs, privacy, transcription and export acceptance.

@@ -2,15 +2,13 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { zipSync, strToU8 } from 'fflate';
+import { openWorkspaceGroup } from './workspace-settings-helper';
 async function transfer(
   page: Page,
   scope: 'Workspace' | 'Project',
   action: string,
 ) {
-  await page
-    .getByRole('button', { name: 'Workspace settings', exact: true })
-    .click();
-  await page.getByRole('menuitem', { name: scope, exact: true }).click();
+  await openWorkspaceGroup(page, scope);
   await page.getByRole('menuitem', { name: action, exact: true }).click();
   await expect(
     page.getByRole('dialog', { name: action, exact: true }),

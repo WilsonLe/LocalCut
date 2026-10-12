@@ -1,3 +1,4 @@
+import { selectAISettingsTab } from './workspace-settings-helper';
 import { closeMediaImport } from './workspace-import-helper';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test } from '@playwright/test';
@@ -62,6 +63,7 @@ async function setup(page: Page, context: BrowserContext, base: string) {
   await settings
     .getByRole('button', { name: 'Use API key', exact: true })
     .click();
+  await selectAISettingsTab(page, 'LLM - Chat');
   await settings
     .getByRole('combobox', { name: 'AI model', exact: true })
     .click();

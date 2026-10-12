@@ -1,3 +1,4 @@
+import { selectAISettingsTab } from './workspace-settings-helper';
 import { fulfillChatTitle } from './chat-title-fixture';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -106,6 +107,7 @@ for (const base of ['/', '/LocalCut/']) {
     await settings
       .getByRole('button', { name: 'Use API key', exact: true })
       .click();
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       settings.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toBeVisible();
@@ -117,6 +119,9 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Choose AI model', exact: true })
       .click();
+    await expect(
+      settings.getByRole('tab', { name: 'LLM - Chat', exact: true }),
+    ).toHaveAttribute('aria-selected', 'true');
     await settings
       .getByRole('combobox', { name: 'AI model', exact: true })
       .click();
@@ -498,6 +503,7 @@ for (const base of ['/', '/LocalCut/']) {
 
     // Model changes keep a separate context and restore it on return.
     await openAISettings(page);
+    await selectAISettingsTab(page, 'LLM - Chat');
     await settings
       .getByRole('combobox', { name: 'AI model', exact: true })
       .click();
@@ -518,6 +524,7 @@ for (const base of ['/', '/LocalCut/']) {
       )
       .toBe(true);
     await openAISettings(page);
+    await selectAISettingsTab(page, 'LLM - Chat');
     await settings
       .getByRole('combobox', { name: 'AI model', exact: true })
       .click();
@@ -622,6 +629,7 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     const chooseModel = async (name: string) => {
       await openAISettings(page);
+      await selectAISettingsTab(page, 'LLM - Chat');
       await settings
         .getByRole('combobox', { name: 'AI model', exact: true })
         .click();

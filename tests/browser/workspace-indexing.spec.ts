@@ -1,3 +1,4 @@
+import { selectAISettingsTab } from './workspace-settings-helper';
 import { fulfillChatTitle } from './chat-title-fixture';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { closeMediaImport } from './workspace-import-helper';
@@ -92,9 +93,11 @@ async function connect(page: Page) {
   await dialog
     .getByRole('button', { name: 'Use API key', exact: true })
     .click();
+  await selectAISettingsTab(page, 'Providers');
   await expect(
     dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
   ).toBeVisible();
+  await selectAISettingsTab(page, 'LLM - Chat');
   await dialog.getByRole('combobox', { name: 'AI model', exact: true }).click();
   await page
     .getByRole('option', { name: 'Visual chat · ' + model, exact: true })
@@ -914,6 +917,7 @@ for (const base of ['/', '/LocalCut/']) {
     await catalog(context, true);
     await page.keyboard.press('Escape');
     dialog = await settings(page);
+    await selectAISettingsTab(page, 'LLM - Chat');
     await dialog
       .getByRole('combobox', { name: 'AI model', exact: true })
       .click();
@@ -1056,6 +1060,7 @@ for (const base of ['/', '/LocalCut/']) {
       if (framesOnly) {
         await catalog(context, false, false, false);
         const configuration = await settings(page);
+        await selectAISettingsTab(page, 'LLM - Chat');
         await configuration
           .getByRole('combobox', { name: 'AI model', exact: true })
           .click();

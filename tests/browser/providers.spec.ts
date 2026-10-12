@@ -2,6 +2,7 @@ import { fulfillChatTitle } from './chat-title-fixture';
 import {
   prepareOpenRouterKey,
   openAISettings,
+  selectAISettingsTab,
 } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 const cors = {
@@ -19,7 +20,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
-    await dialog.getByText('Providers & services', { exact: true }).click();
+    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
     for (const name of ['OpenRouter work', 'OpenRouter personal']) {
       await dialog
         .getByRole('button', { name: 'Add provider', exact: true })
@@ -67,7 +68,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
-    await dialog.getByText('Providers & services', { exact: true }).click();
+    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
     await dialog
       .getByRole('button', { name: 'Add provider', exact: true })
       .click();
@@ -82,27 +83,34 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Connect endpoint', exact: true })
       .click();
+    await selectAISettingsTab(page, 'LLM - Chat');
     await expect(
       dialog.getByLabel('Local server llm route model'),
     ).toBeEnabled();
+    await selectAISettingsTab(page, 'LLM - Chat');
     await dialog.getByLabel('Local server llm route model').fill('test-model');
+    await selectAISettingsTab(page, 'LLM - Chat');
     await dialog.getByLabel('Local server llm route model').press('Tab');
     await expect(dialog.getByRole('alert')).toHaveCount(0);
+    await selectAISettingsTab(page, 'LLM - Chat');
     await expect(
       dialog.getByRole('combobox', { name: 'LLM provider 1', exact: true }),
     ).toContainText('Local server');
     await expect(dialog.getByText('OpenRouter', { exact: true })).toHaveCount(
       0,
     );
-    await expect(dialog).toContainText('STT · Transcription');
+    await expect(dialog).toContainText('STT - Transcription');
+    await selectAISettingsTab(page, 'STT - Transcription');
     await expect(dialog).toContainText('Local Whisper');
-    await dialog.getByText('STT · Transcription', { exact: true }).click();
+    await dialog.getByText('STT - Transcription', { exact: true }).click();
     await dialog
       .getByRole('button', { name: 'Move Local server up in stt', exact: true })
       .click();
+    await selectAISettingsTab(page, 'STT - Transcription');
     await expect(
       dialog.getByRole('combobox', { name: 'STT provider 1', exact: true }),
     ).toContainText('Local server');
+    await selectAISettingsTab(page, 'STT - Transcription');
     await expect(
       dialog.getByRole('combobox', { name: 'STT provider 2', exact: true }),
     ).toContainText('Local Whisper');
@@ -120,7 +128,8 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await page.reload();
     await openAISettings(page);
-    await dialog.getByText('Providers & services', { exact: true }).click();
+    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
+    await selectAISettingsTab(page, 'LLM - Chat');
     await expect(
       dialog.getByRole('combobox', { name: 'LLM provider 1', exact: true }),
     ).toContainText('Local server');
@@ -128,17 +137,20 @@ for (const base of ['/', '/LocalCut/']) {
       0,
     );
     await dialog
-      .getByRole('button', { name: 'STT · Transcription', exact: true })
+      .getByRole('tab', { name: 'STT - Transcription', exact: true })
       .click();
+    await selectAISettingsTab(page, 'STT - Transcription');
     await expect(
       dialog.getByRole('combobox', { name: 'STT provider 1', exact: true }),
     ).toContainText('Local server');
+    await selectAISettingsTab(page, 'STT - Transcription');
     await expect(
       dialog.getByRole('combobox', { name: 'STT provider 2', exact: true }),
     ).toContainText('Local Whisper');
     await expect(
       dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toHaveCount(0);
+    await selectAISettingsTab(page, 'Providers');
     await dialog.getByRole('button', { name: 'Connect', exact: true }).click();
     await expect(page.getByLabel('API base URL', { exact: true })).toHaveValue(
       'http://localhost:1234/v1',
@@ -262,7 +274,7 @@ for (const base of ['/', '/LocalCut/']) {
           .click();
         await expect(dialog.getByRole('alert')).toContainText('unavailable');
       }
-      await dialog.getByText('Providers & services', { exact: true }).click();
+      await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
       await dialog
         .getByRole('button', { name: 'Connect', exact: true })
         .click();
@@ -272,9 +284,11 @@ for (const base of ['/', '/LocalCut/']) {
       await page
         .getByRole('button', { name: 'Connect endpoint', exact: true })
         .click();
+      await selectAISettingsTab(page, 'LLM - Chat');
       await expect(dialog.getByLabel('Backup llm route model')).toHaveValue(
         'backup',
       );
+      await selectAISettingsTab(page, 'LLM - Chat');
       await expect(dialog.getByLabel('Backup llm route model')).toBeEnabled();
       await dialog.getByRole('button', { name: 'Done', exact: true }).click();
       await page
@@ -553,7 +567,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
-    await dialog.getByText('Providers & services', { exact: true }).click();
+    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
     await dialog
       .getByRole('button', { name: 'Add provider', exact: true })
       .click();
@@ -616,6 +630,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Complete sign-in', exact: true })
       .click();
+    await selectAISettingsTab(page, 'LLM - Chat');
     await expect(
       dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toBeVisible();
@@ -656,6 +671,7 @@ for (const base of ['/', '/LocalCut/']) {
       path: testInfo.outputPath('chatgpt-connection.png'),
     });
     await retryPopup.close();
+    await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Add provider', exact: true })
       .click();
@@ -673,6 +689,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Complete sign-in', exact: true })
       .click();
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       dialog.getByRole('button', { name: 'Verify ChatGPT work', exact: true }),
     ).toBeVisible();
@@ -701,6 +718,7 @@ for (const base of ['/', '/LocalCut/']) {
         .getByRole('button', { name: 'Complete sign-in', exact: true })
         .click();
       for (const name of ['ChatGPT', 'ChatGPT work', 'ChatGPT sandbox']) {
+        await selectAISettingsTab(page, 'Providers');
         await expect(
           dialog.getByRole('button', { name: `Verify ${name}`, exact: true }),
         ).toBeVisible();
@@ -720,12 +738,14 @@ for (const base of ['/', '/LocalCut/']) {
       expect(ids).toHaveLength(3);
       expect(new Set(ids).size).toBe(3);
       await popup.close();
+      await selectAISettingsTab(page, 'Providers');
       await dialog
         .getByRole('button', {
           name: 'Disconnect ChatGPT sandbox',
           exact: true,
         })
         .click();
+      await selectAISettingsTab(page, 'Providers');
       await dialog
         .getByRole('button', {
           name: 'Disconnect ChatGPT sandbox',
@@ -772,10 +792,12 @@ for (const base of ['/', '/LocalCut/']) {
         delete state.providerStorageEvent;
       });
     };
+    await selectAISettingsTab(page, 'Providers');
     const workVerify = dialog.getByRole('button', {
       name: 'Verify ChatGPT work',
       exact: true,
     });
+    await selectAISettingsTab(page, 'Providers');
     const personalVerify = dialog.getByRole('button', {
       name: 'Verify ChatGPT',
       exact: true,
@@ -817,6 +839,7 @@ for (const base of ['/', '/LocalCut/']) {
       await restoreWork();
     });
     await sibling.close();
+    await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Disconnect ChatGPT', exact: true })
       .click();
@@ -835,7 +858,7 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBe(1);
     await page.reload();
     await openAISettings(page);
-    await dialog.getByText('Providers & services', { exact: true }).click();
+    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
     await dialog
       .getByRole('button', { name: 'Connect', exact: true })
       .last()
@@ -845,10 +868,12 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Connect', exact: true })
       .last()
       .click();
+    await selectAISettingsTab(page, 'LLM - Chat');
     await expect(
       dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toBeVisible();
     expect(exchanges).toBe(4);
+    await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Disconnect ChatGPT work', exact: true })
       .click();

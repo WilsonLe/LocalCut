@@ -1,3 +1,4 @@
+import { selectAISettingsTab } from './workspace-settings-helper';
 import {
   prepareOpenRouterKey,
   openAISettings,
@@ -121,12 +122,14 @@ async function connect(page: Page, context: BrowserContext, base: string) {
   await connection
     .getByRole('button', { name: 'Use API key', exact: true })
     .click();
+  await selectAISettingsTab(page, 'Providers');
   await expect(
     connection.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
   ).toBeVisible();
   await connection
-    .getByRole('button', { name: 'TTS · Speech', exact: true })
+    .getByRole('tab', { name: 'TTS - Speech', exact: true })
     .click();
+  await selectAISettingsTab(page, 'TTS - Speech');
   await connection
     .getByRole('combobox', { name: 'OpenRouter tts route model', exact: true })
     .click();
@@ -137,6 +140,7 @@ async function connect(page: Page, context: BrowserContext, base: string) {
     .getByRole('option', { name: /Gemini/ })
     .first()
     .click();
+  await selectAISettingsTab(page, 'TTS - Speech');
   await expect(
     connection.getByRole('combobox', {
       name: 'OpenRouter tts route model',

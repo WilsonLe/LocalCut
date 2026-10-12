@@ -23,20 +23,32 @@ export async function waitForWorkspaceSettings(page: Page) {
   );
 }
 
-export async function openAISettings(page: Page) {
+async function openWorkspaceSettings(page: Page) {
   await waitForWorkspaceSettings(page);
-  await page
-    .getByRole('button', { name: 'Workspace settings', exact: true })
-    .click();
+  // A late project focus handoff can dismiss a menu just opened by the fixture.
+  // Reopen a dismissed menu and require its real popup before choosing an item.
+  const trigger = page.getByRole('button', {
+    name: 'Workspace settings',
+    exact: true,
+  });
+  await expect(async () => {
+    if ((await trigger.getAttribute('aria-expanded')) !== 'true')
+      await trigger.click({ timeout: 1000 });
+    await expect(
+      page.getByRole('menu', { name: 'Workspace settings', exact: true }),
+    ).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 10000 });
+}
+
+export async function openAISettings(page: Page) {
+  await openWorkspaceSettings(page);
   await page
     .getByRole('menuitem', { name: 'AI settings', exact: true })
     .click();
 }
 
 export async function openWorkspaceGroup(page: Page, name: string) {
-  await page
-    .getByRole('button', { name: 'Workspace settings', exact: true })
-    .click();
+  await openWorkspaceSettings(page);
   await page
     .getByRole('menu', { name: 'Workspace settings', exact: true })
     .getByRole('menuitem', { name, exact: true })
@@ -61,6 +73,7 @@ export async function addOpenRouter(page: Page) {
     name: 'AI connection',
     exact: true,
   });
+  await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
   await dialog
     .getByRole('button', { name: 'Add provider', exact: true })
     .click();
@@ -79,6 +92,7 @@ export async function prepareOpenRouterKey(page: Page) {
     name: 'AI connection',
     exact: true,
   });
+  await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
   await expect(
     dialog.getByRole('button', { name: 'Add provider', exact: true }),
   ).toBeVisible();
@@ -95,4 +109,14 @@ export async function prepareOpenRouterKey(page: Page) {
   await expect(
     dialog.getByLabel('OpenRouter API key', { exact: true }),
   ).toBeVisible();
+}
+
+export async function selectAISettingsTab(
+  page: Page,
+  name: 'Providers' | 'LLM - Chat' | 'TTS - Speech' | 'STT - Transcription',
+) {
+  await page
+    .getByRole('dialog', { name: 'AI connection', exact: true })
+    .getByRole('tab', { name, exact: true })
+    .click();
 }
