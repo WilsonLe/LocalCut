@@ -7,6 +7,13 @@ import { sourceIdentity } from '../storage/thumbnail-cache';
 import { maskSchema } from '../core/effects';
 import type { Mask } from '../core/effects';
 import { Store } from '../storage/store';
+import { MediaLibraryStore } from '../storage/media-library';
+import type { LibraryOperation } from '../core/media-library';
+export type {
+  LibraryEntry,
+  LibrarySnapshot,
+  LibraryOperation,
+} from '../core/media-library';
 import { mediaTaskCache } from '../storage/media-cache';
 import { freshTask, pureTaskCache, taskCacheKey } from '../services/task-cache';
 import type { TaskCachePolicy } from '../services/task-cache';
@@ -127,6 +134,26 @@ export async function createEditor(options: EditorOptions = {}) {
     jobs = new Jobs(),
     tasks = new TaskQueue(namespace);
   let disposed = false;
+  let libraryStore: Promise<MediaLibraryStore> | undefined;
+  const libraryBroadcast = new BroadcastChannel(`${namespace}-media-library`);
+  const libraryListeners = new Set<() => void>();
+  const libraryChanged = () => {
+    for (const listener of libraryListeners) {
+      try {
+        listener();
+      } catch {
+        /* Consumer isolation. */
+      }
+    }
+  };
+  libraryBroadcast.onmessage = libraryChanged;
+  const library = () => {
+    active();
+    return (libraryStore ??= MediaLibraryStore.open(store).catch((error) => {
+      libraryStore = undefined;
+      throw error;
+    }));
+  };
   const sessions = new Set<PreviewSession>();
   const projectListeners = new Set<(event: ProjectEvent) => void>();
   const versionListeners = new Set<(event: VersionEvent) => void>();
@@ -473,6 +500,44 @@ export async function createEditor(options: EditorOptions = {}) {
         return p;
       },
     },
+    library: {
+      async list() {
+        return (await library()).list();
+      },
+      async apply(operation: LibraryOperation, expectedRevision: number) {
+        const result = await (
+          await library()
+        ).apply(operation, expectedRevision);
+        libraryChanged();
+        libraryBroadcast.postMessage('changed');
+        return result;
+      },
+      async place(
+        assetId: string | null,
+        directories: string[],
+        parentId: string | null = null,
+      ) {
+        const result = await (
+          await library()
+        ).place(assetId, directories, parentId);
+        libraryChanged();
+        libraryBroadcast.postMessage('changed');
+        return result;
+      },
+      async download(entryId: string) {
+        return (await library()).download(entryId);
+      },
+      async file(entryId: string) {
+        return (await library()).file(entryId);
+      },
+      subscribe(listener: () => void) {
+        active();
+        libraryListeners.add(listener);
+        return () => {
+          libraryListeners.delete(listener);
+        };
+      },
+    },
     assets: {
       analyze(assetId: string, indexRunId?: string) {
         return run<AssetIndexRun>(indexing, 'analyzeAsset', {
@@ -548,7 +613,16 @@ export async function createEditor(options: EditorOptions = {}) {
         },
       },
       import(file: Blob, name = file instanceof File ? file.name : 'media') {
-        return run<Asset>(background, 'import', { file, name });
+        const job = run<Asset>(background, 'import', { file, name });
+        void job.completion
+          .then(() => {
+            if (!disposed) {
+              libraryChanged();
+              libraryBroadcast.postMessage('changed');
+            }
+          })
+          .catch(() => {});
+        return job;
       },
       async inspect(id: string) {
         active();
@@ -1040,6 +1114,10 @@ export async function createEditor(options: EditorOptions = {}) {
       broadcast.close();
       projectListeners.clear();
       versionListeners.clear();
+      libraryBroadcast.close();
+      libraryListeners.clear();
+      if (libraryStore)
+        await (await libraryStore.catch(() => undefined))?.close();
       store.close();
       if (saveError) throw saveError;
     },

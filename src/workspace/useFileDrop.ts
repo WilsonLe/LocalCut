@@ -1,5 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { hasBlockingOverlay } from './overlays';
+import { captureUpload } from './folder-upload';
+import { showErrorToast } from './error-toast';
 
 function hasFiles(transfer: DataTransfer | null) {
   return (
@@ -10,7 +12,14 @@ function hasFiles(transfer: DataTransfer | null) {
 }
 
 /** Native file drops are separate from the library's pointer-based clip drags. */
-export function useFileDrop(enabled: boolean, onDrop: (files: File[]) => void) {
+export function useFileDrop(
+  enabled: boolean,
+  onDrop: (
+    files: File[],
+    directories: string[],
+    folderId: string | null,
+  ) => void,
+) {
   const [hovering, setHovering] = useState(false);
   const depth = useRef(0);
   const accept = useEffectEvent(
@@ -47,9 +56,26 @@ export function useFileDrop(enabled: boolean, onDrop: (files: File[]) => void) {
       event.preventDefault();
       event.stopPropagation();
       const allowed = accept(event.target);
-      const files = Array.from(event.dataTransfer!.files);
+      const read = captureUpload(event.dataTransfer!);
+      const folder =
+        event.target instanceof Element
+          ? event.target.closest<HTMLElement>('[data-library-folder]')?.dataset
+              .libraryFolder
+          : undefined;
       reset();
-      if (allowed && files.length) importFiles(files);
+      if (allowed)
+        void read()
+          .then(({ files, directories }) => {
+            if (accept(event.target) && (files.length || directories.length))
+              importFiles(
+                files,
+                directories,
+                folder && folder !== 'root' ? folder : null,
+              );
+          })
+          .catch((error: unknown) =>
+            showErrorToast(error, 'Could not update Media.'),
+          );
     };
     const escape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') reset();

@@ -8,7 +8,7 @@ export const skillCatalog = [
   {
     id: 'editing',
     description:
-      'Project naming, tracks, timeline edits, object keyframes, audio, searchable fonts/text templates, animated text, captions, LUT/color presets, audio EQ/noise reduction, blending, masks/tracking, chroma key, groups and transitions.',
+      'Media folders, file organization, project naming, tracks, timeline edits, object keyframes, audio, searchable fonts/text templates, animated text, captions, LUT/color presets, audio EQ/noise reduction, blending, masks/tracking, chroma key, groups and transitions.',
   },
   {
     id: 'export',

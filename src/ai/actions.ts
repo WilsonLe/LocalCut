@@ -1,3 +1,4 @@
+import type { LibraryOperation } from '../core/media-library';
 import type { EditReceipt } from '../core/commands';
 import type { Editor } from '../editor';
 import type { ExportOptions } from '../media/export';
@@ -5,6 +6,7 @@ import type { ExportOptions } from '../media/export';
 /** Service actions are reviewable requests, never callable by a model directly. */
 export type AssistantAction =
   | { type: 'undo' | 'redo' }
+  | { type: 'library'; operation: LibraryOperation; expectedRevision: number }
   | { type: 'export'; options: ExportOptions }
   | {
       type: 'transcribe';
@@ -34,10 +36,12 @@ export type AssistantActionResult =
       cueCount: number;
     }
   | { kind: 'indexing'; runId: string; assetId: string; sceneCount: number }
-  | { kind: 'preparation'; ready: boolean };
+  | { kind: 'preparation'; ready: boolean }
+  | { kind: 'library'; revision: number };
 
 /** An assistant may be embedded with just document editing, or the full engine. */
 export interface AssistantEditor {
+  library?: Pick<Editor['library'], 'list' | 'apply'>;
   tasks?: Editor['tasks'];
   masks?: Editor['masks'];
   projects: Pick<Editor['projects'], 'snapshot'>;
@@ -56,6 +60,7 @@ export interface AssistantCapabilities {
   indexingSupported?: boolean;
   indexing?: boolean;
   maskTracking?: boolean;
+  library?: boolean;
   undo: boolean;
   redo: boolean;
   export: boolean;
@@ -69,6 +74,7 @@ export function assistantCapabilities(
 ): AssistantCapabilities {
   return {
     maskTracking: !!editor.masks,
+    library: !!editor.library,
     undo: !!editor.commands.undo,
     redo: !!editor.commands.redo,
     export: !!editor.exports,

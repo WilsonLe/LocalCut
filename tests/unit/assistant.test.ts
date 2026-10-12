@@ -4230,6 +4230,7 @@ describe('complete capability discovery and recovery', () => {
     transcriptionPreparation: true,
     indexingSupported: true,
     maskTracking: true,
+    library: true,
     indexing: true,
   };
   it.each([
@@ -4240,6 +4241,7 @@ describe('complete capability discovery and recovery', () => {
     ['prepare_transcription', 'transcription', 'transcriptionPreparation'],
     ['index_asset', 'indexing', 'indexing'],
     ['track_mask', 'editing', 'maskTracking'],
+    ['library', 'editing', 'library'],
   ] as const)(
     'distinguishes support, loading and declaration for %s',
     (type, skill, flag) => {
@@ -4282,6 +4284,7 @@ describe('complete capability discovery and recovery', () => {
       'search_asset_index',
       'read_asset_index',
       'inspect_project',
+      'inspect_library',
       'inspect_storyboard',
       'inspect_asset',
       'inspect_timeline',
@@ -4296,6 +4299,7 @@ describe('complete capability discovery and recovery', () => {
       'propose_action',
     ]);
     expect(Object.keys(open.actions)).toEqual([
+      'library',
       'undo',
       'redo',
       'export',
@@ -5307,4 +5311,133 @@ describe('requested chat execution', () => {
     await a.dispose();
     await jobs.dispose();
   });
+});
+
+it('discovers folders with withheld names and executes authorized library changes through the shared owner', async () => {
+  const f = fixture();
+  const state: import('../../src/core/media-library').LibrarySnapshot = {
+    revision: 3,
+    entries: [
+      { id: 'folder', parentId: null, kind: 'folder', name: 'Private folder' },
+      {
+        id: 'entry',
+        parentId: 'folder',
+        kind: 'asset',
+        assetId: 'asset',
+        name: 'Private clip.mp4',
+      },
+      {
+        id: 'unselected',
+        parentId: null,
+        kind: 'asset',
+        assetId: 'other',
+        name: 'Unshared original.mp4',
+      },
+    ],
+  };
+  f.editor.library = {
+    list: vi.fn(async () => structuredClone(state)),
+    apply: vi.fn(async (operation, revision) => {
+      expect(revision).toBe(3);
+      if (operation.type === 'rename') state.entries[0]!.name = operation.name;
+      state.revision++;
+      return structuredClone(state);
+    }),
+  };
+  const p = provider(
+    [
+      [final('', [call('load_skill', { skillId: 'editing' })])],
+      [final('', [call('inspect_library', {})])],
+      [
+        final('', [
+          call('propose_action', {
+            summary: 'Rename the folder',
+            action: {
+              type: 'library',
+              expectedRevision: 3,
+              operation: { type: 'rename', entryId: 'folder', name: 'Shots' },
+            },
+          }),
+        ]),
+      ],
+      [final()],
+    ],
+    false,
+  );
+  const a = createAssistant({
+    editor: f.editor,
+    provider: p,
+    projectId: f.project().id,
+    model: 'test/model',
+    execution: 'requested',
+  });
+  await a.run('Rename this folder Shots').completion;
+  expect(f.editor.library.apply).toHaveBeenCalledWith(
+    { type: 'rename', entryId: 'folder', name: 'Shots' },
+    3,
+  );
+  expect(state.entries[0]!.name).toBe('Shots');
+  const toolContent = p.requests
+    .flatMap((request) => request.messages)
+    .filter((message) => message.role === 'tool')
+    .map((message) => message.content)
+    .join('');
+  expect(toolContent).not.toContain('Private folder');
+  expect(toolContent).not.toContain('Private clip.mp4');
+  expect(toolContent).not.toContain('Unshared original');
+  await a.dispose();
+});
+it('rejects folder actions containing an unselected asset before publishing or executing a proposal', async () => {
+  const f = fixture();
+  f.editor.library = {
+    list: vi.fn(async () => ({
+      revision: 0,
+      entries: [
+        {
+          id: 'folder',
+          parentId: null,
+          name: 'Folder',
+          kind: 'folder' as const,
+        },
+        {
+          id: 'private',
+          parentId: 'folder',
+          name: 'Other',
+          kind: 'asset' as const,
+          assetId: 'other',
+        },
+      ],
+    })),
+    apply: vi.fn(),
+  };
+  const p = provider(
+    [
+      [final('', [call('load_skill', { skillId: 'editing' })])],
+      [
+        final('', [
+          call('propose_action', {
+            summary: 'Delete folder',
+            action: {
+              type: 'library',
+              expectedRevision: 0,
+              operation: { type: 'trash', entryId: 'folder' },
+            },
+          }),
+        ]),
+      ],
+      [final()],
+    ],
+    false,
+  );
+  const a = createAssistant({
+    editor: f.editor,
+    provider: p,
+    projectId: f.project().id,
+    model: 'test/model',
+    execution: 'requested',
+  });
+  const result = await a.run('Delete folder').completion;
+  expect(result.proposalIds).toEqual([]);
+  expect(f.editor.library.apply).not.toHaveBeenCalled();
+  await a.dispose();
 });

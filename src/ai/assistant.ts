@@ -1,3 +1,5 @@
+import { libraryDescendants } from '../core/media-library';
+import type { LibraryOperation } from '../core/media-library';
 import { storyboardContext } from './context';
 import type { AssetIndexRun } from '../core/asset-index';
 import type { CommandBatch, EditReceipt } from '../core/commands';
@@ -288,6 +290,36 @@ export function createAssistant(options: AssistantOptions) {
     : undefined;
   const indexing = options.indexing ? { ...options.indexing } : undefined;
   const checkpoint = options.branch ? branches.get(options.branch) : undefined;
+  async function validateLibraryScope(
+    operation: LibraryOperation,
+    expectedRevision: number,
+    allowed: ReadonlySet<string>,
+  ) {
+    aiInvariant(
+      editor.library,
+      'TOOL_NOT_ALLOWED',
+      'Media library is unavailable.',
+    );
+    const library = await editor.library.list();
+    aiInvariant(
+      library.revision === expectedRevision,
+      'REVISION_CONFLICT',
+      'Media changed. Inspect the library again.',
+    );
+    if (operation.type !== 'create') {
+      const affected = libraryDescendants(library.entries, operation.entryId);
+      aiInvariant(
+        affected.length,
+        'EDIT_REJECTED',
+        'Library entry no longer exists.',
+      );
+      aiInvariant(
+        affected.every((entry) => !entry.assetId || allowed.has(entry.assetId)),
+        'TOOL_NOT_ALLOWED',
+        'Select every asset in this folder before changing it.',
+      );
+    }
+  }
   const selectedAssetIds = checkpoint
     ? [...new Set([...checkpoint.assetIds, ...(options.assetIds ?? [])])]
     : [...(options.assetIds ?? [])];
@@ -889,6 +921,30 @@ export function createAssistant(options: AssistantOptions) {
                 signal.removeEventListener('abort', abort);
               }
             }
+            case 'inspect_library': {
+              aiInvariant(
+                editor.library,
+                'TOOL_NOT_ALLOWED',
+                'Media library is unavailable.',
+              );
+              const library = await interruptible(
+                editor.library.list(),
+                signal,
+              );
+              check();
+              return {
+                revision: library.revision,
+                entries: library.entries
+                  .filter(
+                    (entry) =>
+                      !entry.assetId || availableAssets.has(entry.assetId),
+                  )
+                  .map(({ name, ...entry }) => ({
+                    ...entry,
+                    ...(policy.includeAssetNames ? { name } : {}),
+                  })),
+              };
+            }
             case 'inspect_asset': {
               aiInvariant(
                 availableAssets.has(args.assetId as string),
@@ -965,24 +1021,32 @@ export function createAssistant(options: AssistantOptions) {
                 'Action requires a loaded skill and a supported local service.',
               );
               const supported =
-                action.type === 'undo'
-                  ? capabilities.undo
-                  : action.type === 'redo'
-                    ? capabilities.redo
-                    : action.type === 'export'
-                      ? capabilities.export
-                      : action.type === 'track_mask'
-                        ? capabilities.maskTracking
-                        : action.type === 'index_asset'
-                          ? canIndex()
-                          : action.type === 'transcribe'
-                            ? capabilities.transcription
-                            : capabilities.transcriptionPreparation;
+                action.type === 'library'
+                  ? capabilities.library
+                  : action.type === 'undo'
+                    ? capabilities.undo
+                    : action.type === 'redo'
+                      ? capabilities.redo
+                      : action.type === 'export'
+                        ? capabilities.export
+                        : action.type === 'track_mask'
+                          ? capabilities.maskTracking
+                          : action.type === 'index_asset'
+                            ? canIndex()
+                            : action.type === 'transcribe'
+                              ? capabilities.transcription
+                              : capabilities.transcriptionPreparation;
               aiInvariant(
                 supported,
                 'TOOL_NOT_ALLOWED',
                 'This local service is unavailable.',
               );
+              if (action.type === 'library')
+                await validateLibraryScope(
+                  action.operation,
+                  action.expectedRevision,
+                  availableAssets,
+                );
               if (action.type === 'track_mask') {
                 const clip = snapshot.tracks
                   .flatMap((track) => track.clips)
@@ -1690,7 +1754,19 @@ export function createAssistant(options: AssistantOptions) {
               'The project changed. Request a new proposal.',
             );
             const action = proposal.action;
-            if (action.type === 'undo' || action.type === 'redo') {
+            if (action.type === 'library') {
+              await validateLibraryScope(
+                action.operation,
+                action.expectedRevision,
+                new Set([...assetIds(current), ...selectedAssetIds]),
+              );
+              cancelled(controller.signal);
+              const library = await editor.library!.apply(
+                action.operation,
+                action.expectedRevision,
+              );
+              result = { kind: 'library', revision: library.revision };
+            } else if (action.type === 'undo' || action.type === 'redo') {
               const history = editor.commands[action.type];
               aiInvariant(
                 history,

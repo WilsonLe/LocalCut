@@ -17,7 +17,17 @@ export async function readWorkspaceProject(engine: Editor, id: string) {
       ),
     ),
   ];
-  const assets = await Promise.all(ids.map((id) => engine.assets.inspect(id)));
+  // A quota/missing-file problem in organization must not prevent opening edits.
+  const library = await engine.library.list().catch(() => ({ entries: [] }));
+  // Trash also needs source metadata when no timeline references remain.
+  const libraryIds = library.entries.flatMap((entry) =>
+    entry.assetId ? [entry.assetId] : [],
+  );
+  const assets = await Promise.all(
+    [...new Set([...ids, ...libraryIds])].map((id) =>
+      engine.assets.inspect(id),
+    ),
+  );
   return { project, assets };
 }
 
