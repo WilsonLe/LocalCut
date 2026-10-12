@@ -359,7 +359,7 @@ export default function ConversationSession({
       activeTurn = session.run(requestPrompt);
       if (!resuming && !titleAttempted.current) {
         titleAttempted.current = true;
-        onTitle(text.slice(0, 80));
+        onTitle(text);
         const controller = new AbortController();
         titleRequest.current = controller;
         void connection.api
@@ -576,13 +576,11 @@ export default function ConversationSession({
         )
           throw new Error('Choose a ready image asset.');
         if (!mounted.current) return;
-        setAttachments((current) =>
-          [
-            ...new Map(
-              [...current, ...images].map((asset) => [asset.id, asset]),
-            ).values(),
-          ].slice(0, 8),
-        );
+        setAttachments((current) => [
+          ...new Map(
+            [...current, ...images].map((asset) => [asset.id, asset]),
+          ).values(),
+        ]);
         composer.current?.focus();
         onDraftChange(true);
       } catch (error) {
@@ -1050,7 +1048,6 @@ export default function ConversationSession({
             placeholder={
               messages.length ? 'Follow up…' : 'What would you like to change?'
             }
-            maxLength={100000}
             className="min-h-0 resize-none rounded-none border-0 bg-transparent px-4 py-3 leading-5 shadow-none focus-visible:ring-0"
             onKeyDown={(event) => {
               if (
@@ -1081,9 +1078,7 @@ export default function ConversationSession({
                 active={active}
                 disabled={readOnly || running || applying}
                 onText={(text) => {
-                  setPrompt((current) =>
-                    ((current ? current + ' ' : '') + text).slice(0, 100000),
-                  );
+                  setPrompt((current) => (current ? current + ' ' : '') + text);
                   onDraftChange(true);
                 }}
                 onError={setFailure}

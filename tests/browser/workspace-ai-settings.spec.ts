@@ -463,7 +463,7 @@ for (const base of ['/', '/LocalCut/']) {
         name: 'Small context model · test/small',
         exact: true,
       }),
-    ).toHaveCount(0);
+    ).toBeVisible();
     await page
       .getByRole('combobox', { name: 'Search models', exact: true })
       .press('Escape');

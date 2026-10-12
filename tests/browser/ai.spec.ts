@@ -28,7 +28,7 @@ async function mockCatalog(context: BrowserContext) {
           {
             id: model,
             name: 'Test model',
-            context_length: 512000,
+            context_length: 128000,
             supported_parameters: ['tools', 'tool_choice'],
             architecture: {
               input_modalities: ['text'],
@@ -185,7 +185,7 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
   });
 
-  test(`assistant tool budgets finish with approval and durable queue success ${base}`, async ({
+  test(`uncapped assistant completes long workflows with approval and durable queue success ${base}`, async ({
     page,
     context,
   }) => {
@@ -218,9 +218,11 @@ for (const base of ['/', '/LocalCut/']) {
         });
         let calls;
         if (step === 1) calls = [tool('load_skill', { skillId: 'editing' })];
-        else if (scenario === 'long' && step < 9)
-          calls = [tool('inspect_project', {})];
-        else if (step === (scenario === 'long' ? 9 : 2))
+        else if (scenario === 'long' && step < 32)
+          calls = Array.from({ length: 10 }, (_, index) =>
+            tool('inspect_project', {}, index),
+          );
+        else if (step === (scenario === 'long' ? 32 : 2))
           calls = [
             tool('propose_edits', {
               summary: 'Add a track',
@@ -229,6 +231,13 @@ for (const base of ['/', '/LocalCut/']) {
                   type: 'addTrack',
                   track: { id: `track-${scenario}`, kind: 'video' },
                 },
+                ...(scenario === 'long'
+                  ? Array.from({ length: 1000 }, () => ({
+                      type: 'updateTrack',
+                      trackId: `track-${scenario}`,
+                      patch: { muted: false },
+                    }))
+                  : []),
               ],
             }),
           ];
@@ -304,6 +313,7 @@ for (const base of ['/', '/LocalCut/']) {
                 text: response.text,
                 proposals: response.proposalIds.length,
                 status: proposal.status,
+                operations: proposal.batch.operations.length,
                 unchanged,
                 taskState: task?.state,
                 attempts: task?.attempts,
@@ -334,6 +344,7 @@ for (const base of ['/', '/LocalCut/']) {
         text: 'Track pending approval. Request the next step when ready.',
         proposals: 1,
         status: 'pending',
+        operations: scenario === 'long' ? 1001 : 1,
         unchanged: true,
         taskState: 'completed',
         attempts: 1,
@@ -348,7 +359,14 @@ for (const base of ['/', '/LocalCut/']) {
     ]);
     expect(
       requests.filter((request) => request.scenario === 'long'),
-    ).toHaveLength(10);
+    ).toHaveLength(33);
+    const longRequests = requests.filter(
+      (request) => request.scenario === 'long',
+    );
+    expect(longRequests.at(-1)!.messages.length).toBeGreaterThan(256);
+    expect(longRequests.every((request) => request.tools.length > 0)).toBe(
+      true,
+    );
     for (const scenario of ['rounds', 'calls', 'overflow']) {
       const final = requests
         .filter((request) => request.scenario === scenario)

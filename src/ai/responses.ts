@@ -1,5 +1,5 @@
 import { AiError, aiInvariant } from './errors';
-import { dataEvents, PROTOCOL_LIMITS } from './protocol';
+import { dataEvents } from './protocol';
 import { validateRequest } from './openrouter';
 import type {
   AssistantMessage,
@@ -48,11 +48,6 @@ export function responsesBody(request: ChatRequest): string {
     stream: true,
     parallel_tool_calls: false,
   });
-  aiInvariant(
-    new TextEncoder().encode(body).length <= 2097152,
-    'INVALID_REQUEST',
-    'AI request exceeded the size limit.',
-  );
   return body;
 }
 /** The terminal completed response is validated fully before executable calls are exposed. */
@@ -95,8 +90,7 @@ export async function* parseResponses(
       aiInvariant(
         object(result) &&
           result.status === 'completed' &&
-          Array.isArray(result.output) &&
-          result.output.length <= 128,
+          Array.isArray(result.output),
         'INVALID_RESPONSE',
         'Invalid completed ChatGPT response.',
       );
@@ -137,13 +131,10 @@ export async function* parseResponses(
           aiInvariant(
             typeof item.call_id === 'string' &&
               item.call_id.length > 0 &&
-              item.call_id.length <= 1024 &&
               !ids.has(item.call_id) &&
               typeof item.name === 'string' &&
-              /^[A-Za-z0-9_-]{1,128}$/.test(item.name) &&
-              typeof item.arguments === 'string' &&
-              item.arguments.length <= PROTOCOL_LIMITS.toolArgumentCharacters &&
-              calls.length < PROTOCOL_LIMITS.toolCalls,
+              /^[A-Za-z0-9_-]+$/.test(item.name) &&
+              typeof item.arguments === 'string',
             'INVALID_RESPONSE',
             'Invalid ChatGPT function call.',
           );

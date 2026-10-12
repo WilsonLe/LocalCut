@@ -18,7 +18,7 @@ export function byteLength(value: unknown): number {
 }
 
 export function boundedContext<T>(value: T, maxBytes: number): T {
-  if (byteLength(value) > maxBytes)
+  if (Number.isFinite(maxBytes) && byteLength(value) > maxBytes)
     throw new AiError(
       'CONTEXT_LIMIT',
       'Selected context exceeds the configured limit.',

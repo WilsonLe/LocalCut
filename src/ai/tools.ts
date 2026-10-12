@@ -31,7 +31,7 @@ const operationsSchema = z
   .object({ operations: batchSchema.shape.operations })
   .strict();
 const proposalSchema = operationsSchema.extend({
-  summary: z.string().min(1).max(2000),
+  summary: z.string().min(1),
 });
 const time = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const exportOptionsSchema = z
@@ -79,20 +79,20 @@ const schemas = {
     .strict(),
   search_asset_index: z
     .object({
-      query: z.string().max(256),
-      offset: z.number().int().min(0).max(100000).optional(),
-      limit: z.number().int().min(1).max(20).optional(),
+      query: z.string(),
+      offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+      limit: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
     })
     .strict(),
   read_asset_index: assetSchema.extend({
-    offset: z.number().int().min(0).max(100000).optional(),
-    limit: z.number().int().min(1).max(20).optional(),
+    offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+    limit: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
   }),
   inspect_project: emptySchema,
   inspect_storyboard: z
     .object({
-      offset: z.number().int().min(0).max(5000).default(0),
-      limit: z.number().int().min(1).max(100).default(50),
+      offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).default(0),
+      limit: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).default(50),
     })
     .strict(),
   inspect_asset: assetSchema,
@@ -101,9 +101,9 @@ const schemas = {
   search_text_library: z
     .object({
       kind: z.enum(['fonts', 'templates']),
-      query: z.string().max(256).default(''),
-      offset: z.number().int().min(0).max(100000).default(0),
-      limit: z.number().int().min(1).max(20).default(10),
+      query: z.string().default(''),
+      offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).default(0),
+      limit: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).default(10),
     })
     .strict(),
   inspect_transcription: emptySchema,
@@ -114,7 +114,7 @@ const schemas = {
   propose_edits: proposalSchema,
   propose_action: z
     .object({
-      summary: z.string().min(1).max(2000),
+      summary: z.string().min(1),
       action: actionSchema,
     })
     .strict(),
@@ -317,7 +317,7 @@ export function parseTool(
       'INVALID_TOOL_ARGUMENTS',
       'Tool arguments do not match the tool schema.',
       {
-        issues: result.error.issues.slice(0, 8).map((issue) => ({
+        issues: result.error.issues.map((issue) => ({
           code: issue.code,
           path: issue.path
             .filter(

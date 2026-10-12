@@ -8,12 +8,29 @@ import type {
   ReasoningDetail,
 } from './types.ts';
 
-/** Structural tool/metadata bounds apply before tool execution; chat output has no size cap. */
+/** Optional caller-owned deadline. Long durations are scheduled in native timer-sized pieces. */
+export function requestDeadline(
+  timeout: number | undefined,
+  expire: () => void,
+) {
+  if (timeout === undefined) return () => {};
+  const deadline = Date.now() + timeout;
+  let timer: ReturnType<typeof setTimeout>;
+  const schedule = () => {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      expire();
+      return;
+    }
+    timer = setTimeout(schedule, Math.min(remaining, 2_147_483_647));
+  };
+  schedule();
+  return () => clearTimeout(timer);
+}
+
+/** Non-chat JSON discovery retains its own bound; streamed chat payloads have no size/count cap. */
 export const PROTOCOL_LIMITS = Object.freeze({
-  toolArgumentCharacters: 262_144,
-  toolCalls: 32,
   jsonBytes: 8_388_608,
-  reasoningBlocks: 128,
 });
 const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -23,8 +40,8 @@ const invalid = (): never => {
     'OpenRouter returned an invalid response.',
   );
 };
-const boundedString = (value: unknown, max: number): value is string =>
-  typeof value === 'string' && value.length <= max;
+const validString = (value: unknown): value is string =>
+  typeof value === 'string';
 
 type ReasoningMetadata = Pick<
   AssistantMessage,
@@ -69,15 +86,13 @@ function validateReasoningPart(
         String(value.type),
       ),
     );
-  if (value.id !== undefined)
-    check(value.id === null || boundedString(value.id, 1024));
-  if (value.format !== undefined) check(boundedString(value.format, 128));
+  if (value.id !== undefined) check(value.id === null || validString(value.id));
+  if (value.format !== undefined) check(validString(value.format));
   if (value.index !== undefined)
     check(
       typeof value.index === 'number' &&
         Number.isSafeInteger(value.index) &&
-        value.index >= 0 &&
-        value.index <= 2_147_483_647,
+        value.index >= 0,
     );
   for (const key of contentKeys) {
     if (value[key] !== undefined)
@@ -119,8 +134,7 @@ export function validateReasoningMetadata(
   }
   if (value.reasoning_details !== undefined) {
     aiInvariant(
-      Array.isArray(value.reasoning_details) &&
-        value.reasoning_details.length <= PROTOCOL_LIMITS.reasoningBlocks,
+      Array.isArray(value.reasoning_details),
       code,
       'Invalid provider reasoning metadata.',
     );
@@ -173,11 +187,6 @@ class ReasoningAccumulator {
         if (!block) {
           block = {};
           this.details.push(block);
-          aiInvariant(
-            this.details.length <= PROTOCOL_LIMITS.reasoningBlocks,
-            'RESPONSE_LIMIT',
-            'Provider reasoning metadata exceeded the block limit.',
-          );
           if (typeof fragment.index === 'number')
             this.indexed.set(fragment.index, block);
         }
@@ -412,7 +421,7 @@ export async function* parseChatStream(
           );
     }
     if (frame.model !== undefined) {
-      if (!boundedString(frame.model, 256)) return invalid();
+      if (!validString(frame.model)) return invalid();
       model = frame.model;
     }
     const hasUsage = frame.usage !== undefined && frame.usage !== null;
@@ -468,9 +477,8 @@ export async function* parseChatStream(
         if (
           !object(value) ||
           typeof value.index !== 'number' ||
-          !Number.isInteger(value.index) ||
-          value.index < 0 ||
-          value.index >= PROTOCOL_LIMITS.toolCalls
+          !Number.isSafeInteger(value.index) ||
+          value.index < 0
         )
           return invalid();
         const call = calls.get(value.index) ?? {
@@ -481,10 +489,7 @@ export async function* parseChatStream(
         if (value.type !== undefined && value.type !== 'function')
           return invalid();
         if (value.id !== undefined) {
-          if (
-            !boundedString(value.id, 256) ||
-            (call.id && call.id !== value.id)
-          )
+          if (!validString(value.id) || (call.id && call.id !== value.id))
             return invalid();
           call.id = value.id;
         }
@@ -492,20 +497,13 @@ export async function* parseChatStream(
           if (!object(value.function)) return invalid();
           const fn = value.function;
           if (fn.name !== undefined) {
-            if (!boundedString(fn.name, 128)) return invalid();
+            if (!validString(fn.name)) return invalid();
             call.function.name += fn.name;
-            if (!/^[A-Za-z0-9_-]{1,128}$/.test(call.function.name))
-              return invalid();
+            if (!/^[A-Za-z0-9_-]+$/.test(call.function.name)) return invalid();
           }
           if (fn.arguments !== undefined) {
             if (typeof fn.arguments !== 'string') return invalid();
             call.function.arguments += fn.arguments;
-            aiInvariant(
-              call.function.arguments.length <=
-                PROTOCOL_LIMITS.toolArgumentCharacters,
-              'RESPONSE_LIMIT',
-              'AI tool arguments exceeded the size limit.',
-            );
           }
         }
         calls.set(value.index, call);
