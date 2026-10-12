@@ -25,4 +25,4 @@ pnpm test:browser tests/browser/history.spec.ts tests/browser/recovery.spec.ts
 The Chrome command requires current production builds; follow the
 [build and test recipes](../../docs/development.md). Use isolated test namespaces.
 
-- `media-library.ts` owns real named OPFS folders and the library sidecar. Retain immutable editing originals, journal copy/publication/cleanup, serialize namespace changes and check the separate library revision. Trash is reversible and layout stays outside existing backups. Use the [media folder contract](../../docs/storage.md#media-folder-library) and [focused folder checks](../../docs/development.md#media-folder-checks).
+- `media-library.ts` owns real named OPFS folders and the library sidecar. Retain immutable editing originals, journal copy/publication/cleanup, serialize project-scoped changes, retain legacy migration copies and check the separate library revision. Trash is reversible and layout stays outside existing backups. Use the [media folder contract](../../docs/storage.md#media-folder-library) and [focused folder checks](../../docs/development.md#media-folder-checks).

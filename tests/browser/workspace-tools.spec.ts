@@ -112,6 +112,8 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Create project', exact: true })
       .click();
+    // Creation may close its dialog before project hydration/navigation finishes.
+    await page.getByRole('button', { name: 'Undo', exact: true }).waitFor();
     await openAISettings(page);
     const connection = page.getByRole('dialog', {
       name: 'AI connection',
@@ -363,6 +365,8 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Create project', exact: true })
       .click();
+    // Creation may close its dialog before project hydration/navigation finishes.
+    await page.getByRole('button', { name: 'Undo', exact: true }).waitFor();
     await openAISettings(page);
     const connection = page.getByRole('dialog', {
       name: 'AI connection',

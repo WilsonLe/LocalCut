@@ -5335,13 +5335,21 @@ it('discovers folders with withheld names and executes authorized library change
       },
     ],
   };
-  f.editor.library = {
+  const library: ReturnType<
+    NonNullable<typeof f.editor.library>['forProject']
+  > = {
     list: vi.fn(async () => structuredClone(state)),
     apply: vi.fn(async (operation, revision) => {
       expect(revision).toBe(3);
       if (operation.type === 'rename') state.entries[0]!.name = operation.name;
       state.revision++;
       return structuredClone(state);
+    }),
+  };
+  f.editor.library = {
+    forProject: vi.fn((id) => {
+      expect(id).toBe(f.project().id);
+      return library;
     }),
   };
   const p = provider(
@@ -5372,7 +5380,7 @@ it('discovers folders with withheld names and executes authorized library change
     execution: 'requested',
   });
   await a.run('Rename this folder Shots').completion;
-  expect(f.editor.library.apply).toHaveBeenCalledWith(
+  expect(library.apply).toHaveBeenCalledWith(
     { type: 'rename', entryId: 'folder', name: 'Shots' },
     3,
   );
@@ -5389,7 +5397,9 @@ it('discovers folders with withheld names and executes authorized library change
 });
 it('rejects folder actions containing an unselected asset before publishing or executing a proposal', async () => {
   const f = fixture();
-  f.editor.library = {
+  const library: ReturnType<
+    NonNullable<typeof f.editor.library>['forProject']
+  > = {
     list: vi.fn(async () => ({
       revision: 0,
       entries: [
@@ -5409,6 +5419,12 @@ it('rejects folder actions containing an unselected asset before publishing or e
       ],
     })),
     apply: vi.fn(),
+  };
+  f.editor.library = {
+    forProject: vi.fn((id) => {
+      expect(id).toBe(f.project().id);
+      return library;
+    }),
   };
   const p = provider(
     [
@@ -5438,6 +5454,6 @@ it('rejects folder actions containing an unselected asset before publishing or e
   });
   const result = await a.run('Delete folder').completion;
   expect(result.proposalIds).toEqual([]);
-  expect(f.editor.library.apply).not.toHaveBeenCalled();
+  expect(library.apply).not.toHaveBeenCalled();
   await a.dispose();
 });

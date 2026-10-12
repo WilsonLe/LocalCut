@@ -532,10 +532,14 @@ for (const base of ['/', '/LocalCut/']) {
         try {
           const a = await editor.projects.snapshot(ids.a);
           const b = await editor.projects.snapshot(ids.b);
-          const library = await editor.library.list();
+          const libraries = await Promise.all(
+            [ids.a, ids.b].map((id) => editor.library.forProject(id).list()),
+          );
           return {
             clips: [a, b].map((p) => p.tracks.flatMap((t) => t.clips).length),
-            lateFolder: library.entries.some((e) => e.name === 'Late upload'),
+            lateFolder: libraries.some((library) =>
+              library.entries.some((e) => e.name === 'Late upload'),
+            ),
           };
         } finally {
           await editor.dispose();
@@ -544,5 +548,125 @@ for (const base of ['/', '/LocalCut/']) {
       { base, ids },
     );
     expect(result).toEqual({ clips: [0, 0], lateFolder: false });
+  });
+}
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`workspace project media roots reset navigation and keep unused media scoped ${base}`, async ({
+    page,
+  }) => {
+    await page.goto(base);
+    const ids = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const a = await editor.projects.create('Media A');
+        const b = await editor.projects.create('Media B');
+        const canvas = new OffscreenCanvas(16, 16);
+        canvas.getContext('2d')!.fillRect(0, 0, 16, 16);
+        const bytes = await canvas.convertToBlob();
+        for (const [projectId, name] of [
+          [a.id, 'A.png'],
+          [b.id, 'B.png'],
+        ] as const) {
+          const asset = await editor.assets.import(
+            new File([bytes], name, { type: 'image/png' }),
+          ).completion;
+          await editor.library.forProject(projectId).place(asset.id, ['Shots']);
+        }
+        return { a: a.id, b: b.id };
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    await page.goto(`${base}#/project/${ids.a}`);
+    await page
+      .getByRole('button', { name: 'Expand media', exact: true })
+      .click();
+    await page
+      .getByRole('button', { name: 'Open folder Shots', exact: true })
+      .click();
+    await expect(
+      page.getByRole('button', {
+        name: 'Asset details for A.png',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page
+      .getByRole('region', { name: 'Project media', exact: true })
+      .focus();
+    await page.keyboard.press('ControlOrMeta+a');
+    await expect(
+      page.getByRole('button', {
+        name: 'Asset details for A.png',
+        exact: true,
+      }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await page.evaluate((id) => {
+      location.hash = `/project/${id}`;
+    }, ids.b);
+    await expect(
+      page.getByRole('button', { name: 'Open folder Shots', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', {
+        name: 'Asset details for A.png',
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await page
+      .getByRole('button', { name: 'Open folder Shots', exact: true })
+      .click();
+    await expect(
+      page.getByRole('button', {
+        name: 'Asset details for B.png',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', {
+        name: 'Asset details for B.png',
+        exact: true,
+      }),
+    ).toHaveAttribute('aria-pressed', 'false');
+    await page.reload();
+    await expect(
+      page.getByRole('button', { name: 'Open folder Shots', exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole('button', { name: 'Open folder Shots', exact: true })
+      .click();
+    await expect(
+      page.getByRole('button', {
+        name: 'Asset details for B.png',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', {
+        name: 'Asset details for A.png',
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await page.evaluate((id) => {
+      location.hash = `/project/${id}`;
+    }, ids.a);
+    await page
+      .getByRole('button', { name: 'Open folder Shots', exact: true })
+      .click();
+    await expect(
+      page.getByRole('button', {
+        name: 'Asset details for A.png',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', {
+        name: 'Asset details for B.png',
+        exact: true,
+      }),
+    ).toHaveCount(0);
   });
 }

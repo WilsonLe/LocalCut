@@ -482,6 +482,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 ## Media folders — 12 October 2026
 
+- Give every project a different app-owned root directory, keyed by its stable project ID. Folder contents, navigation, revisions and Trash belong to that project.
 - Organize Media as real folders in the browser-private filesystem, with a fixed app-owned root and no root picker. This supersedes the initially requested computer-visible folder.
 - Support recursive folder upload/drop, new folders, breadcrumbs, rename, move, copy, delete/restore, download and dragging media into folders. Keep assets independently of timeline placement.
 - Preserve editing originals for current projects, undo and saved versions when organizing or deleting library entries.

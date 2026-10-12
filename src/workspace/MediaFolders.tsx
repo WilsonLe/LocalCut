@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import type {
   Editor,
   LibraryEntry,
@@ -35,10 +35,15 @@ import { libraryDescendants, libraryPath } from '../core/media-library-path';
 
 export function useMediaFolders(
   editor: Editor | null,
+  projectId: string | undefined,
   enabled: boolean,
   assets: unknown,
   onChanged: () => Promise<unknown>,
 ) {
+  const library = useMemo(
+    () => (editor && projectId ? editor.library.forProject(projectId) : null),
+    [editor, projectId],
+  );
   const [snapshot, setSnapshot] = useState<LibrarySnapshot>({
     revision: 0,
     entries: [],
@@ -46,20 +51,24 @@ export function useMediaFolders(
   const [parentId, setParentId] = useState<string | null>(null);
   const [trash, setTrash] = useState(false);
   const [pending, setPending] = useState(false);
-  const [owner, setOwner] = useState<Editor | null>(null);
+  const [owner, setOwner] = useState<ReturnType<
+    Editor['library']['forProject']
+  > | null>(null);
   const [failure, setFailure] = useState('');
   const generation = useRef(0);
-  const loaded = owner === editor && !!editor && enabled;
+  const loaded = owner === library && !!library && enabled;
   const reload = useCallback(async () => {
     const token = generation.current;
-    if (!editor || !enabled) return;
+    if (!library || !enabled) return;
     try {
-      const next = await editor.library.list();
+      const next = await library.list();
       if (token !== generation.current) return;
       setSnapshot((previous) =>
-        owner === editor && previous.revision > next.revision ? previous : next,
+        owner === library && previous.revision > next.revision
+          ? previous
+          : next,
       );
-      setOwner(editor);
+      setOwner(library);
       setFailure('');
     } catch (error) {
       if (token === generation.current) {
@@ -69,12 +78,12 @@ export function useMediaFolders(
         showErrorToast(error, 'Could not update Media.');
       }
     }
-  }, [editor, enabled, owner]);
+  }, [library, enabled, owner]);
   useEffect(() => {
     const token = ++generation.current;
-    if (!editor || !enabled) return;
+    if (!library || !enabled) return;
     void Promise.resolve().then(reload);
-    const stop = editor.library.subscribe(() => {
+    const stop = library.subscribe(() => {
       void reload()
         .then(onChanged)
         .catch((error: unknown) =>
@@ -85,7 +94,7 @@ export function useMediaFolders(
       generation.current = token + 1;
       stop();
     };
-  }, [editor, enabled, assets, reload, onChanged]);
+  }, [library, enabled, assets, reload, onChanged]);
   const activeFolder = snapshot.entries.find((e) => e.id === parentId);
   const isTrashed = (entry: LibraryEntry): boolean =>
     !!entry.trashed ||
@@ -107,11 +116,11 @@ export function useMediaFolders(
     operation: LibraryOperation,
     expectedRevision = snapshot.revision,
   ) => {
-    if (!editor || !enabled || pending || !loaded)
+    if (!library || !enabled || pending || !loaded)
       throw new Error('Wait for Media to finish loading.');
     setPending(true);
     try {
-      const next = await editor.library.apply(operation, expectedRevision);
+      const next = await library.apply(operation, expectedRevision);
       setSnapshot(next);
       await onChanged();
     } catch (error) {
@@ -128,6 +137,7 @@ export function useMediaFolders(
     ancestor = snapshot.entries.find((e) => e.id === ancestor!.parentId);
   }
   return {
+    library,
     snapshot,
     parentId: currentParent,
     trash,
@@ -330,8 +340,8 @@ export function LibraryActions({
           className={assetMenuItemClass}
           onClick={() => {
             if (editor)
-              void editor.library
-                .download(entry.id)
+              void state
+                .library!.download(entry.id)
                 .then((file) => downloadFile(file, file.name))
                 .catch((error: unknown) =>
                   showErrorToast(error, 'Could not update Media.'),

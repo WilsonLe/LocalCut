@@ -55,6 +55,7 @@ interface DragPosition {
 }
 
 export default function MediaLibrary({
+  projectId,
   editor,
   indexConnection,
   readOnly,
@@ -72,6 +73,7 @@ export default function MediaLibrary({
   onImportFiles,
   onLibraryChanged,
 }: {
+  projectId: string | undefined;
   editor: Editor | null;
   indexConnection: IndexConnection | null;
   readOnly: boolean;
@@ -93,7 +95,13 @@ export default function MediaLibrary({
   ) => Promise<unknown>;
   onLibraryChanged: () => Promise<unknown>;
 }) {
-  const folders = useMediaFolders(editor, !readOnly, assets, onLibraryChanged);
+  const folders = useMediaFolders(
+    editor,
+    projectId,
+    !readOnly,
+    assets,
+    onLibraryChanged,
+  );
   const folderDialog = useFolderDialog(folders.snapshot.revision);
   const folderInput = useRef<HTMLInputElement>(null);
   const libraryInput = useRef<HTMLInputElement>(null);
@@ -124,6 +132,7 @@ export default function MediaLibrary({
     : assets.map((asset) => ({ asset, entry: undefined }));
   const selectionScope = {
     editor,
+    projectId,
     parentId: folders.parentId,
     trash: folders.trash,
   };
@@ -133,6 +142,7 @@ export default function MediaLibrary({
   });
   if (
     selection.editor !== editor ||
+    selection.projectId !== projectId ||
     selection.parentId !== folders.parentId ||
     selection.trash !== folders.trash
   ) {

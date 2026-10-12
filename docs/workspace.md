@@ -349,6 +349,8 @@ Track mask computes local video translation from the draft region and stages edi
 
 ## Media folders
 
+Every project owns a distinct browser-private filesystem root keyed by project ID. Switching projects resets folder navigation and dialogs; in-flight uploads retain their initiating project. Project rename keeps its root. See [migration and recovery](storage.md#shared-library-migration) for existing shared-library data.
+
 Folders appear before files, with natural filename ordering. Import completion order does not rearrange the library. Pending directory traversal is discarded if its initiating project changes or the workspace unmounts.
 
 Media shows the browser-local library independently of timeline clips. The Home control returns to its root; folder buttons and breadcrumbs navigate directories. New folder and Upload folder appear beside navigation. Import media uploads into the current folder. Folder selection preserves relative paths; the browser's HTML folder picker does not expose empty directories. Directory drops preserve empty folders and drain every directory-reader batch. File/folder drops target the hovered folder or current Media directory; drops elsewhere import at the root.
