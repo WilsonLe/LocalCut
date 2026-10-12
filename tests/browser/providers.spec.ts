@@ -671,6 +671,7 @@ for (const base of ['/', '/LocalCut/']) {
       path: testInfo.outputPath('chatgpt-connection.png'),
     });
     await retryPopup.close();
+    await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Add provider', exact: true })
       .click();
