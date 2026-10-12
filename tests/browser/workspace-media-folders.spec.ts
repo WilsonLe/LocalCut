@@ -313,6 +313,9 @@ for (const base of ['/', '/LocalCut/']) {
         .getByRole('button', { name: 'Shots', exact: true })
         .focus();
       await page.keyboard.press('Enter');
+      await expect(
+        breadcrumbs.getByRole('button', { name: 'Shots', exact: true }),
+      ).toBeFocused();
       await expect(breadcrumbs.locator('[aria-current="page"]')).toHaveText(
         'Shots',
       );

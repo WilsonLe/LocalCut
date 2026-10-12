@@ -201,25 +201,18 @@ export function FolderBreadcrumbs({ state }: { state: MediaFoldersState }) {
           state.ancestors.map((folder, index) => (
             <li key={folder.id}>
               <ChevronRight aria-hidden="true" />
-              {index === state.ancestors.length - 1 ? (
-                <span
-                  aria-current="page"
-                  data-library-folder={folder.id}
-                  title={folder.name}
-                >
-                  {folder.name}
-                </span>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  data-library-folder={folder.id}
-                  title={folder.name}
-                  onClick={() => state.setParentId(folder.id)}
-                >
-                  {folder.name}
-                </Button>
-              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-current={
+                  index === state.ancestors.length - 1 ? 'page' : undefined
+                }
+                data-library-folder={folder.id}
+                title={folder.name}
+                onClick={() => state.setParentId(folder.id)}
+              >
+                {folder.name}
+              </Button>
             </li>
           ))
         )}
