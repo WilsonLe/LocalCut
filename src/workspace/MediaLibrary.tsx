@@ -312,7 +312,7 @@ export default function MediaLibrary({
         const command = resolveShortcut(event.nativeEvent, {
           inEditor: true,
           editable: !!target?.closest(
-            'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]',
+            'input,textarea,select,[contenteditable]:not([contenteditable=false]),[role=textbox]',
           ),
           dialogOpen: hasBlockingOverlay(),
         });
