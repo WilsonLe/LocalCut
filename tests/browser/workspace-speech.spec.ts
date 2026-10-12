@@ -1146,6 +1146,111 @@ for (const base of ['/', '/LocalCut/']) {
       { providerId: 'openrouter', model: 'openai/whisper-1' },
     ]);
   });
+  test(`restored legacy local speech retry keeps its route with remote STT configured ${base}`, async ({
+    page,
+    context,
+  }) => {
+    let synthesis = 0,
+      alignment = 0;
+    await context.route(
+      'https://openrouter.ai/api/v1/audio/speech',
+      (route) => {
+        synthesis++;
+        return route.fulfill({
+          headers: cors,
+          contentType: 'audio/pcm',
+          body: tone(),
+        });
+      },
+    );
+    const dialog = await connect(page, context, base);
+    await context.route(
+      'https://openrouter.ai/api/v1/audio/transcriptions',
+      (route) => {
+        alignment++;
+        return route.fulfill({
+          headers: cors,
+          json: { text: 'Untimed output' },
+        });
+      },
+    );
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect(
+      dialog.getByRole('button', { name: 'Retry timing', exact: true }),
+    ).toBeVisible();
+    expect(synthesis).toBe(1);
+    expect(alignment).toBe(1);
+    const taskId = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const task = (await editor.tasks.list()).find(
+          (item) => item.label === 'Generating speech',
+        )!;
+        const input = (await editor.tasks.input(
+          task.id,
+        )) as import('../../src/workspace/speech-tasks').SpeechTaskInput;
+        // Emulate an unfinished pre-change local take in this test's own sidecar.
+        // Current AI settings remain remote; restoration must retain old authority.
+        input.timingProvider = 'local';
+        delete input.timingRoute;
+        await new Promise<void>((resolve, reject) => {
+          const open = indexedDB.open('localcut-tasks-v1', 1);
+          open.onsuccess = () => {
+            const db = open.result;
+            const tx = db.transaction('inputs', 'readwrite');
+            tx.objectStore('inputs').put(input, task.id);
+            tx.oncomplete = () => {
+              db.close();
+              resolve();
+            };
+            tx.onerror = () => {
+              db.close();
+              reject(tx.error);
+            };
+          };
+          open.onerror = () => reject(open.error);
+        });
+        return task.id;
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    await page.reload();
+    await page
+      .getByRole('button', { name: 'Text to speech', exact: true })
+      .click();
+    await dialog
+      .getByRole('button', { name: 'Retry timing', exact: true })
+      .click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          async ({ base, taskId }) => {
+            const { createEditor } = (await import(
+              base + 'editor.js'
+            )) as typeof import('../../src/editor');
+            const editor = await createEditor();
+            try {
+              return (await editor.tasks.get(taskId))?.error?.code;
+            } finally {
+              await editor.dispose();
+            }
+          },
+          { base, taskId },
+        ),
+      )
+      .toBe('MODEL_REQUIRED');
+    await expect(
+      dialog.getByRole('button', { name: 'Retry timing', exact: true }),
+    ).toBeVisible();
+    expect(synthesis).toBe(1);
+    expect(alignment).toBe(1);
+  });
   test(`text to speech retains measured phrases and retries alignment without regenerating ${base}`, async ({
     page,
     context,

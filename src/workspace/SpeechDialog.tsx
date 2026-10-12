@@ -1158,6 +1158,26 @@ export default function SpeechDialog({
               variant="outline"
               onClick={() =>
                 run('Measuring phrase timing…', async (signal) => {
+                  const savedTask = generation
+                    ? await editor.tasks.get(generation)
+                    : undefined;
+                  if (signal.aborted || !active.current) return;
+                  // Retrying an unfinished request keeps its frozen recipients.
+                  // A completed legacy take instead starts a new measurement.
+                  if (savedTask && savedTask.state !== 'completed') {
+                    const job = await editor.tasks.retry(savedTask.id);
+                    const abort = () => job.cancel();
+                    signal.addEventListener('abort', abort, { once: true });
+                    try {
+                      if (signal.aborted) abort();
+                      await job.completion;
+                      if (active.current && !signal.aborted)
+                        await loadResult(savedTask.id);
+                    } finally {
+                      signal.removeEventListener('abort', abort);
+                    }
+                    return;
+                  }
                   const job = editor.transcription.measure(
                     audio.samples,
                     audio.sampleRate,
