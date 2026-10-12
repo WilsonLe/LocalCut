@@ -1540,8 +1540,9 @@
   }
   .touch-clip-picker {
     display: block;
-    width: 100%;
-    margin-bottom: 12px;
+    flex: 1 0 100px;
+    min-width: 100px;
+    max-width: 200px;
   }
   [data-sonner-toaster] {
     --offset-bottom: calc(84px + env(safe-area-inset-bottom)) !important;
@@ -1689,8 +1690,9 @@
   }
   .touch-clip-picker {
     display: block;
-    width: 100%;
-    margin-bottom: 12px;
+    flex: 1 0 100px;
+    min-width: 100px;
+    max-width: 200px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2555,5 +2557,20 @@
   }
   .timeline-viewport {
     overscroll-behavior-y: auto;
+  }
+}
+
+/* Keep touch selection in the history/action row; extra tools remain reachable. */
+@media (pointer: coarse),
+  (max-width: 700px),
+  (max-width: 1000px) and (max-height: 500px) {
+  .timeline-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .timeline-toolbar > div {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
   }
 }
