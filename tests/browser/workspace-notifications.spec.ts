@@ -1,3 +1,4 @@
+import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test } from '@playwright/test';
 
 // System clipboard is shared by Chrome contexts; keep these assertions serial.
@@ -255,8 +256,7 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await expect(details.getByRole('alert')).toContainText('Could not copy');
     await details.getByRole('button', { name: 'Close', exact: true }).click();
-    if (await toast.isVisible())
-      await toast.getByRole('button', { name: /Close toast/ }).click();
+    await dismissNotifications(page);
     await expect(toast).toHaveCount(0);
     await bell.click();
     await expect(log).toContainText('Could not check for updates');
