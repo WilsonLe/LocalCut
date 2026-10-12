@@ -106,12 +106,9 @@ for (const base of ['/', '/LocalCut/']) {
               m.content?.startsWith('Design a five-day Sydney storyboard'),
           )
           .at(-1);
-        const content =
-          prompt === 'keep going'
-            ? storyboard
-              ? 'Continuing your five-day Sydney storyboard.'
-              : 'All assets already indexed.'
-            : 'All assets already indexed.';
+        const content = storyboard
+          ? 'Continuing your five-day Sydney storyboard.'
+          : 'All assets already indexed.';
         await route.fulfill({
           headers: cors,
           contentType: 'text/event-stream',
@@ -199,7 +196,10 @@ for (const base of ['/', '/LocalCut/']) {
             await expect(input).toBeVisible();
             expect(requests).toHaveLength(count);
           }
-          await input.fill('keep going');
+          const followup = reload
+            ? 'Resume with three panels per day'
+            : 'Please finish the remaining panels';
+          await input.fill(followup);
           await send.click();
           await expect(responses.last()).toContainText(
             'Continuing your five-day Sydney storyboard.',
@@ -213,6 +213,7 @@ for (const base of ['/', '/LocalCut/']) {
           expect(JSON.stringify(requests.at(-1)!.messages)).toContain(
             'interrupted before completion',
           );
+          expect(requests.at(-1)!.messages.at(-1)?.content).toBe(followup);
           expect(requests).toHaveLength(count + 1);
         },
       );
@@ -228,7 +229,7 @@ for (const base of ['/', '/LocalCut/']) {
         page.getByRole('button', { name: 'Cancel response', exact: true }),
       ).toHaveCount(0);
       expect(requests).toHaveLength(count + 1);
-      await input.fill('keep going');
+      await input.fill('Try again with the retained storyboard context');
       await expect(send).toBeEnabled();
       await send.click();
       await expect(responses.last()).toContainText(

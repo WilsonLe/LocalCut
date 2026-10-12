@@ -9,6 +9,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 ## Chat execution — 12 October 2026
 
+- Preserve conversation continuity across interruption and reload for any follow-up message. Use retained context and the user's latest intent; do not special-case particular continuation phrases.
 - Infer authorization from the user's request and context. Execute requested editing, history, indexing, export and transcription work without Apply/Approve/Discard cards or a second confirmation.
 - Use best judgement to ask an ordinary text question only when information is missing or the intended outcome is ambiguous. Do not double-confirm already requested work because it has cost or consequences.
 - Keep sharing choices, original-media boundaries, cancellation, authoritative results and explicit file Save. A failed paid action needs a new user retry request; it must not retry silently.

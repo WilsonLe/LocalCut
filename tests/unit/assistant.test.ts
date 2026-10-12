@@ -1214,9 +1214,18 @@ describe('headless assistant boundaries', () => {
       await a.dispose();
     },
   );
-  it.each([false, true])(
-    'keeps interrupted storyboard intent and confirmed progress for typed continuation (partial text: %s)',
-    async (withText) => {
+  it.each(
+    [false, true].flatMap((withText) =>
+      [
+        'keep going',
+        'Please finish the remaining panels',
+        'Resume with three panels per day',
+        'Actually, set aside the storyboard and inspect the audio tracks',
+      ].map((followup) => [withText, followup] as const),
+    ),
+  )(
+    'keeps interrupted intent and confirmed progress for any follow-up (partial text: %s, message: %s)',
+    async (withText, followup) => {
       const f = fixture();
       const waiting = deferred<void>();
       let round = 0;
@@ -1261,14 +1270,14 @@ describe('headless assistant boundaries', () => {
       });
       expect(a.canBranch(turn.id)).toBe(false);
       expect(() => a.branch(turn.id)).toThrow();
-      const resumed = await a.run('keep going').completion;
+      const resumed = await a.run(followup).completion;
       const context = requests.at(-1)!.messages;
       expect(
         context.filter((m) => m.role === 'user').map((m) => m.content),
       ).toEqual([
         'Index all project assets',
         'Design a storyboard for my five-day Sydney trip',
-        'keep going',
+        followup,
       ]);
       const interruption = context.find(
         (m) =>
