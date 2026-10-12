@@ -100,10 +100,14 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(dialog.getByText('OpenRouter', { exact: true })).toHaveCount(
       0,
     );
-    await expect(dialog).toContainText('STT - Transcription');
     await selectAISettingsTab(page, 'STT - Transcription');
+    await expect(
+      dialog.getByRole('combobox', {
+        name: 'AI settings section',
+        exact: true,
+      }),
+    ).toContainText('STT - Transcription');
     await expect(dialog).toContainText('Local Whisper');
-    await dialog.getByText('STT - Transcription', { exact: true }).click();
     await dialog
       .getByRole('button', { name: 'Move Local server up in stt', exact: true })
       .click();
