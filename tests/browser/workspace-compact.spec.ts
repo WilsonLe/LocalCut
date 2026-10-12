@@ -1,4 +1,4 @@
-import { closeMediaImport } from './workspace-import-helper';
+import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test } from '@playwright/test';
 
@@ -272,7 +272,7 @@ for (const base of ['/', '/LocalCut/']) {
       mimeType: 'image/png',
       buffer: Buffer.from(image),
     });
-    await closeMediaImport(page);
+    await closeMediaImportAndPlace(page);
     await expect(page.locator('.timeline-clip.image')).toHaveCount(1);
     await expect(card).toBeVisible();
     await expect(

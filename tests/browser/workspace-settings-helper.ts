@@ -10,14 +10,16 @@ export async function openAISettings(page: Page) {
       includeHidden: true,
     }),
   ).toHaveCount(0);
-  // Restoration closes stale menus and focuses the editor on its next frame.
-  // Wait for that navigation handoff before starting a settings interaction.
+  // Restoration and popup cleanup schedule focus on animation frames.
+  // Wait through the next paint so their focus handoff cannot close this menu.
   await expect(
     page.getByRole('region', { name: 'Project navigation', exact: true }),
   ).toBeHidden();
   await page.evaluate(
     () =>
-      new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
   );
   await page
     .getByRole('button', { name: 'Workspace settings', exact: true })

@@ -1,4 +1,4 @@
-import { closeMediaImport } from './workspace-import-helper';
+import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { Project } from '../../src/core/model';
@@ -74,7 +74,7 @@ for (const base of ['/', '/LocalCut/']) {
       mimeType: 'image/png',
       buffer: Buffer.from(png),
     });
-    await closeMediaImport(page);
+    await closeMediaImportAndPlace(page);
     await expect(
       page.getByRole('button', { name: 'keyboard.png', exact: true }).first(),
     ).toBeVisible();

@@ -45,6 +45,11 @@ async function setup(page: Page, context: BrowserContext, base: string) {
   await expect(
     page.getByRole('dialog', { name: 'New project', exact: true }),
   ).not.toBeVisible();
+  // Dialog closure precedes the project's operation/navigation handoff.
+  // Start settings interaction only after the editor is ready to accept edits.
+  await expect(
+    page.getByRole('button', { name: 'Add text', exact: true }),
+  ).toBeEnabled();
   await openAISettings(page);
   const settings = page.getByRole('dialog', {
     name: 'AI connection',
@@ -994,10 +999,9 @@ for (const base of ['/', '/LocalCut/']) {
         const summary = (await editor.projects.list()).find(
           (item) => item.name === 'Chat improvements',
         )!;
-        const project = await editor.projects.snapshot(summary.id);
-        const id = project.tracks
-          .flatMap((track) => track.clips)
-          .find((clip) => clip.assetId)?.assetId;
+        const id = (
+          await editor.library.forProject(summary.id).list()
+        ).entries.find((entry) => entry.assetId)?.assetId;
         return await editor.assets.inspect(id!);
       } finally {
         await editor.dispose();

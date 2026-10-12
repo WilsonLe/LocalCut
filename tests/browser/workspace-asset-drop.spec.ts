@@ -99,7 +99,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(rows.nth(1).locator('.text-destructive')).not.toBeEmpty();
     await expect(dialog).toContainText('2 of 3 added');
     await expect(indicator).not.toBeVisible();
-    await expect(page.locator('.timeline-clip.image')).toHaveCount(2);
+    await expect(page.locator('.timeline-clip.image')).toHaveCount(0);
     await page.screenshot({
       path: info.outputPath('asset-import-results.png'),
     });
@@ -115,13 +115,13 @@ for (const base of ['/', '/LocalCut/']) {
     }, data);
     expect(rejected).toBe(true);
     await expect(rows).toHaveCount(3);
-    await expect(page.locator('.timeline-clip.image')).toHaveCount(2);
+    await expect(page.locator('.timeline-clip.image')).toHaveCount(0);
     await closeMediaImport(page);
     await page.reload();
-    await expect(page.locator('.timeline-clip.image')).toHaveCount(2);
+    await expect(page.locator('.timeline-clip.image')).toHaveCount(0);
     expect(
       (await snapshot(page, base)).tracks.flatMap((track) => track.clips),
-    ).toHaveLength(2);
+    ).toHaveLength(0);
     // Media-tab dropping accepts real native video alongside existing assets.
     await page
       .getByRole('button', { name: 'Expand media', exact: true })
@@ -139,7 +139,7 @@ for (const base of ['/', '/LocalCut/']) {
       'completed',
     );
     await closeMediaImport(page);
-    await expect(page.locator('.timeline-clip.video')).toHaveCount(1);
+    await expect(page.locator('.timeline-clip.video')).toHaveCount(0);
     await page.getByLabel('Import media', { exact: true }).setInputFiles({
       name: 'picker.png',
       mimeType: 'image/png',
@@ -153,7 +153,15 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(dialog).toContainText('picker.png');
     await page.keyboard.press('Escape');
     await expect(dialog).not.toBeVisible();
-    await expect(page.locator('.timeline-clip.image')).toHaveCount(3);
+    await expect(page.locator('.timeline-clip.image')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Add text', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Insert Plain text', exact: true })
+      .click();
+    await page
+      .getByRole('dialog', { name: 'Clip properties', exact: true })
+      .getByRole('button', { name: 'Close', exact: true })
+      .click();
     await openVersions(page);
     await page
       .getByRole('group', { name: 'Saved versions' })
@@ -177,7 +185,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(dialog).not.toBeVisible();
     expect(
       (await snapshot(page, base)).tracks.flatMap((track) => track.clips),
-    ).toHaveLength(4);
+    ).toHaveLength(1);
     await data.dispose();
     await videoData.dispose();
   });
@@ -488,11 +496,11 @@ for (const base of ['/', '/LocalCut/']) {
           );
           await expect(dialog).toContainText('following.png');
           await closeMediaImport(page);
-          await expect(page.locator('.timeline-clip.image')).toHaveCount(1);
+          await expect(page.locator('.timeline-clip.image')).toHaveCount(0);
         } else {
           await expect(dialog).not.toBeVisible();
           await expect(page.locator('.timeline-clip')).toHaveCount(
-            dismissWith === 'Okay' ? 3 : 0,
+            dismissWith === 'Okay' ? 1 : 0,
           );
           if (dismissWith === 'Okay') {
             await expect(page.locator('.timeline-clip.text')).toHaveAttribute(
@@ -513,9 +521,9 @@ for (const base of ['/', '/LocalCut/']) {
                   importObserver: import('../../src/editor').Editor;
                 }
               ).importObserver;
-              return (await engine.projects.snapshot(sourceId)).tracks
-                .flatMap((track) => track.clips)
-                .filter((clip) => clip.kind === 'image').length;
+              return (
+                await engine.library.forProject(sourceId).list()
+              ).entries.filter((entry) => entry.assetId).length;
             }, sourceId),
           )
           .toBe(dismissWith === 'task cancellation' ? 1 : 2);
@@ -528,16 +536,16 @@ for (const base of ['/', '/LocalCut/']) {
                 }
               ).importObserver;
               return (
-                await engine.projects.snapshot(destinationId)
-              ).tracks.flatMap((track) => track.clips).length;
+                await engine.library.forProject(destinationId).list()
+              ).entries.filter((entry) => entry.assetId).length;
             }, destinationId),
           ).toBe(dismissWith === 'X' ? 1 : 0);
           await page.goto(base + '#/project/' + sourceId);
           await page.getByRole('button', { name: 'Edit', exact: true }).click();
-          await expect(page.locator('.timeline-clip.image')).toHaveCount(2);
+          await expect(page.locator('.timeline-clip.image')).toHaveCount(0);
           await expect(page.locator('.timeline-clip.text')).toHaveCount(1);
           await page.reload();
-          await expect(page.locator('.timeline-clip.image')).toHaveCount(2);
+          await expect(page.locator('.timeline-clip.image')).toHaveCount(0);
           await expect(dialog).not.toBeVisible();
         }
       } finally {

@@ -1,4 +1,4 @@
-import { closeMediaImport } from './workspace-import-helper';
+import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { openVersions } from './workspace-settings-helper';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { readFile } from 'node:fs/promises';
@@ -268,7 +268,7 @@ for (const base of ['/', '/LocalCut/']) {
       mimeType: 'image/png',
       buffer: Buffer.from(image),
     });
-    await closeMediaImport(page);
+    await closeMediaImportAndPlace(page);
     await expect(page.locator('.timeline-clip.image')).toHaveCount(1);
     await expect(lanes).toHaveCount(3);
     await expect(
@@ -358,7 +358,7 @@ for (const base of ['/', '/LocalCut/']) {
         buffer: await readFile('tests/fixtures/jfk.wav'),
       },
     ]);
-    await closeMediaImport(page);
+    await closeMediaImportAndPlace(page);
     const p = () => snapshot(page, base, 'Media drag');
     await expect
       .poll(async () => (await p()).tracks.flatMap((t) => t.clips).length)
@@ -735,7 +735,7 @@ for (const base of ['/', '/LocalCut/']) {
       { name: 'first.mp4', mimeType: 'video/mp4', buffer },
       { name: 'second.mp4', mimeType: 'video/mp4', buffer },
     ]);
-    await closeMediaImport(page);
+    await closeMediaImportAndPlace(page);
     const p = () => snapshot(page, base, 'Timeline');
     await expect
       .poll(async () => (await p()).tracks.flatMap((t) => t.clips).length)

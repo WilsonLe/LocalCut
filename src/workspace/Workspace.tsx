@@ -112,12 +112,7 @@ import {
   saveWorkspacePreferences,
   useWorkspacePreferences,
 } from './preferences';
-import {
-  appendAsset,
-  assetClip,
-  downloadFile,
-  projectDuration,
-} from './helpers';
+import { assetClip, downloadFile, projectDuration } from './helpers';
 
 import type { TextStyleInput } from '../core/text-library';
 import type { DialogName, Progress } from './WorkspaceDialogs';
@@ -890,9 +885,11 @@ export function Workspace() {
       return false;
     const batchId = crypto.randomUUID();
     let added = 0;
+    let skipped = 0;
     let engine: Editor | undefined;
     let targetProjectId: string | undefined;
     const jobs: {
+      index: number;
       stop: () => void;
       result: Promise<{ asset: Asset } | { failure: unknown }>;
     }[] = [];
@@ -911,16 +908,28 @@ export function Workspace() {
       }));
     };
     const started = await action(async () => {
+      targetProjectId = getProjectId() ?? undefined;
+      const { uploadSkipReason } = await import('./folder-upload-reader');
+      skipped = files.filter((file) => uploadSkipReason(file)).length;
       visibleImportBatch.current = batchId;
       setImportBatch({
         id: batchId,
         running: true,
-        files: files.map((file) => ({ name: file.name, status: 'queued' })),
+        files: files.map((file) => {
+          const reason = uploadSkipReason(file);
+          return {
+            name: file.name,
+            status: reason ? 'skipped' : 'queued',
+            reason,
+          };
+        }),
       });
       engine = await ensureEditor();
-      if (!getProjectId())
-        await openProject(await engine.projects.create('Untitled project'));
-      targetProjectId = getProjectId() ?? undefined;
+      if (!targetProjectId) {
+        const created = await engine.projects.create('Untitled project');
+        targetProjectId = created.id;
+        await openProject(created);
+      }
       if (!targetProjectId) throw new Error('Open a project to import media.');
       for (const directory of directories)
         await engine.library
@@ -930,6 +939,7 @@ export function Workspace() {
       // Enqueue the entire selection before waiting. The engine owns scheduling,
       // persistence and cancellation; closing this dialog changes only view state.
       for (const [index, file] of files.entries()) {
+        if (uploadSkipReason(file)) continue;
         const job = engine.assets.import(file);
         const stop = job.subscribe((event) => {
           if (event.state === 'running')
@@ -954,7 +964,7 @@ export function Workspace() {
             return { failure };
           },
         );
-        jobs.push({ stop, result });
+        jobs.push({ index, stop, result });
       }
     });
     if (!started) {
@@ -971,7 +981,7 @@ export function Workspace() {
       return false;
     }
     try {
-      for (const [index, job] of jobs.entries()) {
+      for (const { index, ...job } of jobs) {
         const result = await job.result;
         if ('failure' in result) {
           if (
@@ -994,15 +1004,6 @@ export function Workspace() {
               relative ? relative.split('/').slice(0, -1) : [],
               targetFolderId,
             );
-          const snapshot = await engine!.projects.snapshot(targetProjectId!);
-          const operations = appendAsset(snapshot, result.asset);
-          if (!alive.current) return;
-          await engine!.commands.apply({
-            projectId: snapshot.id,
-            expectedRevision: snapshot.revision,
-            requestId: crypto.randomUUID(),
-            operations,
-          });
           added++;
           committed = true;
           updateFile(index, { status: 'completed', fraction: 1 });
@@ -1011,13 +1012,6 @@ export function Workspace() {
           if (getProjectId() !== targetProjectId || browsing.current) return;
           if (visibleImportBatch.current !== batchId) return;
           setMediaOverride(true);
-          const insert = operations.find(
-            (operation) => operation.type === 'insertClip',
-          );
-          if (insert?.type === 'insertClip') {
-            setSelected(insert.clip.id);
-            setSelection([]);
-          }
         });
         importPlacement.current = placement.catch(() => {});
         try {
@@ -1038,7 +1032,7 @@ export function Workspace() {
       for (const job of jobs) job.stop();
       updateBatch((batch) => ({ ...batch, running: false }));
     }
-    return added === files.length;
+    return added + skipped === files.length;
   };
   const fileHovering = useFileDrop(
     !busy && !browsed,
