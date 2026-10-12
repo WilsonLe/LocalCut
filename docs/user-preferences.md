@@ -2,6 +2,11 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Timeline overlaps — 13 October 2026
+
+- Indicate overlapping assets visually at the actual overlap span, without inline overlap/template text. Keep useful names and duration accessible on demand.
+- Right-click or press and hold an overlap to open an options menu including Add transition. Preserve ordinary selection and provide keyboard access; transition templates remain explicit edits through the shared engine.
+
 ## Single OpenRouter connection — 13 October 2026
 
 - Allow only OpenRouter for remote AI. Remove OpenAI-compatible endpoints, ChatGPT sign-in and multiple provider accounts. The connection is binary: connected to OpenRouter or disconnected.
