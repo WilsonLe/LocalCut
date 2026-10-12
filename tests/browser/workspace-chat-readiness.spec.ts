@@ -142,6 +142,108 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Create project', exact: true })
       .click();
     await expect(composer).toBeEnabled();
+    await test.step('legacy indexing choices migrate without hiding either chat history', async () => {
+      await expect.poll(async () => (await savedChats(page)).length).toBe(1);
+      const original = (await savedChats(page))[0]!;
+      await page.evaluate(async (original) => {
+        const request = indexedDB.open('localcut-chats-v1');
+        const db = await new Promise<IDBDatabase>((resolve, reject) => {
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        const tx = db.transaction(['sessions', 'selection'], 'readwrite');
+        const scope = JSON.parse(original.scope);
+        for (const allowed of [false, true]) {
+          const legacyScope = JSON.stringify([
+            ...scope.slice(0, 7),
+            allowed,
+            ...scope.slice(7),
+          ]);
+          tx.objectStore('sessions').put({
+            ...original,
+            scope: legacyScope,
+            id: `legacy-${allowed}`,
+            title: `Legacy indexing ${allowed}`,
+            titleLocked: true,
+            content: {
+              prompt: `Draft ${allowed}`,
+              attachmentIds: [],
+              messages: [
+                {
+                  id: `u-${allowed}`,
+                  role: 'user',
+                  text: `Question ${allowed}`,
+                  status: 'complete',
+                },
+                {
+                  id: `a-${allowed}`,
+                  role: 'assistant',
+                  text: `Answer ${allowed}`,
+                  status: 'complete',
+                },
+              ],
+            },
+          });
+          tx.objectStore('selection').put(`legacy-${allowed}`, legacyScope);
+          tx.objectStore('sessions').put({
+            ...original,
+            scope: legacyScope,
+            id: `archived-${allowed}`,
+            title: `Archived ${allowed}`,
+            archived: true,
+          });
+        }
+        tx.objectStore('selection').delete(original.scope);
+        await new Promise<void>((resolve, reject) => {
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+        db.close();
+        localStorage.setItem(
+          'localcut.asset-index-consent.v1',
+          JSON.stringify({
+            version: 1,
+            provider: 'openrouter',
+            allowed: false,
+          }),
+        );
+      }, original);
+      await page.reload();
+      await expect(composer).toHaveValue('Draft true');
+      const picker = page.getByRole('button', {
+        name: 'Chat sessions',
+        exact: true,
+      });
+      await picker.click();
+      await expect(
+        page.getByRole('menuitemradio', { name: /Legacy indexing true/ }),
+      ).toBeVisible();
+      await page
+        .getByRole('menuitemradio', { name: /Legacy indexing false/ })
+        .click();
+      await expect(composer).toHaveValue('Draft false');
+      await expect(
+        page.getByRole('log', { name: 'Conversation messages' }),
+      ).toContainText('Answer false');
+      await page.reload();
+      await expect(composer).toHaveValue('Draft false');
+      await expect.poll(async () => (await savedChats(page)).length).toBe(5);
+      const migrated = await savedChats(page);
+      expect(migrated.every((chat) => chat.scope === original.scope)).toBe(
+        true,
+      );
+      expect(migrated.filter((chat) => chat.archived)).toHaveLength(2);
+      expect(
+        migrated
+          .filter((chat) => chat.id.startsWith('legacy-'))
+          .every((chat) => chat.titleLocked),
+      ).toBe(true);
+      expect(completions).toBe(0);
+      await picker.click();
+      await page
+        .getByRole('menuitemradio', { name: 'New chat', exact: true })
+        .click();
+    });
     await composer.fill('Hello');
     await send.click();
     await expect(

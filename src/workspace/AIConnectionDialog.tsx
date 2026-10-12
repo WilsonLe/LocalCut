@@ -27,8 +27,6 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from '../components/ui/popover';
-import { useIndexConsent, saveIndexConsent } from './index-consent';
-import { showErrorToast } from './error-toast';
 import { ProviderSettings } from './ProviderSettings';
 import type { ProviderSettingsProps } from './ProviderSettings';
 interface Props extends Omit<
@@ -70,7 +68,6 @@ export default function AIConnectionDialog({
   connectionError,
   ...providerProps
 }: Props) {
-  const indexingAllowed = useIndexConsent();
   return (
     <Dialog
       open={settingsOpen}
@@ -130,29 +127,6 @@ export default function AIConnectionDialog({
               />
             )}
           />
-          <div className="space-y-2 border-t pt-6">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="asset-index-consent"
-                checked={indexingAllowed}
-                onCheckedChange={(checked) => {
-                  if (!saveIndexConsent(checked === true))
-                    showErrorToast(
-                      undefined,
-                      'Indexing permission could not be saved. This choice lasts for this session.',
-                    );
-                }}
-              />
-              <Label htmlFor="asset-index-consent">Allow asset indexing</Label>
-            </div>
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              Index sends locally generated images, audio excerpts and video
-              excerpts with sound to OpenRouter. Capture dates and GPS are
-              shared only when separately enabled below. Saved labels can be
-              shared with Klip in chat. Remembered on this device; revoke here
-              anytime.
-            </p>
-          </div>
         </div>
         <div className="flex items-center justify-between">
           <Popover>
@@ -276,6 +250,13 @@ function OpenRouterConnection({
           )}
         </div>
       </div>
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        Connecting OpenRouter allows asset indexing: Index or an approved chat
+        proposal sends generated images, audio excerpts and video excerpts with
+        sound to your selected model. Saved labels can be shared in chat.
+        Capture dates and GPS require the separate sharing choice in Data &
+        analytics.
+      </p>
       {!connected && (
         <div className="space-y-3">
           {method === 'choice' && (

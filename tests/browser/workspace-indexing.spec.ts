@@ -124,7 +124,7 @@ async function image(page: Page) {
   await expect(page.locator('.media-item')).toHaveCount(1);
 }
 for (const base of ['/', '/LocalCut/']) {
-  test(`chat indexing approval, saved results and revoked consent ${base}`, async ({
+  test(`chat indexing approval, saved results and automatic authorization ${base}`, async ({
     page,
     context,
   }) => {
@@ -157,27 +157,7 @@ for (const base of ['/', '/LocalCut/']) {
             (skill: { id: string }) => skill.id === 'indexing',
           );
           const last = body.messages.at(-1);
-          const caps =
-            last.role === 'tool' &&
-            last.tool_call_id === 'indexing-capabilities'
-              ? JSON.parse(last.content)
-              : undefined;
-          if (caps && !caps.indexing.canPropose) {
-            expect(caps.indexing.supported).toBe(true);
-            expect(caps.serviceActions).toContain('index_asset');
-            expect(caps.indexing.blockers.join(' ')).toContain(
-              'Allow asset indexing',
-            );
-            expect(
-              caps.skillCatalog.some(
-                (skill: { id: string }) => skill.id === 'indexing',
-              ),
-            ).toBe(true);
-            expect(JSON.stringify(body.tools)).not.toContain('index_asset');
-            expect(scope.assetIndex).toBeUndefined();
-            reply =
-              'Indexing is supported. Enable Allow asset indexing in AI connection → Data & analytics to continue.';
-          } else if (last.role === 'user' && !scope.assetIndex) {
+          if (last.role === 'user' && !scope.assetIndex) {
             expect(permitted).toBe(true);
             expect(
               body.tools.some(
@@ -294,20 +274,6 @@ for (const base of ['/', '/LocalCut/']) {
         .click();
     };
     await send('Index this image');
-    await expect(
-      page.getByText(
-        'Indexing is supported. Enable Allow asset indexing in AI connection → Data & analytics to continue.',
-        { exact: true },
-      ),
-    ).toBeVisible();
-    expect(evidenceRequests).toBe(0);
-    expect(JSON.stringify(bodies[0]!.tools)).not.toContain('index_asset');
-    dialog = await settings(page);
-    await dialog
-      .getByRole('checkbox', { name: 'Allow asset indexing' })
-      .check();
-    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-    await send('Index this image');
     const approve = page.getByRole('button', {
       name: 'Apply proposal',
       exact: true,
@@ -401,21 +367,18 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(await indexAction(page, 'Reindex')).toBeEnabled();
     await page.keyboard.press('Escape');
     dialog = await settings(page);
-    await dialog
-      .getByRole('checkbox', { name: 'Allow asset indexing' })
-      .uncheck();
-    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-    await send('Index again');
-    // A restored earlier denial is historical; inspect this newly sent request.
     await expect(
-      response.getByText(
-        'Indexing is supported. Enable Allow asset indexing in AI connection → Data & analytics to continue.',
-        { exact: true },
-      ),
+      dialog.getByRole('checkbox', { name: 'Allow asset indexing' }),
+    ).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await send('Find the red image');
+    await expect(
+      response.getByText('Saved red image observations are available.', {
+        exact: true,
+      }),
     ).toBeVisible();
     expect(evidenceRequests).toBe(5);
-    expect(JSON.stringify(bodies.at(-1))).not.toContain(label.summary);
-    expect(JSON.stringify(bodies.at(-1)!.tools)).not.toContain('index_asset');
+    expect(JSON.stringify(bodies.at(-1))).toContain(label.summary);
   });
 
   test(`mobile media keeps indexing alive while closed ${base}`, async ({
@@ -475,9 +438,6 @@ for (const base of ['/', '/LocalCut/']) {
         .getByRole('button', { name: 'Chat', exact: true })
         .click();
       const connection = await connect(page);
-      await connection
-        .getByRole('checkbox', { name: 'Allow asset indexing' })
-        .check();
       await connection
         .getByRole('button', { name: 'Done', exact: true })
         .click();
@@ -608,7 +568,7 @@ for (const base of ['/', '/LocalCut/']) {
     }
   });
 
-  test(`workspace indexing consent, retry, retained labels and Klip context ${base}`, async ({
+  test(`workspace indexing connection, retry, retained labels and Klip context ${base}`, async ({
     page,
     context,
   }) => {
@@ -667,21 +627,16 @@ for (const base of ['/', '/LocalCut/']) {
       page.getByRole('button', { name: 'Import media', exact: true }).first(),
     ).toBeEnabled();
     await image(page);
-    await expect(await indexAction(page, 'Index')).toHaveCount(0);
+    await expect(await indexAction(page, 'Index')).toBeDisabled();
     await page.keyboard.press('Escape');
     let dialog = await connect(page);
     await expect(
       dialog.getByRole('checkbox', { name: 'Allow asset indexing' }),
-    ).not.toBeChecked();
+    ).toHaveCount(0);
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-    await expect(await indexAction(page, 'Index')).toHaveCount(0);
+    await expect(await indexAction(page, 'Index')).toBeEnabled();
     expect(bodies).toEqual([]);
     await page.keyboard.press('Escape');
-    dialog = await settings(page);
-    await dialog
-      .getByRole('checkbox', { name: 'Allow asset indexing' })
-      .check();
-    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await clickIndexAction(page, 'Index');
     await expect(await indexAction(page, 'Retry indexing')).toBeVisible();
     malformed = false;
@@ -733,51 +688,35 @@ for (const base of ['/', '/LocalCut/']) {
     ).toHaveCount(0);
     await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
-    dialog = await settings(page);
-    await dialog
-      .getByRole('checkbox', { name: 'Allow asset indexing' })
-      .uncheck();
-    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-    await expect(await indexAction(page, 'Reindex')).toHaveCount(0);
+    await page.evaluate(() => {
+      localStorage.setItem(
+        'localcut.asset-index-consent.v1',
+        JSON.stringify({ version: 1, provider: 'openrouter', allowed: false }),
+      );
+      window.dispatchEvent(
+        new StorageEvent('storage', { key: 'localcut.asset-index-consent.v1' }),
+      );
+    });
+    await expect(await indexAction(page, 'Reindex')).toBeEnabled();
     await page.keyboard.press('Escape');
     await page
       .getByRole('textbox', { name: 'Describe your edit' })
       .fill('Describe available footage');
     await page.getByRole('button', { name: 'Send edit request' }).click();
     await expect(
-      page.getByText('I can use the indexed red scene.'),
-    ).toBeVisible();
-    expect(JSON.stringify(bodies.at(-1))).not.toContain('assetIndex');
-    expect(JSON.stringify(bodies.at(-1)!.tools)).not.toContain(
+      page
+        .getByRole('article', { name: 'Assistant response', exact: true })
+        .last(),
+    ).toContainText('I can use the indexed red scene.');
+    expect(JSON.stringify(bodies.at(-1))).toContain('assetIndex');
+    expect(JSON.stringify(bodies.at(-1)!.tools)).toContain(
       'search_asset_index',
     );
-    const blockedScope = JSON.parse(
-      (bodies.at(-1)!.messages as { content: string }[])[1]!.content,
-    );
-    expect(blockedScope.capabilityMap.tools.search_asset_index).toMatchObject({
-      supported: true,
-      available: false,
-    });
-    expect(
-      blockedScope.capabilityMap.tools.search_asset_index.blockers.map(
-        (blocker: { reason: string }) => blocker.reason,
-      ),
-    ).toContain('sharing_disabled');
     await page.reload();
-    await page.keyboard.press('Escape');
     dialog = await settings(page);
     await expect(
       dialog.getByRole('checkbox', { name: 'Allow asset indexing' }),
-    ).not.toBeChecked();
-    await dialog
-      .getByRole('checkbox', { name: 'Allow asset indexing' })
-      .check();
-    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-    await page.reload();
-    await settings(page);
-    await expect(
-      page.getByRole('checkbox', { name: 'Allow asset indexing' }),
-    ).toBeChecked();
+    ).toHaveCount(0);
   });
 }
 
@@ -896,9 +835,6 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await page.keyboard.press('Escape');
     let dialog = await connect(page);
-    await dialog
-      .getByRole('checkbox', { name: 'Allow asset indexing' })
-      .check();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await expect(page.locator('.media-item')).not.toContainText(
       'Choose a chat model supporting audio inputs to index this asset.',
@@ -997,9 +933,6 @@ for (const base of ['/', '/LocalCut/']) {
         .getByRole('button', { name: 'Create project', exact: true })
         .click();
       const dialog = await connect(page);
-      await dialog
-        .getByRole('checkbox', { name: 'Allow asset indexing' })
-        .check();
       await dialog.getByRole('button', { name: 'Done', exact: true }).click();
       await page.locator('#mobile-media-trigger').click();
       await page

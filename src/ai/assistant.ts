@@ -674,12 +674,12 @@ export function createAssistant(options: AssistantOptions) {
                     : [
                         ...(!indexing.consent()
                           ? [
-                              'Enable Allow asset indexing in AI connection → Data & analytics.',
+                              'The host must authorize indexing through its live consent callback.',
                             ]
                           : []),
                         ...(!policy.includeAssetIndexes
                           ? [
-                              'Enable asset-index sharing in the context policy. In the workspace, Allow asset indexing enables this policy too.',
+                              'Enable asset-index sharing in the host context policy. The workspace includes saved labels automatically.',
                             ]
                           : []),
                       ],

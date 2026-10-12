@@ -430,3 +430,9 @@ This is the project record of the user's durable product and workflow choices. U
 ## Dialog opening responsiveness — 12 October 2026
 
 - Remove the first-opening delay across workspace dialogs. Show lightweight opening feedback immediately, retain an accessible loading shell while optional code arrives, load command metadata and UI together, and separate heavy text/clip editors from simple forms. Preserve on-demand engine/provider boundaries, cancellation, focus return and the startup bundle budget.
+
+## Indexing authorization — 12 October 2026
+
+- Remove the separate Allow asset indexing permission. Connecting OpenRouter acknowledges the indexing disclosure and authorizes generated evidence and saved labels in chat. This supersedes the remembered/revocable indexing permission recorded above.
+- Keep indexing explicit through Index or an approved chat proposal; connection, import and reload never start paid indexing. Text, names, transcripts and capture dates/GPS keep their separate sharing choices.
+- Indexing authorization must not split or hide saved chats. Recover conversations from both legacy indexing-permission scopes, preserving drafts, titles, archives and selection while retaining the other project/model/sharing boundaries.
