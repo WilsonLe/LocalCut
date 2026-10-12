@@ -13,7 +13,7 @@ export default function ProjectSwitcherDialog({
   return (
     <Dialog open onOpenChange={onOpenChange}>
       <DialogContent
-        className="project-switcher-dialog sm:max-w-4xl"
+        className="project-switcher-dialog h-[min(40rem,calc(var(--app-viewport-height)-2rem))] sm:max-w-4xl"
         finalFocus={trigger}
       >
         <DialogTitle className="sr-only">Projects</DialogTitle>

@@ -28,6 +28,8 @@ Each row is a workflow family. Implemented combinations and already combined own
 
 Within a touch-enabled context, mobile editing, grouping, playback, dialogs, landscape/reflow and media focus can also share the existing project and tab: [mobile](../tests/browser/workspace-mobile.spec.ts), [scaled touch controls](../tests/browser/workspace-size.spec.ts), and [mobile indexing](../tests/browser/workspace-indexing.spec.ts). Touch capability is chosen when the context is created; narrowing a desktop viewport does not replace these assertions. Restore viewport, selection and panel state between phases.
 
+The [dialog sizing journey](../tests/browser/workspace-dialog-sizing.spec.ts) checks compact forms, empty queues/history, rich editors, backups, project browsing and command/shortcut dialogs at both static bases. It covers desktop, 320px portrait, short landscape and all three interface scales, including focus return, internal scrolling and retained screenshots.
+
 ## Implemented combinations
 
 | Owner                                                                                                                                       | Original stories sharing the same primary tab                                                                     | Preserved boundary                                                                                                                                                                               |

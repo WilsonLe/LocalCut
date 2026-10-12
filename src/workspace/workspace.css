@@ -235,9 +235,6 @@
   border-radius: var(--radius);
   color: var(--muted-foreground);
 }
-.project-details-dialog {
-  height: min(36rem, calc(var(--app-viewport-height) - 2rem));
-}
 .project-browser-details {
   display: flex;
   flex: 1;
@@ -1199,10 +1196,6 @@
 .export-details dt {
   color: var(--muted-foreground);
 }
-[data-slot='dialog-content'] {
-  max-height: calc(var(--app-viewport-height) - 32px);
-  overflow-y: auto;
-}
 :root[data-density='compact'] {
   --workspace-preview-padding: 10px 16px 12px;
   --workspace-timeline-padding: 8px 14px 10px;
@@ -1601,10 +1594,6 @@
     line-height: 1.4;
   }
   [data-slot='dialog-content'] {
-    max-height: calc(
-      var(--app-viewport-height) - 32px - env(safe-area-inset-top) -
-        env(safe-area-inset-bottom)
-    );
     overscroll-behavior: contain;
     scroll-padding-block: 20px;
   }

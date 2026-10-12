@@ -264,7 +264,7 @@ export default function TaskQueueDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="flex h-auto max-h-[min(40rem,calc(var(--app-viewport-height)-2rem))] flex-col overflow-hidden sm:max-w-4xl">
+      <DialogContent className="flex flex-col overflow-hidden sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Task queue</DialogTitle>
           <DialogDescription className="sr-only">

@@ -20,7 +20,7 @@ export default function UpdateDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-auto">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Update available</DialogTitle>
           <DialogDescription>

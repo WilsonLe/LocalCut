@@ -313,7 +313,7 @@ export default function WorkspaceTransferDialog({
         if (!open && !pending) onClose();
       }}
     >
-      <DialogContent className="max-w-xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
             {mode === 'export'
