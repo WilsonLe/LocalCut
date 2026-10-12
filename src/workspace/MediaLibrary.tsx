@@ -36,6 +36,8 @@ import { Empty, EmptyContent } from '../components/ui/empty';
 import { Tooltip } from '../components/ui/tooltip';
 import { MEDIA_DRAG_EVENT, formatTime } from './helpers';
 import { interfaceScale } from './appearance';
+import { resolveShortcut } from './shortcuts';
+import { hasBlockingOverlay } from './overlays';
 import {
   useMediaFolders,
   FolderNavigation,
@@ -53,6 +55,7 @@ interface DragPosition {
 }
 
 export default function MediaLibrary({
+  projectId,
   editor,
   indexConnection,
   readOnly,
@@ -70,6 +73,7 @@ export default function MediaLibrary({
   onImportFiles,
   onLibraryChanged,
 }: {
+  projectId: string | undefined;
   editor: Editor | null;
   indexConnection: IndexConnection | null;
   readOnly: boolean;
@@ -91,7 +95,13 @@ export default function MediaLibrary({
   ) => Promise<unknown>;
   onLibraryChanged: () => Promise<unknown>;
 }) {
-  const folders = useMediaFolders(editor, !readOnly, assets, onLibraryChanged);
+  const folders = useMediaFolders(
+    editor,
+    projectId,
+    !readOnly,
+    assets,
+    onLibraryChanged,
+  );
   const folderDialog = useFolderDialog(folders.snapshot.revision);
   const folderInput = useRef<HTMLInputElement>(null);
   const libraryInput = useRef<HTMLInputElement>(null);
@@ -120,6 +130,27 @@ export default function MediaLibrary({
           : []),
       ]
     : assets.map((asset) => ({ asset, entry: undefined }));
+  const selectionScope = {
+    editor,
+    projectId,
+    parentId: folders.parentId,
+    trash: folders.trash,
+  };
+  const [selection, setSelection] = useState({
+    ...selectionScope,
+    ids: [] as string[],
+  });
+  if (
+    selection.editor !== editor ||
+    selection.projectId !== projectId ||
+    selection.parentId !== folders.parentId ||
+    selection.trash !== folders.trash
+  ) {
+    setSelection({ ...selectionScope, ids: [] });
+  }
+  const selectedIds = new Set(selection.ids);
+  const select = (ids: string[]) => setSelection({ ...selectionScope, ids });
+  const dragged = useRef(false);
   const [dragPosition, setDragPosition] = useState<DragPosition | null>(null);
   const drag = useRef<{
     pointerId: number;
@@ -164,10 +195,29 @@ export default function MediaLibrary({
       cancelDrag();
     };
   }, []);
+  const selectionProps = (asset: Asset, entryId?: string) => ({
+    onPointerDown: () => {
+      dragged.current = false;
+    },
+    onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+      if (event.detail > 0 && dragged.current) return;
+      const id = entryId ?? asset.id;
+      select(
+        event.metaKey || event.ctrlKey
+          ? selectedIds.has(id)
+            ? selection.ids.filter((selected) => selected !== id)
+            : [...selection.ids, id]
+          : [id],
+      );
+    },
+    'aria-pressed': selectedIds.has(entryId ?? asset.id),
+  });
   const dragProps = (asset: Asset, entryId?: string) => ({
+    ...selectionProps(asset, entryId),
     draggable: false,
     'data-draggable': canEdit && !readOnly && asset.status === 'ready',
     onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
+      dragged.current = false;
       if (
         event.button !== 0 ||
         !canEdit ||
@@ -209,6 +259,7 @@ export default function MediaLibrary({
         )
           return;
         gesture.moved = true;
+        dragged.current = true;
         event.currentTarget.setPointerCapture(event.pointerId);
         onAssetDrag(asset.id);
       }
@@ -262,7 +313,30 @@ export default function MediaLibrary({
     },
   });
   return (
-    <section className="media-library" aria-label="Project media">
+    <section
+      className="media-library"
+      aria-label="Project media"
+      tabIndex={-1}
+      onKeyDown={(event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        const command = resolveShortcut(event.nativeEvent, {
+          inEditor: true,
+          editable: !!target?.closest(
+            'input,textarea,select,[contenteditable]:not([contenteditable=false]),[role=textbox]',
+          ),
+          dialogOpen: hasBlockingOverlay(),
+        });
+        if (command !== 'selectAll' && command !== 'clearSelection') return;
+        if (event.defaultPrevented) return;
+        event.preventDefault();
+        event.stopPropagation();
+        select(
+          command === 'selectAll'
+            ? fileEntries.map(({ asset, entry }) => entry?.id ?? asset.id)
+            : [],
+        );
+      }}
+    >
       <div className="section-heading">
         <h2>Media</h2>
         <div className="ml-auto flex items-center gap-1">
@@ -377,7 +451,12 @@ export default function MediaLibrary({
                 />
               ) : undefined
             }
-            previewProps={folders.trash ? {} : dragProps(asset, entry?.id)}
+            previewProps={
+              folders.trash
+                ? selectionProps(asset, entry?.id)
+                : dragProps(asset, entry?.id)
+            }
+            selected={selectedIds.has(entry?.id ?? asset.id)}
             dragPosition={
               draggingAssetId === asset.id && dragPosition?.assetId === asset.id
                 ? dragPosition
@@ -426,6 +505,7 @@ function MediaAssetCard({
   previewProps,
   dragPosition,
   actions: libraryActions,
+  selected,
 }: {
   editor: Editor | null;
   asset: Asset;
@@ -438,6 +518,7 @@ function MediaAssetCard({
   previewProps: React.ComponentProps<'button'>;
   dragPosition: DragPosition | null;
   actions?: React.ReactNode;
+  selected: boolean;
 }) {
   const blocked = readOnly || !canEdit;
   const card = useRef<HTMLDivElement>(null);
@@ -503,7 +584,12 @@ function MediaAssetCard({
     }
   };
   return (
-    <div className="media-item" ref={card} data-asset-id={asset.id}>
+    <div
+      className="media-item"
+      ref={card}
+      data-asset-id={asset.id}
+      data-selected={selected}
+    >
       <AssetIndexControls
         editor={editor}
         asset={asset}
@@ -679,6 +765,19 @@ function AssetPreview({
     </span>
   );
   const scale = interfaceScale();
+  const gap = 8;
+  const width = 184 * scale;
+  const height = 64 * scale;
+  const left =
+    dragPosition &&
+    (dragPosition.x + gap + width <= innerWidth - gap
+      ? dragPosition.x + gap
+      : dragPosition.x - width - gap);
+  const top =
+    dragPosition &&
+    (dragPosition.y + gap + height <= innerHeight - gap
+      ? dragPosition.y + gap
+      : dragPosition.y - height - gap);
   return (
     <>
       <button
@@ -697,16 +796,8 @@ function AssetPreview({
             aria-hidden="true"
             style={{
               // Body uses CSS zoom; pointer coordinates are viewport pixels.
-              left:
-                Math.max(
-                  8,
-                  Math.min(dragPosition.x + 14, innerWidth - 184 * scale - 8),
-                ) / scale,
-              top:
-                Math.max(
-                  8,
-                  Math.min(dragPosition.y + 14, innerHeight - 64 * scale - 8),
-                ) / scale,
+              left: Math.max(gap, left!) / scale,
+              top: Math.max(gap, top!) / scale,
             }}
           >
             {symbol}

@@ -456,11 +456,17 @@ for (const base of ['/', '/LocalCut/']) {
             await expect(ghost).toHaveCount(0);
             const preview = (await cursorPreview.boundingBox())!;
             expect(preview.x).toBeCloseTo(
-              Math.max(8, Math.min(x + 14, 1440 - 184 * scale - 8)),
+              Math.max(
+                8,
+                x + 8 + 184 * scale <= 1432 ? x + 8 : x - 184 * scale - 8,
+              ),
               0,
             );
             expect(preview.y).toBeCloseTo(
-              Math.max(8, Math.min(y + 14, 1000 - 64 * scale - 8)),
+              Math.max(
+                8,
+                y + 8 + 64 * scale <= 992 ? y + 8 : y - 64 * scale - 8,
+              ),
               0,
             );
             expect(preview.width).toBeCloseTo(184 * scale, 0);
@@ -476,6 +482,8 @@ for (const base of ['/', '/LocalCut/']) {
           }
           await page.mouse.move(1438, 998);
           const edge = (await cursorPreview.boundingBox())!;
+          expect(1438 - (edge.x + edge.width)).toBeCloseTo(8, 0);
+          expect(998 - (edge.y + edge.height)).toBeCloseTo(8, 0);
           expect(edge.x + edge.width).toBeLessThanOrEqual(1440);
           expect(edge.y + edge.height).toBeLessThanOrEqual(1000);
           await page.mouse.up();

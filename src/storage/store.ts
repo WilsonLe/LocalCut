@@ -83,6 +83,16 @@ interface RecordState {
   undo: Project[];
   redo: Project[];
 }
+function retainedAssetIds(record: RecordState) {
+  return new Set(
+    [
+      record.project,
+      ...record.undo,
+      ...record.redo,
+      ...(record.versions ?? []).map((version) => version.project),
+    ].flatMap(assetIds),
+  );
+}
 interface SavedReceipt {
   key: string;
   content: string;
@@ -219,6 +229,20 @@ export class Store {
         await tx.store.put({ ...state, id });
       return state.project;
     });
+  }
+  /** Original references retained by current edits, undo/redo and saved versions. */
+  async projectAssetIds(projectId: string) {
+    const record = (await this.db.get('projects', projectId)) as
+      RecordState | undefined;
+    invariant(record, 'NOT_FOUND', `Project ${projectId} missing`);
+    return retainedAssetIds(record);
+  }
+  /** One consistent ownership snapshot; do not open other projects to read it. */
+  async projectLibraryReferences() {
+    const records = (await this.db.getAll('projects')) as RecordState[];
+    return new Map(
+      records.map((record) => [record.project.id, retainedAssetIds(record)]),
+    );
   }
   async create(project: Project) {
     const value = validateProject(project);

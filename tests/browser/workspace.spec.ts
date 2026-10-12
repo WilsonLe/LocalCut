@@ -491,12 +491,19 @@ for (const base of ['/', '/LocalCut/']) {
       const { createEditor } = await import(base + 'editor.js');
       const editor = await createEditor();
       try {
-        const library = await editor.library.list();
+        const project = (await editor.projects.list()).find(
+          (project: { name: string }) => project.name === 'Asset actions',
+        );
+        const library = await editor.library.forProject(project.id).list();
         const entry = library.entries.find(
           (entry: { name: string }) => entry.name === 'Cover image',
         );
-        await editor.library.apply(
-          { type: 'rename', entryId: entry.id, name: 'Renamed in another tab' },
+        await editor.library.forProject(project.id).apply(
+          {
+            type: 'rename',
+            entryId: entry.id,
+            name: 'Renamed in another tab',
+          },
           library.revision,
         );
       } finally {

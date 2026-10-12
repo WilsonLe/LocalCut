@@ -41,7 +41,11 @@ export type AssistantActionResult =
 
 /** An assistant may be embedded with just document editing, or the full engine. */
 export interface AssistantEditor {
-  library?: Pick<Editor['library'], 'list' | 'apply'>;
+  library?: {
+    forProject(
+      projectId: string,
+    ): Pick<ReturnType<Editor['library']['forProject']>, 'list' | 'apply'>;
+  };
   tasks?: Editor['tasks'];
   masks?: Editor['masks'];
   projects: Pick<Editor['projects'], 'snapshot'>;

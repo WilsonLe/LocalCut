@@ -24,7 +24,10 @@ export const SHORTCUT_GROUPS = [
         label: 'Group or ungroup selection',
       },
       { keys: 'Delete / Backspace', label: 'Delete selected clip' },
-      { keys: 'Mod + A / Escape', label: 'Select all / clear selection' },
+      {
+        keys: 'Mod + A / Escape',
+        label: 'Select all clips or focused media / clear selection',
+      },
       {
         keys: 'Mod + C / X / V',
         label: 'Copy / cut / paste clips at playhead',
