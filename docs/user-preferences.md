@@ -2,6 +2,11 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Media interaction — 12 October 2026
+
+- Keep the asset drag preview close to the cursor.
+- Support Cmd+A / Ctrl+A to select all assets in the focused media library, while retaining native text selection and timeline clip selection.
+
 ## Test allocation and runtime — 12 October 2026
 
 - Target under five minutes for the full normal local test run using broadly applicable improvements and best practices. Preserve correctness, production Chrome codecs, privacy, transcription and export acceptance.
