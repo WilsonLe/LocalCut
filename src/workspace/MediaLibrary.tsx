@@ -43,6 +43,7 @@ import { hasBlockingOverlay } from './overlays';
 import {
   useMediaFolders,
   FolderNavigation,
+  FolderBreadcrumbs,
   FolderCard,
   FolderDialog,
   LibraryActions,
@@ -367,24 +368,29 @@ export default function MediaLibrary({
         );
       }}
     >
-      <PanelHeader
-        className="section-heading"
-        label="Media"
-        title={<h2>Media</h2>}
-      >
-        {editor && !readOnly ? (
-          <FolderNavigation
-            state={folders}
-            editable={canEdit}
-            onUpload={() => folderInput.current?.click()}
-            open={folderDialog.open}
-            actions={mediaActions}
-          />
-        ) : (
-          <div className="ml-auto flex items-center gap-1">{mediaActions}</div>
-        )}
-        {headerActions}
-      </PanelHeader>
+      <div className="media-library-header">
+        <PanelHeader
+          className="section-heading"
+          label="Media"
+          title={<h2>Media</h2>}
+        >
+          {editor && !readOnly ? (
+            <FolderNavigation
+              state={folders}
+              editable={canEdit}
+              onUpload={() => folderInput.current?.click()}
+              open={folderDialog.open}
+              actions={mediaActions}
+            />
+          ) : (
+            <div className="ml-auto flex items-center gap-1">
+              {mediaActions}
+            </div>
+          )}
+          {headerActions}
+        </PanelHeader>
+        {editor && !readOnly && <FolderBreadcrumbs state={folders} />}
+      </div>
       <input
         ref={folderInput}
         type="file"
