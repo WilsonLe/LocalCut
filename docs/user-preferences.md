@@ -2,6 +2,11 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Test allocation and runtime — 12 October 2026
+
+- Target under five minutes for the full normal local test run using broadly applicable improvements and best practices. Preserve correctness, production Chrome codecs, privacy, transcription and export acceptance.
+- Be generous with dynamic worker allocation, with no fixed worker ceilings. Follow current CPU/memory and container limits; avoid routinely narrowing healthy runs to a small worker count. Keep separate native transcription/performance measurements serial.
+
 ## Chat execution — 12 October 2026
 
 - Infer authorization from the user's request and context. Execute requested editing, history, indexing, export and transcription work without Apply/Approve/Discard cards or a second confirmation.
@@ -14,6 +19,11 @@ This is the project record of the user's durable product and workflow choices. U
 - Put Editor and Storyboard (whiteboard) tab triggers at the far right of the project header, after the global actions, retaining left-aligned contents and their existing order.
 - Remove the chevron from the active project name; the name still opens the project-switcher dialog.
 - Render the LocalCut logo as static branding without a navigation link. This supersedes earlier LocalCut home navigation; Settings → Project → Open project and Mod+O retain access to the Projects screen.
+
+## Storyboard toolbar — 12 October 2026
+
+- Replace the plain whiteboard loading message with a theme-aware canvas/toolbar skeleton, retaining an accessible status and reduced-motion support.
+- Remove the separate Storyboard heading row. Place icon-only Undo and Redo in Excalidraw's main drawing toolbar, with accessible labels and tooltips; retain shared project history.
 
 ## Chat agent capability discovery — 12 October 2026
 

@@ -21,7 +21,7 @@ test('normal Chrome shares one browser across a resource-bounded context pool', 
   assert.equal(allocation(capacity, env).unitWorkers, 18);
   assert.equal(
     allocation({ ...capacity, freeBytes: 4 * 1024 ** 3 }, env).browserWorkers,
-    4,
+    6,
   );
   // Native/separately launched browsers retain their two-slot reservation.
   assert.equal(allocation(capacity, {}).browserWorkers, 9);

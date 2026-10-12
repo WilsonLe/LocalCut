@@ -2,6 +2,37 @@ function Placeholder({ className = '' }: { className?: string }) {
   return <div className={`loading-placeholder ${className}`} />;
 }
 
+export function StoryboardSkeleton() {
+  return (
+    <div
+      className="storyboard-skeleton"
+      role="status"
+      aria-label="Loading storyboard"
+      aria-busy="true"
+    >
+      <span className="sr-only">Loading storyboard</span>
+      <div aria-hidden="true" className="storyboard-skeleton-controls">
+        <div className="storyboard-skeleton-menu">
+          <Placeholder />
+        </div>
+        <div className="storyboard-skeleton-toolbar">
+          {Array.from({ length: 12 }, (_, tool) => (
+            <Placeholder key={tool} />
+          ))}
+        </div>
+        <div className="storyboard-skeleton-zoom">
+          <Placeholder />
+          <Placeholder className="storyboard-skeleton-zoom-value" />
+          <Placeholder />
+        </div>
+        <div className="storyboard-skeleton-help">
+          <Placeholder />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ProjectListSkeleton() {
   return (
     <div
