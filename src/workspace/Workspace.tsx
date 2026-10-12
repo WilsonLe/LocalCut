@@ -1,3 +1,4 @@
+import { LoadingDialog, onDemandDialog } from './on-demand-dialog';
 import type { StoryboardControls } from './Storyboard';
 import { ProjectTabs } from './ProjectTabs';
 import type { ProjectTab } from './ProjectTabs';
@@ -42,7 +43,10 @@ import {
   subscribeErrorDetails,
 } from './error-toast';
 import type { ErrorReport } from './error-toast';
-const ErrorDetailsDialog = lazy(() => import('./ErrorDetailsDialog'));
+const ErrorDetailsDialog = onDemandDialog(
+  () => import('./ErrorDetailsDialog'),
+  ({ onClose }) => ({ title: 'Error details', onClose }),
+);
 import { NotificationControl } from './NotificationControl';
 import { UpdateControl } from './UpdateControl';
 // Capture callback secrets before loading the conversation or any asynchronous work.
@@ -100,7 +104,10 @@ import { useChatViewport } from './useChatViewport';
 import { hasBlockingOverlay } from './overlays';
 import { useFileDrop } from './useFileDrop';
 import type { ImportBatch, ImportProgress } from './ImportProgressDialog';
-const ImportProgressDialog = lazy(() => import('./ImportProgressDialog'));
+const ImportProgressDialog = onDemandDialog(
+  () => import('./ImportProgressDialog'),
+  ({ onClose }) => ({ title: 'Import media', onClose }),
+);
 import {
   saveWorkspacePreferences,
   useWorkspacePreferences,
@@ -117,21 +124,66 @@ import type { DialogName, Progress } from './WorkspaceDialogs';
 const MediaLibrary = lazy(() => import('./MediaLibrary'));
 const TaskQueueControl = lazy(() => import('./TaskQueueControl'));
 const TaskQueueNotifications = lazy(() => import('./TaskQueueNotifications'));
-const ScreenRecordingDialog = lazy(() => import('./ScreenRecordingDialog'));
+const ScreenRecordingDialog = onDemandDialog(
+  () => import('./ScreenRecordingDialog'),
+  ({ onClose }) => ({ title: 'Record screen', onClose }),
+);
 const MobileNavigation = lazy(() => import('./MobileNavigation'));
-const WorkspaceDialogs = lazy(() => import('./WorkspaceDialogs'));
+const WorkspaceDialogs = onDemandDialog(
+  () => import('./WorkspaceDialogs'),
+  (props) => ({
+    title:
+      props.dialog === 'new'
+        ? 'New project'
+        : props.dialog === 'text'
+          ? 'Add text'
+          : props.dialog === 'properties'
+            ? 'Clip properties'
+            : props.dialog === 'export'
+              ? 'Export video'
+              : props.dialog === 'shortcuts'
+                ? 'Keyboard shortcuts'
+                : (props.progress?.label ?? 'Working'),
+    onClose: () => {
+      if (props.dialog === 'export') props.onCloseExport();
+      else if (!props.busy) props.onDialogChange(null);
+    },
+    showCloseButton: !props.busy,
+  }),
+);
 const Preview = lazy(() =>
   import('./Preview').then(({ Preview }) => ({ default: Preview })),
 );
 const Timeline = lazy(() =>
   import('./Timeline').then(({ Timeline }) => ({ default: Timeline })),
 );
-const CommandPalette = lazy(() => import('./CommandPalette'));
+const CommandPalette = onDemandDialog(
+  () => import('./CommandPalette'),
+  ({ onOpenChange }) => ({
+    title: 'Commands',
+    onClose: () => onOpenChange(false),
+    finalFocus: () => document.getElementById('workspace-command-trigger'),
+  }),
+);
 const WorkspaceMenu = lazy(() => import('./WorkspaceMenu'));
-const WorkspaceTransferDialog = lazy(() => import('./WorkspaceTransferDialog'));
+const WorkspaceTransferDialog = onDemandDialog(
+  () => import('./WorkspaceTransferDialog'),
+  ({ mode, projectOnly, onClose }) => ({
+    title: `${mode === 'export' ? 'Export' : 'Import'} ${projectOnly ? 'project' : 'workspace'}`,
+    onClose,
+    finalFocus: () => document.getElementById('workspace-settings-trigger'),
+  }),
+);
 const AppearancePanel = lazy(() => import('./AppearancePanel'));
 import ProjectBrowser from './ProjectBrowser';
-const ProjectSwitcherDialog = lazy(() => import('./ProjectSwitcherDialog'));
+const ProjectSwitcherDialog = onDemandDialog(
+  () => import('./ProjectSwitcherDialog'),
+  ({ trigger, onOpenChange }) => ({
+    title: 'Projects',
+    onClose: () => onOpenChange(false),
+    finalFocus: trigger,
+  }),
+);
 import {
   WorkspaceSkeleton,
   PreviewSkeleton,
@@ -388,10 +440,15 @@ export function Workspace() {
   const [seekRevision, setSeekRevision] = useState(0);
   const [dialog, setDialog] = useState<DialogName>(null);
   const commandRequest = useRef(0);
+  const commandCompleted = useRef(0);
   const [commandsOpen, setCommandsOpen] = useState(false);
-  const [paletteCommands, setPaletteCommands] = useState<WorkspaceCommand[]>(
-    [],
-  );
+  const [paletteCommands, setPaletteCommands] = useState<
+    WorkspaceCommand[] | null
+  >(null);
+  const changeCommandsOpen = useCallback((open: boolean) => {
+    if (!open) commandRequest.current++;
+    setCommandsOpen(open);
+  }, []);
   const conversationControls = useRef<ConversationControls>(null);
   const pendingAISettings = useRef(false);
   const registerConversationControls = useCallback(
@@ -691,7 +748,7 @@ export function Workspace() {
       setProjectSwitcherOpen(false);
       setDialog(null);
       setTransfer(null);
-      setCommandsOpen(false);
+      changeCommandsOpen(false);
       setSettingsOpen(false);
       setAppearanceOpen(false);
       if (id) {
@@ -720,7 +777,7 @@ export function Workspace() {
       clearProject,
       resetProjectView,
       setDialog,
-      setCommandsOpen,
+      changeCommandsOpen,
       setSettingsOpen,
       setTransfer,
       setRecordingRoute,
@@ -1647,8 +1704,13 @@ export function Workspace() {
   });
   const showCommands = () => {
     const token = ++commandRequest.current;
-    void import('./workspace-command-list')
-      .then(({ workspaceCommands }) => {
+    setPaletteCommands(null);
+    setCommandsOpen(true);
+    void Promise.all([
+      import('./workspace-command-list'),
+      CommandPalette.preload(),
+    ])
+      .then(([{ workspaceCommands }]) => {
         if (!alive.current || token !== commandRequest.current) return;
         setPaletteCommands(
           workspaceCommands(
@@ -1713,9 +1775,13 @@ export function Workspace() {
             shortcutActions,
           ),
         );
-        setCommandsOpen(true);
+        commandCompleted.current = token;
       })
-      .catch(error);
+      .catch((failure) => {
+        if (!alive.current || token !== commandRequest.current) return;
+        changeCommandsOpen(false);
+        error(failure);
+      });
   };
   const settingsTrigger = (
     <Button
@@ -2450,11 +2516,24 @@ export function Workspace() {
       )}
       {commandsOpen && (
         <Suspense fallback={null}>
-          <CommandPalette
-            open
-            onOpenChange={setCommandsOpen}
-            commands={paletteCommands}
-          />
+          {paletteCommands === null ? (
+            <LoadingDialog
+              title="Commands"
+              onClose={() => changeCommandsOpen(false)}
+              finalFocus={() =>
+                document.getElementById('workspace-command-trigger')
+              }
+              handoff={() =>
+                commandCompleted.current === commandRequest.current
+              }
+            />
+          ) : (
+            <CommandPalette
+              open
+              onOpenChange={changeCommandsOpen}
+              commands={paletteCommands}
+            />
+          )}
         </Suspense>
       )}
       {errorReport && (

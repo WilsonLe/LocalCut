@@ -431,6 +431,10 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Preserve embedded photo capture/video recording dates and locations on upload. Retain them with asset metadata, give indexing that context and let the editing agent discover them through the shared inspection tools. Unknown dates/locations stay unknown; never substitute upload or file modification time.
 
+## Dialog opening responsiveness — 12 October 2026
+
+- Remove the first-opening delay across workspace dialogs. Show lightweight opening feedback immediately, retain an accessible loading shell while optional code arrives, load command metadata and UI together, and separate heavy text/clip editors from simple forms. Preserve on-demand engine/provider boundaries, cancellation, focus return and the startup bundle budget.
+
 ## Indexing authorization — 12 October 2026
 
 - Remove the separate Allow asset indexing permission. Connecting OpenRouter acknowledges the indexing disclosure and authorizes generated evidence and saved labels in chat. This supersedes the remembered/revocable indexing permission recorded above.

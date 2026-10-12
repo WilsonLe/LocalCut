@@ -1,5 +1,5 @@
+import { onDemandDialog } from './on-demand-dialog';
 import {
-  lazy,
   Suspense,
   useEffect,
   useRef,
@@ -9,7 +9,14 @@ import {
 import { Bell } from 'lucide-react';
 import { notificationHistory } from './notifications';
 import { notificationHistoryKey } from './notification-history';
-const NotificationLogDialog = lazy(() => import('./NotificationLogDialog'));
+const NotificationLogDialog = onDemandDialog(
+  () => import('./NotificationLogDialog'),
+  ({ onClose, trigger }) => ({
+    title: 'Notifications',
+    onClose: onClose,
+    finalFocus: trigger,
+  }),
+);
 
 export function NotificationControl() {
   const [open, setOpen] = useState(false);

@@ -1,9 +1,12 @@
 import type * as React from 'react';
+import { useContext } from 'react';
+import { DialogFocusContext } from './dialog-focus';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { cn } from 'cn';
 
 import { Button } from '@/components/ui/button';
 import { XIcon } from 'lucide-react';
+export { DialogFocusContext } from './dialog-focus';
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;
@@ -42,15 +45,18 @@ function DialogContent({
   children,
   showCloseButton = true,
   keepMounted = false,
+  finalFocus,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean;
   keepMounted?: boolean;
 }) {
+  const inheritedFocus = useContext(DialogFocusContext);
   return (
     <DialogPortal keepMounted={keepMounted}>
       <DialogOverlay />
       <DialogPrimitive.Popup
+        finalFocus={finalFocus ?? inheritedFocus}
         data-slot="dialog-content"
         className={cn(
           'fixed top-1/2 left-1/2 z-50 grid h-auto max-h-[min(48rem,calc(var(--app-viewport-height)-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 content-start gap-6 overflow-y-auto overscroll-contain rounded-xl bg-popover p-6 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',

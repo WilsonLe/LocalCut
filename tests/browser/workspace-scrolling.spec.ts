@@ -79,6 +79,9 @@ for (const base of ['/', '/LocalCut/']) {
           exact: true,
         });
         await expect(shortcuts).toBeVisible();
+        await expect(
+          shortcuts.getByRole('heading', { name: 'Playback and timeline' }),
+        ).toBeVisible();
         await shortcuts.evaluate((el) =>
           Promise.all(
             el.getAnimations().map((animation) => animation.finished),
@@ -116,6 +119,9 @@ for (const base of ['/', '/LocalCut/']) {
           exact: true,
         });
         await expect(dialog).toBeVisible();
+        await expect(
+          dialog.getByRole('button', { name: 'Add provider', exact: true }),
+        ).toBeVisible();
         await dialog.evaluate((el) =>
           Promise.all(
             el.getAnimations().map((animation) => animation.finished),
