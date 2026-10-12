@@ -44,7 +44,7 @@ for (const base of ['/', '/LocalCut/']) {
         buffer: Buffer.from(bytes),
       })),
     );
-    await closeMediaImport(page);
+    await closeMediaImportAndPlace(page);
     const media = page.getByRole('region', {
       name: 'Project media',
       exact: true,

@@ -45,6 +45,11 @@ async function setup(page: Page, context: BrowserContext, base: string) {
   await expect(
     page.getByRole('dialog', { name: 'New project', exact: true }),
   ).not.toBeVisible();
+  // Dialog closure precedes the project's operation/navigation handoff.
+  // Start settings interaction only after the editor is ready to accept edits.
+  await expect(
+    page.getByRole('button', { name: 'Add text', exact: true }),
+  ).toBeEnabled();
   await openAISettings(page);
   const settings = page.getByRole('dialog', {
     name: 'AI connection',
