@@ -809,6 +809,9 @@ for (const base of ['/', '/LocalCut/']) {
       .poll(async () => (await p()).tracks.flatMap((t) => t.clips).length)
       .toBe(3);
     await first.click();
+    await expect(
+      page.getByRole('button', { name: 'Undo', exact: true }),
+    ).toBeVisible();
     await page.keyboard.press('ControlOrMeta+Shift+g');
     await expect
       .poll(

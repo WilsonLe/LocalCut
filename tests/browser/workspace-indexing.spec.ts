@@ -962,6 +962,9 @@ for (const base of ['/', '/LocalCut/']) {
       await page
         .getByRole('button', { name: 'Create project', exact: true })
         .click();
+      await expect(
+        page.getByRole('button', { name: 'Undo', exact: true }),
+      ).toBeVisible();
       const dialog = await connect(page);
       await dialog.getByRole('button', { name: 'Done', exact: true }).click();
       await page.locator('#mobile-media-trigger').click();
