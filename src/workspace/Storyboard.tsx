@@ -2,6 +2,8 @@ import { useAppearance } from './appearance';
 import type { Ref } from 'react';
 import './storyboard-asset-path';
 import { useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Redo2, Undo2 } from 'lucide-react';
 import {
   CaptureUpdateAction,
   Excalidraw,
@@ -15,6 +17,7 @@ import { storyboardSchema } from '../core/storyboard';
 import type { Editor, Project, Storyboard as Scene } from '../editor';
 import { StoryboardSession } from './storyboard-session';
 import { Button } from '../components/ui/button';
+import { Tooltip } from '../components/ui/tooltip';
 
 const restore = (scene: Scene) =>
   restoreElements(scene.elements as unknown as ExcalidrawElement[], null);
@@ -43,6 +46,7 @@ export function Storyboard({
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const pointerDown = useRef(false);
   const container = useRef<HTMLDivElement>(null);
+  const [toolbar, setToolbar] = useState<Element | null>(null);
   const [reset, setReset] = useState<Scene | null>(null);
   const [session] = useState(
     () =>
@@ -81,6 +85,22 @@ export function Storyboard({
     if (!active || readOnly) void session.flush();
   }, [active, readOnly, session]);
   useEffect(() => () => session.close(), [session]);
+  useEffect(() => {
+    const canvas = container.current;
+    if (!canvas || !api) return;
+    // The pinned vendor has no in-toolbar slot. Follow its desktop/mobile
+    // toolbar replacements while keeping history controls owned by React.
+    const locateToolbar = () =>
+      setToolbar(
+        canvas.querySelector(
+          '.App-menu_top .shapes-section .App-toolbar > .Stack_horizontal, .App-top-bar .App-toolbar > .Stack_horizontal',
+        ),
+      );
+    const observer = new MutationObserver(locateToolbar);
+    observer.observe(canvas, { childList: true, subtree: true });
+    locateToolbar();
+    return () => observer.disconnect();
+  }, [api]);
   useEffect(() => {
     if (!api || !container.current) return;
     let width = 0;
@@ -152,25 +172,38 @@ export function Storyboard({
         }
       }}
     >
-      <div className="storyboard-heading">
-        <span>Storyboard</span>
-        <div>
-          {!readOnly && (
-            <>
-              <Button variant="ghost" size="sm" onClick={() => void history()}>
-                Undo
-              </Button>
+      {toolbar &&
+        active &&
+        !readOnly &&
+        createPortal(
+          <div
+            className="storyboard-history"
+            role="group"
+            aria-label="Project history"
+          >
+            <Tooltip content="Undo">
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon-sm"
+                aria-label="Undo"
+                onClick={() => void history()}
+              >
+                <Undo2 />
+              </Button>
+            </Tooltip>
+            <Tooltip content="Redo">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Redo"
                 onClick={() => void history(true)}
               >
-                Redo
+                <Redo2 />
               </Button>
-            </>
-          )}
-        </div>
-      </div>
+            </Tooltip>
+          </div>,
+          toolbar,
+        )}
       <div className="storyboard-canvas" ref={container}>
         <Excalidraw
           excalidrawAPI={setApi}
