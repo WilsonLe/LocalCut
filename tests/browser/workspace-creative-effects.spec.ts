@@ -112,7 +112,9 @@ for (const base of ['/', '/LocalCut/']) {
               kind: 'audio',
               assetId: audio.id,
               startUs: 0,
-              durationUs: 1000000,
+              durationUs: 769231,
+              speed: 1.3,
+              pitchMode: 'preserve',
               sourceOutUs: 1000000,
               balance: 1,
               equalizer: { lowDb: 6, midDb: 0, highDb: 0 },
@@ -501,6 +503,43 @@ for (const base of ['/', '/LocalCut/']) {
         });
         const first = await editor.masks.track(project.id, 'clip', 1)
           .completion;
+        const wide = await editor.projects.create('Letterboxed tracking', {
+          width: 512,
+          height: 128,
+        });
+        await editor.commands.apply({
+          projectId: wide.id,
+          expectedRevision: 0,
+          requestId: 'wide',
+          operations: [
+            { type: 'addTrack', track: { id: 'track-wide', kind: 'video' } },
+            {
+              type: 'insertClip',
+              trackId: 'track-wide',
+              clip: {
+                id: 'wide-clip',
+                kind: 'video',
+                assetId: asset.id,
+                startUs: 0,
+                durationUs: asset.durationUs,
+                sourceOutUs: asset.durationUs,
+                width: 512,
+                height: 128,
+                mask: {
+                  shape: 'rectangle',
+                  x: 0.40625,
+                  y: 0.25,
+                  width: 0.0625,
+                  height: 0.25,
+                  invert: false,
+                  feather: 0,
+                },
+              },
+            },
+          ],
+        });
+        const fitted = await editor.masks.track(wide.id, 'wide-clip', 1)
+          .completion;
         await editor.dispose();
         editor = await createEditor({ namespace });
         const NativeWorker = window.Worker;
@@ -569,6 +608,7 @@ for (const base of ['/', '/LocalCut/']) {
         }
         return {
           first,
+          fitted,
           replay,
           beforePoints: before.tracks[0].clips[0].mask.points,
           saved: saved.tracks[0].clips[0].mask,
@@ -582,10 +622,256 @@ for (const base of ['/', '/LocalCut/']) {
     expect(result.first.mask.points.length).toBeGreaterThan(5);
     expect(result.first.mask.points.at(-1).x).toBeGreaterThan(0.3);
     expect(result.first.confidence).toBeGreaterThan(0.2);
+    expect(result.fitted.mask.points.at(-1).x).toBeGreaterThan(0.44);
+    expect(result.fitted.confidence).toBeGreaterThan(0.2);
     expect(result.replay).toEqual(result.first);
     expect(result.beforePoints).toBeUndefined();
     expect(result.saved.points).toEqual(result.first.mask.points);
     expect(result.revision).toBe(2);
     expect(result.rejected).toBe('REVISION_CONFLICT');
+  });
+}
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`black transitions keep endpoint blends and mask drafts retime with speed ${base}`, async ({
+    page,
+  }) => {
+    await page.goto(base);
+    const seed = await page.evaluate(async (base) => {
+      const { createEditor } = await import(base + 'editor.js');
+      const e = await createEditor();
+      const image = async (color: string) => {
+        const c = new OffscreenCanvas(128, 128),
+          ctx = c.getContext('2d')!;
+        ctx.fillStyle = color;
+        ctx.fillRect(0, 0, 128, 128);
+        return e.assets.import(
+          new File([await c.convertToBlob()], color + '.png', {
+            type: 'image/png',
+          }),
+        ).completion;
+      };
+      try {
+        const blue = await image('blue'),
+          red = await image('red');
+        const p = await e.projects.create('Blend transition', {
+          width: 128,
+          height: 128,
+        });
+        await e.commands.apply({
+          projectId: p.id,
+          expectedRevision: 0,
+          requestId: 'blend',
+          operations: [
+            { type: 'addTrack', track: { id: 'lower', kind: 'video' } },
+            { type: 'addTrack', track: { id: 'upper', kind: 'video' } },
+            {
+              type: 'insertClip',
+              trackId: 'lower',
+              clip: {
+                id: 'back',
+                kind: 'image',
+                assetId: blue.id,
+                startUs: 0,
+                durationUs: 1500000,
+                width: 128,
+                height: 128,
+              },
+            },
+            ...['a', 'b'].map((id, i) => ({
+              type: 'insertClip',
+              trackId: 'upper',
+              clip: {
+                id,
+                kind: 'image',
+                assetId: red.id,
+                startUs: i * 500000,
+                durationUs: 1000000,
+                width: 128,
+                height: 128,
+                blendMode: 'multiply',
+              },
+            })),
+            {
+              type: 'addTransition',
+              transition: {
+                id: 'black',
+                trackId: 'upper',
+                fromClipId: 'a',
+                toClipId: 'b',
+                kind: 'black',
+              },
+            },
+          ],
+        });
+        const pixels = [];
+        for (const timeUs of [499999, 500000, 750000, 999999, 1000000]) {
+          const f = await e.preview.frame(p.id, timeUs, {
+            width: 128,
+            height: 128,
+          }).completion;
+          const c = new OffscreenCanvas(128, 128),
+            ctx = c.getContext('2d')!;
+          try {
+            ctx.drawImage(f.image, 0, 0);
+            pixels.push([...ctx.getImageData(64, 64, 1, 1).data]);
+          } finally {
+            f.image.close();
+          }
+        }
+        await e.commands.apply({
+          projectId: p.id,
+          expectedRevision: 1,
+          requestId: 'screen',
+          operations: ['a', 'b'].map((clipId) => ({
+            type: 'updateClip',
+            clipId,
+            patch: { blendMode: 'screen', opacity: 0.5 },
+          })),
+        });
+        const screen = [];
+        for (const timeUs of [499999, 500000, 750000, 999999, 1000000]) {
+          const f = await e.preview.frame(p.id, timeUs, {
+            width: 128,
+            height: 128,
+          }).completion;
+          const c = new OffscreenCanvas(128, 128),
+            ctx = c.getContext('2d')!;
+          try {
+            ctx.drawImage(f.image, 0, 0);
+            screen.push([...ctx.getImageData(64, 64, 1, 1).data]);
+          } finally {
+            f.image.close();
+          }
+        }
+        const source = await e.projects.create('Video source', {
+          width: 128,
+          height: 128,
+        });
+        await e.commands.apply({
+          projectId: source.id,
+          expectedRevision: 0,
+          requestId: 'source',
+          operations: [
+            { type: 'addTrack', track: { id: 'source-track', kind: 'video' } },
+            {
+              type: 'insertClip',
+              trackId: 'source-track',
+              clip: {
+                id: 'source-clip',
+                kind: 'image',
+                assetId: red.id,
+                startUs: 0,
+                durationUs: 1000000,
+                width: 128,
+                height: 128,
+              },
+            },
+          ],
+        });
+        const output = await e.exports.start(source.id, { format: 'mp4' })
+          .completion;
+        let asset;
+        try {
+          asset = await e.assets.import(
+            new File([output.file], 'source.mp4', { type: 'video/mp4' }),
+          ).completion;
+        } finally {
+          await output.dispose();
+        }
+        const form = await e.projects.create('Mask timing', {
+          width: 128,
+          height: 128,
+        });
+        await e.commands.apply({
+          projectId: form.id,
+          expectedRevision: 0,
+          requestId: 'timing',
+          operations: [
+            { type: 'addTrack', track: { id: 'timing-track', kind: 'video' } },
+            {
+              type: 'insertClip',
+              trackId: 'timing-track',
+              clip: {
+                id: 'timing-clip',
+                kind: 'video',
+                assetId: asset.id,
+                startUs: 0,
+                durationUs: 1000000,
+                sourceOutUs: 1000000,
+                width: 128,
+                height: 128,
+                mask: {
+                  shape: 'ellipse',
+                  x: 0.1,
+                  y: 0.1,
+                  width: 0.2,
+                  height: 0.2,
+                  invert: false,
+                  feather: 0,
+                  points: [
+                    { timeUs: 0, x: 0.1, y: 0.1 },
+                    { timeUs: 900000, x: 0.5, y: 0.5 },
+                  ],
+                },
+              },
+            },
+          ],
+        });
+        return { id: form.id, pixels, screen };
+      } finally {
+        await e.dispose();
+      }
+    }, base);
+    for (const pixel of seed.pixels) expect(pixel).toEqual([0, 0, 0, 255]);
+    expect(seed.screen[2]).toEqual([0, 0, 0, 255]);
+    for (const i of [0, 1, 3, 4]) {
+      expect(seed.screen[i]![0]).toBeGreaterThanOrEqual(127);
+      expect(seed.screen[i]![0]).toBeLessThanOrEqual(128);
+      expect(seed.screen[i]![2]).toBeGreaterThanOrEqual(254);
+    }
+    await page.goto(base + '#/project/' + seed.id);
+    await page.locator('[data-clip-id="timing-clip"]').dblclick();
+    const form = page.getByRole('dialog', {
+      name: 'Clip properties',
+      exact: true,
+    });
+    await form.getByLabel('Speed', { exact: true }).fill('2');
+    await form.getByText('Mask', { exact: true }).click();
+    await form.getByLabel('Mask feather (pixels)', { exact: true }).fill('1');
+    await form.getByLabel('Invert mask', { exact: true }).check();
+    await form.getByText('Motion points', { exact: true }).click();
+    await form.getByLabel('Motion point 2 y', { exact: true }).fill('0.6');
+    const invalid = await form.locator('input').evaluateAll((inputs) =>
+      inputs
+        .filter((i) => !(i as HTMLInputElement).checkValidity())
+        .map((i) => ({
+          id: i.id,
+          value: (i as HTMLInputElement).value,
+          error: (i as HTMLInputElement).validationMessage,
+        })),
+    );
+    expect(invalid).toEqual([]);
+    await form
+      .getByRole('button', { name: 'Apply properties', exact: true })
+      .click();
+    await expect(form).not.toBeVisible();
+    const saved = await page.evaluate(
+      async ({ base, id }) => {
+        const { createEditor } = await import(base + 'editor.js');
+        const e = await createEditor();
+        try {
+          return (await e.projects.snapshot(id)).tracks[0].clips[0];
+        } finally {
+          await e.dispose();
+        }
+      },
+      { base, id: seed.id },
+    );
+    expect(saved.durationUs).toBe(500000);
+    expect(saved.mask.feather).toBe(1);
+    expect(saved.mask.invert).toBe(true);
+    expect(saved.mask.points[1].timeUs).toBe(450000);
+    expect(saved.mask.points[1].y).toBe(0.6);
   });
 }

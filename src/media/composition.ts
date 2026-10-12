@@ -87,6 +87,10 @@ export class Renderer {
   private images = new Map<string, ImageBitmap>();
   private pcm = new Map<string, File>();
   private stretchers = new Map<string, PitchStretcher>();
+  private stretchedWindows = new Map<
+    string,
+    { begin: number; finish: number; samples: Float32Array[] }
+  >();
   private leases = new Map<string, () => void>();
   private transcripts = new Map<string, Transcript | undefined>();
   constructor(
@@ -396,15 +400,22 @@ export class Renderer {
           } else {
             g.fillStyle = 'black';
             g.fillRect(0, 0, group.width, group.height);
-            g.globalAlpha =
-              amount < 0.5
-                ? (1 - 2 * amount) * valueAt(a, 'opacity', timeUs)
-                : (2 * amount - 1) * valueAt(b, 'opacity', timeUs);
-            g.drawImage(
-              await this.drawClip(amount < 0.5 ? a : b, timeUs),
-              0,
-              0,
-            );
+            const endpoint = amount < 0.5 ? a : b;
+            const weight = amount < 0.5 ? 1 - 2 * amount : 2 * amount - 1;
+            if (endpoint.blendMode && endpoint.blendMode !== 'source-over') {
+              const { canvas: side, ctx: s } = this.layer(
+                'blend-' + endpoint.id,
+              );
+              s.drawImage(this.canvas, 0, 0);
+              s.globalCompositeOperation = endpoint.blendMode;
+              s.globalAlpha = valueAt(endpoint, 'opacity', timeUs);
+              s.drawImage(await this.drawClip(endpoint, timeUs), 0, 0);
+              g.globalAlpha = weight;
+              g.drawImage(side, 0, 0);
+            } else {
+              g.globalAlpha = weight * valueAt(endpoint, 'opacity', timeUs);
+              g.drawImage(await this.drawClip(endpoint, timeUs), 0, 0);
+            }
           }
           ctx.globalAlpha = 1;
           ctx.globalCompositeOperation = 'source-over';
@@ -576,12 +587,40 @@ export class Renderer {
               stretcher = new PitchStretcher();
               this.stretchers.set(clip.id, stretcher);
             }
-            samples = await stretcher.render(
-              begin - origin,
-              finish - begin,
-              (frame) => position(localFrame(origin + frame)),
-              read,
-            );
+            const previous = processed
+              ? this.stretchedWindows.get(clip.id)
+              : undefined;
+            if (
+              previous &&
+              begin >= previous.begin &&
+              begin <= previous.finish &&
+              finish >= previous.finish
+            ) {
+              const tail = await stretcher.render(
+                previous.finish - origin,
+                finish - previous.finish,
+                (frame) => position(localFrame(origin + frame)),
+                read,
+              );
+              samples = previous.samples.map((channel, c) => {
+                const output = new Float32Array(finish - begin);
+                output.set(channel.subarray(begin - previous.begin));
+                output.set(tail[c]!, previous.finish - begin);
+                return output;
+              });
+            } else {
+              samples = await stretcher.render(
+                begin - origin,
+                finish - begin,
+                (frame) => position(localFrame(origin + frame)),
+                read,
+              );
+            }
+            if (processed) {
+              this.stretchedWindows.set(clip.id, { begin, finish, samples });
+              // Effects mutate their scratch window, never the retained raw overlap.
+              samples = samples.map((channel) => channel.slice());
+            }
           } else {
             const windowStart = Math.floor(position(localFrame(begin))) - 32;
             const windowEnd = Math.ceil(position(localFrame(finish))) + 34;
@@ -615,7 +654,10 @@ export class Renderer {
       }
     }
     for (const id of this.stretchers.keys())
-      if (!activeClips.has(id)) this.stretchers.delete(id);
+      if (!activeClips.has(id)) {
+        this.stretchers.delete(id);
+        this.stretchedWindows.delete(id);
+      }
     for (const channel of mixed)
       for (let i = 0; i < channel.length; i++)
         channel[i] = Math.max(-1, Math.min(1, channel[i]!));
@@ -638,6 +680,7 @@ export class Renderer {
     this.sinks.clear();
     this.pcm.clear();
     this.stretchers.clear();
+    this.stretchedWindows.clear();
     this.transcripts.clear();
     this.canvas.width = 1;
     this.canvas.height = 1;

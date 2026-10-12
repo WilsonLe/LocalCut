@@ -1069,7 +1069,7 @@ export async function createEditor(options: EditorOptions = {}) {
   api.masks.track = queued('media.trackMask', api.masks.track, {
     cache: {
       mode: 'reuse',
-      version: 'mask-translation-v1',
+      version: 'mask-translation-v2',
       reuseCompleted: true,
       key: async (input) => {
         const [projectId, clipId, revision, mask] = input as [

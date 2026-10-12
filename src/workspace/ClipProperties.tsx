@@ -78,7 +78,6 @@ export default function ClipProperties({
             : enteredDurationUs;
         const patch: Extract<EditOperation, { type: 'updateClip' }>['patch'] = {
           ...baseChanges,
-          ...effects,
           startUs,
           durationUs,
           speed,
@@ -94,18 +93,19 @@ export default function ClipProperties({
         const operations: EditOperation[] = [];
         // Publish drafted curves before timing commands so the shared engine owns
         // rescaling and clipping both edited and untouched parameter curves.
+        const drafted = { ...effects };
         if (JSON.stringify(keyframes) !== JSON.stringify(clip.keyframes))
+          drafted.keyframes = Object.fromEntries(
+            Object.entries(keyframes).map(([parameter, keys]) => [
+              parameter,
+              [...keys].sort((a, b) => a.timeUs - b.timeUs),
+            ]),
+          );
+        if (Object.keys(drafted).length)
           operations.push({
             type: 'updateClip',
             clipId: clip.id,
-            patch: {
-              keyframes: Object.fromEntries(
-                Object.entries(keyframes).map(([parameter, keys]) => [
-                  parameter,
-                  [...keys].sort((a, b) => a.timeUs - b.timeUs),
-                ]),
-              ),
-            },
+            patch: drafted,
           });
         if (clip.groupId && startUs !== clip.startUs) {
           operations.push({

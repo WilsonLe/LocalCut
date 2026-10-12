@@ -32,13 +32,17 @@ export async function trackMask(
     'INVALID_DOCUMENT',
     'Remove source crop before tracking',
   );
-  const asset = await store.getAsset(clip.assetId!);
+  invariant(
+    !clip.keyframes.width?.length && !clip.keyframes.height?.length,
+    'INVALID_DOCUMENT',
+    'Tracking requires static clip width and height',
+  );
   const width = 192,
-    height = Math.max(2, Math.round((192 * asset.height) / asset.width));
+    height = Math.max(2, Math.round((192 * clip.height) / clip.width));
   invariant(
     height <= 384,
     'INVALID_DOCUMENT',
-    'Tracking supports source aspect ratios up to 2:1 portrait',
+    'Tracking supports clip box aspect ratios up to 2:1 portrait',
   );
   const mask = structuredClone(clip.mask);
   delete mask.points;

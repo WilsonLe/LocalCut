@@ -374,6 +374,17 @@ function splitKeys(
   }
   return [left, right];
 }
+function retimeMask(clip: Clip, duration: number) {
+  if (!clip.mask?.points) return;
+  const ratio = duration / clip.durationUs;
+  const scaled = clip.mask.points.map((point) => ({
+    ...point,
+    timeUs: Math.min(duration, Math.round(point.timeUs * ratio)),
+  }));
+  clip.mask.points = scaled.filter(
+    (point, i) => point.timeUs !== scaled[i + 1]?.timeUs,
+  );
+}
 function retimeClip(clip: Clip, duration: number) {
   const ratio = duration / clip.durationUs;
   for (const [name, keys] of Object.entries(clip.keyframes)) {
@@ -385,15 +396,7 @@ function retimeClip(clip: Clip, duration: number) {
       (key, i) => key.timeUs !== scaled[i + 1]?.timeUs,
     );
   }
-  if (clip.mask?.points) {
-    const scaled = clip.mask.points.map((point) => ({
-      ...point,
-      timeUs: Math.min(duration, Math.round(point.timeUs * ratio)),
-    }));
-    clip.mask.points = scaled.filter(
-      (point, i) => point.timeUs !== scaled[i + 1]?.timeUs,
-    );
-  }
+  retimeMask(clip, duration);
   clip.cues = clip.cues
     .map((cue) => ({
       ...cue,
@@ -773,7 +776,10 @@ export function applyOperations(
             Math.max(1, Math.round((oldDuration * duration) / oldCycle)),
           );
         } else if (hadRamp) retimeClip(c, duration);
-        else c.durationUs = duration;
+        else {
+          retimeMask(c, duration);
+          c.durationUs = duration;
+        }
         break;
       }
       case 'setSpeedRamp': {

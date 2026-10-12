@@ -176,4 +176,53 @@ describe('creative effects', () => {
       ),
     ).toThrow(/texture/);
   });
+  it('retimes replacement mask motion and fades through speed ramps', () => {
+    const mask = {
+      shape: 'ellipse' as const,
+      x: 0.1,
+      y: 0.1,
+      width: 0.2,
+      height: 0.2,
+      invert: false,
+      feather: 1,
+      points: [
+        { timeUs: 0, x: 0.1, y: 0.1 },
+        { timeUs: 900000, x: 0.5, y: 0.5 },
+      ],
+    };
+    const video = clipSchema.parse({
+      id: 'v',
+      kind: 'video',
+      assetId: 'source',
+      startUs: 0,
+      durationUs: 1000000,
+      sourceOutUs: 1000000,
+    });
+    const project = {
+      ...newProject('Ramp mask'),
+      tracks: [
+        { id: 't', kind: 'video' as const, muted: false, clips: [video] },
+      ],
+    };
+    const saved = applyOperations(project, [
+      { type: 'updateClip', clipId: 'v', patch: { mask, fadeInUs: 100000 } },
+      {
+        type: 'setSpeedRamp',
+        clipId: 'v',
+        points: [
+          { position: 0, speed: 2 },
+          { position: 1, speed: 2 },
+        ],
+        pitchMode: 'preserve',
+      },
+    ]).project.tracks[0]!.clips[0]!;
+    expect(saved.durationUs).toBe(500000);
+    expect(saved.mask!.points![1]!.timeUs).toBe(450000);
+    expect(saved.fadeInUs).toBe(50000);
+    const constant = applyOperations(project, [
+      { type: 'updateClip', clipId: 'v', patch: { mask } },
+      { type: 'setSpeed', clipId: 'v', speed: 2 },
+    ]).project.tracks[0]!.clips[0]!;
+    expect(constant.mask!.points![1]!.timeUs).toBe(450000);
+  });
 });
