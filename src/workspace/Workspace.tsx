@@ -188,6 +188,7 @@ import {
   WorkspaceSkeleton,
   PreviewSkeleton,
   TimelineSkeleton,
+  StoryboardSkeleton,
 } from './LoadingState';
 type Artifact = ExportResult & { dispose: () => Promise<void> };
 
@@ -2350,9 +2351,7 @@ export function Workspace() {
                 inert={projectTab !== 'storyboard'}
               >
                 {storyboardLoaded && editor && viewProject && (
-                  <Suspense
-                    fallback={<div role="status">Loading storyboard…</div>}
-                  >
+                  <Suspense fallback={<StoryboardSkeleton />}>
                     <Storyboard
                       key={`${viewProject.id}:${browsed?.id ?? 'current'}`}
                       editor={editor}

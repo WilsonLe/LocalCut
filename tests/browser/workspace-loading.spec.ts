@@ -1,6 +1,114 @@
 import { expect, test } from '@playwright/test';
 
 for (const base of ['/', '/LocalCut/']) {
+  test(`whiteboard loading skeleton stays regional and resolves after cold import ${base}`, async ({
+    page,
+  }, testInfo) => {
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'localcut.appearance.v1',
+        JSON.stringify({ version: 1, preferences: { mode: 'system' } }),
+      );
+    });
+    await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
+    await page.goto(base);
+    const id = await page.evaluate(async (base) => {
+      const { createEditor } = await import(`${base}editor.js`);
+      const editor = await createEditor();
+      try {
+        return (await editor.projects.create('Whiteboard loading')).id;
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(`**${base}assets/Storyboard-*.js`, async (route) => {
+      await held;
+      await route.continue();
+    });
+    try {
+      await page.goto(`${base}#/project/${id}`);
+      const storyboard = page.getByRole('tab', {
+        name: 'Storyboard',
+        exact: true,
+      });
+      const editor = page.getByRole('tab', { name: 'Editor', exact: true });
+      await storyboard.click();
+      const skeleton = page.getByRole('status', {
+        name: 'Loading storyboard',
+        exact: true,
+      });
+      await expect(skeleton).toBeVisible();
+      await expect(skeleton).toHaveAttribute('aria-busy', 'true');
+      await expect(
+        page.getByText('Loading storyboard…', { exact: true }),
+      ).toHaveCount(0);
+      const placeholder = skeleton.locator('.loading-placeholder').first();
+      await expect(placeholder).toHaveCSS('animation-name', 'none');
+      await expect(skeleton.getByRole('button')).toHaveCount(0);
+      const light = await skeleton.evaluate(
+        (element) => getComputedStyle(element).backgroundColor,
+      );
+      await page.screenshot({
+        path: testInfo.outputPath('whiteboard-loading-light.png'),
+      });
+      await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
+      await expect
+        .poll(() =>
+          skeleton.evaluate(
+            (element) => getComputedStyle(element).backgroundColor,
+          ),
+        )
+        .not.toBe(light);
+      await page.screenshot({
+        path: testInfo.outputPath('whiteboard-loading-dark.png'),
+      });
+      await editor.click();
+      await expect(skeleton).toBeHidden();
+      await expect(
+        page.getByRole('button', { name: 'Add text', exact: true }),
+      ).toBeVisible();
+      await storyboard.click();
+      await expect(skeleton).toBeVisible();
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expect(skeleton).toBeVisible();
+      const toolbar = skeleton.locator('.storyboard-skeleton-toolbar');
+      const surface = await skeleton.boundingBox();
+      const bar = await toolbar.boundingBox();
+      expect(bar!.x).toBeGreaterThanOrEqual(surface!.x);
+      expect(bar!.x + bar!.width).toBeLessThanOrEqual(
+        surface!.x + surface!.width,
+      );
+      await expect(skeleton.locator('.storyboard-skeleton-zoom')).toBeHidden();
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+      await page.screenshot({
+        path: testInfo.outputPath('whiteboard-loading-mobile.png'),
+      });
+      await page.emulateMedia({
+        reducedMotion: 'no-preference',
+        colorScheme: 'dark',
+      });
+      await expect(placeholder).toHaveCSS('animation-name', 'loading-breathe');
+      release();
+      await expect(
+        page.locator('.storyboard canvas.interactive'),
+      ).toBeVisible();
+      await expect(skeleton).toHaveCount(0);
+      await expect(
+        page.getByRole('group', { name: 'Project history' }),
+      ).toBeVisible();
+    } finally {
+      release();
+    }
+  });
+
   test(`cached projects render during refresh and reconcile current storage ${base}`, async ({
     page,
   }, testInfo) => {

@@ -546,8 +546,9 @@ for (const base of ['/', '/LocalCut/']) {
                 els.filter((el) => (el as HTMLImageElement).naturalWidth > 0)
                   .length,
             ),
-        // All 24 background previews must finish, including under pool load.
-        { timeout: 30000 },
+        // All 24 previews use queued native jobs, which can outlast a single
+        // control's deadline during concurrent Chrome coverage.
+        { timeout: 30_000 },
       )
       .toBe(24);
     const content = media.locator('.media-content');
