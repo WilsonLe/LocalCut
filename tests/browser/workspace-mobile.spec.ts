@@ -567,6 +567,7 @@ for (const base of ['/', '/LocalCut/']) {
         type: 'touchMove',
         touchPoints: [{ x, y: y - step * 12 }],
       });
+      await expect(page.locator('.media-drag-preview')).toHaveCount(0);
     }
     await cdp.send('Input.dispatchTouchEvent', {
       type: 'touchEnd',
@@ -575,6 +576,29 @@ for (const base of ['/', '/LocalCut/']) {
     await expect
       .poll(() => content.evaluate((el) => el.scrollTop))
       .toBeGreaterThan(40);
+    // Horizontal touch dragging keeps its preview; native cancellation removes it.
+    const source = media.locator('.media-asset-preview').first();
+    await source.scrollIntoViewIfNeeded();
+    const dragBounds = (await source.boundingBox())!;
+    const dragX = dragBounds.x + dragBounds.width / 2;
+    const dragY = dragBounds.y + dragBounds.height / 2;
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x: dragX, y: dragY }],
+    });
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x: dragX - 30, y: dragY }],
+    });
+    await expect(page.locator('.media-drag-preview')).toBeVisible();
+    await expect(page.locator('.media-drag-preview')).toContainText(
+      'source-0.png',
+    );
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchCancel',
+      touchPoints: [],
+    });
+    await expect(page.locator('.media-drag-preview')).toHaveCount(0);
     await cdp.detach();
     expect(await content.evaluate((el) => el.scrollHeight)).toBeGreaterThan(
       await content.evaluate((el) => el.clientHeight),
