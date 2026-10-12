@@ -50,6 +50,8 @@ export interface AssistantEditor {
 }
 
 export interface AssistantCapabilities {
+  /** Host support is discoverable even while permission blocks proposals. */
+  indexingSupported?: boolean;
   indexing?: boolean;
   undo: boolean;
   redo: boolean;

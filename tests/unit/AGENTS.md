@@ -5,5 +5,6 @@
 - For persisted identity/receipt changes, cover omitted fields, explicit defaults, legacy records, retries, and conflicting content; use the committed legacy fixture when relevant.
 - Check cleanup and authoritative results as well as error codes: committed edits survive late cancellation, while disposable results are released.
 - Prefer a failing behavioral regression over assertions tied only to private method order.
+- For assistant prompt/skill changes, follow [prompt and skill maintenance](../../docs/ai.md#prompt-and-skill-maintenance): exercise complete discovery and recovery across supported, unloaded and sharing-blocked states, with fresh-turn and frozen-round authority. String-presence checks alone do not establish behavior.
 - Run `pnpm test tests/unit/<name>.test.ts`; append `-t '<title>'` for one scenario. `pnpm test` runs the full unit layer.
 - Controlled mocks establish logic/race evidence only. Follow [browser guidance](../browser/AGENTS.md) for real storage, codec, worker, and inference claims.

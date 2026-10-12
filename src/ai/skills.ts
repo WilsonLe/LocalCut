@@ -1,5 +1,3 @@
-import type { AssistantCapabilities } from './actions';
-
 /** Only catalog metadata is eager. Guidance lives in separately imported modules. */
 export const skillCatalog = [
   {
@@ -25,7 +23,7 @@ export const skillCatalog = [
   {
     id: 'indexing',
     description:
-      'Inspect selected media and propose asset indexing with derived-evidence sharing and explicit approval.',
+      'Index or reindex assets: inspect permitted media, explain consent blockers, and propose derived-evidence indexing for explicit approval.',
   },
   {
     id: 'history',
@@ -33,25 +31,6 @@ export const skillCatalog = [
   },
 ] as const;
 export type SkillId = (typeof skillCatalog)[number]['id'];
-
-export function availableSkills(
-  capabilities: AssistantCapabilities,
-  includeTranscripts: boolean,
-) {
-  return skillCatalog.filter(
-    ({ id }) =>
-      id === 'editing' ||
-      id === 'storyboard' ||
-      (id === 'indexing' && capabilities.indexing) ||
-      (id === 'export' && capabilities.export) ||
-      (id === 'history' && (capabilities.undo || capabilities.redo)) ||
-      (id === 'transcription' &&
-        (includeTranscripts ||
-          capabilities.transcriptionStatus ||
-          capabilities.transcription ||
-          capabilities.transcriptionPreparation)),
-  );
-}
 
 export async function loadSkill(id: SkillId): Promise<string> {
   switch (id) {

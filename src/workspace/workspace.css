@@ -2278,6 +2278,7 @@
 
 .project-tabs {
   display: flex;
+  justify-content: flex-start;
   gap: 2px;
   flex-shrink: 0;
 }
