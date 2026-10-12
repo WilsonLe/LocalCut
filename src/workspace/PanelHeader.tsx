@@ -7,7 +7,7 @@ function revealAction(lane: HTMLDivElement, action: HTMLElement) {
   const target = action.getBoundingClientRect();
   if (!bounds.width || !lane.clientWidth || !target.width) return;
   const scale = bounds.width / lane.clientWidth;
-  const inset = 32 * scale;
+  const inset = 44 * scale;
   const delta =
     target.left < bounds.left + inset
       ? target.left - bounds.left - inset

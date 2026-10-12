@@ -2437,7 +2437,7 @@
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scrollbar-width: none;
-  scroll-padding-inline: 30px;
+  scroll-padding-inline: 44px;
 }
 .panel-header-scroll::-webkit-scrollbar {
   display: none;
@@ -2469,17 +2469,17 @@
   inset-block: 0;
   display: flex;
   align-items: center;
-  width: 32px;
+  width: 44px;
   pointer-events: none;
 }
 .panel-header-edge-left {
   left: 0;
-  background: linear-gradient(to right, var(--muted) 45%, transparent);
+  background: linear-gradient(to right, var(--muted) 75%, transparent);
 }
 .panel-header-edge-right {
   right: 0;
   justify-content: flex-end;
-  background: linear-gradient(to left, var(--muted) 45%, transparent);
+  background: linear-gradient(to left, var(--muted) 75%, transparent);
 }
 .panel-header-edge button {
   pointer-events: auto;
