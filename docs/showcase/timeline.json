@@ -1,0 +1,17 @@
+{
+  "duration": 15,
+  "fps": 60,
+  "width": 1920,
+  "height": 1080,
+  "bpm": 128,
+  "cues": {
+    "footage": 0,
+    "rhythm": 1.875,
+    "studio": 3.75,
+    "tools": 7.5,
+    "local": 9.375,
+    "make": 11.25,
+    "brand": 13.125,
+    "end": 15
+  }
+}

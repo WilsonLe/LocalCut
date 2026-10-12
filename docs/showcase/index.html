@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>LocalCut — Make the cut</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main
+      id="film"
+      data-composition-id="film"
+      data-width="1920"
+      data-height="1080"
+      data-duration="15"
+      data-fps="60"
+    >
+      <section class="scene" id="footage">
+        <div class="eyebrow">LocalCut / A browser video editor</div>
+        <div class="edition">01 — INTRODUCING</div>
+        <h1 class="huge">
+          Your<br /><svg
+            class="outline"
+            width="1100"
+            height="240"
+            viewBox="0 0 1100 240"
+            aria-label="footage."
+          >
+            <text x="0" y="202" fill="none" stroke="#fafafa" stroke-width="2">
+              footage.
+            </text>
+          </svg>
+        </h1>
+        <div class="cutline"></div>
+        <div
+          class="cutmark"
+          data-layout-allow-overflow
+          aria-hidden="true"
+        ></div>
+        <div class="sub">Every great edit starts with you.</div>
+        <div class="intro-number">01</div>
+      </section>
+      <section class="scene" id="rhythm">
+        <div class="eyebrow">Find your flow</div>
+        <h2 class="huge">Your rhythm.</h2>
+        <div class="strip" data-layout-allow-overflow>
+          <img
+            src="assets/landscape-1.jpg"
+            alt="Original desert artwork"
+          /><span>01 / GOLDEN HOUR</span>
+        </div>
+        <div class="strip" data-layout-allow-overflow>
+          <img
+            src="assets/landscape-2.jpg"
+            alt="Original coastal artwork"
+          /><span>02 / QUIET COAST</span>
+        </div>
+        <div class="strip" data-layout-allow-overflow>
+          <img
+            src="assets/landscape-3.jpg"
+            alt="Original landscape artwork"
+          /><span>03 / LAST LIGHT</span>
+        </div>
+        <div class="sub">Turn the moments into a story.</div>
+      </section>
+      <section class="scene" id="studio">
+        <h2 class="studio-title">A studio in your browser.</h2>
+        <div class="screen">
+          <img
+            src="assets/editor.png"
+            alt="Actual LocalCut editor with original sample artwork"
+          />
+        </div>
+        <div class="studio-foot">
+          IMPORT &nbsp; / &nbsp; EDIT &nbsp; / &nbsp; EXPORT
+        </div>
+      </section>
+      <section class="scene" id="tools">
+        <div class="eyebrow">Shape the story</div>
+        <div class="tools-title">Cut. Layer. Create.</div>
+        <div class="ruler"></div>
+        <div class="track primary" data-layout-allow-overflow>
+          <div><img src="assets/landscape-1.jpg" alt="" /></div>
+          <div><img src="assets/landscape-2.jpg" alt="" /></div>
+          <div><img src="assets/landscape-3.jpg" alt="" /></div>
+        </div>
+        <div class="track secondary" data-layout-allow-overflow>
+          <div>Golden hour</div>
+          <div>Your next story</div>
+        </div>
+        <div class="track audio" data-layout-allow-overflow id="waveform"></div>
+        <div class="playhead"></div>
+      </section>
+      <section class="scene" id="local">
+        <div class="eyebrow">Local media processing</div>
+        <h2 class="huge">Keep<br />it local.</h2>
+        <div class="sub">Your media. Your workspace.</div>
+        <div class="local-orbit"></div>
+        <div class="local-orbit small"></div>
+        <div class="satellite">↘</div>
+        <div class="local-icon">
+          <svg
+            viewBox="0 0 100 100"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="5"
+            stroke-linejoin="round"
+          >
+            <rect x="15" y="20" width="70" height="49" rx="6" />
+            <path d="M7 81h86M34 69v12m32-12v12" />
+            <path d="m36 44 10 10 20-23" />
+          </svg>
+        </div>
+      </section>
+      <section class="scene" id="make">
+        <div id="shutters"></div>
+        <div class="make-title" data-layout-allow-overflow>
+          Make<br />the cut.
+        </div>
+      </section>
+      <section class="scene" id="brand">
+        <div class="lockup">
+          <img src="assets/mark.svg" alt="LocalCut scissors mark" />
+          <div class="wordmark">LocalCut</div>
+        </div>
+        <div class="tagline">Your next story starts here.</div>
+        <div class="url">wilsonle.github.io/LocalCut</div>
+      </section>
+      <div class="corner"></div>
+      <div class="corner tr"></div>
+      <div class="corner br"></div>
+      <div class="corner bl"></div>
+      <div id="progress"></div>
+    </main>
+    <script src="node_modules/gsap/dist/gsap.min.js"></script>
+    <script>
+      window.__timelines = {};
+    </script>
+    <script src="motion.js"></script>
+  </body>
+</html>
