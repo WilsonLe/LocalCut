@@ -155,9 +155,11 @@ for (const base of ['/', '/LocalCut/']) {
         const scope = JSON.parse(original.scope);
         for (const allowed of [false, true]) {
           const legacyScope = JSON.stringify([
-            ...scope.slice(0, 7),
+            ...scope.slice(0, 4),
+            false,
+            false,
+            false,
             allowed,
-            ...scope.slice(7),
           ]);
           tx.objectStore('sessions').put({
             ...original,
@@ -481,37 +483,18 @@ for (const base of ['/', '/LocalCut/']) {
     await page.reload();
     await expect(composer).toHaveValue('Second tab draft');
 
-    // Each sharing choice isolates saved history and resets across reload.
-    for (const [name, draft] of [
-      ['Share overlay and caption text', 'Text-sharing scope draft'],
-      [
-        'Share capture dates and GPS with chat and indexing',
-        'Capture-sharing scope draft',
-      ],
-    ] as const) {
-      await openAISettings(page);
-      await settings
-        .getByRole('button', { name: 'Data & analytics', exact: true })
-        .click();
-      await page.getByRole('checkbox', { name, exact: true }).check();
-      await page.keyboard.press('Escape');
-      await settings.getByRole('button', { name: 'Done', exact: true }).click();
-      await expect(composer).toHaveValue('');
-      await expect(
-        page.getByRole('log', { name: 'Conversation messages' }),
-      ).not.toContainText('Hello');
-      await composer.fill(draft);
-      await expect
-        .poll(async () =>
-          (await savedChats(page)).some(
-            (chat) => chat.content.prompt === draft,
-          ),
-        )
-        .toBe(true);
-      await page.reload();
-      await expect(composer).toHaveValue('Second tab draft');
-      expect(completions).toBe(2);
-    }
+    // OpenRouter context sharing is stable across restored connections.
+    await openAISettings(page);
+    await expect(
+      settings.getByRole('button', { name: 'Data & analytics' }),
+    ).toHaveCount(0);
+    await expect(
+      settings.getByRole('region', { name: 'OpenRouter connection terms' }),
+    ).toContainText('including after reload');
+    await settings.getByRole('button', { name: 'Done', exact: true }).click();
+    await page.reload();
+    await expect(composer).toHaveValue('Second tab draft');
+    expect(completions).toBe(2);
 
     // Model changes keep a separate context and restore it on return.
     await openAISettings(page);

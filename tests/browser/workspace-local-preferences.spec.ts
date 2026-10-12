@@ -504,7 +504,7 @@ for (const base of ['/', '/LocalCut/']) {
     expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
   });
 
-  test(`workspace local preferences remember validated AI model with separate saved credentials and session-only consent ${base}`, async ({
+  test(`workspace local preferences remember validated AI model with separate saved credentials and connection terms ${base}`, async ({
     page,
     context,
   }) => {
@@ -542,25 +542,12 @@ for (const base of ['/', '/LocalCut/']) {
         exact: true,
       })
       .click();
-    await dialog
-      .getByRole('button', { name: 'Data & analytics', exact: true })
-      .click();
-    await page
-      .getByRole('checkbox', { name: 'Share overlay and caption text' })
-      .click();
-    await page
-      .getByRole('checkbox', { name: 'Share project and media names' })
-      .click();
-    await page
-      .getByRole('checkbox', { name: 'Share source transcripts' })
-      .click();
-    const captureSharing = page.getByRole('checkbox', {
-      name: 'Share capture dates and GPS with chat and indexing',
-      exact: true,
-    });
-    await expect(captureSharing).not.toBeChecked();
-    await captureSharing.click();
-    await expect(captureSharing).toBeChecked();
+    await expect(
+      dialog.getByRole('region', { name: 'OpenRouter connection terms' }),
+    ).toContainText('context categories stay enabled');
+    await expect(
+      dialog.getByRole('button', { name: 'Data & analytics' }),
+    ).toHaveCount(0);
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     expect((await preferences(page)).aiModel).toBe(
       '~deepseek/deepseek-pro-latest',
@@ -582,18 +569,12 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toContainText('Preference model');
-    await dialog
-      .getByRole('button', { name: 'Data & analytics', exact: true })
-      .click();
     await expect(
-      page.getByRole('checkbox', { name: 'Allow asset indexing' }),
+      dialog.getByRole('region', { name: 'OpenRouter connection terms' }),
+    ).toContainText('including after reload');
+    await expect(
+      dialog.getByRole('button', { name: 'Data & analytics' }),
     ).toHaveCount(0);
-    await expect(page.getByRole('checkbox')).toHaveCount(4);
-    for (const checkbox of await page.getByRole('checkbox').all())
-      await expect(checkbox).not.toBeChecked();
-    await dialog
-      .getByRole('button', { name: 'Data & analytics', exact: true })
-      .click();
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();

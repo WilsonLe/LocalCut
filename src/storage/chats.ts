@@ -86,6 +86,39 @@ export function legacyIndexChatScopes(scope: string): string[] {
     return [];
   }
 }
+/** Only an explicitly connection-authorized scope can recover prior sharing variants. */
+export function legacyOpenRouterChatScopes(scope: string): string[] {
+  try {
+    const parts: unknown = JSON.parse(scope);
+    if (
+      !Array.isArray(parts) ||
+      parts.length !== 5 ||
+      typeof parts[0] !== 'string' ||
+      !Array.isArray(parts[1]) ||
+      !Array.isArray(parts[2]) ||
+      typeof parts[3] !== 'string' ||
+      parts[4] !== 'openrouter-context-v1'
+    )
+      return [];
+    const scopes: string[] = [];
+    for (const text of [false, true])
+      for (const names of [false, true])
+        for (const transcripts of [false, true])
+          for (const capture of [false, true]) {
+            const previous = JSON.stringify([
+              ...parts.slice(0, 4),
+              text,
+              names,
+              transcripts,
+              ...(capture ? ['capture-metadata'] : []),
+            ]);
+            scopes.push(previous, ...legacyIndexChatScopes(previous));
+          }
+    return scopes;
+  } catch {
+    return [];
+  }
+}
 interface ChatDatabase extends DBSchema {
   sessions: {
     key: [string, string];
@@ -183,9 +216,12 @@ export class ChatStore {
       throw error;
     }));
   }
-  private async migrateIndexScopes(scope: string) {
+  private async migrateLegacyScopes(scope: string) {
     const db = await this.db();
-    const legacyScopes = legacyIndexChatScopes(scope);
+    const legacyScopes = [
+      ...legacyIndexChatScopes(scope),
+      ...legacyOpenRouterChatScopes(scope),
+    ];
     const probe = db.transaction('sessions');
     const legacyRecords = await Promise.all(
       legacyScopes.map((legacyScope) =>
@@ -236,7 +272,7 @@ export class ChatStore {
     await tx.done;
   }
   async load(scope: string) {
-    await this.migrateIndexScopes(scope);
+    await this.migrateLegacyScopes(scope);
     const tx = (await this.db()).transaction(['sessions', 'selection']);
     const records = await tx
       .objectStore('sessions')

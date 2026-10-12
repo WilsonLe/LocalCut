@@ -229,6 +229,8 @@ for (const base of ['/', '/LocalCut/']) {
         page.getByRole('button', { name: 'Cancel response', exact: true }),
       ).toHaveCount(0);
       expect(requests).toHaveLength(count + 1);
+      // Persistent error toasts can cover Send; dismiss them through real controls.
+      await dismissNotifications(page);
       await input.fill('Try again with the retained storyboard context');
       await expect(send).toBeEnabled();
       await send.click();

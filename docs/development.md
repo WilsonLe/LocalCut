@@ -263,3 +263,14 @@ Run `pnpm test tests/unit/assistant.test.ts`, then `pnpm test:ui --grep 'chat in
 ## Creative effect checks
 
 Use `pnpm test tests/unit/audio-effects-window.test.ts tests/unit/creative-effects.test.ts tests/unit/assistant.test.ts tests/unit/core.test.ts tests/unit/timeline-features.test.ts` for keep-pitch effect continuity, LUT validation/interpolation, spectral/EQ/balance processing, chroma, mask path split/timing, discovery and approved effects/tracking. Then `pnpm test:ui --grep 'creative effects|creative clip|local mask tracking|black transitions keep'` covers both production bases, responsive controls, local import failure, persisted settings/history/backup, actual MP4/WebM pixels/PCM and native video tracking with cached replay/approved assistant persistence. Shared composition changes also require the serial `pnpm test:performance` gate. Transcription preparation/model paths are unchanged.
+
+## OpenRouter context checks
+
+For connection terms, automatic context sharing and legacy chat migration:
+
+```sh
+pnpm test tests/unit/providers.test.ts tests/unit/chat-persistence.test.ts
+pnpm test:ui --grep 'OpenRouter connection shares all context|provider empty state reveals OpenRouter'
+```
+
+The production Chrome journey reads project/media names, overlay/storyboard text and frame names, attached source transcript text and imported EXIF dates/GPS through real assistant tools before and after reload. It migrates all 48 older sharing/indexing scope variants in native IndexedDB while preserving canonical selection, drafts, titles, archives and project/model/provider isolation. Intercepted replies establish transport and persistence, not paid inference quality. The connector layout journey covers desktop/phone terms and both connection choices without provider requests.
