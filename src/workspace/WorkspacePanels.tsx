@@ -1,3 +1,8 @@
+import { onDemand } from './on-demand';
+const TouchTooltips = onDemand(
+  () => import('./TouchTooltips'),
+  () => null,
+);
 import type { MobileTab } from './MobileNavigation';
 import { interfaceScale } from './appearance';
 import { Children, useEffect, useRef, useState } from 'react';
@@ -241,6 +246,7 @@ export function WorkspacePanels({
         }
       }}
     >
+      {(narrow || navigator.maxTouchPoints > 0) && <TouchTooltips />}
       <ResizablePanel
         id="media-panel"
         panelRef={library}
