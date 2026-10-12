@@ -1,4 +1,4 @@
-import { closeMediaImport } from './workspace-import-helper';
+import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { openWorkspaceGroup } from './workspace-settings-helper';
 import { chromium, expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -269,7 +269,7 @@ for (const base of ['/', '/LocalCut/']) {
       ),
     ).toBe(true);
     await dialog.getByRole('button', { name: 'Add to media' }).click();
-    await closeMediaImport(page);
+    await closeMediaImportAndPlace(page);
     await expect(dialog).not.toBeVisible();
     await expect(
       page
@@ -610,7 +610,7 @@ test('screen recording native tab capture at both static bases', async ({
           dialog.getByRole('button', { name: 'Add to media' }),
         ).toBeEnabled();
         await dialog.getByRole('button', { name: 'Add to media' }).click();
-        await closeMediaImport(page);
+        await closeMediaImportAndPlace(page);
         await expect(dialog).not.toBeVisible();
         await expect
           .poll(async () => (await snapshot(page, base)).assets.length)

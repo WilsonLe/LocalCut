@@ -1,4 +1,5 @@
 import { captureUpload } from '../../src/workspace/folder-upload';
+import { uploadSkipReason } from '../../src/workspace/folder-upload-reader';
 import { describe, it, expect } from 'vitest';
 import {
   libraryNameSchema,
@@ -126,4 +127,23 @@ it('assigns legacy sources, their ancestry and Trash restore parents to existing
     trashed: true,
     previousParentId: 'folder',
   });
+});
+
+it('only skips known photo and macOS metadata, never media or unknown files', () => {
+  expect(uploadSkipReason({ name: '.DS_Store' })).toBe('macOS metadata');
+  expect(uploadSkipReason({ name: '._cover.JPG' })).toBe('macOS metadata');
+  expect(uploadSkipReason({ name: 'IMG_001.AAE' })).toBe(
+    'Apple Photos edit metadata',
+  );
+  expect(uploadSkipReason({ name: 'IMG_001.aae' })).toBe(
+    'Apple Photos edit metadata',
+  );
+  for (const name of [
+    'IMG.JPG',
+    'clip.MOV',
+    'README.txt',
+    '.photo.png',
+    'DS_Store',
+  ])
+    expect(uploadSkipReason({ name })).toBeUndefined();
 });

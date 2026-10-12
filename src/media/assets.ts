@@ -7,6 +7,7 @@ import { withQuotaRecovery } from '../storage/quota';
 import { commitWithSignal } from '../storage/transaction';
 import {
   Input,
+  UnsupportedInputFormatError,
   BlobSource,
   MP4,
   QTFF,
@@ -127,6 +128,14 @@ export async function inspect(
       channels: audio ? await audio.getNumberOfChannels() : undefined,
       status: 'ready',
     };
+  } catch (cause) {
+    if (!(cause instanceof UnsupportedInputFormatError)) throw cause;
+    const error = new EditorError(
+      'UNSUPPORTED_CODEC',
+      'Unsupported media format. Import PNG, JPEG, WebP, MP4, MOV, WebM, MP3 or WAV files.',
+    );
+    error.cause = cause;
+    throw error;
   } finally {
     input.dispose();
   }

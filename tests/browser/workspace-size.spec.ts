@@ -1,4 +1,4 @@
-import { closeMediaImport } from './workspace-import-helper';
+import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { dragPlayhead } from './workspace-playhead-helper';
 import { openAISettings } from './workspace-settings-helper';
 import { expect, test, type Page } from '@playwright/test';
@@ -62,7 +62,7 @@ async function prepareProject(page: Page, base: string, navigate = true) {
     mimeType: 'image/png',
     buffer: Buffer.from(png),
   });
-  await closeMediaImport(page);
+  await closeMediaImportAndPlace(page);
 }
 
 for (const base of ['/', '/LocalCut/']) {

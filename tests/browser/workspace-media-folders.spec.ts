@@ -2,7 +2,10 @@ import { test, expect } from '@playwright/test';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { closeMediaImport } from './workspace-import-helper';
+import {
+  closeMediaImport,
+  closeMediaImportAndPlace,
+} from './workspace-import-helper';
 
 for (const base of ['/', '/LocalCut/']) {
   test(`media select-all stays scoped to visible assets and preserves native inputs ${base}`, async ({
@@ -41,7 +44,7 @@ for (const base of ['/', '/LocalCut/']) {
         buffer: Buffer.from(bytes),
       })),
     );
-    await closeMediaImport(page);
+    await closeMediaImportAndPlace(page);
     const media = page.getByRole('region', {
       name: 'Project media',
       exact: true,
@@ -181,7 +184,7 @@ for (const base of ['/', '/LocalCut/']) {
       mimeType: 'image/png',
       buffer: Buffer.from(bytes),
     });
-    await closeMediaImport(page);
+    await closeMediaImportAndPlace(page);
     await page.getByRole('button', { name: 'New folder', exact: true }).click();
     const creation = page.getByRole('dialog', {
       name: 'New folder',
@@ -244,7 +247,7 @@ for (const base of ['/', '/LocalCut/']) {
       await page
         .locator('input[webkitdirectory]')
         .setInputFiles(join(fixture, 'Upload'));
-      await closeMediaImport(page);
+      await closeMediaImportAndPlace(page);
       await expect(
         page.getByRole('button', { name: 'Open folder Upload', exact: true }),
       ).toBeVisible();

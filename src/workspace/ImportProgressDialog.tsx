@@ -11,9 +11,11 @@ import {
 
 export interface ImportProgress {
   name: string;
-  status: 'queued' | 'importing' | 'completed' | 'failed' | 'cancelled';
+  status:
+    'queued' | 'importing' | 'completed' | 'failed' | 'cancelled' | 'skipped';
   fraction?: number;
   error?: string;
+  reason?: string;
 }
 export interface ImportBatch {
   id: string;
@@ -31,6 +33,9 @@ export default function ImportProgressDialog({
   const completed = batch.files.filter(
     (file) => file.status === 'completed',
   ).length;
+  const skipped = batch.files.filter(
+    (file) => file.status === 'skipped',
+  ).length;
   return (
     <Dialog
       open
@@ -44,6 +49,7 @@ export default function ImportProgressDialog({
           <DialogDescription aria-live="polite">
             {batch.running ? 'Importing' : 'Finished'} · {completed} of{' '}
             {batch.files.length} added
+            {skipped > 0 && ` · ${skipped} skipped`}
           </DialogDescription>
         </DialogHeader>
         <ul className="import-progress-list" aria-label="Asset import progress">
@@ -64,11 +70,13 @@ export default function ImportProgressDialog({
                     ? 'Importing'
                     : file.status === 'completed'
                       ? 'Added'
-                      : file.status === 'failed'
-                        ? 'Failed'
-                        : file.status === 'cancelled'
-                          ? 'Cancelled'
-                          : 'Queued'}
+                      : file.status === 'skipped'
+                        ? 'Skipped'
+                        : file.status === 'failed'
+                          ? 'Failed'
+                          : file.status === 'cancelled'
+                            ? 'Cancelled'
+                            : 'Queued'}
                 </span>
               </div>
               {(file.status === 'importing' || file.status === 'completed') && (
@@ -86,6 +94,9 @@ export default function ImportProgressDialog({
                 >
                   <div style={{ width: `${(file.fraction ?? 0) * 100}%` }} />
                 </div>
+              )}
+              {file.reason && (
+                <p className="text-muted-foreground">{file.reason}</p>
               )}
               {file.error && <p className="text-destructive">{file.error}</p>}
             </li>
