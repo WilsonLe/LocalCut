@@ -6,6 +6,7 @@ import {
   automaticChatTitle,
   forkChatSession,
   legacyIndexChatScopes,
+  legacyOpenRouterChatScopes,
 } from '../../src/storage/chats';
 import { restoredChatTurns } from '../../src/workspace/chat-transcript';
 
@@ -284,4 +285,45 @@ it('merges only legacy indexing scopes and keeps every other identity boundary',
       JSON.stringify(['another-project', ...parts.slice(1)]),
     ),
   ).not.toEqual(legacyIndexChatScopes(JSON.stringify(parts)));
+});
+
+it('recovers prior sharing variants only into an explicitly OpenRouter-authorized identity', () => {
+  const prefix = [
+    'project',
+    [{ providerId: 'router', model: 'test/model' }],
+    [{ id: 'router', kind: 'openrouter' }],
+    'test/model',
+  ];
+  const scope = JSON.stringify([...prefix, 'openrouter-context-v1']);
+  const legacy = legacyOpenRouterChatScopes(scope);
+  expect(legacy).toHaveLength(48);
+  expect(new Set(legacy).size).toBe(48);
+  for (const text of [false, true])
+    for (const names of [false, true])
+      for (const transcripts of [false, true])
+        for (const capture of [[], ['capture-metadata']]) {
+          const old = [...prefix, text, names, transcripts];
+          expect(legacy).toContain(JSON.stringify([...old, ...capture]));
+          for (const indexes of [false, true])
+            expect(legacy).toContain(
+              JSON.stringify([...old, indexes, ...capture]),
+            );
+        }
+  for (const raw of [
+    '{',
+    'null',
+    JSON.stringify([...prefix, false, false, false]),
+    JSON.stringify([...prefix, 'other']),
+    JSON.stringify(['project', {}, [], '', 'openrouter-context-v1']),
+  ])
+    expect(legacyOpenRouterChatScopes(raw)).toEqual([]);
+  for (const index of [0, 1, 2, 3]) {
+    const other = [...prefix];
+    other[index] = index === 1 || index === 2 ? [] : 'different';
+    expect(
+      legacyOpenRouterChatScopes(
+        JSON.stringify([...other, 'openrouter-context-v1']),
+      ).some((item) => legacy.includes(item)),
+    ).toBe(false);
+  }
 });

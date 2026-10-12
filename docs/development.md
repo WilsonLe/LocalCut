@@ -266,4 +266,15 @@ Use `pnpm test tests/unit/audio-effects-window.test.ts tests/unit/creative-effec
 
 ## Media folder checks
 
-For named OPFS folders, library revisions and assistant scope, start with `pnpm test tests/unit/media-library.test.ts tests/unit/assistant.test.ts`. Run `pnpm test:ui --grep 'workspace media folders upload'` for directory picker hierarchy, empty directory drop, folder navigation, pointer moves, rename, folder download, Trash/Restore, narrow layout, reload and independence from timeline references at both bases. After current production builds, run `pnpm test:browser tests/browser/media-folders.spec.ts` for actual OPFS readback, recursive copy/move/rename, collisions/invalid paths, stale/concurrent changes, journal recovery and retained native preview/MP4 sources. These checks exercise local organization; no provider/native computer-folder access is involved.
+For named OPFS folders, library revisions and assistant scope, start with `pnpm test tests/unit/media-library.test.ts tests/unit/assistant.test.ts`. Run `pnpm test:ui --grep 'workspace media folders upload|folder drop traversal'` for directory picker hierarchy, empty directory drop, folder navigation, pointer moves, rename, folder download, Trash/Restore, narrow layout, reload and independence from timeline references at both bases. After current production builds, run `pnpm test:browser tests/browser/media-folders.spec.ts` for actual OPFS readback, recursive copy/move/rename, collisions/invalid paths, stale/concurrent changes, journal recovery and retained native preview/MP4 sources. These checks exercise local organization; no provider/native computer-folder access is involved.
+
+## OpenRouter context checks
+
+For connection terms, automatic context sharing and legacy chat migration:
+
+```sh
+pnpm test tests/unit/providers.test.ts tests/unit/chat-persistence.test.ts
+pnpm test:ui --grep 'OpenRouter connection shares all context|provider empty state reveals OpenRouter'
+```
+
+The production Chrome journey reads project/media names, overlay/storyboard text and frame names, attached source transcript text and imported EXIF dates/GPS through real assistant tools before and after reload. It migrates all 48 older sharing/indexing scope variants in native IndexedDB while preserving canonical selection, drafts, titles, archives and project/model/provider isolation. Intercepted replies establish transport and persistence, not paid inference quality. The connector layout journey covers desktop/phone terms and both connection choices without provider requests.

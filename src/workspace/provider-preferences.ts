@@ -1,4 +1,5 @@
 import type { ServiceRoutes } from '../ai/providers';
+import type { ContextPolicy } from '../ai/context';
 export interface ProviderProfile {
   id: string;
   name: string;
@@ -12,6 +13,24 @@ export interface ProviderProfile {
 export interface ProviderConfiguration {
   profiles: ProviderProfile[];
   routes: ServiceRoutes;
+}
+/** Connection terms authorize workspace context; portable profiles alone grant nothing. */
+export function workspaceContextPolicy(
+  profiles: ProviderProfile[],
+  connectedProviders: string[],
+): Required<ContextPolicy> {
+  const connected = profiles.some(
+    (profile) =>
+      profile.kind === 'openrouter' && connectedProviders.includes(profile.id),
+  );
+  return {
+    includeText: connected,
+    includeAssetNames: connected,
+    includeTranscripts: connected,
+    includeCaptureMetadata: connected,
+    // Saved labels retain the existing workspace policy; execution still needs a live indexer.
+    includeAssetIndexes: true,
+  };
 }
 export const defaultProviderConfiguration = (): ProviderConfiguration => ({
   profiles: [],

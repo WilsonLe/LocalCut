@@ -532,7 +532,7 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
 }
 
 for (const base of ['/', '/LocalCut/']) {
-  test(`saved API key restores speech access, resets sharing and disconnects other tabs ${base}`, async ({
+  test(`saved API key restores speech access and full context, and disconnects other tabs ${base}`, async ({
     page,
     context,
   }) => {
@@ -570,32 +570,21 @@ for (const base of ['/', '/LocalCut/']) {
     await page.screenshot({
       path: `.artifacts/persist-openrouter/connection-${base === '/' ? 'root' : 'pages'}.png`,
     });
-    await dialog
-      .getByRole('button', { name: 'Data & analytics', exact: true })
-      .click();
-    await page
-      .getByRole('checkbox', {
-        name: 'Share overlay and caption text',
-        exact: true,
-      })
-      .check();
-    await page.keyboard.press('Escape');
+    await expect(
+      dialog.getByRole('region', { name: 'OpenRouter connection terms' }),
+    ).toContainText('context categories stay enabled');
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await page.reload();
     await openConnectedSettings(page);
     await expect(
       dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toBeVisible();
-    await dialog
-      .getByRole('button', { name: 'Data & analytics', exact: true })
-      .click();
     await expect(
-      page.getByRole('checkbox', {
-        name: 'Share overlay and caption text',
-        exact: true,
-      }),
-    ).not.toBeChecked();
-    await page.keyboard.press('Escape');
+      dialog.getByRole('region', { name: 'OpenRouter connection terms' }),
+    ).toContainText('including after reload');
+    await expect(
+      dialog.getByRole('button', { name: 'Data & analytics' }),
+    ).toHaveCount(0);
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await page
       .getByRole('button', { name: 'Open project', exact: true })

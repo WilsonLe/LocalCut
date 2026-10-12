@@ -27,12 +27,15 @@ import {
   PlugZap,
 } from 'lucide-react';
 import type { Editor, Project } from '../editor';
-import type { ContextPolicy, OpenRouter, OpenRouterModel } from '../ai';
+import type { OpenRouter, OpenRouterModel } from '../ai';
 import { KlipMark } from './KlipMark';
 import { takePendingCallback } from './oauth-callback';
 import { parseProjectRoute } from './project-route';
 import { useWorkspaceRoute } from './useWorkspaceRoute';
-import { parseProviderConfiguration } from './provider-preferences';
+import {
+  parseProviderConfiguration,
+  workspaceContextPolicy,
+} from './provider-preferences';
 import type {
   ProviderConfiguration,
   ProviderProfile,
@@ -140,13 +143,10 @@ export function Conversation(props: ConversationProps) {
   const [connectedProviders, setConnectedProviders] = useState<string[]>([]);
   const [models, setModels] = useState<OpenRouterModel[]>([]);
   const [model, setModel] = useState('');
-  const [privacy, setPrivacy] = useState<Required<ContextPolicy>>({
-    includeText: false,
-    includeAssetNames: false,
-    includeTranscripts: false,
-    includeAssetIndexes: false,
-    includeCaptureMetadata: false,
-  });
+  const privacy = workspaceContextPolicy(
+    providerConfiguration.profiles,
+    connectedProviders,
+  );
   const settingsReturnFocus = useRef<HTMLButtonElement | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [speechOpen, setSpeechOpen] = useState(false);
@@ -566,13 +566,6 @@ export function Conversation(props: ConversationProps) {
         setProviderConfiguration(next);
         saveWorkspacePreferences({ aiProviders: JSON.stringify(next) });
       }
-      setPrivacy({
-        includeText: false,
-        includeAssetNames: false,
-        includeTranscripts: false,
-        includeAssetIndexes: false,
-        includeCaptureMetadata: false,
-      });
       setConnectedProviders(
         [...providers.current.values()]
           .filter((p) => p.client.status().connected)
@@ -946,11 +939,9 @@ export function Conversation(props: ConversationProps) {
               baseUrl,
             })),
           model,
-          privacy.includeText,
-          privacy.includeAssetNames,
-          privacy.includeTranscripts,
-          // Keep prior unshared scopes compatible; shared narration gets a separate owner.
-          ...(privacy.includeCaptureMetadata ? ['capture-metadata'] : []),
+          ...(privacy.includeText
+            ? ['openrouter-context-v1']
+            : [false, false, false]),
         ])
       : null;
   const chats = usePersistentChats(chatScope, onError);
@@ -1204,10 +1195,7 @@ export function Conversation(props: ConversationProps) {
                     connection={connection}
                     indexConnection={indexConnection}
                     model={model}
-                    privacy={{
-                      ...privacy,
-                      includeAssetIndexes: true,
-                    }}
+                    privacy={privacy}
                     registerSession={registerSession}
                     composerControl={null}
                     active={
@@ -1368,8 +1356,6 @@ export function Conversation(props: ConversationProps) {
             }}
             models={models}
             refreshCatalog={refreshCatalog}
-            privacy={privacy}
-            setPrivacy={setPrivacy}
             connectionError={connectionError}
           />
         </Suspense>

@@ -222,24 +222,16 @@ for (const base of ['/', '/LocalCut/']) {
               name: 'AI connection',
               exact: true,
             });
-            await connection
-              .getByRole('button', { name: 'Data & analytics', exact: true })
-              .click();
-            const analytics = page
-              .locator('[data-slot="popover-content"]')
-              .filter({
-                has: page.getByText(
-                  'Optional project context for configured LLM providers.',
-                  { exact: true },
-                ),
-              });
-            await expect(analytics).toBeVisible();
-            const analyticsBounds = (await analytics.boundingBox())!;
-            expect(analyticsBounds.x).toBeGreaterThanOrEqual(-1);
+            await expect(connection).toBeVisible();
+            // The connection disclosure replaces the sharing popover.
+            await expect(
+              connection.getByRole('button', { name: 'Data & analytics' }),
+            ).toHaveCount(0);
+            const connectionBounds = (await connection.boundingBox())!;
+            expect(connectionBounds.x).toBeGreaterThanOrEqual(-1);
             expect(
-              analyticsBounds.x + analyticsBounds.width,
+              connectionBounds.x + connectionBounds.width,
             ).toBeLessThanOrEqual(viewport.width + 1);
-            await page.keyboard.press('Escape');
             await page.keyboard.press('Escape');
             await expect(connection).not.toBeVisible();
             if (await navigation.isVisible())

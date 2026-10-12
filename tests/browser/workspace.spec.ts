@@ -1157,22 +1157,12 @@ for (const base of ['/', '/LocalCut/']) {
         exact: true,
       })
       .click();
-    await settings
-      .getByRole('button', { name: 'Data & analytics', exact: true })
-      .click();
-    const sharing = page.getByRole('dialog', {
-      name: 'Data & analytics',
-      exact: true,
-    });
-    for (const label of [
-      'Share overlay and caption text',
-      'Share project and media names',
-      'Share source transcripts',
-    ])
-      await expect(
-        sharing.getByRole('checkbox', { name: label, exact: true }),
-      ).not.toBeChecked();
-    await page.keyboard.press('Escape');
+    await expect(
+      settings.getByRole('button', { name: 'Data & analytics' }),
+    ).toHaveCount(0);
+    await expect(
+      settings.getByRole('region', { name: 'OpenRouter connection terms' }),
+    ).toContainText('storyboard text');
     await settings.getByRole('button', { name: 'Done', exact: true }).click();
     await page
       .getByLabel('Describe your edit', { exact: true })
@@ -1217,7 +1207,7 @@ for (const base of ['/', '/LocalCut/']) {
       .toBe(1);
     expect(requests.length).toBeGreaterThanOrEqual(2);
     expect(requests.every((request) => request.model === model)).toBe(true);
-    expect(JSON.stringify(requests)).not.toContain(name);
+    expect(JSON.stringify(requests)).toContain(name);
     expect(JSON.stringify(requests)).not.toContain('red.png');
     expect(
       await page.evaluate(() =>
