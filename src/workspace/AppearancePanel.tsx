@@ -2,10 +2,13 @@ import { useEffect, useRef } from 'react';
 import { Moon, Monitor, Sun, Shuffle, RotateCcw, X } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { SettingsSelect } from './SettingsSelect';
+import { AppearanceFontPicker } from './AppearanceFontPicker';
 import {
   appearanceOptions,
   defaultAppearance,
   randomAppearance,
+  loadAppearanceFonts,
+  retryAppearanceFonts,
   saveAppearance,
   themeColors,
   useAppearance,
@@ -25,12 +28,7 @@ const labels: Record<keyof Appearance, string> = {
   menuAccent: 'Menu accent',
 };
 const optionLabel = (value: string) =>
-  ({
-    sans: 'System sans',
-    serif: 'System serif',
-    mono: 'System mono',
-    inherit: 'Same as body',
-  })[value] ?? value.charAt(0).toUpperCase() + value.slice(1);
+  value.charAt(0).toUpperCase() + value.slice(1);
 
 const sizeLabel = (value: string) =>
   ({ default: 'Default (100%)', small: 'Small (75%)', large: 'Large (125%)' })[
@@ -38,12 +36,15 @@ const sizeLabel = (value: string) =>
   ] ?? optionLabel(value);
 
 export default function AppearancePanel({ onClose }: { onClose: () => void }) {
-  const { preferences, saved } = useAppearance();
+  const { preferences, saved, fontLoading, fontError } = useAppearance();
   const close = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     close.current?.focus();
+    void loadAppearanceFonts().catch(() => {});
   }, []);
-  function picker(key: Exclude<keyof Appearance, 'mode' | 'theme'>) {
+  function picker(
+    key: Exclude<keyof Appearance, 'mode' | 'theme' | 'font' | 'heading'>,
+  ) {
     return (
       <div className="appearance-field" key={key}>
         <label htmlFor={`appearance-${key}`}>{labels[key]}</label>
@@ -78,10 +79,7 @@ export default function AppearancePanel({ onClose }: { onClose: () => void }) {
       }}
     >
       <div className="appearance-header">
-        <div>
-          <h2>Appearance</h2>
-          <p>Your workspace is the preview.</p>
-        </div>
+        <h2>Appearance</h2>
         <Button
           ref={close}
           variant="ghost"
@@ -137,8 +135,18 @@ export default function AppearancePanel({ onClose }: { onClose: () => void }) {
         </fieldset>
         <div className="appearance-divider" />
         {picker('interfaceSize')}
-        {picker('heading')}
-        {picker('font')}
+        <AppearanceFontPicker
+          label="Heading"
+          value={preferences.heading}
+          onChange={(heading) => saveAppearance({ ...preferences, heading })}
+        />
+        <AppearanceFontPicker
+          label="Font"
+          value={preferences.font}
+          onChange={(font) => {
+            if (font !== 'inherit') saveAppearance({ ...preferences, font });
+          }}
+        />
         {picker('radius')}
         {picker('density')}
         <div className="appearance-divider" />
@@ -146,6 +154,15 @@ export default function AppearancePanel({ onClose }: { onClose: () => void }) {
         {picker('menuAccent')}
       </div>
       <div className="appearance-footer">
+        {fontLoading && <p role="status">Loading fonts…</p>}
+        {fontError && (
+          <div role="alert">
+            <p>{fontError}</p>
+            <Button variant="outline" size="sm" onClick={retryAppearanceFonts}>
+              Retry fonts
+            </Button>
+          </div>
+        )}
         <p role="status">
           {saved
             ? 'Saved in this browser'
