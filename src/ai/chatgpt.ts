@@ -4,7 +4,7 @@ import {
   ChatGPTAuthorization,
 } from './chatgpt-auth';
 import { AiError, aiInvariant, httpError } from './errors';
-import { readJson } from './protocol';
+import { readJson, requestDeadline } from './protocol';
 import { parseResponses, responsesBody } from './responses';
 import type {
   AuthorizationStorage,
@@ -30,11 +30,11 @@ export function createChatGPT(options: ChatGPTOptions = {}): ChatGPTClient {
   const active = new Set<AbortController>();
   const timeout = options.requestTimeoutMs ?? 120000;
   aiInvariant(
-    Number.isSafeInteger(timeout) && timeout > 0 && timeout <= 600000,
+    Number.isSafeInteger(timeout) && timeout > 0,
     'INVALID_REQUEST',
     'Invalid AI timeout.',
   );
-  function operation(signal?: AbortSignal, bindIdentity = true) {
+  function operation(signal?: AbortSignal, bindIdentity = true, chat = false) {
     aiInvariant(!disposed, 'DISPOSED', 'ChatGPT provider is disposed.');
     const controller = new AbortController();
     const epoch = generation;
@@ -43,10 +43,11 @@ export function createChatGPT(options: ChatGPTOptions = {}): ChatGPTClient {
     const abort = () => controller.abort();
     signal?.addEventListener('abort', abort, { once: true });
     if (signal?.aborted) abort();
-    const timer = setTimeout(() => {
+    const chatTimeout = chat ? options.requestTimeoutMs : timeout;
+    const stopDeadline = requestDeadline(chatTimeout, () => {
       timedOut = true;
       abort();
-    }, timeout);
+    });
     active.add(controller);
     const check = () => {
       if (bindIdentity) {
@@ -69,7 +70,7 @@ export function createChatGPT(options: ChatGPTOptions = {}): ChatGPTClient {
       signal: controller.signal,
       check,
       finish() {
-        clearTimeout(timer);
+        stopDeadline();
         active.delete(controller);
         signal?.removeEventListener('abort', abort);
       },
@@ -274,7 +275,7 @@ export function createChatGPT(options: ChatGPTOptions = {}): ChatGPTClient {
       }),
     async *stream(chat, signal) {
       const body = responsesBody(chat);
-      const op = operation(signal);
+      const op = operation(signal, true, true);
       try {
         op.check();
         const token = await auth.accessToken(op.signal);

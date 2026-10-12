@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { generateChatTitle } from '../../src/ai/chat-title';
-import type { ProviderEvent } from '../../src/ai/types';
+import type { ChatRequest, ProviderEvent } from '../../src/ai/types';
 
 const complete = (content: string): ProviderEvent => ({
   type: 'complete',
@@ -8,7 +8,12 @@ const complete = (content: string): ProviderEvent => ({
 });
 function provider(events: ProviderEvent[], after?: () => void) {
   return {
-    stream: vi.fn(async function* () {
+    stream: vi.fn(async function* (
+      _request: ChatRequest,
+      _signal: AbortSignal,
+    ) {
+      void _request;
+      void _signal;
       yield* events;
       after?.();
     }),
@@ -33,7 +38,6 @@ describe('chat title generation', () => {
       expect.objectContaining({
         model: 'configured/model',
         tools: [],
-        maxOutputTokens: 512,
         messages: [
           { role: 'system', content: expect.any(String) },
           { role: 'user', content: 'Edit my beach trip' },
@@ -42,9 +46,23 @@ describe('chat title generation', () => {
       signal,
     );
   });
+  it('retains a complete title beyond the former character and output-token caps', async () => {
+    const title = 'Long named editing session '.repeat(40).trim();
+    const client = provider([complete(title)]);
+    await expect(
+      generateChatTitle({
+        provider: client,
+        model: 'configured/model',
+        message: 'First message',
+        signal: new AbortController().signal,
+      }),
+    ).resolves.toBe(title);
+    expect(client.stream.mock.calls[0]?.[0]).not.toHaveProperty(
+      'maxOutputTokens',
+    );
+  });
   it.each([
     ['empty', [complete('  ')]],
-    ['oversized', [complete('x'.repeat(81))]],
     ['unfinished', [{ type: 'text', text: 'Never finished' }]],
     ['duplicate terminal', [complete('One title'), complete('Another title')]],
     [

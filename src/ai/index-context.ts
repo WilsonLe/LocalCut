@@ -6,8 +6,8 @@ export function compactIndex(run: AssetIndexRun) {
   return {
     assetId: run.assetId,
     runId: run.id,
-    summary: run.label!.summary.slice(0, 500),
-    tags: run.label!.tags.slice(0, 12),
+    summary: run.label!.summary,
+    tags: run.label!.tags,
     sceneCount: run.analysis.scenes.length,
   };
 }
@@ -28,11 +28,12 @@ export function newestIndexes(runs: AssetIndexRun[], allowed: Set<string>) {
       return true;
     });
 }
-export function indexCatalog(runs: AssetIndexRun[], maxBytes = 65536) {
+export function indexCatalog(runs: AssetIndexRun[], maxBytes = Infinity) {
   const items: ReturnType<typeof compactIndex>[] = [];
   for (const run of runs) {
     const next = compactIndex(run);
-    if (byteLength([...items, next]) > maxBytes) break;
+    if (Number.isFinite(maxBytes) && byteLength([...items, next]) > maxBytes)
+      break;
     items.push(next);
   }
   return {

@@ -1,3 +1,4 @@
+import { fulfillChatTitle } from './chat-title-fixture';
 import {
   prepareOpenRouterKey,
   openAISettings,
@@ -206,8 +207,9 @@ test('CYOBot chat structure keeps local sessions, markdown, drafts and keyboard 
   });
   await context.route(
     'https://openrouter.ai/api/v1/chat/completions',
-    (route) =>
-      route.fulfill(
+    async (route) => {
+      if (await fulfillChatTitle(route, 'First chat')) return;
+      return route.fulfill(
         route.request().method() === 'OPTIONS'
           ? { headers: cors, body: '' }
           : {
@@ -215,7 +217,8 @@ test('CYOBot chat structure keeps local sessions, markdown, drafts and keyboard 
               contentType: 'text/event-stream',
               body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: '# Edit notes\n\nUse **shorter cuts**.\n\n- Keep the subject\n- Preserve sound\n\n![reference](https://example.com/untrusted.png)\n\n<script>window.bad=true</script>' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
             },
-      ),
+      );
+    },
   );
   await page.goto('/LocalCut/');
   await page

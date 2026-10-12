@@ -185,7 +185,7 @@ for (const base of ['/', '/LocalCut/']) {
         name: 'Short model · test/short',
         exact: true,
       }),
-    ).toHaveCount(0);
+    ).toHaveCount(1);
     await expect(
       page.getByRole('option', {
         name: 'Mobile model · test/mobile',

@@ -500,6 +500,51 @@ for (const base of ['/', '/LocalCut/']) {
       }),
     ).toBeVisible();
   });
+  test(`uncapped typed and dictated chat draft ${base}`, async ({
+    page,
+    context,
+  }) => {
+    await context.addInitScript(() => {
+      class Recognition {
+        onresult?: (event: unknown) => void;
+        onend?: () => void;
+        start() {
+          queueMicrotask(() =>
+            this.onresult?.({
+              resultIndex: 0,
+              results: [{ isFinal: true, 0: { transcript: 'Dictated tail' } }],
+            }),
+          );
+        }
+        stop() {
+          this.onend?.();
+        }
+        abort() {
+          this.onend?.();
+        }
+      }
+      Object.assign(window, {
+        SpeechRecognition: Recognition,
+        webkitSpeechRecognition: Recognition,
+      });
+    });
+    await setup(page, context, base);
+    const input = page.getByRole('textbox', {
+      name: 'Describe your edit',
+      exact: true,
+    });
+    const draft = 'x'.repeat(100001);
+    await input.fill(draft);
+    await expect(input).toHaveValue(draft);
+    await page
+      .getByRole('button', { name: 'Dictate message', exact: true })
+      .click();
+    await expect(input).toHaveValue(draft + ' Dictated tail');
+    await page
+      .getByRole('button', { name: 'Stop dictation', exact: true })
+      .click();
+  });
+
   test(`chat response actions, branch isolation, dictation and image dragging ${base}`, async ({
     page,
     context,
@@ -796,7 +841,7 @@ for (const base of ['/', '/LocalCut/']) {
       }
     }, base);
     await input.fill('Use only the visible attached images');
-    for (const [i, image] of overflow.entries()) {
+    for (const image of overflow) {
       const data = await page.evaluateHandle((id) => {
         const transfer = new DataTransfer();
         transfer.setData('application/x-localcut-image', id);
@@ -805,10 +850,9 @@ for (const base of ['/', '/LocalCut/']) {
       await page
         .locator('.conversation-session:not([hidden]) .chat-composer')
         .dispatchEvent('drop', { dataTransfer: data });
-      if (i < 8)
-        await expect(page.getByLabel('Attached images')).toContainText(
-          image.name,
-        );
+      await expect(page.getByLabel('Attached images')).toContainText(
+        image.name,
+      );
       await expect(
         page.getByRole('button', { name: 'Send edit request', exact: true }),
       ).toBeEnabled();
@@ -816,7 +860,7 @@ for (const base of ['/', '/LocalCut/']) {
     }
     await expect(
       page.getByRole('button', { name: 'Remove Image8.png', exact: true }),
-    ).toHaveCount(0);
+    ).toHaveCount(1);
     await page
       .getByRole('button', { name: 'Send edit request', exact: true })
       .click();
@@ -824,9 +868,7 @@ for (const base of ['/', '/LocalCut/']) {
       page.getByRole('button', { name: 'Cancel response', exact: true }),
     ).not.toBeVisible();
     const allowed = JSON.stringify(requests.at(-1));
-    for (const image of overflow.slice(0, 8))
-      expect(allowed).toContain(image.id);
-    expect(allowed).not.toContain(overflow[8]!.id);
+    for (const image of overflow) expect(allowed).toContain(image.id);
     expect(allowed).toContain(asset.id); // Previously sent context remains available.
     await input.fill('Next draft');
     const sendBox = await page
