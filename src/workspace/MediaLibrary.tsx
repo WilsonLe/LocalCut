@@ -194,6 +194,9 @@ export default function MediaLibrary({
     };
   }, []);
   const selectionProps = (asset: Asset, entryId?: string) => ({
+    onPointerDown: () => {
+      dragged.current = false;
+    },
     onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
       if (event.detail > 0 && dragged.current) return;
       const id = entryId ?? asset.id;

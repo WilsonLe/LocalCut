@@ -8,6 +8,7 @@ for (const base of ['/', '/LocalCut/']) {
   test(`media select-all stays scoped to visible assets and preserves native inputs ${base}`, async ({
     page,
   }, info) => {
+    page.setDefaultTimeout(15000);
     await page.goto(base);
     const workspace = page.getByRole('main', {
       name: 'Video editor',
@@ -120,6 +121,33 @@ for (const base of ['/', '/LocalCut/']) {
     await page.getByRole('button', { name: 'Media root', exact: true }).click();
     await expect(first).toHaveAttribute('aria-pressed', 'false');
     await expect(second).toHaveAttribute('aria-pressed', 'false');
+    // A cancelled drag must not suppress the next pointer selection in Trash.
+    await first.focus();
+    await page
+      .getByRole('button', { name: 'Actions for first.png', exact: true })
+      .click();
+    await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
+    const remove = page.getByRole('dialog', { name: 'Delete', exact: true });
+    await remove.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(remove).toBeHidden();
+    await expect(first).toHaveCount(0);
+    const box = (await second.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + 20);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 20, box.y + 20);
+    await expect(page.locator('.media-drag-preview')).toBeVisible();
+    await second.dispatchEvent('pointercancel');
+    await expect(page.locator('.media-drag-preview')).toHaveCount(0);
+    await page.mouse.up();
+    await page
+      .getByRole('button', { name: 'Open media Trash', exact: true })
+      .click();
+    await first.click();
+    await expect(first).toHaveAttribute('aria-pressed', 'true');
+    await first.click({ modifiers: ['Meta'] });
+    await expect(first).toHaveAttribute('aria-pressed', 'false');
+    await first.click({ modifiers: ['Meta'] });
+    await expect(first).toHaveAttribute('aria-pressed', 'true');
   });
   test(`workspace media folders upload, dragging, menus and reload ${base}`, async ({
     page,
