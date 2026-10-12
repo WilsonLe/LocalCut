@@ -2,6 +2,10 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Media folder breadcrumbs — 13 October 2026
+
+- Keep Media's title and actions in the main header. When browsing subfolders, show the path in a separate breadcrumb subheader below it, with clickable ancestors and the current folder marked. Hide the breadcrumb row at the root.
+
 ## Single OpenRouter connection — 13 October 2026
 
 - Allow only OpenRouter for remote AI. Remove OpenAI-compatible endpoints, ChatGPT sign-in and multiple provider accounts. The connection is binary: connected to OpenRouter or disconnected.

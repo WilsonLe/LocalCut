@@ -1,4 +1,11 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useCallback,
+  useRef,
+  useMemo,
+} from 'react';
 import type {
   Editor,
   LibraryEntry,
@@ -7,6 +14,7 @@ import type {
 } from '../editor';
 import {
   Folder,
+  ChevronRight,
   FolderPlus,
   FolderUp,
   Trash2,
@@ -155,6 +163,64 @@ export function useMediaFolders(
 }
 export type MediaFoldersState = ReturnType<typeof useMediaFolders>;
 
+export function FolderBreadcrumbs({ state }: { state: MediaFoldersState }) {
+  const path = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const element = path.current;
+    if (element) element.scrollLeft = element.scrollWidth;
+  }, [state.parentId, state.trash]);
+  if (!state.parentId && !state.trash) return null;
+  return (
+    <nav
+      ref={path}
+      className="media-folder-breadcrumbs"
+      aria-label="Media folder path"
+      tabIndex={0}
+    >
+      <ol>
+        <li>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label="Media root"
+            data-library-folder="root"
+            onClick={() => {
+              state.setTrash(false);
+              state.setParentId(null);
+            }}
+          >
+            Media
+          </Button>
+        </li>
+        {state.trash ? (
+          <li>
+            <ChevronRight aria-hidden="true" />
+            <span aria-current="page">Trash</span>
+          </li>
+        ) : (
+          state.ancestors.map((folder, index) => (
+            <li key={folder.id}>
+              <ChevronRight aria-hidden="true" />
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-current={
+                  index === state.ancestors.length - 1 ? 'page' : undefined
+                }
+                data-library-folder={folder.id}
+                title={folder.name}
+                onClick={() => state.setParentId(folder.id)}
+              >
+                {folder.name}
+              </Button>
+            </li>
+          ))
+        )}
+      </ol>
+    </nav>
+  );
+}
+
 export function FolderNavigation({
   state,
   editable,
@@ -169,37 +235,7 @@ export function FolderNavigation({
   actions?: React.ReactNode;
 }) {
   return (
-    <nav className="media-folder-navigation" aria-label="Media folders">
-      {(state.parentId || state.trash) && (
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label="Media root"
-          data-library-folder="root"
-          onClick={() => {
-            state.setTrash(false);
-            state.setParentId(null);
-          }}
-        >
-          Media
-        </Button>
-      )}
-      {state.trash ? (
-        <span className="text-sm">Trash</span>
-      ) : (
-        state.ancestors.map((folder) => (
-          <Button
-            key={folder.id}
-            variant="ghost"
-            size="sm"
-            className="min-w-0 max-w-32 justify-start truncate"
-            data-library-folder={folder.id}
-            onClick={() => state.setParentId(folder.id)}
-          >
-            {folder.name}
-          </Button>
-        ))
-      )}
+    <div className="media-folder-navigation">
       {state.failure && (
         <span role="alert" className="text-xs text-destructive">
           {state.failure}
@@ -247,7 +283,7 @@ export function FolderNavigation({
         </Button>
         {actions}
       </div>
-    </nav>
+    </div>
   );
 }
 type Mode = 'create' | 'rename' | 'move' | 'copy' | 'trash';
