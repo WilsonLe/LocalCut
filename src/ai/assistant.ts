@@ -46,7 +46,7 @@ import {
 } from './tools';
 import { skillCatalog, loadSkill } from './skills';
 import type { ToolName } from './tools';
-import { compactHistory } from './chat-context';
+import { compactHistory, interruptedChatText } from './chat-context';
 import type { SkillId } from './skills';
 import type {
   AssistantMessage,
@@ -75,6 +75,7 @@ const branches = new WeakMap<
   {
     history: ChatMessage[][];
     ids: string[];
+    interruptedIds: string[];
     memory: string;
     projectId: string;
     model: string;
@@ -88,10 +89,11 @@ export interface RestoredChatTurn {
   id: string;
   user: string;
   assistant: string;
+  interrupted?: boolean;
 }
 export interface AssistantOptions {
-  /** Completed text-only exchanges from the caller's matching local chat scope.
-   * Never restore tool results, proposals, skills, approvals or sharing consent. */
+  /** Text-only exchanges from the caller's matching local chat scope.
+   * Never hydrate protocol tools, proposals, skills, approvals or sharing consent. */
   restoredTurns?: readonly RestoredChatTurn[];
   /** Local index-run identity captured with retained text history. */
   restoredIndexScope?: string;
@@ -330,7 +332,9 @@ export function createAssistant(options: AssistantOptions) {
           turn.id.length > 0 &&
           turn.id.length <= 200 &&
           typeof turn.user === 'string' &&
-          typeof turn.assistant === 'string',
+          typeof turn.assistant === 'string' &&
+          (turn.interrupted === undefined ||
+            typeof turn.interrupted === 'boolean'),
       ) &&
       new Set(restored.map((turn) => turn.id)).size === restored.length,
     'INVALID_REQUEST',
@@ -341,12 +345,34 @@ export function createAssistant(options: AssistantOptions) {
     checkpoint?.history ??
       retained.map((turn) => [
         { role: 'user' as const, content: turn.user },
-        { role: 'assistant' as const, content: turn.assistant },
+        {
+          role: 'assistant' as const,
+          content: turn.interrupted
+            ? interruptedChatText(turn.assistant)
+            : turn.assistant,
+        },
       ]),
   );
   const historyIds: string[] = [
     ...(checkpoint?.ids ?? retained.map((turn) => turn.id)),
   ];
+  const interruptedIds = new Set(
+    checkpoint?.interruptedIds ??
+      retained.filter((turn) => turn.interrupted).map((turn) => turn.id),
+  );
+  const retain = (
+    turnId: string,
+    exchange: ChatMessage[],
+    interrupted = false,
+  ) => {
+    history.push(structuredClone(exchange));
+    historyIds.push(turnId);
+    if (interrupted) interruptedIds.add(turnId);
+    while (history.length > limits.maxHistoryTurns) {
+      history.shift();
+      interruptedIds.delete(historyIds.shift()!);
+    }
+  };
   aiInvariant(
     options.restoredIndexScope === undefined ||
       typeof options.restoredIndexScope === 'string',
@@ -421,6 +447,8 @@ export function createAssistant(options: AssistantOptions) {
         totalTokens: 0,
       };
       const signal = controller.signal;
+      let partialText = '';
+      const observations: unknown[] = [];
       const check = () => {
         cancelled(signal);
         ensureActive();
@@ -452,6 +480,7 @@ export function createAssistant(options: AssistantOptions) {
           if (indexScope !== undefined && scope !== indexScope) {
             history.length = 0;
             historyIds.length = 0;
+            interruptedIds.clear();
             memory = '';
           }
           indexScope = scope;
@@ -567,8 +596,11 @@ export function createAssistant(options: AssistantOptions) {
             if (indexScope !== undefined && indexScope !== scope) {
               history.length = 0;
               historyIds.length = 0;
+              interruptedIds.clear();
               memory = '';
               retireConversation = true;
+              observations.length = 0;
+              partialText = '';
             }
             indexScope = scope;
           }
@@ -1118,6 +1150,7 @@ export function createAssistant(options: AssistantOptions) {
                   'RESPONSE_LIMIT',
                   'Assistant output exceeds the configured limit.',
                 );
+                partialText += event.value.text;
                 emit(
                   { type: 'text', turnId: id, text: event.value.text },
                   local,
@@ -1174,13 +1207,14 @@ export function createAssistant(options: AssistantOptions) {
           const calls = message.tool_calls ?? [];
           if (!calls.length) {
             check();
+            if (typeof message.content !== 'string' || !message.content.trim())
+              throw new AiError(
+                'RESPONSE_INCOMPLETE',
+                'The provider returned no visible reply or tool calls. Send your request again to retry; completed actions remain saved.',
+                { reason: 'empty_response' },
+              );
             for (const proposal of staged) proposals.set(proposal.id, proposal);
-            history.push(structuredClone(conversation));
-            historyIds.push(id);
-            while (history.length > limits.maxHistoryTurns) {
-              history.shift();
-              historyIds.shift();
-            }
+            retain(id, conversation);
             const result = {
               id,
               text: message.content ?? '',
@@ -1303,6 +1337,17 @@ export function createAssistant(options: AssistantOptions) {
                   };
                 }
               }
+              if (
+                parsed.name !== 'load_skill' &&
+                (options.execution === 'requested' ||
+                  (parsed.name !== 'propose_edits' &&
+                    parsed.name !== 'propose_action'))
+              )
+                observations.push({
+                  name: parsed.name,
+                  input: parsed.args,
+                  result,
+                });
               boundedContext(result, limits.maxContextBytes);
               const output = disclose(result);
               emit(
@@ -1404,6 +1449,41 @@ export function createAssistant(options: AssistantOptions) {
         const safe = signal.aborted
           ? new AiError('CANCELLED', 'Assistant turn cancelled.')
           : localError(error);
+        if (
+          !disposed &&
+          (safe.code === 'CANCELLED' ||
+            (safe.code === 'RESPONSE_INCOMPLETE' &&
+              safe.details.reason === 'empty_response'))
+        ) {
+          // Preserve intent without retaining unmatched calls, staged proposals,
+          // or skill instructions. A commit can win before its tool reply arrives.
+          const completed = staged.flatMap((proposal) => {
+            const saved = proposals.get(proposal.id);
+            return saved?.result
+              ? [
+                  {
+                    proposalId: saved.id,
+                    status: 'completed',
+                    result: saved.result,
+                  },
+                ]
+              : [];
+          });
+          retain(
+            id,
+            [
+              { role: 'user', content: prompt },
+              {
+                role: 'assistant',
+                content: interruptedChatText(partialText, [
+                  ...observations,
+                  ...completed,
+                ]),
+              },
+            ],
+            true,
+          );
+        }
         emit(
           safe.code === 'CANCELLED'
             ? { type: 'cancelled', turnId: id }
@@ -1426,6 +1506,7 @@ export function createAssistant(options: AssistantOptions) {
       branches.set(retryBranch, {
         history: structuredClone(history),
         ids: [...historyIds],
+        interruptedIds: [...interruptedIds],
         memory,
         assetIds: [...selectedAssetIds],
         indexScope,
@@ -1508,6 +1589,15 @@ export function createAssistant(options: AssistantOptions) {
       const safe = initialController.signal.aborted
         ? new AiError('CANCELLED', 'Assistant turn cancelled.')
         : localError(error);
+      if (safe.code === 'CANCELLED' && !disposed)
+        retain(
+          id,
+          [
+            { role: 'user', content: prompt },
+            { role: 'assistant', content: interruptedChatText('') },
+          ],
+          true,
+        );
       emit(
         safe.code === 'CANCELLED'
           ? { type: 'cancelled', turnId: id }
@@ -1809,7 +1899,11 @@ export function createAssistant(options: AssistantOptions) {
     },
     canBranch(turnId: string) {
       return (
-        !disposed && !active && !applying.size && historyIds.includes(turnId)
+        !disposed &&
+        !active &&
+        !applying.size &&
+        historyIds.includes(turnId) &&
+        !interruptedIds.has(turnId)
       );
     },
     branch(turnId: string): AssistantBranch {
@@ -1821,7 +1915,7 @@ export function createAssistant(options: AssistantOptions) {
       );
       const index = historyIds.indexOf(turnId);
       aiInvariant(
-        index >= 0,
+        index >= 0 && !interruptedIds.has(turnId),
         'INVALID_REQUEST',
         'This response is outside the retained history.',
       );
@@ -1829,6 +1923,9 @@ export function createAssistant(options: AssistantOptions) {
       branches.set(branch, {
         history: structuredClone(history.slice(0, index + 1)),
         ids: historyIds.slice(0, index + 1),
+        interruptedIds: historyIds
+          .slice(0, index + 1)
+          .filter((id) => interruptedIds.has(id)),
         memory,
         projectId,
         model,
@@ -1920,6 +2017,7 @@ export function createAssistant(options: AssistantOptions) {
       );
       history.length = 0;
       historyIds.length = 0;
+      interruptedIds.clear();
       memory = '';
       proposals.clear();
     },
@@ -1930,6 +2028,7 @@ export function createAssistant(options: AssistantOptions) {
       for (const controller of serviceControllers.values()) controller.abort();
       history.length = 0;
       historyIds.length = 0;
+      interruptedIds.clear();
       memory = '';
       for (const proposal of proposals.values())
         if (proposal.status === 'pending') proposal.status = 'discarded';

@@ -823,10 +823,11 @@ it('retains safe HTTP metadata for actionable endpoint errors and removes privat
 
 it.each([
   ['RESPONSE_INCOMPLETE', 'output_limit', { reason: 'output_limit' }],
+  ['RESPONSE_INCOMPLETE', 'empty_response', { reason: 'empty_response' }],
   ['RESPONSE_INCOMPLETE', 'secret-token', undefined],
   ['INVALID_REQUEST', 'output_limit', undefined],
 ])(
-  'retains only the incomplete-response output-limit diagnostic for %s/%s',
+  'retains only known incomplete-response diagnostics for %s/%s',
   async (code, reason, expected) => {
     const q = queue();
     q.register('remote', {

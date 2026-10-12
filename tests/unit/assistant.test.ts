@@ -1130,6 +1130,129 @@ describe('headless assistant boundaries', () => {
     expect(f.editor.commands.validate).not.toHaveBeenCalled();
     expect(a.snapshot()).toMatchObject({ state: 'idle', proposals: [] });
   });
+  it.each(['', '   ', null])(
+    'rejects empty terminal replies (%s) without retrying or freezing the session',
+    async (content) => {
+      const f = fixture();
+      const p = provider([
+        [
+          {
+            type: 'complete',
+            message: {
+              role: 'assistant',
+              content,
+              reasoning: 'Hidden thoughts',
+            },
+          },
+        ],
+        [final('Recovered')],
+      ]);
+      const a = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test/model',
+      });
+      const events: AssistantEvent[] = [];
+      a.subscribe((event) => events.push(event));
+      await expect(a.run('all').completion).rejects.toMatchObject({
+        code: 'RESPONSE_INCOMPLETE',
+        details: { reason: 'empty_response' },
+      });
+      expect(p.requests).toHaveLength(1);
+      expect(events.some((event) => event.type === 'completed')).toBe(false);
+      expect(a.snapshot()).toMatchObject({ state: 'idle', historyTurns: 1 });
+      expect(await a.run('Try all again').completion).toMatchObject({
+        text: 'Recovered',
+      });
+      expect(JSON.stringify(p.requests.at(-1)!.messages)).toContain(
+        'interrupted before completion',
+      );
+      await a.dispose();
+    },
+  );
+  it.each([false, true])(
+    'keeps interrupted storyboard intent and confirmed progress for typed continuation (partial text: %s)',
+    async (withText) => {
+      const f = fixture();
+      const waiting = deferred<void>();
+      let round = 0;
+      const requests: ChatRequest[] = [];
+      const a = createAssistant({
+        editor: f.editor,
+        projectId: f.project().id,
+        model: 'test/model',
+        provider: {
+          async *stream(request) {
+            requests.push(structuredClone(request));
+            switch (++round) {
+              case 1:
+                yield final('All assets indexed.');
+                break;
+              case 2:
+                yield final('', [
+                  call('load_skill', { skillId: 'storyboard' }),
+                ]);
+                break;
+              case 3:
+                yield final('', [call('inspect_project', {})]);
+                break;
+              case 4:
+                if (withText)
+                  yield { type: 'text', text: 'Planning five day panels.' };
+                waiting.resolve();
+                await new Promise(() => {});
+                break;
+              default:
+                yield final('Continuing the Sydney storyboard.');
+            }
+          },
+        },
+      });
+      await a.run('Index all project assets').completion;
+      const turn = a.run('Design a storyboard for my five-day Sydney trip');
+      await waiting.promise;
+      turn.cancel();
+      await expect(turn.completion).rejects.toMatchObject({
+        code: 'CANCELLED',
+      });
+      expect(a.canBranch(turn.id)).toBe(false);
+      expect(() => a.branch(turn.id)).toThrow();
+      const resumed = await a.run('keep going').completion;
+      const context = requests.at(-1)!.messages;
+      expect(
+        context.filter((m) => m.role === 'user').map((m) => m.content),
+      ).toEqual([
+        'Index all project assets',
+        'Design a storyboard for my five-day Sydney trip',
+        'keep going',
+      ]);
+      const interruption = context.find(
+        (m) =>
+          m.role === 'assistant' &&
+          m.content?.includes('interrupted before completion'),
+      )!;
+      expect(interruption.content).toContain('inspect_project');
+      expect(interruption.content?.includes('Planning five day panels.')).toBe(
+        withText,
+      );
+      expect(interruption).not.toHaveProperty('tool_calls');
+      const declared = requests.at(-1)!.tools.map((tool) => tool.function.name);
+      expect(declared).toContain('load_skill');
+      expect(declared).not.toContain('propose_edits');
+      expect(a.canBranch(resumed.id)).toBe(true);
+      const branch = createAssistant({
+        editor: f.editor,
+        provider: provider([[final('Branched')]]),
+        projectId: f.project().id,
+        model: 'test/model',
+        branch: a.branch(resumed.id),
+      });
+      expect(branch.canBranch(turn.id)).toBe(false);
+      await branch.dispose();
+      await a.dispose();
+    },
+  );
   it('prevents late publication when cancelled during asynchronous validation', async () => {
     const f = setup(),
       started = deferred<void>(),
@@ -1619,7 +1742,7 @@ describe('headless assistant boundaries', () => {
       });
       gate.resolve(final());
       expect(a.snapshot().proposals).toEqual([]);
-      expect(a.snapshot().historyTurns).toBe(0);
+      expect(a.snapshot().historyTurns).toBe(failure === 'cancelled' ? 1 : 0);
       expect(f.editor.commands.apply).not.toHaveBeenCalled();
       await a.dispose();
     },
@@ -3824,9 +3947,13 @@ it('restores completed text history without tool, proposal or skill authority an
   ).toThrow('Invalid restored');
 });
 
-it.each(['[]', undefined, 'obsolete-index-runs'])(
-  'revalidates restored index history against current evidence: %s',
-  async (restoredIndexScope) => {
+it.each(
+  ['[]', undefined, 'obsolete-index-runs'].flatMap((scope) =>
+    [false, true].map((interrupted) => [scope, interrupted] as const),
+  ),
+)(
+  'revalidates restored index history against current evidence: %s, interrupted: %s',
+  async (restoredIndexScope, interrupted) => {
     const f = fixture();
     const p = provider([[final('Current answer')]], false);
     const assistant = createAssistant({
@@ -3840,6 +3967,7 @@ it.each(['[]', undefined, 'obsolete-index-runs'])(
           id: 'saved',
           user: 'Previous description',
           assistant: 'Previous index narration',
+          interrupted,
         },
       ],
       restoredIndexScope,
@@ -4613,39 +4741,53 @@ describe('requested chat execution', () => {
     ).toBe(true);
     await a.dispose();
   });
-  it('retains a committed result when cancellation wins during a later provider round', async () => {
-    const f = fixture();
-    const waiting = deferred<void>();
-    let round = 0;
-    const p = {
-      stream: async function* () {
-        if (round++ === 0)
-          yield final('', [call('load_skill', { skillId: 'editing' })]);
-        else if (round === 2) yield proposal();
-        else {
-          waiting.resolve();
-          await new Promise(() => {});
-        }
-      },
-    };
-    const a = createAssistant({
-      editor: f.editor,
-      provider: p,
-      projectId: f.project().id,
-      model: 'test/model',
-      execution: 'requested',
-    });
-    const turn = a.run('Move');
-    await waiting.promise;
-    turn.cancel();
-    await expect(turn.completion).rejects.toMatchObject({ code: 'CANCELLED' });
-    expect(f.project().revision).toBe(1);
-    expect(a.snapshot().proposals[0]!.result).toMatchObject({
-      kind: 'edit',
-      receipt: { appliedRevision: 1 },
-    });
-    await a.dispose();
-  });
+  it.each(['cancelled', 'empty'] as const)(
+    'retains a committed result when a later provider round is %s',
+    async (failure) => {
+      const f = fixture();
+      const waiting = deferred<void>();
+      let round = 0;
+      const requests: ChatRequest[] = [];
+      const p = {
+        stream: async function* (request: ChatRequest) {
+          requests.push(structuredClone(request));
+          if (round++ === 0)
+            yield final('', [call('load_skill', { skillId: 'editing' })]);
+          else if (round === 2) yield proposal();
+          else if (round === 3) {
+            waiting.resolve();
+            if (failure === 'cancelled') await new Promise(() => {});
+            else yield final('');
+          } else
+            yield final('The move is already saved; continuing narration.');
+        },
+      };
+      const a = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test/model',
+        execution: 'requested',
+      });
+      const turn = a.run('Move');
+      await waiting.promise;
+      if (failure === 'cancelled') turn.cancel();
+      await expect(turn.completion).rejects.toMatchObject({
+        code: failure === 'cancelled' ? 'CANCELLED' : 'RESPONSE_INCOMPLETE',
+      });
+      expect(f.project().revision).toBe(1);
+      expect(a.snapshot().proposals[0]!.result).toMatchObject({
+        kind: 'edit',
+        receipt: { appliedRevision: 1 },
+      });
+      await a.run('Continue').completion;
+      const context = JSON.stringify(requests.at(-1)!.messages);
+      expect(context).toContain('appliedRevision');
+      expect(context).toContain('interrupted before completion');
+      expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
+      await a.dispose();
+    },
+  );
   it('cancels requested service work with the response and retains no successful receipt', async () => {
     const f = fixture();
     const jobs = new Jobs();

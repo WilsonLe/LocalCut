@@ -8,6 +8,17 @@ export function errorCode(error: unknown): string {
 }
 export function errorText(error: unknown): string {
   if (
+    errorCode(error) === 'RESPONSE_INCOMPLETE' &&
+    error &&
+    typeof error === 'object' &&
+    'details' in error &&
+    error.details &&
+    typeof error.details === 'object' &&
+    'reason' in error.details &&
+    error.details.reason === 'empty_response'
+  )
+    return 'The provider returned an empty reply. Send your request again to retry, or choose another model. Any completed actions remain saved.';
+  if (
     errorCode(error) === 'INVALID_REQUEST' &&
     error &&
     typeof error === 'object' &&

@@ -67,6 +67,161 @@ async function setup(page: Page, context: BrowserContext, base: string) {
   await page.getByRole('button', { name: 'Expand media', exact: true }).click();
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`chat continuation remembers interrupted work and empty replies recover ${base}`, async ({
+    page,
+    context,
+  }) => {
+    const requests: {
+      tools: unknown[];
+      messages: { role: string; content: string | null }[];
+    }[] = [];
+    const pending: (() => void)[] = [];
+    const reply = (delta: Record<string, unknown>) =>
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: 'stop' }], usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } })}\n\ndata: [DONE]\n\n`;
+    await context.route(
+      'https://openrouter.ai/api/v1/chat/completions',
+      async (route) => {
+        const body = route
+          .request()
+          .postDataJSON() as (typeof requests)[number];
+        if (!body.tools.length) {
+          await route.fulfill({
+            headers: cors,
+            contentType: 'text/event-stream',
+            body: reply({ content: 'Sydney trip' }),
+          });
+          return;
+        }
+        requests.push(body);
+        const prompt = body.messages.at(-1)?.content;
+        if (prompt?.startsWith('Design a five-day Sydney storyboard')) {
+          await new Promise<void>((resolve) => pending.push(resolve));
+          await route.abort('failed').catch(() => {});
+          return;
+        }
+        const storyboard = body.messages
+          .filter(
+            (m) =>
+              m.role === 'user' &&
+              m.content?.startsWith('Design a five-day Sydney storyboard'),
+          )
+          .at(-1);
+        const content =
+          prompt === 'keep going'
+            ? storyboard
+              ? 'Continuing your five-day Sydney storyboard.'
+              : 'All assets already indexed.'
+            : 'All assets already indexed.';
+        await route.fulfill({
+          headers: cors,
+          contentType: 'text/event-stream',
+          body:
+            prompt === 'all'
+              ? reply({
+                  reasoning: 'Hidden model reasoning without a user reply',
+                })
+              : reply({ content }),
+        });
+      },
+    );
+    await setup(page, context, base);
+    const input = page.getByRole('textbox', {
+      name: 'Describe your edit',
+      exact: true,
+    });
+    const send = page.getByRole('button', {
+      name: 'Send edit request',
+      exact: true,
+    });
+    const responses = page.getByRole('article', { name: 'Assistant response' });
+    await input.fill('Index all assets');
+    await send.click();
+    await expect(responses.last()).toContainText('All assets already indexed.');
+    for (const reload of [false, true]) {
+      await test.step(
+        reload
+          ? 'continue after local reload'
+          : 'continue after cancellation before output',
+        async () => {
+          await input.fill(
+            `Design a five-day Sydney storyboard ${reload ? 'after reload' : 'now'}`,
+          );
+          await send.click();
+          await expect.poll(() => pending.length).toBe(1);
+          await page
+            .getByRole('button', { name: 'Cancel response', exact: true })
+            .click();
+          pending.shift()!();
+          await expect(responses.last()).toContainText('Stopped');
+          const count = requests.length;
+          if (reload) {
+            await expect
+              .poll(() =>
+                page.evaluate(async () => {
+                  const db = await new Promise<IDBDatabase>((resolve) => {
+                    const request = indexedDB.open('localcut-chats-v1');
+                    request.onsuccess = () => resolve(request.result);
+                  });
+                  const saved = await new Promise<
+                    { content: { messages: { status: string }[] } }[]
+                  >((resolve) => {
+                    const request = db
+                      .transaction('sessions')
+                      .objectStore('sessions')
+                      .getAll();
+                    request.onsuccess = () => resolve(request.result);
+                  });
+                  db.close();
+                  return saved.some(
+                    (chat) =>
+                      chat.content.messages.at(-1)?.status === 'interrupted',
+                  );
+                }),
+              )
+              .toBe(true);
+            await page.reload();
+            await expect(input).toBeVisible();
+            expect(requests).toHaveLength(count);
+          }
+          await input.fill('keep going');
+          await send.click();
+          await expect(responses.last()).toContainText(
+            'Continuing your five-day Sydney storyboard.',
+          );
+          expect(
+            requests
+              .at(-1)!
+              .messages.filter((m) => m.role === 'user')
+              .at(-2)?.content,
+          ).toContain('Design a five-day Sydney storyboard');
+          expect(JSON.stringify(requests.at(-1)!.messages)).toContain(
+            'interrupted before completion',
+          );
+          expect(requests).toHaveLength(count + 1);
+        },
+      );
+    }
+    await test.step('reasoning-only blank reply shows feedback and permits manual retry', async () => {
+      const count = requests.length;
+      await input.fill('all');
+      await send.click();
+      await expect(responses.last()).toContainText('Incomplete response');
+      await expect(page.getByRole('alert')).toContainText('empty reply');
+      await expect(send).toHaveCount(0);
+      await expect(
+        page.getByRole('button', { name: 'Cancel response', exact: true }),
+      ).toHaveCount(0);
+      expect(requests).toHaveLength(count + 1);
+      await input.fill('keep going');
+      await expect(send).toBeEnabled();
+      await send.click();
+      await expect(responses.last()).toContainText(
+        'Continuing your five-day Sydney storyboard.',
+      );
+      await expect(page.getByRole('alert')).toHaveCount(0);
+      expect(requests).toHaveLength(count + 2);
+    });
+  });
   test(`chat title runs asynchronously once with animated scoped replacement ${base}`, async ({
     page,
     context,
@@ -504,7 +659,12 @@ for (const base of ['/', '/LocalCut/']) {
           page.getByRole('article', { name: 'Your message' }),
         ).toHaveCount(messageCount);
         await expect(responses).toHaveCount(responseCount);
-        expect(requests.at(-1)?.messages).toEqual(originalRequest.messages);
+        expect(requests.at(-1)?.messages.at(-1)).toEqual(
+          originalRequest.messages.at(-1),
+        );
+        expect(JSON.stringify(requests.at(-1)?.messages)).toContain(
+          'interrupted before completion',
+        );
         expect(JSON.stringify(requests.at(-1)?.messages)).toContain(
           'Completed context',
         );

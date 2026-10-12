@@ -57,7 +57,7 @@ import DictationButton from './DictationButton';
 import type { Asset } from '../editor';
 import type { AssistantBranch } from '../ai';
 import type { ChatContent, SavedChatMessage } from '../storage/chats';
-import { completedChatTurns } from './chat-transcript';
+import { restoredChatTurns } from './chat-transcript';
 const ChatMarkdown = lazy(() => import('./ChatMarkdown'));
 
 export type Message = ChatExportMessage;
@@ -189,10 +189,9 @@ export default function ConversationSession({
     attachments,
   }));
   const [branchable, setBranchable] = useState<string[]>(
-    completedChatTurns(
-      initialContent.messages,
-      initialContent.historyTurnIds,
-    ).map((turn) => turn.id),
+    restoredChatTurns(initialContent.messages, initialContent.historyTurnIds)
+      .filter((turn) => !turn.interrupted)
+      .map((turn) => turn.id),
   );
   const [running, setRunning] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -337,7 +336,7 @@ export default function ConversationSession({
         branch: initialBranch?.checkpoint,
         restoredTurns: initialBranch
           ? undefined
-          : completedChatTurns(
+          : restoredChatTurns(
               initial.current.messages,
               initial.current.historyTurnIds,
             ),
@@ -901,7 +900,8 @@ export default function ConversationSession({
                         <Copy />
                       </Button>
                     </Tooltip>
-                    {branchable.includes(message.id) &&
+                    {message.status === 'complete' &&
+                      branchable.includes(message.id) &&
                       !running &&
                       !applying && (
                         <Tooltip content="Continue from this response in a new chat">

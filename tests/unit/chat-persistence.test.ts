@@ -7,7 +7,7 @@ import {
   forkChatSession,
   legacyIndexChatScopes,
 } from '../../src/storage/chats';
-import { completedChatTurns } from '../../src/workspace/chat-transcript';
+import { restoredChatTurns } from '../../src/workspace/chat-transcript';
 
 describe('local chat records', () => {
   it('retains history and attachments beyond the former workspace caps', () => {
@@ -86,9 +86,20 @@ describe('local chat records', () => {
       status: 'interrupted',
       tools: [{ phase: 'failed', error: { code: 'CANCELLED' } }],
     });
-    expect(completedChatTurns(restored!.content.messages)).toEqual([
+    expect(restoredChatTurns(restored!.content.messages)).toEqual([
       { id: 'a1', user: 'Hello', assistant: 'Done' },
+      {
+        id: 'a2',
+        user: 'Cancelled question',
+        assistant: expect.stringContaining('Partial'),
+        interrupted: true,
+      },
     ]);
+    const interrupted = restoredChatTurns(restored!.content.messages, [
+      'a1',
+    ]).at(-1)!;
+    expect(interrupted.interrupted).toBe(true);
+    expect(interrupted.assistant).not.toContain('propose_edits');
   });
   it('rejects malformed and unknown-version records and assigns distinct session identities', () => {
     const a = newChatSession('scope'),
@@ -103,6 +114,73 @@ describe('local chat records', () => {
     ).toBeNull();
     expect(restoreChatSession(null)).toBeNull();
   });
+});
+
+it('restores only confirmed interruption observations and completed receipts as text', () => {
+  const turns = restoredChatTurns(
+    [
+      {
+        id: 'user',
+        role: 'user',
+        text: 'Storyboard for Sydney',
+        status: 'complete',
+      },
+      {
+        id: 'partial',
+        role: 'assistant',
+        text: '',
+        status: 'paused',
+        tools: [
+          {
+            callId: 'load',
+            name: 'load_skill',
+            phase: 'completed',
+            result: { instructions: 'Never restore this skill instruction' },
+          },
+          {
+            callId: 'read',
+            name: 'inspect_project',
+            phase: 'completed',
+            result: { revision: 57 },
+          },
+          {
+            callId: 'pending',
+            name: 'propose_edits',
+            phase: 'completed',
+            result: {
+              status: 'pending_review',
+              proposalId: 'discarded-proposal',
+            },
+          },
+          {
+            callId: 'saved',
+            name: 'propose_edits',
+            phase: 'completed',
+            result: {
+              status: 'completed',
+              result: { kind: 'edit', receipt: { appliedRevision: 57 } },
+            },
+          },
+          {
+            callId: 'incomplete',
+            name: 'inspect_storyboard',
+            phase: 'started',
+          },
+        ],
+      },
+    ],
+    [],
+  );
+  expect(turns).toHaveLength(1);
+  expect(turns[0]).toMatchObject({
+    user: 'Storyboard for Sydney',
+    interrupted: true,
+  });
+  expect(turns[0]!.assistant).toContain('inspect_project');
+  expect(turns[0]!.assistant).toContain('appliedRevision');
+  expect(turns[0]!.assistant).not.toMatch(
+    /skill instruction|discarded-proposal|inspect_storyboard/,
+  );
 });
 
 it('does not reintroduce compacted or retired turns from the visible transcript', () => {
@@ -132,10 +210,10 @@ it('does not reintroduce compacted or retired turns from the visible transcript'
       status: 'complete' as const,
     },
   ];
-  expect(completedChatTurns(messages, ['a2'])).toEqual([
+  expect(restoredChatTurns(messages, ['a2'])).toEqual([
     { id: 'a2', user: 'Current request', assistant: 'Current answer' },
   ]);
-  expect(completedChatTurns(messages, [])).toEqual([]);
+  expect(restoredChatTurns(messages, [])).toEqual([]);
 });
 
 it('keeps manual titles authoritative and supports old records without lifecycle fields', () => {
