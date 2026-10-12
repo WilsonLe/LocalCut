@@ -309,7 +309,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Hide bottom navigation while the mobile chat composer is focused. Keep the active tab heading at the top while the transcript/composer fit above the keyboard. Remove the duplicate LocalCut header on mobile; retain global controls in the active tab heading.
 - Remove the inert pointer/context indicator; retain selected-clip context automatically.
-- Cap chat context at 256,000 tokens and compact older conversation automatically at 192,000 tokens. Offer OpenRouter chat models only with context strictly greater than 256,000 tokens. Use conservative local token budgeting and compaction without an extra paid request.
+- The original 256,000-token context cap, 192,000-token compaction threshold and minimum model-context filter are superseded by the 12 October no-cap choice below.
 - Put the text-to-speech synthesis entry point in Media, reusing the shared provider connection and explicit Generate consent. This supersedes the chat-header speech entry point.
 
 ## AI provider settings — 11 October 2026
@@ -330,7 +330,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 ## Chat output policy — 11 October 2026
 
-- Do not cap editing-chat output responses in LocalCut. Leave output token limits to each provider/model instead of imposing a fixed 4k, 16k or 32k allowance, and accept long response text and hidden reasoning. Keep context compaction, explicit proposal approval, privacy, terminal validation and explicit retry behavior.
+- Do not cap editing-chat output responses in LocalCut. Leave output token limits to each provider/model instead of imposing a fixed 4k, 16k or 32k allowance, and accept long response text and hidden reasoning. The newer no-cap choice below supersedes context compaction; retain explicit proposal approval, privacy, terminal validation and explicit retry behavior.
 
 ## Chat interruptions — 11 October 2026
 
@@ -401,3 +401,9 @@ This is the project record of the user's durable product and workflow choices. U
 - Persist chat sessions locally in the existing workspace system, including titles, messages, branches, drafts and selection across refreshes and returning to a project. Preserve current sharing/approval boundaries and require explicit Send for further model work.
 
 - Allow renaming chat titles, archiving/restoring sessions and creating independent session forks in the existing chat picker. Preserve local persistence and explicit model-request boundaries.
+
+- Keep chat session actions subtle and icon-only, with accessible names and tooltips.
+
+## Assistant caps — 12 October 2026
+
+- Remove all default caps and hard application ceilings from editing chat: rounds, tool calls/payloads, operations/proposals, retained history/context, request/response size, composer attachments/typed or dictated text, chat naming and default chat duration. Do not force a final response because a LocalCut budget was reached, truncate activity details, or exclude tool-capable models by context size. The previous context-compaction preference is superseded. Providers/models determine their own capacity; retain cancellation, privacy, valid editor data, complete terminal validation, explicit proposal approval and manual retry.

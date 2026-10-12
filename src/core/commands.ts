@@ -309,7 +309,7 @@ export const batchSchema = z
     projectId: z.string().min(1),
     requestId: z.string().min(1),
     expectedRevision: z.number().int().nonnegative(),
-    operations: z.array(operationSchema).min(1).max(1000),
+    operations: z.array(operationSchema).min(1),
   })
   .strict();
 export function parseBatch(input: unknown): CommandBatch {

@@ -38,9 +38,9 @@ const messageSchema = z.object({
 });
 export const chatContentSchema = z.object({
   prompt: z.string(),
-  attachmentIds: z.array(identity).max(1000),
+  attachmentIds: z.array(identity),
   messages: z.array(messageSchema),
-  historyTurnIds: z.array(identity).max(50).optional(),
+  historyTurnIds: z.array(identity).optional(),
   historyIndexScope: z.string().optional(),
 });
 export type ChatContent = z.infer<typeof chatContentSchema>;
@@ -76,7 +76,7 @@ export function newChatSession(scope: string): SavedChatSession {
     content: { prompt: '', attachmentIds: [], messages: [] },
   };
 }
-export const chatRenameSchema = z.string().trim().min(1).max(120);
+export const chatRenameSchema = z.string().trim().min(1);
 export function renameChatSession(
   session: SavedChatSession,
   title: string,
@@ -96,7 +96,7 @@ export function automaticChatTitle(
 export function forkChatSession(session: SavedChatSession): SavedChatSession {
   return restoreChatSession({
     ...newChatSession(session.scope),
-    title: `Fork of ${session.title}`.slice(0, 200),
+    title: `Fork of ${session.title}`,
     titleLocked: true,
     content: structuredClone(session.content),
   })!;

@@ -4,11 +4,15 @@ import {
   Archive,
   ArrowLeft,
   ChevronDown,
+  Check,
+  RotateCcw,
+  X,
   GitFork,
   Pencil,
   Plus,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { Tooltip } from '../components/ui/tooltip';
 import { Input } from '../components/ui/input';
 import {
   Dialog,
@@ -138,30 +142,45 @@ export default function ChatSessionPicker({
                   }}
                 />
                 {(archived || sessions.some((session) => session.archived)) && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={
+                  <Tooltip
+                    content={
                       archived ? 'Show active chats' : 'Show archived chats'
                     }
-                    onClick={() => {
-                      setArchived(!archived);
-                      setSearch('');
-                    }}
                   >
-                    {archived ? <ArrowLeft /> : <Archive />}
-                  </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground"
+                      aria-label={
+                        archived ? 'Show active chats' : 'Show archived chats'
+                      }
+                      onClick={() => {
+                        setArchived(!archived);
+                        setSearch('');
+                      }}
+                    >
+                      {archived ? <ArrowLeft /> : <Archive />}
+                    </Button>
+                  </Tooltip>
                 )}
-                <Menu.Item
-                  aria-label="New conversation"
-                  onClick={() => {
-                    onNew();
-                    onOpenChange(false);
-                  }}
-                  render={<Button size="icon" />}
-                >
-                  <Plus />
-                </Menu.Item>
+                <Tooltip content="New conversation">
+                  <Menu.Item
+                    aria-label="New conversation"
+                    onClick={() => {
+                      onNew();
+                      onOpenChange(false);
+                    }}
+                    render={
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground"
+                      />
+                    }
+                  >
+                    <Plus />
+                  </Menu.Item>
+                </Tooltip>
               </div>
               <Menu.Separator className="my-1 h-px bg-border" />
               <div className="max-h-64 overflow-y-auto overscroll-contain">
@@ -186,9 +205,10 @@ export default function ChatSessionPicker({
                         sessionId={session.id}
                         title={session.title}
                       />
-                      <span className="ml-auto text-xs text-muted-foreground">
-                        Restore
-                      </span>
+                      <RotateCcw
+                        aria-hidden="true"
+                        className="ml-auto size-4 shrink-0 text-muted-foreground"
+                      />
                     </Menu.Item>
                   ))
                 ) : (
@@ -225,45 +245,71 @@ export default function ChatSessionPicker({
               {managed && !archived && (
                 <>
                   <Menu.Separator className="my-1 h-px bg-border" />
-                  <Menu.Item
-                    disabled={busy}
-                    className={itemClass}
-                    onClick={() => {
-                      const session = sessions.find(
-                        (session) => session.id === selected,
-                      );
-                      if (session) {
-                        setRenaming(session);
-                        setTitle(session.title);
-                      }
-                      onOpenChange(false);
-                    }}
-                  >
-                    <Pencil aria-hidden="true" className="size-4" />
-                    Rename chat
-                  </Menu.Item>
-                  <Menu.Item
-                    disabled={busy}
-                    className={itemClass}
-                    onClick={() => {
-                      onFork(selected);
-                      onOpenChange(false);
-                    }}
-                  >
-                    <GitFork aria-hidden="true" className="size-4" />
-                    Fork chat
-                  </Menu.Item>
-                  <Menu.Item
-                    disabled={busy}
-                    className={itemClass}
-                    onClick={() => {
-                      onArchive(selected);
-                      onOpenChange(false);
-                    }}
-                  >
-                    <Archive aria-hidden="true" className="size-4" />
-                    Archive chat
-                  </Menu.Item>
+                  <div className="flex justify-end gap-1">
+                    <Tooltip content="Rename chat">
+                      <Menu.Item
+                        aria-label="Rename chat"
+                        disabled={busy}
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground data-highlighted:bg-accent"
+                          />
+                        }
+                        onClick={() => {
+                          const session = sessions.find(
+                            (session) => session.id === selected,
+                          );
+                          if (session) {
+                            setRenaming(session);
+                            setTitle(session.title);
+                          }
+                          onOpenChange(false);
+                        }}
+                      >
+                        <Pencil aria-hidden="true" className="size-4" />
+                      </Menu.Item>
+                    </Tooltip>
+                    <Tooltip content="Fork chat">
+                      <Menu.Item
+                        aria-label="Fork chat"
+                        disabled={busy}
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground data-highlighted:bg-accent"
+                          />
+                        }
+                        onClick={() => {
+                          onFork(selected);
+                          onOpenChange(false);
+                        }}
+                      >
+                        <GitFork aria-hidden="true" className="size-4" />
+                      </Menu.Item>
+                    </Tooltip>
+                    <Tooltip content="Archive chat">
+                      <Menu.Item
+                        aria-label="Archive chat"
+                        disabled={busy}
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground data-highlighted:bg-accent"
+                          />
+                        }
+                        onClick={() => {
+                          onArchive(selected);
+                          onOpenChange(false);
+                        }}
+                      >
+                        <Archive aria-hidden="true" className="size-4" />
+                      </Menu.Item>
+                    </Tooltip>
+                  </div>
                 </>
               )}
             </Menu.Popup>
@@ -297,22 +343,34 @@ export default function ChatSessionPicker({
                 id="chat-title"
                 autoFocus
                 value={title}
-                maxLength={120}
                 onChange={(event) => setTitle(event.target.value)}
               />
               {!validTitle.success && (
                 <p role="status" className="text-sm text-muted-foreground">
-                  Enter a title of 1–120 characters.
+                  Enter a title.
                 </p>
               )}
             </div>
             <DialogFooter>
-              <DialogClose render={<Button variant="outline" />}>
-                Cancel
-              </DialogClose>
-              <Button type="submit" disabled={!validTitle.success || busy}>
-                Save title
-              </Button>
+              <Tooltip content="Cancel rename">
+                <DialogClose
+                  aria-label="Cancel rename"
+                  render={<Button variant="ghost" size="icon" />}
+                >
+                  <X />
+                </DialogClose>
+              </Tooltip>
+              <Tooltip content="Save title">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Save title"
+                  type="submit"
+                  disabled={!validTitle.success || busy}
+                >
+                  <Check />
+                </Button>
+              </Tooltip>
             </DialogFooter>
           </form>
         </DialogContent>

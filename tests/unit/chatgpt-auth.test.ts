@@ -144,6 +144,60 @@ describe('ChatGPT OAuth', () => {
     expect(persistent.getItem(accountCredentialKey(secondary))).toBeNull();
   });
 
+  it('has no default ChatGPT inference timeout and cancels the active stream', async () => {
+    const s = await setup();
+    await s.auth.complete(s.callback.href);
+    vi.useFakeTimers();
+    let cancelled = false;
+    const client = createChatGPT({
+      credentialStorage: s.persistent,
+      oauthStorage: memory(),
+      now: () => 1000000,
+      fetch: async () =>
+        new Response(
+          new ReadableStream({
+            cancel() {
+              cancelled = true;
+            },
+          }),
+          { headers: { 'content-type': 'text/event-stream' } },
+        ),
+    });
+    client.restore();
+    const controller = new AbortController();
+    try {
+      const pending = (async () => {
+        for await (const event of client.stream(
+          {
+            model: 'model',
+            messages: [{ role: 'user', content: 'Hello' }],
+            tools: [],
+          },
+          controller.signal,
+        ))
+          void event;
+      })();
+      let settled = false;
+      void pending.then(
+        () => {
+          settled = true;
+        },
+        () => {
+          settled = true;
+        },
+      );
+      await vi.advanceTimersByTimeAsync(600001);
+      expect(settled).toBe(false);
+      expect(vi.getTimerCount()).toBe(0);
+      controller.abort();
+      await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+      expect(cancelled).toBe(true);
+    } finally {
+      controller.abort();
+      client.dispose();
+      vi.useRealTimers();
+    }
+  });
   it('is inert and generates independent PKCE, state and nonce with the public dynamic registration flow', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>();
     const c = createChatGPT({ fetch });

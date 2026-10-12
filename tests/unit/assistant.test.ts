@@ -34,6 +34,19 @@ import {
 import { assistantCapabilities } from '../../src/ai/actions';
 import type { EditOperation } from '../../src/core/commands';
 
+it('retains every structural validation issue beyond the former detail cap', () => {
+  try {
+    parseTool(
+      'validate_edits',
+      JSON.stringify({ operations: Array.from({ length: 20 }, () => null) }),
+    );
+    expect.unreachable('Invalid operations must fail schema validation');
+  } catch (error) {
+    expect(error).toBeInstanceOf(AiError);
+    expect((error as AiError).details.issues).toHaveLength(20);
+  }
+});
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (error: unknown) => void;
@@ -609,14 +622,13 @@ describe('headless assistant boundaries', () => {
     expect(f.editor.assets.inspect).toHaveBeenCalledWith('selected');
     expect(JSON.stringify(p.requests)).toContain('TOOL_NOT_ALLOWED');
   });
-  it('bounds and validates explicit library selection before any access', () => {
+  it('validates explicit library IDs without a selection-count cap', () => {
     const f = fixture(),
       p = provider([]);
     for (const assetIds of [
       ['duplicate', 'duplicate'],
       [''],
       ['x'.repeat(201)],
-      Array.from({ length: 1001 }, (_, i) => String(i)),
     ]) {
       expect(() =>
         createAssistant({
@@ -713,9 +725,9 @@ describe('headless assistant boundaries', () => {
     );
     expect(f.editor.commands.apply).not.toHaveBeenCalled();
   });
-  it('caps cumulative activity details while preserving completed calls and provider results', async () => {
+  it('retains complete activity details beyond the former field and cumulative caps', async () => {
     const f = fixture();
-    f.project().tracks[1]!.clips[0]!.text!.text = 'x'.repeat(24000);
+    f.project().tracks[1]!.clips[0]!.text!.text = 'x'.repeat(50000);
     const p = provider([
       [
         final(
@@ -741,7 +753,7 @@ describe('headless assistant boundaries', () => {
     await assistant.run('Inspect repeatedly').completion;
     const completed = events.filter((event) => event.phase === 'completed');
     expect(completed).toHaveLength(7);
-    expect(completed.some((event) => event.resultOmitted)).toBe(true);
+    expect(completed.some((event) => event.resultOmitted)).toBe(false);
     expect(completed.some((event) => event.result !== undefined)).toBe(true);
     const bytes = events.reduce(
       (sum, event) =>
@@ -757,7 +769,7 @@ describe('headless assistant boundaries', () => {
         }, 0),
       0,
     );
-    expect(bytes).toBeLessThanOrEqual(128 * 1024);
+    expect(bytes).toBeGreaterThan(128 * 1024);
     expect(
       p.requests.at(-1)!.messages.filter((message) => message.role === 'tool'),
     ).toHaveLength(7);
@@ -1205,7 +1217,7 @@ describe('headless assistant boundaries', () => {
     });
     expect(f.project().revision).toBe(0);
   });
-  it('automatically compacts history without extra provider calls and clears compacted memory', async () => {
+  it('retains full history and branch checkpoints without automatic compaction', async () => {
     const f = fixture(),
       p = provider([[final('Done')]]);
     const assistant = createAssistant({
@@ -1222,13 +1234,13 @@ describe('headless assistant boundaries', () => {
     const request = p.stream.mock.calls[1]![0];
     expect(
       request.messages.some((m) => m.content?.includes('Untrusted excerpts')),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       request.messages.some((m) => m.content?.includes('Earlier request')),
     ).toBe(true);
     expect(request.messages.at(-1)?.content).toContain('Current request');
-    expect(assistant.canBranch(first.id)).toBe(false);
-    expect(assistant.snapshot().historyTurnIds).toEqual([current.id]);
+    expect(assistant.canBranch(first.id)).toBe(true);
+    expect(assistant.snapshot().historyTurnIds).toEqual([first.id, current.id]);
     const checkpoint = assistant.branch(current.id);
     await assistant.run('Later original request').completion;
     const fork = createAssistant({
@@ -1264,6 +1276,12 @@ describe('headless assistant boundaries', () => {
         model: 'test/model',
         limits,
       });
+    p.stream.mockImplementationOnce(async function* () {
+      yield final('', [call('inspect_project', {})]);
+    });
+    p.stream.mockImplementationOnce(async function* () {
+      yield final('', [call('inspect_project', {})]);
+    });
     await expect(
       make({ maxRounds: 1 }).run('Loop').completion,
     ).rejects.toMatchObject({ code: 'TOOL_LIMIT' });
@@ -1272,6 +1290,9 @@ describe('headless assistant boundaries', () => {
         call('inspect_project', {}, 'a'),
         call('inspect_project', {}, 'b'),
       ]);
+    });
+    p.stream.mockImplementationOnce(async function* () {
+      yield final('', [call('inspect_project', {})]);
     });
     await expect(
       make({ maxToolCalls: 1 }).run('Many').completion,
@@ -1291,6 +1312,294 @@ describe('headless assistant boundaries', () => {
     expect(history.snapshot().historyTurns).toBe(1);
     expect(() => make({ maxRounds: 0 })).toThrow(AiError);
   });
+  it('has no default round, call, operation, proposal, history or context caps', async () => {
+    const f = fixture();
+    const operations = Array.from({ length: 1001 }, () => ({
+      type: 'updateClip',
+      clipId: 'video',
+      patch: { gain: 0.5 },
+    }));
+    const rounds: ProviderEvent[][] = [
+      [final('', [call('load_skill', { skillId: 'editing' })])],
+      ...Array.from({ length: 25 }, (_, round) => [
+        final(
+          '',
+          Array.from({ length: 6 }, (_, index) =>
+            call('inspect_project', {}, `${round}-${index}`),
+          ),
+        ),
+      ]),
+      [
+        final('', [
+          call('propose_edits', { summary: 'Set gain', operations }, 'large'),
+          ...Array.from({ length: 104 }, (_, index) =>
+            call(
+              'propose_edits',
+              {
+                summary: 'Move',
+                operations: [
+                  {
+                    type: 'moveClip',
+                    clipId: 'video',
+                    trackId: 'main',
+                    startUs: 1e6,
+                  },
+                ],
+              },
+              `proposal-${index}`,
+            ),
+          ),
+        ]),
+      ],
+      [final('Ready for review.')],
+    ];
+    const p = provider(rounds, false);
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'model',
+      limits: { maxRounds: undefined },
+    });
+    try {
+      a.includeAssets(
+        Array.from({ length: 1001 }, (_, index) => `asset-${index}`),
+      );
+      a.includeAssets(['another-asset']);
+      const response = await a.run('x'.repeat(2 * 1024 * 1024 + 1)).completion;
+      expect(response.proposalIds).toHaveLength(105);
+      expect(
+        a.getProposal(response.proposalIds[0]!).batch.operations,
+      ).toHaveLength(1001);
+      expect(p.requests.length).toBe(28);
+      expect(p.requests.at(-1)!.messages.length).toBeGreaterThan(256);
+      expect(p.requests.every((request) => request.tools.length > 0)).toBe(
+        true,
+      );
+      expect(f.editor.commands.apply).not.toHaveBeenCalled();
+      await a.applyProposal(response.proposalIds[0]!);
+      expect(f.project().tracks[0]!.clips[0]!.gain).toBe(0.5);
+      // Clear this large exchange explicitly before checking independent history retention.
+      a.clearHistory();
+      for (let index = 0; index < 61; index++)
+        await a.run(`Request ${index}`).completion;
+      expect(a.snapshot().historyTurns).toBe(61);
+      expect(
+        p.requests
+          .at(-1)!
+          .messages.some((message) => message.content === 'Request 0'),
+      ).toBe(true);
+    } finally {
+      await a.dispose();
+    }
+  });
+  it('accepts explicit caller budgets beyond every former hard ceiling', async () => {
+    const f = fixture(),
+      p = provider([[final()]], false);
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'model',
+      limits: {
+        maxRounds: 21,
+        maxToolCalls: 101,
+        maxOperations: 1001,
+        maxProposals: 101,
+        maxHistoryTurns: 51,
+        maxContextBytes: 3 * 1024 * 1024,
+      },
+    });
+    await a.run('No application ceilings').completion;
+    await a.dispose();
+  });
+  it('completes discovery, inspection, validation and proposal beyond six rounds', async () => {
+    const f = fixture();
+    const operations = [
+      { type: 'moveClip', clipId: 'video', trackId: 'main', startUs: 1e6 },
+    ];
+    const p = provider(
+      [
+        [final('', [call('load_skill', { skillId: 'editing' })])],
+        ...Array.from({ length: 7 }, () => [
+          final('', [call('inspect_project', {})]),
+        ]),
+        [final('', [call('validate_edits', { operations })])],
+        [proposal(operations)],
+        [final('Ready for approval.')],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'model',
+    });
+    const result = await a.run('Inspect and move the clip').completion;
+    expect(result.text).toBe('Ready for approval.');
+    expect(result.proposalIds).toHaveLength(1);
+    expect(p.requests).toHaveLength(11);
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+    await a.applyProposal(result.proposalIds[0]!);
+    expect(f.project().tracks[0]!.clips[0]!.startUs).toBe(1e6);
+    await a.dispose();
+  });
+  it.each([{ maxRounds: 2 }, { maxToolCalls: 2 }])(
+    'finishes an exhausted budget with a reviewable proposal: %j',
+    async (limits) => {
+      const f = fixture();
+      const p = provider(
+        [
+          [final('', [call('load_skill', { skillId: 'editing' })])],
+          [proposal()],
+          [
+            final(
+              'The clip move is pending approval. Ask next about the title.',
+            ),
+          ],
+          [final('Follow-up completed.')],
+        ],
+        false,
+      );
+      const a = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'model',
+        limits,
+      });
+      const events: AssistantEvent[] = [];
+      a.subscribe((event) => events.push(event));
+      const result = await a.run('Move the clip and plan a title').completion;
+      expect(result.proposalIds).toHaveLength(1);
+      expect(a.getProposal(result.proposalIds[0]!).status).toBe('pending');
+      expect(p.requests[2]!.tools).toEqual([]);
+      expect(
+        p.requests[2]!.messages.some(
+          (message) =>
+            message.role === 'system' &&
+            message.content.includes('tool budget'),
+        ),
+      ).toBe(true);
+      expect(events.some((event) => event.type === 'error')).toBe(false);
+      expect(f.editor.commands.apply).not.toHaveBeenCalled();
+      await a.run('Follow up').completion;
+      expect(p.requests[3]!.tools.length).toBeGreaterThan(0);
+      expect(
+        p.requests[3]!.messages.filter((message) => message.role === 'tool'),
+      ).toHaveLength(2);
+      expect(
+        p.requests[3]!.messages.some((message) =>
+          message.content?.includes('This turn has reached'),
+        ),
+      ).toBe(false);
+      await a.applyProposal(result.proposalIds[0]!);
+      expect(f.project().revision).toBe(1);
+      await a.dispose();
+    },
+  );
+  it('rejects an entire oversized batch and still finishes with earlier proposals', async () => {
+    const f = fixture();
+    const p = provider(
+      [
+        [final('', [call('load_skill', { skillId: 'editing' })])],
+        [proposal()],
+        [
+          final('', [
+            call('inspect_asset', { assetId: 'asset' }, 'a'),
+            call('inspect_asset', { assetId: 'asset' }, 'b'),
+          ]),
+        ],
+        [final('Move pending approval; further inspection was not performed.')],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'model',
+      limits: { maxToolCalls: 3 },
+    });
+    const result = await a.run('Move and inspect').completion;
+    expect(result.proposalIds).toHaveLength(1);
+    expect(f.editor.assets.inspect).not.toHaveBeenCalled();
+    expect(p.requests).toHaveLength(4);
+    expect(p.requests[3]!.tools).toEqual([]);
+    const replies = p.requests[3]!.messages.filter(
+      (message) => message.role === 'tool',
+    ).slice(-2);
+    expect(
+      replies.map((message) => JSON.parse(message.content!).error.code),
+    ).toEqual(['TOOL_LIMIT', 'TOOL_LIMIT']);
+    await a.dispose();
+  });
+  it('rejects tools during finalization without publishing staged proposals', async () => {
+    const f = fixture();
+    const p = provider(
+      [
+        [final('', [call('load_skill', { skillId: 'editing' })])],
+        [proposal()],
+        [final('', [call('inspect_asset', { assetId: 'asset' })])],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'model',
+      limits: { maxRounds: 2 },
+    });
+    await expect(a.run('Move').completion).rejects.toMatchObject({
+      code: 'TOOL_LIMIT',
+      details: { limit: 'rounds', rounds: 2, toolCalls: 2 },
+    });
+    expect(f.editor.assets.inspect).not.toHaveBeenCalled();
+    expect(a.snapshot().proposals).toEqual([]);
+    expect(a.snapshot().historyTurns).toBe(0);
+    await a.dispose();
+  });
+  it.each(['cancelled', 'incomplete'] as const)(
+    'discards staged proposals when finalization is %s',
+    async (failure) => {
+      const f = fixture(),
+        started = deferred<void>(),
+        gate = deferred<ProviderEvent>();
+      let round = 0;
+      const a = createAssistant({
+        editor: f.editor,
+        projectId: f.project().id,
+        model: 'model',
+        limits: { maxRounds: 2 },
+        provider: {
+          async *stream(request) {
+            if (round++ === 0)
+              yield final('', [call('load_skill', { skillId: 'editing' })]);
+            else if (round === 2) yield proposal();
+            else {
+              expect(request.tools).toEqual([]);
+              started.resolve();
+              if (failure === 'cancelled') yield await gate.promise;
+              else yield { type: 'text', text: 'Incomplete reply' };
+            }
+          },
+        },
+      });
+      const turn = a.run('Move');
+      await started.promise;
+      if (failure === 'cancelled') turn.cancel();
+      await expect(turn.completion).rejects.toMatchObject({
+        code: failure === 'cancelled' ? 'CANCELLED' : 'RESPONSE_INCOMPLETE',
+      });
+      gate.resolve(final());
+      expect(a.snapshot().proposals).toEqual([]);
+      expect(a.snapshot().historyTurns).toBe(0);
+      expect(f.editor.commands.apply).not.toHaveBeenCalled();
+      await a.dispose();
+    },
+  );
   it('publishes a staged proposal after an uncapped long final response', async () => {
     const f = fixture();
     const text = 'x'.repeat(1024 * 1024 + 1);
@@ -2411,9 +2720,13 @@ describe('incremental assistant skills', () => {
       model: 'test/model',
       limits: { maxToolCalls: 1 },
     });
-    await expect(a.run('Load').completion).rejects.toMatchObject({
-      code: 'TOOL_LIMIT',
-    });
+    await a.run('Load').completion;
+    expect(p.requests[1]!.tools).toEqual([]);
+    expect(
+      p.requests[1]!.messages.filter((message) => message.role === 'tool').map(
+        (message) => JSON.parse(message.content).error.code,
+      ),
+    ).toEqual(['TOOL_LIMIT', 'TOOL_LIMIT']);
     await f.assistant.dispose();
     await a.dispose();
   });
@@ -2622,9 +2935,8 @@ describe('complete assistant editing access', () => {
       }).items,
     ).toEqual([]);
     for (const bad of [
-      { limit: 21 },
+      { limit: 0 },
       { offset: -1 },
-      { query: 'x'.repeat(257) },
       { url: 'https://untrusted.example' },
     ])
       expect(() =>

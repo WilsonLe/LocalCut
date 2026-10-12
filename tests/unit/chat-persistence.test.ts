@@ -9,6 +9,24 @@ import {
 import { completedChatTurns } from '../../src/workspace/chat-transcript';
 
 describe('local chat records', () => {
+  it('retains history and attachments beyond the former workspace caps', () => {
+    const chat = newChatSession('project:model:private');
+    chat.content.historyTurnIds = Array.from(
+      { length: 75 },
+      (_, i) => `turn-${i}`,
+    );
+    chat.content.attachmentIds = Array.from(
+      { length: 1001 },
+      (_, i) => `image-${i}`,
+    );
+    const renamed = renameChatSession(chat, 'A'.repeat(300));
+    const restored = restoreChatSession(forkChatSession(renamed));
+    expect(restored?.content.historyTurnIds).toEqual(
+      chat.content.historyTurnIds,
+    );
+    expect(restored?.content.attachmentIds).toEqual(chat.content.attachmentIds);
+    expect(restored?.title).toBe(`Fork of ${renamed.title}`);
+  });
   it('restores drafts and completed text while stripping authority and stopping unfinished work', () => {
     const chat = newChatSession('project:model:private');
     const restored = restoreChatSession({
@@ -131,7 +149,7 @@ it('keeps manual titles authoritative and supports old records without lifecycle
   expect(renamed.title).toBe('My edit');
   expect(automaticChatTitle(renamed, 'Delayed generated title')).toBe(renamed);
   expect(() => renameChatSession(chat, '   ')).toThrow();
-  expect(() => renameChatSession(chat, 'x'.repeat(121))).toThrow();
+  expect(renameChatSession(chat, 'x'.repeat(121)).title).toBe('x'.repeat(121));
 });
 it('forks an independent active snapshot without unfinished authority', () => {
   const source = {

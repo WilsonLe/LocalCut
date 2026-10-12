@@ -1,4 +1,3 @@
-import { CHAT_CONTEXT_TOKENS, contextTokens } from './chat-context';
 import { transcriptionBody, transcriptionSegments } from './transcription';
 import {
   credentialKey,
@@ -11,6 +10,7 @@ import { speechModelsFrom, speechBody, readSpeechAudio } from './speech';
 import { AiError, aiInvariant, httpError } from './errors.ts';
 import {
   parseChatStream,
+  requestDeadline,
   readJson,
   validateReasoningMetadata,
 } from './protocol.ts';
@@ -48,7 +48,6 @@ export function compatibleBaseUrl(value: string): string {
 export const OPENROUTER_LIMITS = Object.freeze({
   requestBytes: 2_097_152,
   timeoutMs: 120_000,
-  maximumTimeoutMs: 600_000,
   models: 20_000,
 });
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -157,9 +156,7 @@ export function validateRequest(
   aiInvariant(
     Array.isArray(request.messages) &&
       request.messages.length > 0 &&
-      request.messages.length <= 256 &&
-      Array.isArray(request.tools) &&
-      request.tools.length <= 32,
+      Array.isArray(request.tools),
     'INVALID_REQUEST',
     'AI request size is invalid.',
   );
@@ -201,7 +198,7 @@ export function validateRequest(
       validateReasoningMetadata(message, 'INVALID_REQUEST');
     if (message.role === 'assistant' && message.tool_calls !== undefined) {
       aiInvariant(
-        Array.isArray(message.tool_calls) && message.tool_calls.length <= 32,
+        Array.isArray(message.tool_calls),
         'INVALID_REQUEST',
         'Invalid tool history.',
       );
@@ -231,7 +228,7 @@ export function validateRequest(
         tool.type === 'function' &&
         object(tool.function) &&
         typeof tool.function.name === 'string' &&
-        /^[A-Za-z0-9_-]{1,128}$/.test(tool.function.name) &&
+        /^[A-Za-z0-9_-]+$/.test(tool.function.name) &&
         !names.has(tool.function.name) &&
         typeof tool.function.description === 'string' &&
         object(tool.function.parameters) &&
@@ -262,11 +259,6 @@ export function validateRequest(
   } catch {
     throw new AiError('INVALID_REQUEST', 'AI request could not be serialized.');
   }
-  aiInvariant(
-    new TextEncoder().encode(json).byteLength <= OPENROUTER_LIMITS.requestBytes,
-    'INVALID_REQUEST',
-    'AI request exceeded the size limit.',
-  );
   return json;
 }
 
@@ -277,9 +269,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
   const requestFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
   const timeout = options.requestTimeoutMs ?? OPENROUTER_LIMITS.timeoutMs;
   aiInvariant(
-    Number.isSafeInteger(timeout) &&
-      timeout > 0 &&
-      timeout <= OPENROUTER_LIMITS.maximumTimeoutMs,
+    Number.isSafeInteger(timeout) && timeout > 0,
     'INVALID_REQUEST',
     'AI request timeout is invalid.',
   );
@@ -291,16 +281,17 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
   const active = new Set<AbortController>();
   const assertActive = () =>
     aiInvariant(!disposed, 'DISPOSED', 'OpenRouter client is disposed.');
-  function operation(signal?: AbortSignal) {
+  function operation(signal?: AbortSignal, chat = false) {
     assertActive();
     const controller = new AbortController();
     const epoch = generation;
     let timedOut = false;
     const abort = () => controller.abort();
-    const timer = setTimeout(() => {
+    const chatTimeout = chat ? options.requestTimeoutMs : timeout;
+    const stopDeadline = requestDeadline(chatTimeout, () => {
       timedOut = true;
       controller.abort();
-    }, timeout);
+    });
     active.add(controller);
     signal?.addEventListener('abort', abort, { once: true });
     if (signal?.aborted) controller.abort();
@@ -367,7 +358,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         throw new AiError('NETWORK_ERROR', 'Unable to connect to OpenRouter.');
       },
       finish() {
-        clearTimeout(timer);
+        stopDeadline();
         signal?.removeEventListener('abort', abort);
         active.delete(controller);
       },
@@ -880,12 +871,6 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
       let body = validateRequest(request, !!compatible);
       const requestedModel = request.model;
       const requestedTokens = request.maxOutputTokens;
-      const inputTokens = contextTokens(request.messages, request.tools);
-      aiInvariant(
-        inputTokens + (requestedTokens ?? 0) <= CHAT_CONTEXT_TOKENS,
-        'CONTEXT_LIMIT',
-        'Chat context exceeds 256,000 tokens.',
-      );
       const epoch = generation;
       const models = compatible
         ? await client.listModels(signal, requestedModel)
@@ -899,11 +884,6 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         'Selected model does not support LocalCut tool calling.',
       );
       aiInvariant(
-        compatible || model.contextLength > CHAT_CONTEXT_TOKENS,
-        'MODEL_UNSUPPORTED',
-        'Select an OpenRouter model with more than 256,000 context tokens.',
-      );
-      aiInvariant(
         requestedTokens === undefined ||
           !model.maxCompletionTokens ||
           requestedTokens <= model.maxCompletionTokens,
@@ -911,16 +891,10 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         'Output limit exceeds the selected model capability.',
       );
       // Use the model's full advertised allowance rather than a smaller provider default.
-      // This is independent of LocalCut's input compaction window and explicit caller reservations.
+      // Provider tokenization and context admission remain the provider's responsibility.
       if (requestedTokens === undefined && model.maxCompletionTokens) {
         const payload = JSON.parse(body) as Record<string, unknown>;
-        const remaining = model.contextLength - inputTokens;
-        aiInvariant(
-          remaining > 0,
-          'CONTEXT_LIMIT',
-          'Chat input exceeds the selected model context.',
-        );
-        payload.max_tokens = Math.min(model.maxCompletionTokens, remaining);
+        payload.max_tokens = model.maxCompletionTokens;
         body = JSON.stringify(payload);
       }
       // Strict routing must not require an optional parameter the model cannot use.
@@ -933,7 +907,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         delete payload.parallel_tool_calls;
         body = JSON.stringify(payload);
       }
-      const op = operation(signal);
+      const op = operation(signal, true);
       try {
         const response = await op.fetch('/chat/completions', {
           method: 'POST',

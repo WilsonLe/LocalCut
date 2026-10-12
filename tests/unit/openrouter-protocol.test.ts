@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   parseChatStream,
-  PROTOCOL_LIMITS,
   readJson,
+  requestDeadline,
 } from '../../src/ai/protocol.ts';
 import type { ProviderEvent } from '../../src/ai/types.ts';
 
@@ -301,22 +301,23 @@ describe('OpenRouter SSE protocol', () => {
       message: { content, reasoning },
     });
   });
-  it('bounds tool arguments before publication', async () => {
-    const calls = [
-      {
-        index: 0,
-        id: 'x',
-        function: {
-          name: 'tool',
-          arguments: 'x'.repeat(PROTOCOL_LIMITS.toolArgumentCharacters + 1),
-        },
-      },
-    ];
-    await expect(
-      collect(
-        response(frame({ tool_calls: calls }, 'tool_calls') + done, 65536),
-      ),
-    ).rejects.toMatchObject({ code: 'RESPONSE_LIMIT' });
+  it('accepts tool counts and arguments beyond the former caps', async () => {
+    const args = JSON.stringify({ text: 'x'.repeat(262145) });
+    const calls = Array.from({ length: 40 }, (_, index) => ({
+      index,
+      id: `call-${index}`,
+      type: 'function',
+      function: { name: 'tool', arguments: index === 0 ? args : '{}' },
+    }));
+    const events = await collect(
+      response(frame({ tool_calls: calls }, 'tool_calls') + done, 65536),
+    );
+    const terminal = events.find((event) => event.type === 'complete');
+    expect(
+      terminal?.type === 'complete' && terminal.message.tool_calls,
+    ).toHaveLength(40);
+    if (terminal?.type === 'complete')
+      expect(terminal.message.tool_calls![0]!.function.arguments).toBe(args);
   });
   it('rejects malformed UTF-8 and releases stream on caller cancellation', async () => {
     const invalid = new Response(new Uint8Array([0xff]));
@@ -563,7 +564,7 @@ describe('OpenRouter SSE protocol', () => {
       ),
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
   });
-  it('accepts long reasoning aliases and indexed blocks while bounding block count', async () => {
+  it('accepts long reasoning aliases and indexed blocks without a block-count cap', async () => {
     const part = frame({
       reasoning: 'x'.repeat(65536),
       reasoning_content: 'x'.repeat(65536),
@@ -596,20 +597,41 @@ describe('OpenRouter SSE protocol', () => {
         ],
       },
     });
-    await expect(
-      collect(
-        response(
-          frame(
-            {
-              reasoning_details: Array.from({ length: 129 }, () => ({
-                type: 'reasoning.text',
-                text: 'x',
-              })),
-            },
-            'stop',
-          ) + done,
-        ),
+    const events = await collect(
+      response(
+        frame(
+          {
+            reasoning_details: Array.from({ length: 129 }, () => ({
+              type: 'reasoning.text',
+              text: 'x',
+            })),
+          },
+          'stop',
+        ) + done,
       ),
-    ).rejects.toMatchObject({ code: 'RESPONSE_LIMIT' });
+    );
+    const terminal = events.find((event) => event.type === 'complete');
+    expect(
+      terminal?.type === 'complete' && terminal.message.reasoning_details,
+    ).toHaveLength(129);
+  });
+});
+
+describe('optional caller deadlines', () => {
+  it('supports durations beyond the native timer range without early timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      const expire = vi.fn();
+      const stop = requestDeadline(2_147_483_657, expire);
+      await vi.advanceTimersByTimeAsync(2_147_483_647);
+      expect(expire).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(10);
+      expect(expire).toHaveBeenCalledTimes(1);
+      stop();
+      requestDeadline(undefined, expire)();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

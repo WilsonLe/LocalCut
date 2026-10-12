@@ -543,6 +543,41 @@ describe('Responses protocol', () => {
       message: { content: text },
     });
   });
+  it('accepts large Responses requests, output arrays and tool arguments without application caps', async () => {
+    const args = JSON.stringify({ text: 'x'.repeat(262145) });
+    const messages = Array.from({ length: 300 }, () => ({
+      role: 'user' as const,
+      content: 'x'.repeat(8000),
+    }));
+    expect(JSON.parse(responsesBody({ ...chat, messages })).input).toHaveLength(
+      300,
+    );
+    const events = await collect(
+      parseResponses(
+        response([
+          {
+            type: 'response.completed',
+            response: {
+              status: 'completed',
+              output: Array.from({ length: 130 }, (_, index) => ({
+                type: 'function_call',
+                call_id: `call-${index}`,
+                name: 'inspect_project',
+                arguments: index === 0 ? args : '{}',
+              })),
+            },
+          },
+        ]),
+        signal(),
+      ),
+    );
+    const terminal = events.at(-1);
+    expect(
+      terminal?.type === 'complete' && terminal.message.tool_calls,
+    ).toHaveLength(130);
+    if (terminal?.type === 'complete')
+      expect(terminal.message.tool_calls![0]!.function.arguments).toBe(args);
+  });
   it('rejects failed/truncated/duplicate terminal frames and malformed calls', async () => {
     const terminal = {
       type: 'response.completed',

@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  createOpenRouter,
-  OPENROUTER_LIMITS,
-} from '../../src/ai/openrouter.ts';
+import { createOpenRouter } from '../../src/ai/openrouter.ts';
 import type {
   ChatRequest,
   OpenRouter,
@@ -130,14 +127,7 @@ describe('OpenRouter transport', () => {
       client.setKey('synthetic-key');
       const value = { ...request(), maxOutputTokens: undefined };
       await collect(client, value);
-      const inputBytes = new TextEncoder().encode(
-        JSON.stringify({ messages: value.messages, tools: value.tools }),
-      ).length;
-      expect(submitted!.max_tokens).toBe(
-        maximum === undefined
-          ? undefined
-          : Math.min(maximum, 1048576 - inputBytes),
-      );
+      expect(submitted!.max_tokens).toBe(maximum);
       expect(submitted!.messages).toEqual(value.messages);
       client.dispose();
     },
@@ -156,29 +146,29 @@ describe('OpenRouter transport', () => {
     expect(body).not.toHaveProperty('max_tokens');
     client.dispose();
   });
-  it('rejects oversized chat context before any provider I/O', async () => {
+  it('delegates oversized chat context and request admission to the provider', async () => {
     const { client, fetch } = setup();
-    await expect(
-      collect(client, {
-        ...request(),
-        messages: [{ role: 'user', content: 'x'.repeat(256000) }],
-      }),
-    ).rejects.toMatchObject({ code: 'CONTEXT_LIMIT' });
-    expect(fetch).not.toHaveBeenCalled();
+    await collect(client, {
+      ...request(),
+      messages: [{ role: 'user', content: 'x'.repeat(2 * 1024 * 1024 + 1) }],
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
     client.dispose();
   });
   it.each([128000, 256000])(
-    'rejects OpenRouter context %i before generation',
+    'supports tool-capable OpenRouter context %i',
     async (contextLength) => {
-      const fetch = vi.fn<typeof globalThis.fetch>(async () =>
-        Response.json({ data: [{ ...model, context_length: contextLength }] }),
+      const fetch = vi.fn<typeof globalThis.fetch>(async (input) =>
+        String(input).endsWith('/models')
+          ? Response.json({
+              data: [{ ...model, context_length: contextLength }],
+            })
+          : streamResponse(),
       );
       const client = createOpenRouter({ fetch });
       client.setKey('synthetic-key');
-      await expect(collect(client)).rejects.toMatchObject({
-        code: 'MODEL_UNSUPPORTED',
-      });
-      expect(fetch).toHaveBeenCalledTimes(1);
+      await collect(client);
+      expect(fetch).toHaveBeenCalledTimes(2);
       client.dispose();
     },
   );
@@ -471,13 +461,15 @@ describe('OpenRouter transport', () => {
     ).rejects.toMatchObject({ code: 'INVALID_REQUEST' });
     expect(fetch).not.toHaveBeenCalled();
   });
-  it('rejects invalid limits and bounds requests', async () => {
+  it('validates explicit caller limits without fixed request or timeout ceilings', async () => {
     expect(() => createOpenRouter({ requestTimeoutMs: 0 })).toThrow(
       expect.objectContaining({ code: 'INVALID_REQUEST' }),
     );
     expect(() => createOpenRouter({ requestTimeoutMs: Infinity })).toThrow(
       expect.objectContaining({ code: 'INVALID_REQUEST' }),
     );
+    const extended = createOpenRouter({ requestTimeoutMs: 600001 });
+    extended.dispose();
     const { client, fetch } = setup();
     await expect(
       collect(client, {
@@ -485,15 +477,8 @@ describe('OpenRouter transport', () => {
         maxOutputTokens: Number.MAX_SAFE_INTEGER + 1,
       }),
     ).rejects.toMatchObject({ code: 'INVALID_REQUEST' });
-    await expect(
-      collect(client, {
-        ...request(),
-        messages: [
-          { role: 'user', content: 'x'.repeat(OPENROUTER_LIMITS.requestBytes) },
-        ],
-      }),
-    ).rejects.toMatchObject({ code: 'INVALID_REQUEST' });
     expect(fetch).not.toHaveBeenCalled();
+    client.dispose();
   });
   it('binds model validation to the serialized request despite caller mutation during catalog load', async () => {
     let resolve!: (response: Response) => void;
@@ -514,7 +499,7 @@ describe('OpenRouter transport', () => {
     await expect(pending).rejects.toMatchObject({ code: 'MODEL_UNSUPPORTED' });
     expect(calls).toHaveLength(1);
   });
-  it('binds automatic output capacity to the serialized input during catalog load', async () => {
+  it('keeps advertised output capacity without a local input estimate cap', async () => {
     let release!: (value: Response) => void;
     let submitted: Record<string, unknown> | undefined;
     const fetch: typeof globalThis.fetch = async (url, init) => {
@@ -528,9 +513,6 @@ describe('OpenRouter transport', () => {
     const client = createOpenRouter({ fetch });
     client.setKey('synthetic-key');
     const value = { ...request(), maxOutputTokens: undefined };
-    const inputBytes = new TextEncoder().encode(
-      JSON.stringify({ messages: value.messages, tools: value.tools }),
-    ).length;
     const pending = collect(client, value);
     value.messages = [{ role: 'user', content: 'x'.repeat(300000) }];
     release(
@@ -545,9 +527,50 @@ describe('OpenRouter transport', () => {
       }),
     );
     await pending;
-    expect(submitted!.max_tokens).toBe(300000 - inputBytes);
+    expect(submitted!.max_tokens).toBe(300000);
     expect(submitted!.messages).toEqual(request().messages);
     client.dispose();
+  });
+  it('has no default chat timeout and still cancels a stalled stream', async () => {
+    vi.useFakeTimers();
+    let cancelled = false;
+    const fetch: typeof globalThis.fetch = async (input) =>
+      String(input).endsWith('/models')
+        ? Response.json({ data: [model] })
+        : new Response(
+            new ReadableStream({
+              cancel() {
+                cancelled = true;
+              },
+            }),
+            { headers: { 'content-type': 'text/event-stream' } },
+          );
+    const client = createOpenRouter({ fetch });
+    client.setKey('test-key-private');
+    const controller = new AbortController();
+    try {
+      await client.listModels();
+      const pending = collect(client, request(), controller.signal);
+      let settled = false;
+      void pending.then(
+        () => {
+          settled = true;
+        },
+        () => {
+          settled = true;
+        },
+      );
+      await vi.advanceTimersByTimeAsync(600001);
+      expect(settled).toBe(false);
+      expect(vi.getTimerCount()).toBe(0);
+      controller.abort();
+      await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+      expect(cancelled).toBe(true);
+    } finally {
+      controller.abort();
+      client.dispose();
+      vi.useRealTimers();
+    }
   });
   it('times out a stalled stream and cancels its reader', async () => {
     let cancelled = false;
@@ -749,7 +772,7 @@ describe('OpenRouter transport', () => {
       expect(fetch).not.toHaveBeenCalled();
     },
   );
-  it('includes outbound reasoning in the request context budget', async () => {
+  it('retains large outbound reasoning without a local context cap', async () => {
     const { client, fetch } = setup();
     const value: ChatRequest = {
       ...request(),
@@ -757,9 +780,7 @@ describe('OpenRouter transport', () => {
         { role: 'assistant', content: null, reasoning: 'x'.repeat(1_048_577) },
       ],
     };
-    await expect(collect(client, value)).rejects.toMatchObject({
-      code: 'CONTEXT_LIMIT',
-    });
-    expect(fetch).not.toHaveBeenCalled();
+    await collect(client, value);
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 });

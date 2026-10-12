@@ -223,9 +223,31 @@ for (const base of ['/', '/LocalCut/']) {
         exact: true,
       });
       await picker.click();
-      await page
-        .getByRole('menuitem', { name: 'Rename chat', exact: true })
-        .click();
+      for (const name of [
+        'New conversation',
+        'Rename chat',
+        'Fork chat',
+        'Archive chat',
+      ]) {
+        const action = page.getByRole('menuitem', { name, exact: true });
+        await expect(action).toHaveText('');
+        await expect(action.locator('svg')).toHaveCount(1);
+        await expect(action).not.toHaveClass(/bg-primary/);
+        const box = await action.boundingBox();
+        expect(box?.width).toBe(36);
+        expect(box?.height).toBe(36);
+      }
+      await page.screenshot({
+        path: testInfo.outputPath('chat-icon-actions.png'),
+      });
+      const rename = page.getByRole('menuitem', {
+        name: 'Rename chat',
+        exact: true,
+      });
+      await rename.hover();
+      await expect(page.getByRole('tooltip')).toHaveText('Rename chat');
+      await rename.focus();
+      await rename.press('Enter');
       const dialog = page.getByRole('dialog', {
         name: 'Rename chat',
         exact: true,
