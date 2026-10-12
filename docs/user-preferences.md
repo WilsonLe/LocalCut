@@ -2,6 +2,13 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Chat execution — 12 October 2026
+
+- Infer authorization from the user's request and context. Execute requested editing, history, indexing, export and transcription work without Apply/Approve/Discard cards or a second confirmation.
+- Use best judgement to ask an ordinary text question only when information is missing or the intended outcome is ambiguous. Do not double-confirm already requested work because it has cost or consequences.
+- Keep sharing choices, original-media boundaries, cancellation, authoritative results and explicit file Save. A failed paid action needs a new user retry request; it must not retry silently.
+- This supersedes earlier workspace chat approval-card and explicit edit/service proposal-approval preferences. Headless integrations retain their default reviewed proposal API.
+
 ## Header navigation — 12 October 2026
 
 - Put Editor and Storyboard (whiteboard) tab triggers at the far right of the project header, after the global actions, retaining left-aligned contents and their existing order.
@@ -151,6 +158,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Drag clip ends to shorten or extend them. Timed media repeats from its selected source beginning after reaching the end, with clear loop-back markers.
 - Drag imported media onto compatible timeline tracks; show its prospective position and duration as a placeholder before release.
+- Show a compact asset preview beside the cursor throughout the app during an active media drag, including outside timeline tracks. Retain the timeline placement placeholder as well. (12 October 2026)
 - When reordering tracks, move the entire track, including its title, with the cursor. Animate the destination placeholder and surrounding tracks into their proposed positions; respect reduced motion and commit only on release.
 
 ## Timeline seeking — 11 October 2026

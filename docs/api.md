@@ -246,6 +246,8 @@ JPEG APP1, PNG eXIf and WebP EXIF use pinned [ExifReader](https://github.com/mat
 
 Capture fields persist in the asset record and project/workspace backups, including metadata-only restoration. Relinking inspects the supplied original again. Existing assets remain valid without capture fields; no startup scan is scheduled. Original file bytes are unchanged. Local media details expose recorded date/provenance and GPS without requiring remote sharing.
 
+The optional assistant host policy `execution: 'requested'` executes validated tools during user-submitted turns and returns real receipts before continuing. Workspace chat uses it; headless callers default to `'review'` and keep the proposal approval API. See [the assistant execution contract](ai.md#workspace-requested-execution).
+
 ## Creative effects and local mask tracking
 
 `updateClip` supports optional `colorPreset`, `colorStrength` (0–1), `colorLut`, `blendMode`, `mask`, `chromaKey`, `balance` (−1 left to 1 right), `equalizer` (`lowDb`, `midDb`, `highDb`, each −12–12 dB), `noiseReduction` (0–1) and `noiseFloorDb` (−80–−10, default −50). Missing settings preserve neutral legacy output. Null removes LUT/mask/key/EQ; nested objects replace their field. Gain, mute, fades and existing numeric keyframes retain their contracts. New effect settings are static except the mask's editable translation path.

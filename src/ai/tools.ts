@@ -69,7 +69,15 @@ const actionSchema = z.discriminatedUnion('type', [
         .optional(),
     })
     .strict(),
-  assetSchema.extend({ type: z.literal('index_asset') }),
+  assetSchema.extend({
+    type: z.literal('index_asset'),
+    restart: z
+      .boolean()
+      .optional()
+      .describe(
+        'True only for an explicitly requested fresh reindex. Omit to resume a failed indexing request for this asset.',
+      ),
+  }),
   z.object({ type: z.literal('prepare_transcription') }).strict(),
   z
     .object({
