@@ -11,7 +11,7 @@ export type AssistantAction =
       assetId: string;
       options?: { language?: string; startUs?: number; endUs?: number };
     }
-  | { type: 'index_asset'; assetId: string }
+  | { type: 'index_asset'; assetId: string; restart?: boolean }
   | { type: 'prepare_transcription' };
 
 export type AssistantActionResult =

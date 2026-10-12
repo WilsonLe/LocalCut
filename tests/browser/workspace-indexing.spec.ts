@@ -124,7 +124,7 @@ async function image(page: Page) {
   await expect(page.locator('.media-item')).toHaveCount(1);
 }
 for (const base of ['/', '/LocalCut/']) {
-  test(`chat indexing approval, saved results and automatic authorization ${base}`, async ({
+  test(`chat indexing requested execution, saved results and automatic authorization ${base}`, async ({
     page,
     context,
   }) => {
@@ -213,7 +213,20 @@ for (const base of ['/', '/LocalCut/']) {
                   name: 'propose_action',
                   arguments: JSON.stringify({
                     summary: 'Index the red image',
-                    action: { type: 'index_asset', assetId },
+                    action: {
+                      type: 'index_asset',
+                      assetId,
+                      ...(String(
+                        body.messages
+                          .filter(
+                            (message: { role: string }) =>
+                              message.role === 'user',
+                          )
+                          .at(-1)?.content,
+                      ).endsWith('Reindex from chat')
+                        ? { restart: true }
+                        : {}),
+                    },
                   }),
                 },
               },
@@ -222,7 +235,7 @@ for (const base of ['/', '/LocalCut/']) {
           } else
             reply = scope.assetIndex.assets.length
               ? 'Saved red image observations are available.'
-              : 'Review the indexing proposal.';
+              : 'Indexing failed. Send a new request to retry.';
         } else {
           evidenceRequests++;
           const part = body.messages.at(-1).content;
@@ -278,12 +291,16 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'Apply proposal',
       exact: true,
     });
-    await expect(approve).toBeEnabled();
+    await expect(
+      page
+        .getByRole('article', { name: 'Assistant response', exact: true })
+        .last(),
+    ).toContainText('Indexing failed. Send a new request to retry.');
     const response = page
       .getByRole('article', { name: 'Assistant response', exact: true })
       .last();
     await response
-      .getByRole('button', { name: '3 of 3 tools completed', exact: true })
+      .getByRole('button', { name: '2 of 3 tools completed', exact: true })
       .click();
     await expect(
       response.getByRole('button', {
@@ -292,17 +309,16 @@ for (const base of ['/', '/LocalCut/']) {
       }),
     ).toBeVisible();
     await response
-      .getByRole('button', { name: '3 of 3 tools completed', exact: true })
+      .getByRole('button', { name: '2 of 3 tools completed', exact: true })
       .click();
     await expect(
       page.getByText(/Indexing sends generated stills.*may incur cost/),
     ).toBeVisible();
-    expect(evidenceRequests).toBe(0);
+    expect(evidenceRequests).toBe(2);
     await page.screenshot({
-      path: test.info().outputPath('chat-indexing-approval.png'),
+      path: test.info().outputPath('chat-indexing-requested.png'),
     });
-    await approve.click();
-    await expect(approve).toBeEnabled();
+    await expect(approve).toHaveCount(0);
     expect(evidenceRequests).toBe(2);
     expect(sceneRequests).toBe(1);
     const runs = () =>
@@ -323,7 +339,13 @@ for (const base of ['/', '/LocalCut/']) {
     const failedRuns = await runs();
     expect(failedRuns).toHaveLength(1);
     expect(failedRuns[0]!.status).toBe('failed');
-    await approve.click();
+    chatRound = 0;
+    await send('Retry indexing this image');
+    await expect(
+      page
+        .getByRole('article', { name: 'Assistant response', exact: true })
+        .last(),
+    ).toContainText('Saved red image observations are available.');
     await expect(page.getByText('Completed', { exact: true })).toBeVisible();
     expect(evidenceRequests).toBe(3);
     expect(sceneRequests).toBe(1);
@@ -334,7 +356,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page.keyboard.press('Escape');
     await send('Find the red image');
     await expect(
-      page.getByText('Saved red image observations are available.', {
+      response.getByText('Saved red image observations are available.', {
         exact: true,
       }),
     ).toBeVisible();
@@ -350,11 +372,19 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
     await page.keyboard.press('Escape');
     await send('Reindex from chat');
-    await expect(approve).toBeEnabled();
-    await approve.click();
+    await expect(
+      page
+        .getByRole('article', { name: 'Assistant response', exact: true })
+        .last(),
+    ).toContainText('Saved red image observations are available.');
+    await expect(approve).toHaveCount(0);
     await expect(page.getByText('Completed', { exact: true })).toHaveCount(2);
     const reindexed = await runs();
     expect(reindexed).toHaveLength(2);
+    expect(reindexed.find((run) => run.id === failedRuns[0]!.id)).toEqual({
+      id: failedRuns[0]!.id,
+      status: 'complete',
+    });
     expect(reindexed.filter((run) => run.id !== failedRuns[0]!.id)).toEqual([
       { id: expect.any(String), status: 'complete' },
     ]);

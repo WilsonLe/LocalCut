@@ -1059,7 +1059,7 @@ for (const base of ['/', '/LocalCut/']) {
                   {
                     index: 0,
                     delta: {
-                      content: 'The opacity change is ready for your review.',
+                      content: 'The clip opacity is now 50%.',
                     },
                     finish_reason: 'stop',
                   },
@@ -1174,15 +1174,9 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Send edit request', exact: true })
       .click();
-    const apply = page.getByRole('button', {
-      name: 'Apply proposal',
-      exact: true,
-    });
-    await expect(apply).toBeEnabled();
-    const beforeApply = await snapshot(page, base, name);
-    expect(beforeApply.revision).toBe(initial.revision);
-    expect(beforeApply.tracks[0]!.clips[0]!.opacity).toBe(1);
-    await apply.click();
+    await expect(
+      page.getByRole('button', { name: 'Apply proposal', exact: true }),
+    ).toHaveCount(0);
     await expect(
       page.getByText(`Applied at revision ${initial.revision + 1}`, {
         exact: true,
