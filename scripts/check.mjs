@@ -64,6 +64,9 @@ export async function runChecks(
   );
   // Only Chrome gets the smaller shared-context reservation. Earlier failures
   // drain the ordinary phase and prevent this admission entirely.
+  // Refresh CPU deltas after builds drain before the scheduler grants the pool.
+  // The child cannot grow a grant narrowed by already-finished static work.
+  await sample(chromeEnv);
   await schedule(
     [
       {

@@ -349,6 +349,33 @@ test('nested runner grants avoid subtracting parent load twice but retain RAM/qu
   assert.throws(() => allocation(host, { LOCALCUT_TEST_GRANTED_SLOTS: '0' }));
 });
 
+test('check refreshes recovered CPU headroom before granting the Chrome phase', async () => {
+  const { runChecks } = await import('../../scripts/check.mjs');
+  let load = 14;
+  const capacity = { ...host, freeBytes: 40 * GiB, totalBytes: 48 * GiB };
+  const events = [];
+  await runChecks(
+    {},
+    {
+      run: async ([command], env) => {
+        events.push(command);
+        if (command === 'test:browser') {
+          assert.equal(env.LOCALCUT_BROWSER_WORKERS, '16');
+          assert.ok(events.includes('check:bundle'));
+        }
+      },
+      build: async () => assert.equal(load, 14),
+      sample: async (env) => {
+        if (env.LOCALCUT_BROWSER_MODE === 'shared') load = 0;
+        return allocation({ ...capacity, load }, env);
+      },
+      getResources: (env, used) =>
+        allocation({ ...capacity, load: load + used }, env, used),
+    },
+  );
+  assert.ok(events.includes('test:browser'));
+});
+
 test('check preserves ordinary low-memory admission before granting the generous Chrome phase', async () => {
   const { runChecks } = await import('../../scripts/check.mjs');
   const capacity = { ...host, freeBytes: 3 * GiB };
