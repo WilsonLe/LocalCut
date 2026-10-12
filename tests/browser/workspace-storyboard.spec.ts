@@ -241,32 +241,48 @@ for (const base of ['/', '/LocalCut/']) {
       exact: true,
     });
     const checkHeader = async () => {
-      const tabs = page.getByRole('tablist', { name: 'Project views' });
       await expect(editorTab).toBeVisible();
       await expect(storyboardTab).toBeVisible();
-      const heading = page.locator(
-        '.workspace-header:visible, .mobile-edit-heading:visible',
-      );
-      await expect(heading.locator('.header-actions')).toBeVisible();
-      const actions = await heading.locator('.header-actions').boundingBox();
-      const views = await tabs.boundingBox();
-      const first = await editorTab.boundingBox();
-      const second = await storyboardTab.boundingBox();
-      expect(actions).not.toBeNull();
-      expect(views).not.toBeNull();
-      expect(first).not.toBeNull();
-      expect(second).not.toBeNull();
-      expect(views!.x).toBeGreaterThanOrEqual(actions!.x + actions!.width);
-      expect(first!.x).toBeCloseTo(views!.x, 0);
-      expect(second!.x).toBeGreaterThan(first!.x);
-      expect(views!.x + views!.width).toBeLessThanOrEqual(
-        await page.evaluate(() => innerWidth),
-      );
-      await expect(
-        heading
-          .getByRole('button', { name: 'Open project', exact: true })
-          .locator('svg'),
-      ).toHaveCount(0);
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const header = [
+              ...document.querySelectorAll<HTMLElement>(
+                '.workspace-header, .mobile-edit-heading',
+              ),
+            ].find((element) => element.checkVisibility());
+            const actions = header?.querySelector('.header-actions');
+            const views = header?.querySelector('[role="tablist"]');
+            const tabs = views?.querySelectorAll('[role="tab"]');
+            if (
+              !actions?.checkVisibility() ||
+              !views?.checkVisibility() ||
+              !tabs?.[0]?.checkVisibility() ||
+              !tabs[1]?.checkVisibility()
+            )
+              return null;
+            const actionBox = actions.getBoundingClientRect();
+            const viewBox = views.getBoundingClientRect();
+            const first = tabs[0].getBoundingClientRect();
+            const second = tabs[1].getBoundingClientRect();
+            return {
+              actionsBeforeTabs: viewBox.x >= actionBox.right,
+              firstAtStart: Math.abs(first.x - viewBox.x) < 0.5,
+              ordered: second.x > first.x,
+              fitsViewport: viewBox.right <= innerWidth,
+              projectIconCount: header!.querySelectorAll(
+                'button[aria-label="Open project"] svg',
+              ).length,
+            };
+          }),
+        )
+        .toEqual({
+          actionsBeforeTabs: true,
+          firstAtStart: true,
+          ordered: true,
+          fitsViewport: true,
+          projectIconCount: 0,
+        });
     };
     const checkHistoryToolbar = async () => {
       await expect(page.locator('.storyboard-heading')).toHaveCount(0);

@@ -1,5 +1,5 @@
 import { EditorError } from '../core/errors';
-import type { TextStyleInput } from '../core/text-library';
+import type { FontId, TextStyleInput } from '../core/text-library';
 
 interface FontManifest {
   family: string;
@@ -71,18 +71,27 @@ function retryable<T>(
 
 /** Each realm owns its FontFaceSet. Workers must prepare independently of the UI. */
 export async function ensureTextFont(style: TextStyleInput) {
-  if (!style.fontFamily?.startsWith('font-')) return;
-  const id = style.fontFamily.slice(5);
   const text = [style.text, ...(style.animation?.variations ?? [])].join('');
-  const key = `${id}/${text}`;
+  return ensureFont(style.fontFamily, text);
+}
+
+/** App typography must cover future UI content, not only the current sample. */
+export async function ensureFontFamily(font: FontId) {
+  return ensureFont(font, null);
+}
+
+async function ensureFont(font: FontId | undefined, text: string | null) {
+  if (!font?.startsWith('font-')) return;
+  const id = font.slice(5);
+  const key = JSON.stringify([id, text]);
   try {
     await retryable(prepared, key, async () => {
       const manifest = await retryable(manifests, id, async () => {
         const bytes = await fetchFont(new URL(`${id}/manifest.json`, fontBase));
         return JSON.parse(new TextDecoder().decode(bytes)) as FontManifest;
       });
-      const files = manifest.files.filter((file) =>
-        includesText(file.unicodeRange, text),
+      const files = manifest.files.filter(
+        (file) => text === null || includesText(file.unicodeRange, text),
       );
       await Promise.all(
         files.map((file) =>
