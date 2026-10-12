@@ -35,6 +35,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogFooter,
   DialogTitle,
 } from '../components/ui/dialog';
 import {
@@ -1239,7 +1240,7 @@ export default function SpeechDialog({
             </Button>
           )}
         </div>
-        <div className="flex flex-wrap justify-end gap-2">
+        <DialogFooter className="flex-wrap">
           {busy ? (
             <Button
               variant="outline"
@@ -1286,7 +1287,7 @@ export default function SpeechDialog({
               )}
             </>
           )}
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

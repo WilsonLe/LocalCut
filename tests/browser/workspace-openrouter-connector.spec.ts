@@ -1,12 +1,14 @@
-import { embedExif, captureFixture } from '../capture-metadata-fixture';
-import { fulfillChatTitle } from './chat-title-fixture';
-import { expect, test } from '@playwright/test';
 import {
+  confirmProviderDisconnect,
+  showOpenRouterTerms,
   addOpenRouter,
   prepareOpenRouterKey,
   openAISettings,
   selectAISettingsTab,
 } from './workspace-settings-helper';
+import { embedExif, captureFixture } from '../capture-metadata-fixture';
+import { fulfillChatTitle } from './chat-title-fixture';
+import { expect, test } from '@playwright/test';
 const cors = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'authorization,content-type',
@@ -63,9 +65,10 @@ for (const base of ['/', '/LocalCut/']) {
           exact: true,
         }),
       ).toBeVisible();
-      const terms = dialog.getByRole('region', {
-        name: 'OpenRouter connection terms',
-      });
+      await expect(
+        page.getByRole('region', { name: 'OpenRouter connection terms' }),
+      ).toHaveCount(0);
+      const terms = await showOpenRouterTerms(page);
       await expect(terms).toContainText('By connecting OpenRouter, you agree');
       for (const disclosure of [
         'project and media names',
@@ -86,10 +89,28 @@ for (const base of ['/', '/LocalCut/']) {
       await expect(
         dialog.getByRole('button', { name: 'Data & analytics' }),
       ).toHaveCount(0);
-      await terms.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+      const tooltip = page.getByRole('tooltip');
+      const tooltipBounds = (await tooltip.boundingBox())!;
+      expect(tooltipBounds.y).toBeGreaterThanOrEqual(0);
+      expect(tooltipBounds.y + tooltipBounds.height).toBeLessThanOrEqual(844);
+      await tooltip.evaluate((el) => {
+        el.scrollTop = el.scrollHeight;
+      });
+      await expect(
+        terms.getByRole('link', { name: 'Privacy Policy' }),
+      ).toBeInViewport();
+      await tooltip.evaluate((el) => {
+        el.scrollTop = 0;
+      });
       await page.screenshot({
         path: info.outputPath(`openrouter-terms-${width}.png`),
       });
+      await page
+        .getByRole('button', {
+          name: 'OpenRouter connection terms',
+          exact: true,
+        })
+        .click();
       const choice = dialog.getByRole('button', {
         name: 'I have an API key',
         exact: true,
@@ -115,6 +136,7 @@ for (const base of ['/', '/LocalCut/']) {
       await dialog
         .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
         .click();
+      await confirmProviderDisconnect(page);
       await expect(
         dialog.getByText('No AI providers added', { exact: true }),
       ).toBeVisible();
@@ -490,6 +512,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
+    await confirmProviderDisconnect(page);
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await expect(
       page.getByRole('button', { name: 'Connect provider', exact: true }),
@@ -554,6 +577,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Disconnect Saved endpoint', exact: true })
       .click();
+    await confirmProviderDisconnect(page);
     await expect(
       dialog.getByText('No AI providers added', { exact: true }),
     ).toBeVisible();
@@ -698,9 +722,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       dialog.getByLabel('OpenRouter API key', { exact: true }),
     ).toHaveCount(0);
-    await dialog
-      .getByRole('tab', { name: 'STT - Transcription', exact: true })
-      .click();
+    await selectAISettingsTab(page, 'STT - Transcription');
     await dialog
       .getByRole('combobox', { name: 'Add STT provider', exact: true })
       .click();
@@ -740,11 +762,7 @@ for (const base of ['/', '/LocalCut/']) {
     expect(
       original.routes.stt.map((r: { providerId: string }) => r.providerId),
     ).toEqual(['openrouter', 'local']);
-    const connections = dialog.getByRole('tab', {
-      name: 'Providers',
-      exact: true,
-    });
-    await connections.click();
+    await selectAISettingsTab(page, 'Providers');
 
     await selectAISettingsTab(page, 'Providers');
     await expect(
@@ -772,12 +790,14 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
+    await confirmProviderDisconnect(page);
     expect(await credential()).toBeNull();
     // A disconnected account can be forgotten through the same control.
     await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
+    await confirmProviderDisconnect(page);
     expect((await config()).routes.stt).toEqual([
       { providerId: 'local', model: 'whisper' },
     ]);
@@ -788,3 +808,39 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeFocused();
   });
 }
+
+test.describe('AI settings touch disclosure', () => {
+  test.use({ hasTouch: true, viewport: { width: 430, height: 873 } });
+  for (const base of ['/', '/LocalCut/']) {
+    test(`OpenRouter terms open and scroll on touch ${base}`, async ({
+      page,
+      context,
+    }) => {
+      await context.route('https://openrouter.ai/**', (route) => route.abort());
+      await page.goto(base);
+      await openAISettings(page);
+      await prepareOpenRouterKey(page);
+      const trigger = page.getByRole('button', {
+        name: 'OpenRouter connection terms',
+        exact: true,
+      });
+      await trigger.tap();
+      const tooltip = page.getByRole('tooltip');
+      await expect(tooltip).toBeVisible();
+      const bounds = (await tooltip.boundingBox())!;
+      expect(bounds.y).toBeGreaterThanOrEqual(0);
+      expect(bounds.y + bounds.height).toBeLessThanOrEqual(873);
+      await tooltip.evaluate((el) => {
+        el.scrollTop = el.scrollHeight;
+      });
+      await expect(
+        tooltip.getByRole('link', { name: 'Privacy Policy' }),
+      ).toBeInViewport();
+      await trigger.tap();
+      await expect(tooltip).toBeHidden();
+      await expect(
+        page.getByRole('dialog', { name: 'AI connection', exact: true }),
+      ).toBeVisible();
+    });
+  }
+});

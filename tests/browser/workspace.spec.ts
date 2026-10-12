@@ -1,13 +1,14 @@
-import { closeMediaImportAndPlace } from './workspace-import-helper';
-import { selectAISettingsTab } from './workspace-settings-helper';
-import { mediaVideo } from './workspace-video-fixture';
-import { dismissNotifications } from './workspace-notifications-helper';
-import { dragPlayhead } from './workspace-playhead-helper';
 import {
+  showOpenRouterTerms,
+  selectAISettingsTab,
   prepareOpenRouterKey,
   openAISettings,
   openVideoExport,
 } from './workspace-settings-helper';
+import { closeMediaImportAndPlace } from './workspace-import-helper';
+import { mediaVideo } from './workspace-video-fixture';
+import { dismissNotifications } from './workspace-notifications-helper';
+import { dragPlayhead } from './workspace-playhead-helper';
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -1180,9 +1181,11 @@ for (const base of ['/', '/LocalCut/']) {
       settings.getByRole('button', { name: 'Data & analytics' }),
     ).toHaveCount(0);
     await selectAISettingsTab(page, 'Providers');
-    await expect(
-      settings.getByRole('region', { name: 'OpenRouter connection terms' }),
-    ).toContainText('storyboard text');
+    const terms1 = await showOpenRouterTerms(page);
+    await expect(terms1).toContainText('storyboard text');
+    await page
+      .getByRole('button', { name: 'OpenRouter connection terms', exact: true })
+      .click();
     await settings.getByRole('button', { name: 'Done', exact: true }).click();
     await page
       .getByLabel('Describe your edit', { exact: true })

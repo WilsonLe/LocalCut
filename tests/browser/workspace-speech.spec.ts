@@ -1,5 +1,5 @@
-import { selectAISettingsTab } from './workspace-settings-helper';
 import {
+  selectAISettingsTab,
   prepareOpenRouterKey,
   openAISettings,
 } from './workspace-settings-helper';
@@ -126,9 +126,6 @@ async function connect(page: Page, context: BrowserContext, base: string) {
   await expect(
     connection.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
   ).toBeVisible();
-  await connection
-    .getByRole('tab', { name: 'TTS - Speech', exact: true })
-    .click();
   await selectAISettingsTab(page, 'TTS - Speech');
   await connection
     .getByRole('combobox', { name: 'OpenRouter tts route model', exact: true })

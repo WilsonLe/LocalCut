@@ -25,6 +25,7 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogFooter,
   DialogTitle,
   DialogDescription,
 } from '../components/ui/dialog';
@@ -523,7 +524,7 @@ export function FolderDialog({
               {error}
             </p>
           )}
-          <div className="flex justify-end gap-2">
+          <DialogFooter className="flex-wrap">
             <Button variant="outline" disabled={saving} onClick={control.close}>
               Cancel
             </Button>
@@ -537,7 +538,7 @@ export function FolderDialog({
             >
               {saving ? 'Saving…' : title}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

@@ -1096,6 +1096,10 @@ export function Conversation(props: ConversationProps) {
         if (
           event.key === 'Escape' &&
           !event.defaultPrevented &&
+          !(
+            event.target instanceof Element &&
+            event.target.closest('[data-slot="dialog-content"]')
+          ) &&
           !props.collapsed
         ) {
           event.preventDefault();

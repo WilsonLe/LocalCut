@@ -48,6 +48,43 @@ for (const base of ['/', '/LocalCut/']) {
     };
     const audit = async (name: string, compact = false) => {
       await bounds(dialog(name), page);
+      const separator = async (element: Locator, edge: 'Top' | 'Bottom') => {
+        await expect
+          .poll(() =>
+            element.evaluate(
+              (element, edge) =>
+                parseFloat(
+                  getComputedStyle(element)[
+                    `border${edge}Width` as
+                      'borderTopWidth' | 'borderBottomWidth'
+                  ],
+                ),
+              edge,
+            ),
+          )
+          .toBeGreaterThan(0);
+      };
+      const header = dialog(name).locator(
+        '[data-slot="dialog-header"]:visible',
+      );
+      if (name === 'Projects')
+        await separator(
+          dialog(name).locator('.project-browser-heading'),
+          'Bottom',
+        );
+      else if (name === 'Commands')
+        await separator(
+          dialog(name).locator('[data-slot="command-input-wrapper"]'),
+          'Bottom',
+        );
+      else {
+        await expect(header).toHaveCount(1);
+        await separator(header, 'Bottom');
+      }
+      const footers = dialog(name).locator(
+        '[data-slot="dialog-footer"]:visible',
+      );
+      for (const footer of await footers.all()) await separator(footer, 'Top');
       if (compact)
         expect((await dialog(name).boundingBox())!.height).toBeLessThan(400);
       await testInfo.attach(`${name} bounds`, {
