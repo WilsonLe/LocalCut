@@ -36,6 +36,15 @@ import { Empty, EmptyContent } from '../components/ui/empty';
 import { Tooltip } from '../components/ui/tooltip';
 import { MEDIA_DRAG_EVENT, formatTime } from './helpers';
 import { interfaceScale } from './appearance';
+import {
+  useMediaFolders,
+  FolderNavigation,
+  FolderCard,
+  FolderDialog,
+  LibraryActions,
+  useFolderDialog,
+} from './MediaFolders';
+import { showErrorToast } from './error-toast';
 
 interface DragPosition {
   assetId: string;
@@ -58,6 +67,8 @@ export default function MediaLibrary({
   onDelete,
   onAssetDrag,
   draggingAssetId,
+  onImportFiles,
+  onLibraryChanged,
 }: {
   editor: Editor | null;
   indexConnection: IndexConnection | null;
@@ -73,7 +84,42 @@ export default function MediaLibrary({
   onDelete: (asset: Asset) => Promise<void>;
   onAssetDrag: (id: string | null) => void;
   draggingAssetId: string | null;
+  onImportFiles: (
+    files: File[],
+    parentId: string | null,
+    directories?: string[],
+  ) => Promise<unknown>;
+  onLibraryChanged: () => Promise<unknown>;
 }) {
+  const folders = useMediaFolders(editor, !readOnly, assets, onLibraryChanged);
+  const folderDialog = useFolderDialog(folders.snapshot.revision);
+  const folderInput = useRef<HTMLInputElement>(null);
+  const libraryInput = useRef<HTMLInputElement>(null);
+  const [hoverFolder, setHoverFolder] = useState<string | null>(null);
+  const libraryMode = !!editor && !readOnly && folders.loaded;
+  const fileEntries = libraryMode
+    ? [
+        ...folders.visible
+          .filter((entry) => entry.kind === 'asset')
+          .flatMap((entry) => {
+            const asset = assets.find((asset) => asset.id === entry.assetId);
+            return asset
+              ? [{ asset: { ...asset, name: entry.name }, entry }]
+              : [];
+          }),
+        ...(folders.parentId === null && !folders.trash
+          ? assets
+              .filter(
+                (asset) =>
+                  asset.status === 'missing' &&
+                  !folders.snapshot.entries.some(
+                    (entry) => entry.assetId === asset.id,
+                  ),
+              )
+              .map((asset) => ({ asset, entry: undefined }))
+          : []),
+      ]
+    : assets.map((asset) => ({ asset, entry: undefined }));
   const [dragPosition, setDragPosition] = useState<DragPosition | null>(null);
   const drag = useRef<{
     pointerId: number;
@@ -118,7 +164,7 @@ export default function MediaLibrary({
       cancelDrag();
     };
   }, []);
-  const dragProps = (asset: Asset) => ({
+  const dragProps = (asset: Asset, entryId?: string) => ({
     draggable: false,
     'data-draggable': canEdit && !readOnly && asset.status === 'ready',
     onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
@@ -171,12 +217,36 @@ export default function MediaLibrary({
         x: event.clientX,
         y: event.clientY,
       });
+      const target = document
+        .elementsFromPoint(event.clientX, event.clientY)
+        .map((element) => element.closest<HTMLElement>('[data-library-folder]'))
+        .find(Boolean);
+      setHoverFolder(target?.dataset.libraryFolder ?? null);
       emit('move', asset.id, event.clientX, event.clientY);
     },
     onPointerUp: (event: PointerEvent<HTMLButtonElement>) => {
       if (drag.current?.pointerId !== event.pointerId) return;
-      if (drag.current.moved)
-        emit('drop', asset.id, event.clientX, event.clientY);
+      if (drag.current.moved) {
+        const target = document
+          .elementsFromPoint(event.clientX, event.clientY)
+          .map((element) =>
+            element.closest<HTMLElement>('[data-library-folder]'),
+          )
+          .find(Boolean)?.dataset.libraryFolder;
+        if (target && entryId && !folders.trash) {
+          emit('cancel', asset.id);
+          void folders
+            .apply({
+              type: 'move',
+              entryId,
+              parentId: target === 'root' ? null : target,
+            })
+            .catch((error: unknown) =>
+              showErrorToast(error, 'Could not update Media.'),
+            );
+        } else emit('drop', asset.id, event.clientX, event.clientY);
+      }
+      setHoverFolder(null);
       drag.current = null;
       setDragPosition(null);
       onAssetDrag(null);
@@ -223,19 +293,91 @@ export default function MediaLibrary({
         </div>
         {headerActions}
       </div>
-      <div className="media-grid">
-        {assets.map((asset) => (
+      {editor && !readOnly && (
+        <FolderNavigation
+          state={folders}
+          editable={canEdit}
+          onUpload={() => folderInput.current?.click()}
+          open={folderDialog.open}
+        />
+      )}
+      <input
+        ref={folderInput}
+        type="file"
+        hidden
+        multiple
+        {...{ webkitdirectory: '', directory: '' }}
+        onChange={(event) => {
+          const files = Array.from(event.currentTarget.files ?? []);
+          event.currentTarget.value = '';
+          void onImportFiles(files, folders.parentId);
+        }}
+      />
+      <input
+        ref={libraryInput}
+        type="file"
+        hidden
+        multiple
+        accept="video/*,audio/*,image/*"
+        onChange={(event) => {
+          const files = Array.from(event.currentTarget.files ?? []);
+          event.currentTarget.value = '';
+          void onImportFiles(files, folders.parentId);
+        }}
+      />
+      <div
+        className="media-grid"
+        data-library-folder={
+          !folders.trash ? (folders.parentId ?? 'root') : undefined
+        }
+      >
+        {libraryMode &&
+          folders.visible
+            .filter((entry) => entry.kind === 'folder')
+            .map((entry) => (
+              <FolderCard
+                key={entry.id}
+                entry={entry}
+                state={folders}
+                open={folderDialog.open}
+                editor={editor}
+                editable={canEdit}
+                hovering={hoverFolder === entry.id}
+              />
+            ))}
+        {fileEntries.map(({ asset, entry }) => (
           <MediaAssetCard
-            key={asset.id}
+            key={
+              entry &&
+              folders.snapshot.entries.find((e) => e.assetId === asset.id)
+                ?.id !== entry.id
+                ? entry.id
+                : asset.id
+            }
             editor={editor}
             asset={asset}
             connection={indexConnection}
             readOnly={readOnly}
-            canEdit={canEdit}
+            canEdit={
+              canEdit &&
+              !folders.pending &&
+              (!editor || readOnly || folders.loaded)
+            }
             onRelink={onRelink}
             onRename={onRename}
             onDelete={onDelete}
-            previewProps={dragProps(asset)}
+            actions={
+              entry ? (
+                <LibraryActions
+                  entry={entry}
+                  state={folders}
+                  open={folderDialog.open}
+                  editor={editor}
+                  editable={canEdit}
+                />
+              ) : undefined
+            }
+            previewProps={folders.trash ? {} : dragProps(asset, entry?.id)}
             dragPosition={
               draggingAssetId === asset.id && dragPosition?.assetId === asset.id
                 ? dragPosition
@@ -243,14 +385,17 @@ export default function MediaLibrary({
             }
           />
         ))}
-        {canEdit && (
+        {canEdit && !folders.trash && (
           <Empty className="media-import-card">
             <EmptyContent className="h-full max-w-none">
               <Tooltip content="Import media">
                 <Button
                   variant="ghost"
                   className="media-import-action"
-                  onClick={onImport}
+                  onClick={() => {
+                    if (editor) libraryInput.current?.click();
+                    else onImport();
+                  }}
                 >
                   <span className="media-import-symbol" aria-hidden="true">
                     <Upload />
@@ -262,6 +407,9 @@ export default function MediaLibrary({
           </Empty>
         )}
       </div>
+      {folderDialog.dialog && (
+        <FolderDialog control={folderDialog} state={folders} />
+      )}
     </section>
   );
 }
@@ -277,6 +425,7 @@ function MediaAssetCard({
   onDelete,
   previewProps,
   dragPosition,
+  actions: libraryActions,
 }: {
   editor: Editor | null;
   asset: Asset;
@@ -288,6 +437,7 @@ function MediaAssetCard({
   onDelete: (asset: Asset) => Promise<void>;
   previewProps: React.ComponentProps<'button'>;
   dragPosition: DragPosition | null;
+  actions?: React.ReactNode;
 }) {
   const blocked = readOnly || !canEdit;
   const card = useRef<HTMLDivElement>(null);
@@ -296,7 +446,7 @@ function MediaAssetCard({
   const [original, setOriginal] = useState(asset);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState('');
-  const actions = (
+  const actions = libraryActions ?? (
     <>
       <Menu.Item
         className={assetMenuItemClass}
@@ -353,7 +503,7 @@ function MediaAssetCard({
     }
   };
   return (
-    <div className="media-item" ref={card}>
+    <div className="media-item" ref={card} data-asset-id={asset.id}>
       <AssetIndexControls
         editor={editor}
         asset={asset}

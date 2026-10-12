@@ -103,12 +103,24 @@ for (const base of ['/', '/LocalCut/']) {
       .first()
       .click();
     await workspace.focus();
+    await expect(
+      page.getByRole('button', { name: 'Undo', exact: true }),
+    ).toBeVisible();
     await page.keyboard.press('d');
     await expect.poll(async () => (await clips()).length).toBe(3);
+    await expect(
+      page.getByRole('button', { name: 'Undo', exact: true }),
+    ).toBeVisible();
     await page.keyboard.press('Delete');
     await expect.poll(async () => (await clips()).length).toBe(2);
+    await expect(
+      page.getByRole('button', { name: 'Undo', exact: true }),
+    ).toBeVisible();
     await page.keyboard.press('ControlOrMeta+z');
     await expect.poll(async () => (await clips()).length).toBe(3);
+    await expect(
+      page.getByRole('button', { name: 'Undo', exact: true }),
+    ).toBeVisible();
     await page.keyboard.press('ControlOrMeta+Shift+z');
     await expect.poll(async () => (await clips()).length).toBe(2);
 

@@ -876,8 +876,18 @@ export function Workspace() {
     });
     await refresh();
   };
-  const importMedia = async (files: File[]) => {
-    if (!files.length || browsing.current || busy || lock.current) return false;
+  const importMedia = async (
+    files: File[],
+    targetFolderId: string | null = null,
+    directories: string[] = [],
+  ) => {
+    if (
+      (!files.length && !directories.length) ||
+      browsing.current ||
+      busy ||
+      lock.current
+    )
+      return false;
     const batchId = crypto.randomUUID();
     let added = 0;
     let engine: Editor | undefined;
@@ -912,6 +922,9 @@ export function Workspace() {
         await openProject(await engine.projects.create('Untitled project'));
       targetProjectId = getProjectId() ?? undefined;
       if (!targetProjectId) throw new Error('Open a project to import media.');
+      for (const directory of directories)
+        await engine.library.place(null, directory.split('/'), targetFolderId);
+      if (directories.length && !files.length) await refresh();
       // Enqueue the entire selection before waiting. The engine owns scheduling,
       // persistence and cancellation; closing this dialog changes only view state.
       for (const [index, file] of files.entries()) {
@@ -971,6 +984,12 @@ export function Workspace() {
         let committed = false;
         const placement = importPlacement.current.then(async () => {
           if (!alive.current) return;
+          const relative = files[index]!.webkitRelativePath;
+          await engine!.library.place(
+            result.asset.id,
+            relative ? relative.split('/').slice(0, -1) : [],
+            targetFolderId,
+          );
           const snapshot = await engine!.projects.snapshot(targetProjectId!);
           const operations = appendAsset(snapshot, result.asset);
           if (!alive.current) return;
@@ -1017,10 +1036,14 @@ export function Workspace() {
     }
     return added === files.length;
   };
-  const fileHovering = useFileDrop(!busy && !browsed, (files) => {
-    if (narrow) selectMobileTab('media');
-    void importMedia(files);
-  });
+  const fileHovering = useFileDrop(
+    !busy && !browsed,
+    (files, directories, folderId) => {
+      if (narrow) selectMobileTab('media');
+      void importMedia(files, folderId, directories);
+    },
+    project?.id ?? null,
+  );
   const relinkMedia = (assetId: string) => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -1938,6 +1961,8 @@ export function Workspace() {
               canEdit={!busy && !browsed}
               draggingAssetId={draggingAsset?.id ?? null}
               onImport={() => fileInput.current?.click()}
+              onImportFiles={importMedia}
+              onLibraryChanged={refresh}
               onSpeech={
                 speechAvailable
                   ? () => conversationControls.current?.openSpeech()

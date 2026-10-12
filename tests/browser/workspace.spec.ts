@@ -409,7 +409,7 @@ for (const base of ['/', '/LocalCut/']) {
     expect(errors).toEqual([]);
   });
 
-  test(`workspace asset menus rename and undo deletion ${base}`, async ({
+  test(`workspace asset menus rename and restore deletion ${base}`, async ({
     page,
   }) => {
     await page.goto(base);
@@ -456,15 +456,13 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeFocused();
     await page.keyboard.press('Enter');
     const rename = page.getByRole('dialog', {
-      name: 'Rename asset',
+      name: 'Rename',
       exact: true,
     });
-    await rename.getByLabel('Asset name').fill('   ');
-    await expect(rename.getByRole('button', { name: 'Save name' })).toHaveCount(
-      0,
-    );
-    await rename.getByLabel('Asset name').fill('  Cover image  ');
-    await rename.getByRole('button', { name: 'Save name' }).click();
+    await rename.getByLabel('Name', { exact: true }).fill('   ');
+    await expect(rename.getByRole('button', { name: 'Rename' })).toHaveCount(0);
+    await rename.getByLabel('Name', { exact: true }).fill('  Cover image  ');
+    await rename.getByRole('button', { name: 'Rename' }).click();
     await expect(
       page.getByRole('button', { name: 'Asset details for Cover image' }),
     ).toBeVisible();
@@ -488,29 +486,25 @@ for (const base of ['/', '/LocalCut/']) {
     };
     await openActions('Cover image');
     await page.getByRole('menuitem', { name: 'Rename', exact: true }).click();
-    await rename.getByLabel('Asset name').fill('Stale rename');
+    await rename.getByLabel('Name', { exact: true }).fill('Stale rename');
     await page.evaluate(async (base) => {
       const { createEditor } = await import(base + 'editor.js');
       const editor = await createEditor();
       try {
-        const project = (await editor.projects.list()).find(
-          (p: { name: string }) => p.name === 'Asset actions',
+        const library = await editor.library.list();
+        const entry = library.entries.find(
+          (entry: { name: string }) => entry.name === 'Cover image',
         );
-        const snapshot = await editor.projects.snapshot(project.id);
-        const assetId = snapshot.tracks
-          .flatMap((t: { clips: { assetId?: string }[] }) => t.clips)
-          .find((c: { assetId?: string }) => c.assetId).assetId;
-        await editor.assets.rename(
-          assetId,
-          'Renamed in another tab',
-          'Cover image',
+        await editor.library.apply(
+          { type: 'rename', entryId: entry.id, name: 'Renamed in another tab' },
+          library.revision,
         );
       } finally {
         await editor.dispose();
       }
     }, base);
-    await rename.getByRole('button', { name: 'Save name' }).click();
-    await expect(rename.getByRole('alert')).toContainText('Asset name changed');
+    await rename.getByRole('button', { name: 'Rename' }).click();
+    await expect(rename.getByRole('alert')).toContainText('Media changed');
     await rename.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(rename).toBeHidden();
     await expect(
@@ -525,11 +519,11 @@ for (const base of ['/', '/LocalCut/']) {
       ).toBeEnabled();
       await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
       const deletion = page.getByRole('dialog', {
-        name: 'Delete asset',
+        name: 'Delete',
         exact: true,
       });
       await expect(deletion).toContainText(
-        'Original media and saved index runs are retained',
+        'Editing originals and saved versions are retained',
       );
       await deletion
         .getByRole('button', { name: 'Cancel', exact: true })
@@ -539,7 +533,7 @@ for (const base of ['/', '/LocalCut/']) {
       await openActions(name);
       await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
       await deletion
-        .getByRole('button', { name: 'Delete asset', exact: true })
+        .getByRole('button', { name: 'Delete', exact: true })
         .click();
       await expect(cards).toHaveCount(2);
       await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
@@ -547,8 +541,17 @@ for (const base of ['/', '/LocalCut/']) {
         (await snapshot(page, base, 'Asset actions')).tracks.flatMap(
           (t) => t.clips,
         ),
-      ).toHaveLength(2);
-      await page.getByRole('button', { name: 'Undo', exact: true }).click();
+      ).toHaveLength(3);
+      await page
+        .getByRole('button', { name: 'Open media Trash', exact: true })
+        .click();
+      await openActions(name);
+      await page
+        .getByRole('menuitem', { name: 'Restore', exact: true })
+        .click();
+      await page
+        .getByRole('button', { name: 'Media root', exact: true })
+        .click();
       await expect(cards).toHaveCount(3);
     }
     await openActions('Renamed in another tab');
@@ -578,7 +581,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByRole('button', { name: 'red.png', exact: true }),
     ).toBeVisible();
-    const copyId = await page.evaluate(async (base) => {
+    const copy = await page.evaluate(async (base) => {
       const { createEditor } = (await import(
         base + 'editor.js'
       )) as typeof import('../../src/editor');
@@ -587,31 +590,31 @@ for (const base of ['/', '/LocalCut/']) {
         const project = (await editor.projects.list()).find(
           (p) => p.name === 'Missing actions',
         )!;
-        return (
-          await editor.projects.importJSON(
-            await editor.projects.exportJSON(project.id),
-          )
-        ).id;
+        const imported = await editor.projects.importJSON(
+          await editor.projects.exportJSON(project.id),
+        );
+        const assetId = imported.tracks
+          .flatMap((track) => track.clips)
+          .find((clip) => clip.assetId)!.assetId!;
+        return { id: imported.id, assetId };
       } finally {
         await editor.dispose();
       }
     }, base);
-    await page.goto(`${base}#/project/${copyId}`);
+    await page.goto(`${base}#/project/${copy.id}`);
     await page.reload();
     await page
       .getByRole('button', { name: 'Expand media', exact: true })
       .click();
-    const trigger = page.getByRole('button', {
-      name: 'Actions for red.png',
-      exact: true,
-    });
+    const card = page.locator(`.media-item[data-asset-id="${copy.assetId}"]`);
+    const trigger = card.getByRole('button', { name: /^Actions for red/ });
     await trigger.focus();
     await trigger.click();
     const chooser = page.waitForEvent('filechooser');
     await page.getByRole('menuitem', { name: 'Relink', exact: true }).click();
     await (await chooser).setFiles(fixture);
     await expect(
-      page.getByRole('img', { name: 'Thumbnail for red.png' }),
+      card.getByRole('img', { name: /^Thumbnail for red/ }),
     ).toBeVisible();
     await page
       .getByRole('button', { name: 'Workspace settings', exact: true })
@@ -750,6 +753,9 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByRole('tooltip', { name: /tone.wav/ }),
     ).not.toContainText('0 × 0');
+    await page
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .focus();
 
     await page
       .getByRole('button', { name: 'Collapse media', exact: true })
@@ -1576,8 +1582,14 @@ test.describe('touch media menu', () => {
         page.getByRole('menuitem', { name: 'Rename', exact: true }),
       ).toBeVisible();
       await page.getByRole('menuitem', { name: 'Rename', exact: true }).tap();
-      await page.getByLabel('Asset name').fill('Touch image');
-      await page.getByRole('button', { name: 'Save name' }).tap();
+      await page
+        .getByRole('dialog', { name: 'Rename' })
+        .getByLabel('Name', { exact: true })
+        .fill('Touch image');
+      await page
+        .getByRole('dialog', { name: 'Rename' })
+        .getByRole('button', { name: 'Rename', exact: true })
+        .tap();
       await expect(
         page.getByRole('button', {
           name: 'Actions for Touch image',

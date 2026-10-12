@@ -475,6 +475,12 @@ This is the project record of the user's durable product and workflow choices. U
 - Add LUTs/color presets, audio editing, video blending and masking, with UI and assistant access through the shared engine.
 - Include advanced tools in this release: automatic local mask tracking with editable motion points, chroma key/spill controls and local audio noise reduction, alongside .cube import, EQ, balance, fades and geometric masks.
 
+## Media folders — 12 October 2026
+
+- Organize Media as real folders in the browser-private filesystem, with a fixed app-owned root and no root picker. This supersedes the initially requested computer-visible folder.
+- Support recursive folder upload/drop, new folders, breadcrumbs, rename, move, copy, delete/restore, download and dragging media into folders. Keep assets independently of timeline placement.
+- Preserve editing originals for current projects, undo and saved versions when organizing or deleting library entries.
+
 ## OpenRouter context terms — 12 October 2026
 
 - Remove Data & analytics and all text/name/transcript/capture sharing switches. Connecting OpenRouter always enables project/media names, overlay/caption/storyboard text including frame names, source transcripts and embedded capture dates/GPS for configured chat providers/fallbacks, including after reload.

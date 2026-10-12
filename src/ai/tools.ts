@@ -1,3 +1,4 @@
+import { libraryOperationSchema } from '../core/media-library';
 import {
   COLOR_PRESETS,
   BLEND_MODES,
@@ -50,6 +51,17 @@ const exportOptionsSchema = z
   })
   .strict();
 const actionSchema = z.discriminatedUnion('type', [
+  z
+    .object({
+      type: z.literal('library'),
+      operation: libraryOperationSchema,
+      expectedRevision: z
+        .number()
+        .int()
+        .nonnegative()
+        .max(Number.MAX_SAFE_INTEGER),
+    })
+    .strict(),
   z.object({ type: z.literal('undo') }).strict(),
   z.object({ type: z.literal('redo') }).strict(),
   z
@@ -111,6 +123,7 @@ const schemas = {
     limit: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
   }),
   inspect_project: emptySchema,
+  inspect_library: emptySchema,
   inspect_storyboard: z
     .object({
       offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).default(0),
@@ -238,6 +251,13 @@ export function capabilityDiscovery(
     };
   };
   const actions = {
+    library: access({
+      skills: ['editing'],
+      support: [
+        !!capabilities.library,
+        'Connect an editor with a media library to organize local folders.',
+      ],
+    }),
     undo: access({
       skills: ['history'],
       support: [
@@ -309,6 +329,13 @@ export function capabilityDiscovery(
   const rules = {
     load_skill: { skills: [] },
     inspect_project: { skills: [] },
+    inspect_library: {
+      skills: ['editing'],
+      support: [
+        !!capabilities.library,
+        'Connect an editor with media library storage.',
+      ],
+    },
     inspect_capabilities: { skills: [] },
     inspect_proposals: { skills: [] },
     search_asset_index: indexRead,
@@ -388,6 +415,8 @@ export function toolDefinitions(
       'Read paginated saved scene labels, representative and action timestamps for an authorized asset. Observations describe sampled evidence and may be incomplete.',
     inspect_storyboard:
       'Read paginated project storyboard geometry and styles. Text and frame names require text-sharing consent; no files or embedded content.',
+    inspect_library:
+      'Inspect local folder IDs, parent IDs, library revision and authorized asset entries. File and folder names require asset-name sharing. No source files or bytes.',
     inspect_project:
       'Read the selected project snapshot. Times are integer microseconds and ranges are half-open. Names and text may be withheld.',
     inspect_asset:

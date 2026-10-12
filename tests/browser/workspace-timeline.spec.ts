@@ -808,7 +808,13 @@ for (const base of ['/', '/LocalCut/']) {
     await expect
       .poll(async () => (await p()).tracks.flatMap((t) => t.clips).length)
       .toBe(3);
+    await expect(
+      page.getByRole('button', { name: 'Undo', exact: true }),
+    ).toBeVisible();
     await first.click();
+    await expect(
+      page.locator('.timeline-clip[aria-pressed="true"]'),
+    ).toHaveCount(2);
     await page.keyboard.press('ControlOrMeta+Shift+g');
     await expect
       .poll(
