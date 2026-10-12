@@ -14,7 +14,7 @@ This is the project record of the user's durable product and workflow choices. U
 ## Product foundation
 
 - LocalCut is a client-only web video editor that builds into thin static assets, including deployment under `/LocalCut/` on GitHub Pages.
-- Use React, TypeScript, Vite, shadcn components built on Base UI, the neutral Vega foundation, and Tailwind CSS. Use system fonts.
+- Use React, TypeScript, Vite, shadcn components built on Base UI, the neutral Vega foundation, and Tailwind CSS. Use system fonts by default; the appearance font choice below shares the locally served text catalog.
 - Keep media processing, original files, editing data and speech transcription local. Optional OpenRouter reasoning can receive explicitly shared text and metadata; it must not upload source media.
 - Target current stable desktop Chrome first. Default to 1920 × 1080 at 30 fps and 48 kHz stereo; support MP4/H.264/AAC and WebM/VP9/Opus only after actual browser capability checks.
 - Use IndexedDB and OPFS for local persistence. Local editing needs no account or server, and transcription model downloads require explicit preparation.
@@ -58,7 +58,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 ## Appearance font choices — 12 October 2026
 
-- Offer more named local font stacks for both body and heading appearance, alongside the generic system choices. Preserve heading inheritance and browser-local persistence; keep font downloads unnecessary.
+- Offer the complete text-editor font catalog for body and heading appearance, including the fonts already served locally. Search names and style/language tags; load only the selected families from the application origin. Preserve heading inheritance and browser-local persistence. This supersedes the earlier system-only appearance restriction; appearance and authored text keep independent selections.
 - Remove the “Your workspace is the preview.” subtitle from appearance settings.
 
 ## Local user preferences — 10 October 2026

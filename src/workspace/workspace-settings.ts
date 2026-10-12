@@ -5,6 +5,7 @@ import {
   saveAppearance,
 } from './appearance';
 import type { Appearance } from './appearance';
+import { appearanceFontChoices } from './appearance-fonts';
 import {
   defaultWorkspacePreferences,
   getWorkspacePreferences,
@@ -35,7 +36,10 @@ export function validateWorkspaceSettings(
       Object.entries(appearanceOptions).some(
         ([key, options]) =>
           typeof p[key] !== 'string' ||
-          !(options as readonly string[]).includes(p[key] as string),
+          !(key === 'font' || key === 'heading'
+            ? (key === 'heading' && p[key] === 'inherit') ||
+              appearanceFontChoices.some((font) => font.id === p[key])
+            : (options as readonly string[]).includes(p[key] as string)),
       )
     )
       throw new Error('Invalid appearance settings in backup');

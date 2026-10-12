@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
+import { TEXT_FONTS } from '../../src/core/text-library';
 import {
   defaultAppearance,
   getAppearance,
@@ -16,6 +17,24 @@ import {
 } from '../../src/workspace/preferences';
 
 afterEach(() => vi.unstubAllGlobals());
+it('accepts the complete text font catalog in appearance backups and rejects unknown faces', () => {
+  for (const font of TEXT_FONTS) {
+    expect(() =>
+      validateWorkspaceSettings({
+        appearance: { ...defaultAppearance, font: font.id, heading: font.id },
+      }),
+    ).not.toThrow();
+  }
+  for (const font of [
+    'font-not-in-the-catalog',
+    'url(https://example.com/font)',
+    'inherit',
+  ]) {
+    expect(() =>
+      validateWorkspaceSettings({ appearance: { ...defaultAppearance, font } }),
+    ).toThrow('Invalid appearance');
+  }
+});
 it('imports legacy appearance backups with default size and retains every existing choice', () => {
   const { interfaceSize: _size, ...legacy } = defaultAppearance;
   void _size;

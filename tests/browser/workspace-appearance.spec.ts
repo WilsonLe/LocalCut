@@ -19,12 +19,22 @@ async function choose(page: Page, label: string, option: string) {
   await expect(
     page.getByRole('combobox', { name: label, exact: true }),
   ).toHaveAttribute('aria-expanded', 'true');
+  if (label === 'Font' || label === 'Heading') {
+    await page
+      .getByRole('combobox', {
+        name: `Search ${label === 'Font' ? 'body' : 'heading'} fonts`,
+        exact: true,
+      })
+      .fill(option);
+  }
   await page
     .getByRole('option', { name: option, exact: true })
     .filter({ visible: true })
     .click();
   await expect(
-    page.locator('[data-slot="select-content"]:visible'),
+    page.locator(
+      '[data-slot="select-content"]:visible, [data-slot="combobox-content"]:visible',
+    ),
   ).toHaveCount(0);
 }
 async function styles(page: Page) {
@@ -48,6 +58,77 @@ async function styles(page: Page) {
 }
 
 for (const base of ['/', '/LocalCut/']) {
+  test(`workspace appearance searches the local text catalog and retries verified fonts ${base}`, async ({
+    page,
+    context,
+  }) => {
+    const fontRequests: string[] = [];
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname.includes('/fonts/'))
+        fontRequests.push(request.url());
+    });
+    await page.goto(base);
+    const panel = await openAppearance(page);
+    expect(fontRequests).toEqual([]);
+    await page.getByRole('combobox', { name: 'Font', exact: true }).click();
+    const popup = page.locator('[data-slot="combobox-content"]:visible');
+    await expect(popup.getByRole('option')).toHaveCount(60);
+    await expect(popup).toContainText('1,805 fonts');
+    await page
+      .getByRole('combobox', { name: 'Search body fonts', exact: true })
+      .fill('vietnamese modern');
+    await expect(popup.getByRole('option')).not.toHaveCount(0);
+    await page.screenshot({
+      path: `.artifacts/appearance-catalog-${base === '/' ? 'root' : 'pages'}.png`,
+    });
+    await page
+      .getByRole('combobox', { name: 'Search body fonts', exact: true })
+      .fill('no-font-with-this-name');
+    await expect(popup).toContainText('No matching fonts.');
+    await page
+      .getByRole('combobox', { name: 'Search body fonts', exact: true })
+      .press('Escape');
+    await expect(panel).toBeVisible();
+    await context.route('**/fonts/*/inter/latin.woff2', (route) =>
+      route.fulfill({ body: 'corrupt', contentType: 'font/woff2' }),
+    );
+    await choose(page, 'Font', 'Inter');
+    await expect(panel.getByRole('alert')).toContainText(
+      'Could not load inter',
+    );
+    await expect(
+      page.getByRole('combobox', { name: 'Font', exact: true }),
+    ).toContainText('Inter');
+    await context.unroute('**/fonts/*/inter/latin.woff2');
+    await panel
+      .getByRole('button', { name: 'Retry fonts', exact: true })
+      .click();
+    await expect(
+      panel.getByText('Loading fonts…', { exact: true }),
+    ).toHaveCount(0);
+    await expect(panel.getByRole('alert')).toHaveCount(0);
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          [...document.fonts].some(
+            (face) =>
+              face.family === 'LocalCut inter' && face.status === 'loaded',
+          ),
+        ),
+      )
+      .toBe(true);
+    expect(fontRequests.length).toBeGreaterThan(0);
+    expect(
+      fontRequests.every(
+        (url) => new URL(url).origin === new URL(page.url()).origin,
+      ),
+    ).toBe(true);
+    expect(
+      fontRequests.every((url) =>
+        new URL(url).pathname.startsWith(`${base}fonts/`),
+      ),
+    ).toBe(true);
+  });
   test(
     '@journey ' +
       [
@@ -328,6 +409,38 @@ for (const base of ['/', '/LocalCut/']) {
     await choose(page, 'Heading', 'Same as body');
     await expect(panel.locator('h2')).toHaveCSS('font-family', /Verdana/);
     await choose(page, 'Heading', 'Palatino');
+    await choose(page, 'Font', 'Inter');
+    await choose(page, 'Heading', 'Same as body');
+    await expect(panel.locator('h2')).toHaveCSS(
+      'font-family',
+      /LocalCut inter/,
+    );
+    await choose(page, 'Heading', 'Zilla Slab');
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            document.fonts.check('16px "LocalCut inter"') &&
+            [...document.fonts].some(
+              (face) =>
+                face.family === 'LocalCut inter' && face.status === 'loaded',
+            ),
+        ),
+      )
+      .toBe(true);
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          [...document.fonts].some(
+            (face) =>
+              face.family === 'LocalCut zilla-slab' && face.status === 'loaded',
+          ),
+        ),
+      )
+      .toBe(true);
+    await expect(
+      panel.getByText('Loading fonts…', { exact: true }),
+    ).toHaveCount(0);
     const after = await styles(page);
     await panel
       .getByRole('button', { name: 'Dark', exact: true })
@@ -337,9 +450,12 @@ for (const base of ['/', '/LocalCut/']) {
     });
     expect(after.primary).not.toBe(before.primary);
     expect(after.foreground).not.toBe(before.foreground);
-    expect(after.font).toContain('Verdana');
-    expect(after.heading).toContain('Palatino');
-    await expect(panel.locator('h2')).toHaveCSS('font-family', /Palatino/);
+    expect(after.font).toContain('LocalCut inter');
+    expect(after.heading).toContain('LocalCut zilla-slab');
+    await expect(panel.locator('h2')).toHaveCSS(
+      'font-family',
+      /LocalCut zilla-slab/,
+    );
     expect(after.radius).toBe('0px');
     await expect(page.locator('.chat-composer')).toHaveCSS(
       'border-radius',
@@ -361,8 +477,8 @@ for (const base of ['/', '/LocalCut/']) {
       mode: 'dark',
       base: 'slate',
       theme: 'violet',
-      font: 'verdana',
-      heading: 'palatino',
+      font: 'font-inter',
+      heading: 'font-zilla-slab',
       radius: 'none',
       density: 'compact',
       menuColor: 'tinted',
@@ -375,9 +491,19 @@ for (const base of ['/', '/LocalCut/']) {
 
     const second = await context.newPage();
     await second.goto(base);
-    expect(await styles(second)).toEqual(after);
+    await expect.poll(() => styles(second)).toEqual(after);
+    await expect
+      .poll(() =>
+        second.evaluate(() =>
+          [...document.fonts].some(
+            (face) =>
+              face.family === 'LocalCut inter' && face.status === 'loaded',
+          ),
+        ),
+      )
+      .toBe(true);
     await page.reload();
-    expect(await styles(page)).toEqual(after);
+    await expect.poll(() => styles(page)).toEqual(after);
     await openAppearance(page);
     await page.getByRole('button', { name: 'Randomize', exact: true }).click();
     await expect(page.locator('html')).toHaveClass('dark');
