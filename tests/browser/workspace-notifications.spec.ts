@@ -266,6 +266,12 @@ for (const base of ['/', '/LocalCut/']) {
     await details.getByRole('button', { name: 'Close', exact: true }).click();
     await expect(bell).toBeFocused();
     await page.reload();
+    await expect(
+      page.getByRole('button', { name: 'Open project', exact: true }),
+    ).toContainText('Diagnostic session');
+    await expect(
+      page.getByRole('button', { name: 'Undo', exact: true }),
+    ).toBeVisible();
     await bell.click();
     await expect(log).toContainText('Could not check for updates');
     await log.getByRole('button', { name: /^View stack trace:/ }).click();
