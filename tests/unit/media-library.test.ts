@@ -1,7 +1,5 @@
-import {
-  captureUpload,
-  uploadSkipReason,
-} from '../../src/workspace/folder-upload';
+import { captureUpload } from '../../src/workspace/folder-upload';
+import { uploadSkipReason } from '../../src/workspace/folder-upload-reader';
 import { describe, it, expect } from 'vitest';
 import {
   libraryNameSchema,

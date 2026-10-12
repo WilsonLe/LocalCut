@@ -1,4 +1,3 @@
-import { uploadSkipReason } from './folder-upload';
 import { LoadingDialog, onDemandDialog } from './on-demand-dialog';
 import type { StoryboardControls } from './Storyboard';
 import { ProjectTabs } from './ProjectTabs';
@@ -886,7 +885,7 @@ export function Workspace() {
       return false;
     const batchId = crypto.randomUUID();
     let added = 0;
-    const skipped = files.filter((file) => uploadSkipReason(file)).length;
+    let skipped = 0;
     let engine: Editor | undefined;
     let targetProjectId: string | undefined;
     const jobs: {
@@ -909,6 +908,9 @@ export function Workspace() {
       }));
     };
     const started = await action(async () => {
+      targetProjectId = getProjectId() ?? undefined;
+      const { uploadSkipReason } = await import('./folder-upload-reader');
+      skipped = files.filter((file) => uploadSkipReason(file)).length;
       visibleImportBatch.current = batchId;
       setImportBatch({
         id: batchId,
@@ -923,9 +925,11 @@ export function Workspace() {
         }),
       });
       engine = await ensureEditor();
-      if (!getProjectId())
-        await openProject(await engine.projects.create('Untitled project'));
-      targetProjectId = getProjectId() ?? undefined;
+      if (!targetProjectId) {
+        const created = await engine.projects.create('Untitled project');
+        targetProjectId = created.id;
+        await openProject(created);
+      }
       if (!targetProjectId) throw new Error('Open a project to import media.');
       for (const directory of directories)
         await engine.library

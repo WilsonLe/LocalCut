@@ -10,12 +10,3 @@ export function captureUpload(transfer: DataTransfer) {
       module.readUpload(entries, fallback),
     );
 }
-
-/** Folder exports commonly contain metadata that is not playable media. */
-export function uploadSkipReason(file: Pick<File, 'name'>) {
-  if (file.name === '.DS_Store' || file.name.startsWith('._'))
-    return 'macOS metadata';
-  if (file.name.toLowerCase().endsWith('.aae'))
-    return 'Apple Photos edit metadata';
-  return undefined;
-}

@@ -140,7 +140,7 @@ for (const base of ['/', '/LocalCut/']) {
     }
   });
 
-  test(`unsupported import format is a nonretryable codec error from the real worker ${base}`, async ({
+  test(`unsupported import format is a codec error from the real worker ${base}`, async ({
     page,
   }) => {
     await page.goto(base);
@@ -171,5 +171,101 @@ for (const base of ['/', '/LocalCut/']) {
       attempts: 1,
       error: { code: 'UNSUPPORTED_CODEC' },
     });
+  });
+}
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`upload classifier loading keeps the initiating project after navigation ${base}`, async ({
+    page,
+  }) => {
+    await page.goto(base);
+    const ids = await page.evaluate(async (base) => {
+      const { createEditor } = await import(base + 'editor.js');
+      const editor = await createEditor();
+      try {
+        return [
+          (await editor.projects.create('First upload')).id,
+          (await editor.projects.create('Next project')).id,
+        ];
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    await page.goto(`${base}#/project/${ids[0]}`);
+    await expect(
+      page.getByRole('button', { name: 'Open project', exact: true }),
+    ).toContainText('First upload');
+    const bytes = await page.evaluate(async () => {
+      const canvas = new OffscreenCanvas(16, 16);
+      canvas.getContext('2d')!.fillRect(0, 0, 16, 16);
+      return [
+        ...new Uint8Array(await (await canvas.convertToBlob()).arrayBuffer()),
+      ];
+    });
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let started!: () => void;
+    const loading = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    await page.route('**/assets/folder-upload-reader-*.js', async (route) => {
+      started();
+      await held;
+      await route.continue();
+    });
+    try {
+      await page.getByLabel('Import media', { exact: true }).setInputFiles({
+        name: 'held.png',
+        mimeType: 'image/png',
+        buffer: Buffer.from(bytes),
+      });
+      await loading;
+      await page.evaluate((id) => {
+        location.hash = `/project/${id}`;
+      }, ids[1]);
+      await expect(
+        page.getByRole('status', { name: 'Opening project' }),
+      ).toBeVisible();
+      release();
+      await closeMediaImport(page);
+      await expect(
+        page.getByRole('button', { name: 'Open project', exact: true }),
+      ).toContainText('Next project');
+      const result = await page.evaluate(
+        async ({ base, ids }) => {
+          const { createEditor } = await import(base + 'editor.js');
+          const editor = await createEditor();
+          try {
+            const libraries = await Promise.all(
+              ids.map((id) => editor.library.forProject(id).list()),
+            );
+            const projects = await Promise.all(
+              ids.map((id) => editor.projects.snapshot(id)),
+            );
+            return {
+              names: libraries.map((library) =>
+                library.entries
+                  .filter((e: { assetId?: string }) => e.assetId)
+                  .map((e: { name: string }) => e.name),
+              ),
+              revisions: projects.map((p) => p.revision),
+              tracks: projects.map((p) => p.tracks.length),
+            };
+          } finally {
+            await editor.dispose();
+          }
+        },
+        { base, ids },
+      );
+      expect(result).toEqual({
+        names: [['held.png'], []],
+        revisions: [0, 0],
+        tracks: [0, 0],
+      });
+    } finally {
+      release();
+    }
   });
 }
