@@ -268,12 +268,39 @@ for (const base of ['/', '/LocalCut/']) {
         recovery: 'safe',
         execute: async () => ({ text: 'Done' }),
       });
-      for (let i = 0; i < 25; i++)
+      for (let i = 0; i < 61; i++)
         await tasks.enqueue('table-many', {}, { label: `Task ${i}` })
           .completion;
       await tasks.dispose();
     }, base);
-    await expect(queue.getByRole('row', { name: /^Task \d/ })).toHaveCount(25);
+    const pages = queue.getByRole('navigation', { name: 'Task queue pages' });
+    const rows = queue.getByRole('row', { name: /^Task \d/ });
+    await expect(rows).toHaveCount(10);
+    await expect(rows.first()).toHaveAttribute('aria-label', 'Task 60');
+    await expect(pages.locator('[aria-current="page"]')).toHaveText('1');
+    await expect(pages.getByText('More pages')).toHaveCount(1);
+    await pages.getByRole('button', { name: 'Go to next page' }).click();
+    await expect(rows.first()).toHaveAttribute('aria-label', 'Task 50');
+    await pages
+      .getByRole('button', { name: 'Go to page 7', exact: true })
+      .click();
+    await expect(rows).toHaveCount(1);
+    const lastRow = queue.getByRole('row', { name: 'Task 0', exact: true });
+    await lastRow
+      .getByRole('button', { name: 'Task details', exact: true })
+      .click();
+    await expect(lastRow).toContainText('Done');
+    await lastRow
+      .getByRole('button', { name: 'Remove task', exact: true })
+      .click();
+    await expect(pages.locator('[aria-current="page"]')).toHaveText('6');
+    await expect(rows).toHaveCount(10);
+    await pages.getByRole('button', { name: 'Go to previous page' }).click();
+    await expect(pages.locator('[aria-current="page"]')).toHaveText('5');
+    await pages
+      .getByRole('button', { name: 'Go to page 1', exact: true })
+      .click();
+    await resize(390, 500);
     await expect
       .poll(() =>
         region.evaluate(
@@ -281,6 +308,14 @@ for (const base of ['/', '/LocalCut/']) {
         ),
       )
       .toBe(true);
+    await region.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    await pages.getByRole('button', { name: 'Go to next page' }).click();
+    await expect
+      .poll(() => region.evaluate((element) => element.scrollTop))
+      .toBe(0);
+    await expect(pages.locator('[aria-current="page"]')).toHaveText('2');
     await resize(390, 844);
     await expect(right).toBeVisible();
     const controlBounds = await right.boundingBox();
