@@ -67,6 +67,19 @@ export const LoadingDialog = onDemand(
   (props) => <OpeningDialog {...props} />,
 );
 
+function captureOpener() {
+  const element =
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+  return {
+    element,
+    fallback: element?.closest('.command-dialog')
+      ? 'workspace-command-trigger'
+      : 'workspace-settings-trigger',
+  };
+}
+
 /** Preserve the opener across the loading shell and the loaded dialog. */
 export function onDemandDialog<P extends object>(
   load: () => Promise<{ default: ComponentType<P> }>,
@@ -76,20 +89,25 @@ export function onDemandDialog<P extends object>(
     <LoadingDialog {...placeholder(props)} handoff={Body.isReady} />
   ));
   function OnDemandDialog(props: P) {
-    const [focus] = useState(() => ({
-      current:
-        document.activeElement instanceof HTMLElement
-          ? document.activeElement
-          : null,
+    const settings = placeholder(props);
+    const open = settings.open ?? true;
+    const [opening, setOpening] = useState(() => ({
+      open,
+      focus: captureOpener(),
     }));
+    // Retained consumers (speech) change open without unmounting. Adjust before
+    // rendering children so their initial focus cannot replace the new opener.
+    if (open !== opening.open) {
+      setOpening({ open, focus: open ? captureOpener() : opening.focus });
+    }
     return (
       <DialogFocusContext
         value={
-          placeholder(props).finalFocus ??
+          settings.finalFocus ??
           (() =>
-            focus.current?.isConnected
-              ? focus.current
-              : document.getElementById('workspace-settings-trigger'))
+            opening.focus.element?.isConnected
+              ? opening.focus.element
+              : document.getElementById(opening.focus.fallback))
         }
       >
         <Body {...props} />
