@@ -537,14 +537,18 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(page.locator('.workspace-header')).toHaveCount(0);
     await expect(header).toBeInViewport();
     await expect
-      .poll(() =>
-        media
-          .locator('.media-symbol img')
-          .evaluateAll(
-            (els) =>
-              els.filter((el) => (el as HTMLImageElement).naturalWidth > 0)
-                .length,
-          ),
+      .poll(
+        () =>
+          media
+            .locator('.media-symbol img')
+            .evaluateAll(
+              (els) =>
+                els.filter((el) => (el as HTMLImageElement).naturalWidth > 0)
+                  .length,
+            ),
+        // All 24 previews use queued native jobs, which can outlast a single
+        // control's deadline during concurrent Chrome coverage.
+        { timeout: 30_000 },
       )
       .toBe(24);
     const content = media.locator('.media-content');
