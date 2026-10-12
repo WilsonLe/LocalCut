@@ -1,4 +1,4 @@
-import { closeMediaImport } from './workspace-import-helper';
+import { closeMediaImportAndPlace } from './workspace-import-helper';
 import {
   prepareOpenRouterKey,
   openAISettings,
@@ -323,7 +323,7 @@ for (const base of ['/', '/LocalCut/']) {
           mimeType: 'image/png',
           buffer: Buffer.from(bytes),
         });
-        await closeMediaImport(page);
+        await closeMediaImportAndPlace(page);
         await expect(
           page.getByRole('button', { name: 'preference.png', exact: true }),
         ).toBeVisible();

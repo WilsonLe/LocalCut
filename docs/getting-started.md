@@ -5,7 +5,7 @@ Open [LocalCut on GitHub Pages](https://wilsonle.github.io/LocalCut/) in current
 ## Create, import and edit
 
 1. Create a project from the workspace or Settings. Give it a useful name, choose an aspect ratio and resolution, or enter custom width and height in pixels, then choose a frame rate. The default is 1920 × 1080 at 30 fps. Open a saved project from the workspace when returning.
-2. Open Media and use the import card to select video, audio or images. Imported files are added to matching timeline tracks in selection order. Screen recording uses the browser's source picker; available sources/audio vary by browser and OS.
+2. Open Media and use the import card to select video, audio or images. Uploads remain in Media. Add an audio/video track and drag an asset onto it when you want to place it in the timeline. Screen recording uses the browser's source picker; available sources/audio vary by browser and OS.
 3. Select a clip in the timeline. Adjust timing, speed, pitch, gain or text through the existing clip controls. Add and reorder tracks, group clips or separate audio as needed. Overlapping visual clips on one video track can use transition templates.
 4. Preview the edit and use Undo/Redo for committed changes. Text templates are real editable clips; bundled fonts and animations are rendered by the same preview/export pipeline.
 

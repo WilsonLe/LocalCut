@@ -1,5 +1,5 @@
 import { fulfillChatTitle } from './chat-title-fixture';
-import { closeMediaImport } from './workspace-import-helper';
+import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test, type Page } from '@playwright/test';
 
@@ -521,7 +521,7 @@ for (const base of ['/', '/LocalCut/']) {
         buffer: Buffer.from(bytes),
       })),
     );
-    await closeMediaImport(page);
+    await closeMediaImportAndPlace(page);
     await expect(media.locator('.media-item')).toHaveCount(24);
     const header = media.locator('.section-heading');
     const commands = header.getByRole('button', {
@@ -672,7 +672,7 @@ for (const base of ['/', '/LocalCut/']) {
             buffer: Buffer.from(bytes),
           },
         ]);
-        await closeMediaImport(page);
+        await closeMediaImportAndPlace(page);
         await expect(page.locator('.timeline-clip')).toHaveCount(2);
         await fits(page);
         await select(page, /first.png/);

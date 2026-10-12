@@ -840,10 +840,9 @@ for (const base of ['/', '/LocalCut/']) {
         const project = (await editor.projects.list()).find(
           (p) => p.name === 'Audio indexing',
         )!;
-        const snapshot = await editor.projects.snapshot(project.id);
-        const assetId = snapshot.tracks
-          .flatMap((t) => t.clips)
-          .find((c) => c.assetId)?.assetId;
+        const assetId = (
+          await editor.library.forProject(project.id).list()
+        ).entries.find((entry) => entry.assetId)?.assetId;
         if (!assetId) throw new Error('Expected an imported audio asset');
         const run = await editor.assets.analyze(assetId).completion;
         if (run.status !== 'analyzed')

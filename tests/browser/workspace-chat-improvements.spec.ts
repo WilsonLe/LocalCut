@@ -994,10 +994,9 @@ for (const base of ['/', '/LocalCut/']) {
         const summary = (await editor.projects.list()).find(
           (item) => item.name === 'Chat improvements',
         )!;
-        const project = await editor.projects.snapshot(summary.id);
-        const id = project.tracks
-          .flatMap((track) => track.clips)
-          .find((clip) => clip.assetId)?.assetId;
+        const id = (
+          await editor.library.forProject(summary.id).list()
+        ).entries.find((entry) => entry.assetId)?.assetId;
         return await editor.assets.inspect(id!);
       } finally {
         await editor.dispose();
