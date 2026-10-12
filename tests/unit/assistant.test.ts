@@ -3626,3 +3626,93 @@ describe('approved chat asset indexing', () => {
     },
   );
 });
+
+it('restores completed text history without tool, proposal or skill authority and can branch it', async () => {
+  const f = fixture();
+  const p = provider([[final('Continued')]], false);
+  const assistant = createAssistant({
+    editor: f.editor,
+    provider: p,
+    projectId: f.project().id,
+    model: 'test/model',
+    restoredTurns: [
+      {
+        id: 'saved-response',
+        user: 'Earlier saved request',
+        assistant: 'Earlier saved answer',
+      },
+    ],
+  });
+  expect(p.stream).not.toHaveBeenCalled();
+  expect(assistant.snapshot().proposals).toEqual([]);
+  const branch = createAssistant({
+    editor: f.editor,
+    provider: p,
+    projectId: f.project().id,
+    model: 'test/model',
+    branch: assistant.branch('saved-response'),
+  });
+  await branch.run('Continue after reload').completion;
+  const request = p.requests[0]!;
+  expect(request.messages).toContainEqual({
+    role: 'user',
+    content: 'Earlier saved request',
+  });
+  expect(request.messages).toContainEqual({
+    role: 'assistant',
+    content: 'Earlier saved answer',
+  });
+  expect(request.messages.some((message) => message.role === 'tool')).toBe(
+    false,
+  );
+  expect(request.tools.map((tool) => tool.function.name)).toEqual([
+    'load_skill',
+    'inspect_project',
+    'inspect_proposals',
+  ]);
+  expect(f.editor.commands.apply).not.toHaveBeenCalled();
+  await branch.dispose();
+  await assistant.dispose();
+  expect(() =>
+    createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      restoredTurns: [
+        { id: 'duplicate', user: 'A', assistant: 'B' },
+        { id: 'duplicate', user: 'C', assistant: 'D' },
+      ],
+    }),
+  ).toThrow('Invalid restored');
+});
+
+it.each(['[]', undefined, 'obsolete-index-runs'])(
+  'revalidates restored index history against current evidence: %s',
+  async (restoredIndexScope) => {
+    const f = fixture();
+    const p = provider([[final('Current answer')]], false);
+    const assistant = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      context: { includeAssetIndexes: true },
+      restoredTurns: [
+        {
+          id: 'saved',
+          user: 'Previous description',
+          assistant: 'Previous index narration',
+        },
+      ],
+      restoredIndexScope,
+    });
+    await assistant.run('Current question').completion;
+    const request = JSON.stringify(p.requests[0]);
+    if (restoredIndexScope === '[]')
+      expect(request).toContain('Previous index narration');
+    else expect(request).not.toContain('Previous index narration');
+    expect(assistant.snapshot().historyIndexScope).toBe('[]');
+    await assistant.dispose();
+  },
+);

@@ -412,7 +412,7 @@
   border-bottom: 1px solid var(--border);
 }
 /* Keep touch targets outside the collapse control at narrow/scaled widths. */
-@container (max-width: 350px) {
+@container (max-width: 450px) {
   :root[data-workspace-narrow='true'] .conversation-heading {
     flex-wrap: wrap;
     padding-right: 12px;

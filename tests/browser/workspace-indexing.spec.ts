@@ -364,8 +364,21 @@ for (const base of ['/', '/LocalCut/']) {
       .uncheck();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await send('Index again');
+    // A restored earlier denial is historical; inspect this newly sent request.
+    await expect
+      .poll(() => {
+        const body = bodies.at(-1);
+        const messages = body?.messages as
+          { role: string; content: unknown }[] | undefined;
+        return (
+          !!body?.tools &&
+          messages?.at(-1)?.role === 'user' &&
+          String(messages.at(-1)?.content).endsWith('Index again')
+        );
+      })
+      .toBe(true);
     await expect(
-      page.getByText('Enable asset indexing to continue.', { exact: true }),
+      response.getByText('Enable asset indexing to continue.', { exact: true }),
     ).toBeVisible();
     expect(evidenceRequests).toBe(5);
     expect(JSON.stringify(bodies.at(-1))).not.toContain(label.summary);

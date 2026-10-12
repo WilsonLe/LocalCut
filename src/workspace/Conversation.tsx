@@ -45,7 +45,7 @@ import {
   EmptyContent,
   EmptyDescription,
 } from '../components/ui/empty';
-import type { ChatSession } from './ChatSessionPicker';
+import { usePersistentChats } from './usePersistentChats';
 import type { ChatBranch } from './ConversationSession';
 const AIConnectionDialog = lazy(() => import('./AIConnectionDialog'));
 const ChatSessionPicker = lazy(() => import('./ChatSessionPicker'));
@@ -143,17 +143,12 @@ export function Conversation(props: ConversationProps) {
   };
   const [connecting, setConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [conversationNumber, setConversationNumber] = useState(0);
-  const [chatSessions, setChatSessions] = useState<ChatSession[]>([
-    { id: 0, title: 'New chat', hasMessages: false, hasDraft: false },
-  ]);
   const [sessionBusy, setSessionBusy] = useState(false);
-  const [chatBranches, setChatBranches] = useState<Record<number, ChatBranch>>(
+  const [chatBranches, setChatBranches] = useState<Record<string, ChatBranch>>(
     {},
   );
   const [pickerLoaded, setPickerLoaded] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const nextSession = useRef(0);
   const providerRef = useRef<OpenRouter | null>(null);
   const moduleRef = useRef<AiModule | null>(null);
   const attempt = useRef(0);
@@ -891,30 +886,72 @@ export function Conversation(props: ConversationProps) {
   }, [indexConnection, onIndexConnection]);
   const sessionKey = `${connection?.id}:${props.project?.id}:${model}:${privacy.includeText}:${privacy.includeAssetNames}:${privacy.includeTranscripts}:${privacy.includeCaptureMetadata}:${indexingAllowed}`;
 
+  const chatScope =
+    props.project && model
+      ? JSON.stringify([
+          props.project.id,
+          providerConfiguration.routes.llm.map((route) => ({
+            ...route,
+            // The catalog-owning provider uses the selected request model.
+            model:
+              route.providerId === connection?.provider.selectedProvider('llm')
+                ? model
+                : route.model,
+          })),
+          providerConfiguration.profiles
+            .filter((profile) =>
+              providerConfiguration.routes.llm.some(
+                (route) => route.providerId === profile.id,
+              ),
+            )
+            .map(({ id, kind, baseUrl }) => ({
+              id,
+              kind,
+              baseUrl,
+            })),
+          model,
+          privacy.includeText,
+          privacy.includeAssetNames,
+          privacy.includeTranscripts,
+          indexingAllowed,
+          // Keep prior unshared scopes compatible; shared narration gets a separate owner.
+          ...(privacy.includeCaptureMetadata ? ['capture-metadata'] : []),
+        ])
+      : null;
+  const chats = usePersistentChats(chatScope, onError);
+  const chatSessions = chats.sessions.length
+    ? chats.sessions.map((session) => ({
+        ...session,
+        hasMessages: session.content.messages.length > 0,
+        hasDraft:
+          !!session.content.prompt || session.content.attachmentIds.length > 0,
+      }))
+    : [
+        {
+          id: 'unconfigured',
+          title: 'New chat',
+          archived: false,
+          titleLocked: false,
+          hasMessages: false,
+          hasDraft: false,
+          content: { prompt: '', attachmentIds: [], messages: [] },
+        },
+      ];
+  const conversationNumber = chatScope ? chats.selected : 'unconfigured';
+  const setConversationNumber = chats.select;
   const [sessionScope, setSessionScope] = useState(sessionKey);
   if (sessionScope !== sessionKey) {
     setSessionScope(sessionKey);
     setChatBranches({});
-    setChatSessions([
-      { id: 0, title: 'New chat', hasMessages: false, hasDraft: false },
-    ]);
-    setConversationNumber(0);
     setSessionBusy(false);
   }
   const newConversation = () => {
     const empty = chatSessions.find(
-      (session) => !session.hasMessages && !session.hasDraft,
+      (session) =>
+        !session.archived && !session.hasMessages && !session.hasDraft,
     );
-    if (empty) {
-      setConversationNumber(empty.id);
-      return;
-    }
-    const id = ++nextSession.current;
-    setChatSessions((sessions) => [
-      ...sessions,
-      { id, title: 'New chat', hasMessages: false, hasDraft: false },
-    ]);
-    setConversationNumber(id);
+    if (empty) chats.select(empty.id);
+    else chats.add();
   };
   const openSessionPicker = () => {
     setPickerLoaded(true);
@@ -980,12 +1017,14 @@ export function Conversation(props: ConversationProps) {
               group: 'Chat',
               run: openSessionPicker,
             },
-            ...chatSessions.map((session) => ({
-              id: `chat-session-${session.id}`,
-              label: `Switch to ${session.title} (${session.id + 1})`,
-              group: 'Chat',
-              run: () => setConversationNumber(session.id),
-            })),
+            ...chatSessions
+              .filter((session) => !session.archived)
+              .map((session, index) => ({
+                id: `chat-session-${session.id}`,
+                label: `Switch to ${session.title} (${index + 1})`,
+                group: 'Chat',
+                run: () => setConversationNumber(session.id),
+              })),
           ]
         : []),
     ],
@@ -1059,6 +1098,18 @@ export function Conversation(props: ConversationProps) {
                 busy={sessionBusy}
                 onSelect={setConversationNumber}
                 onNew={newConversation}
+                managed={chats.loaded}
+                onRename={chats.rename}
+                onFork={chats.fork}
+                onRestore={chats.restore}
+                onArchive={(id) => {
+                  setChatBranches((current) => {
+                    const next = { ...current };
+                    delete next[id];
+                    return next;
+                  });
+                  chats.archive(id);
+                }}
               />
             </Suspense>
           ) : (
@@ -1066,78 +1117,81 @@ export function Conversation(props: ConversationProps) {
           )}
           {props.headerActions}
         </header>
-        {ready ? (
+        {!chats.saved && (
+          <p role="status" className="px-3 text-sm text-destructive">
+            Chat changes are not saved.{' '}
+            <Button variant="link" onClick={chats.retry}>
+              Retry saving
+            </Button>
+          </p>
+        )}
+        {ready && !chats.loaded ? (
+          <p role="status" className="p-3 text-sm">
+            Loading saved chats…
+          </p>
+        ) : ready && chats.loaded ? (
           <Suspense fallback={<div className="flex-1" />}>
-            {chatSessions.map((session) => (
-              <div
-                key={`${sessionKey}:${session.id}`}
-                className="conversation-session"
-                hidden={session.id !== conversationNumber}
-              >
-                <ConversationSession
-                  {...props}
-                  editor={props.editor!}
-                  project={props.project!}
-                  connection={connection}
-                  indexConnection={indexConnection}
-                  model={model}
-                  privacy={{ ...privacy, includeAssetIndexes: indexingAllowed }}
-                  registerSession={registerSession}
-                  composerControl={null}
-                  active={
-                    session.id === conversationNumber &&
-                    !props.collapsed &&
-                    props.active !== false
-                  }
-                  initialBranch={chatBranches[session.id]}
-                  onBranch={(branch) => {
-                    const id = ++nextSession.current;
-                    setChatBranches((current) => ({
-                      ...current,
-                      [id]: branch,
-                    }));
-                    setChatSessions((current) => [
-                      ...current,
-                      {
-                        id,
-                        title: `Branch of ${session.title}`,
-                        hasMessages: true,
-                        hasDraft: false,
-                      },
-                    ]);
-                    setConversationNumber(id);
-                    requestAnimationFrame(() =>
-                      document
-                        .querySelector<HTMLElement>(
-                          '.conversation-session:not([hidden]) textarea',
-                        )
-                        ?.focus(),
-                    );
-                  }}
-                  retireSession={retireSession}
-                  waitForRetired={waitForRetired}
-                  onBusy={setSessionBusy}
-                  onDraftChange={(hasDraft) =>
-                    setChatSessions((sessions) =>
-                      sessions.map((item) =>
-                        item.id === session.id && item.hasDraft !== hasDraft
-                          ? { ...item, hasDraft }
-                          : item,
-                      ),
-                    )
-                  }
-                  onTitle={(title) =>
-                    setChatSessions((sessions) =>
-                      sessions.map((item) =>
-                        item.id === session.id
-                          ? { ...item, title, hasMessages: true }
-                          : item,
-                      ),
-                    )
-                  }
-                />
-              </div>
-            ))}
+            {chatSessions
+              .filter((session) => !session.archived)
+              .map((session) => (
+                <div
+                  key={`${sessionKey}:${session.id}`}
+                  className="conversation-session"
+                  hidden={session.id !== conversationNumber}
+                >
+                  <ConversationSession
+                    {...props}
+                    editor={props.editor!}
+                    project={props.project!}
+                    connection={connection}
+                    indexConnection={indexConnection}
+                    model={model}
+                    privacy={{
+                      ...privacy,
+                      includeAssetIndexes: indexingAllowed,
+                    }}
+                    registerSession={registerSession}
+                    composerControl={null}
+                    active={
+                      session.id === conversationNumber &&
+                      !props.collapsed &&
+                      props.active !== false
+                    }
+                    initialBranch={chatBranches[session.id]}
+                    sessionId={session.id}
+                    titleLocked={session.titleLocked}
+                    initialContent={session.content}
+                    onSave={chats.saveContent}
+                    onBranch={(branch) => {
+                      const id = chats.add(
+                        {
+                          prompt: '',
+                          attachmentIds: [],
+                          messages: branch.messages,
+                          historyTurnIds: branch.historyTurnIds,
+                          historyIndexScope: branch.historyIndexScope,
+                        },
+                        `Branch of ${session.title}`,
+                      );
+                      setChatBranches((current) => ({
+                        ...current,
+                        [id]: branch,
+                      }));
+                      requestAnimationFrame(() =>
+                        document
+                          .querySelector<HTMLElement>(
+                            '.conversation-session:not([hidden]) textarea',
+                          )
+                          ?.focus(),
+                      );
+                    }}
+                    retireSession={retireSession}
+                    waitForRetired={waitForRetired}
+                    onBusy={setSessionBusy}
+                    onTitle={(title) => chats.autoTitle(session.id, title)}
+                  />
+                </div>
+              ))}
           </Suspense>
         ) : (
           <div className="conversation-session conversation-empty-session">

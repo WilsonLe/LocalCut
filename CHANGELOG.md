@@ -4,6 +4,7 @@ Current version: **0.1.0-alpha.1**. Short summaries for end users and executives
 
 ## Unreleased
 
+- Keep project chats and drafts across reloads, rename titles, archive/restore sessions and fork independent conversations locally. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/pull/182/files).
 - Plan each project in a local Storyboard beside the Editor, with drawing, shared history and approved assistant edits. Keep backups before opening storyboard projects in older releases. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/pull/168/files).
 - Snap the timeline cursor to nearby clip edges by default, with a remembered off switch; direct edits show their results without success notifications. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/pull/119/files).
 - Shorten or extend clip ends directly; repeating audio/video shows loop-back markers in the timeline.

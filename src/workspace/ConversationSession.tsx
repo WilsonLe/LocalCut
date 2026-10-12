@@ -27,11 +27,9 @@ import { Tooltip } from '../components/ui/tooltip';
 import type { Editor, Project } from '../editor';
 import type {
   Assistant,
-  AssistantToolCall,
   AssistantTurn,
   ContextPolicy,
   EditProposal,
-  Usage,
 } from '../ai';
 import { getIndexConsent } from './index-consent';
 import type {
@@ -54,18 +52,15 @@ import { errorCode, errorText } from './conversation-errors';
 import DictationButton from './DictationButton';
 import type { Asset } from '../editor';
 import type { AssistantBranch } from '../ai';
+import type { ChatContent, SavedChatMessage } from '../storage/chats';
+import { completedChatTurns } from './chat-transcript';
 const ChatMarkdown = lazy(() => import('./ChatMarkdown'));
 
-export interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  text: string;
-  status: 'complete' | 'streaming' | 'interrupted' | 'paused' | 'failed';
+export interface Message extends SavedChatMessage {
   proposalIds: string[];
-  usage?: Usage;
-  tools?: AssistantToolCall[];
 }
-function toolLabel(tool: AssistantToolCall, includeSkill = false): string {
+type HistoricalTool = NonNullable<SavedChatMessage['tools']>[number];
+function toolLabel(tool: HistoricalTool, includeSkill = false): string {
   if (tool.name !== 'load_skill') return tool.name.replaceAll('_', ' ');
   const skillId = tool.input?.skillId;
   if (!includeSkill || typeof skillId !== 'string' || !skillId.trim())
@@ -73,7 +68,7 @@ function toolLabel(tool: AssistantToolCall, includeSkill = false): string {
   const skillName = skillId.trim();
   return `Load skills: ${skillName[0]!.toUpperCase()}${skillName.slice(1)}`;
 }
-function ToolDetails({ tool }: { tool: AssistantToolCall }) {
+function ToolDetails({ tool }: { tool: HistoricalTool }) {
   return (
     <div className="space-y-3 rounded-xl bg-muted p-3 text-xs">
       <div>
@@ -117,8 +112,14 @@ interface PausedRequest {
 export interface ChatBranch {
   checkpoint: AssistantBranch;
   messages: Message[];
+  historyTurnIds: string[];
+  historyIndexScope?: string;
 }
 interface SessionProps extends ConversationProps {
+  sessionId: string;
+  titleLocked: boolean;
+  initialContent: ChatContent;
+  onSave: (id: string, content: ChatContent) => void;
   initialBranch?: ChatBranch;
   onBranch: (branch: ChatBranch) => void;
   active: boolean;
@@ -134,7 +135,6 @@ interface SessionProps extends ConversationProps {
   composerControl: ReactNode;
   onBusy: (busy: boolean) => void;
   onTitle: (title: string) => void;
-  onDraftChange: (hasDraft: boolean) => void;
 }
 export default function ConversationSession({
   editor,
@@ -152,27 +152,37 @@ export default function ConversationSession({
   composerControl,
   onBusy,
   onTitle,
-  onDraftChange,
   readOnly,
   initialBranch,
+  initialContent,
+  sessionId,
+  titleLocked,
+  onSave,
   onBranch,
   active,
 }: SessionProps) {
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState(initialContent.prompt);
   const [messages, setMessages] = useState<Message[]>(
-    initialBranch?.messages ?? [],
+    initialBranch?.messages ??
+      initialContent.messages.map((message) => ({
+        ...message,
+        proposalIds: [],
+      })),
   );
   const [attachments, setAttachments] = useState<Asset[]>([]);
   const [dropping, setDropping] = useState(false);
-  const [attaching, setAttaching] = useState(false);
+  const [attaching, setAttaching] = useState(
+    !!initialContent.attachmentIds.length,
+  );
+  const [attachmentsReady, setAttachmentsReady] = useState(
+    !initialContent.attachmentIds.length,
+  );
   const [proposals, setProposals] = useState<Record<string, EditProposal>>({});
   const [branchable, setBranchable] = useState<string[]>(
-    initialBranch?.messages
-      .filter(
-        (message) =>
-          message.role === 'assistant' && message.status === 'complete',
-      )
-      .map((message) => message.id) ?? [],
+    completedChatTurns(
+      initialContent.messages,
+      initialContent.historyTurnIds,
+    ).map((turn) => turn.id),
   );
   const [running, setRunning] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -192,9 +202,17 @@ export default function ConversationSession({
   const cancelBeforeRun = useRef(false);
   const pausedByNavigation = useRef(false);
   const runningRef = useRef(false);
-  const titleAttempted = useRef(!!initialBranch?.messages.length);
+  const titleAttempted = useRef(
+    titleLocked || !!initialContent.messages.length,
+  );
   const titleRequest = useRef<AbortController | null>(null);
   const applyingRef = useRef(false);
+  useLayoutEffect(() => {
+    if (titleLocked) {
+      titleAttempted.current = true;
+      titleRequest.current?.abort();
+    }
+  }, [titleLocked]);
   useLayoutEffect(() =>
     registerErrorSession(
       () => ({
@@ -210,6 +228,48 @@ export default function ConversationSession({
       'conversation',
     ),
   );
+  const initial = useRef(initialContent);
+  const saveRef = useRef(onSave);
+  useLayoutEffect(() => {
+    saveRef.current = onSave;
+  }, [onSave]);
+  useEffect(() => {
+    if (!initial.current.attachmentIds.length) return;
+    let cancelled = false;
+    void Promise.allSettled(
+      initial.current.attachmentIds.map((id) => editor.assets.inspect(id)),
+    ).then((results) => {
+      if (cancelled) return;
+      setAttachments(
+        results.flatMap((result) =>
+          result.status === 'fulfilled' &&
+          result.value.kind === 'image' &&
+          result.value.status === 'ready'
+            ? [result.value]
+            : [],
+        ),
+      );
+      setAttaching(false);
+      setAttachmentsReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [editor]);
+  useLayoutEffect(() => {
+    if (!attachmentsReady) return;
+    saveRef.current(sessionId, {
+      prompt,
+      messages,
+      attachmentIds: attachments.map((asset) => asset.id),
+      historyTurnIds:
+        assistant.current?.snapshot().historyTurnIds ??
+        initial.current.historyTurnIds,
+      historyIndexScope:
+        assistant.current?.snapshot().historyIndexScope ??
+        initial.current.historyIndexScope,
+    });
+  }, [sessionId, messages, prompt, attachments, attachmentsReady, branchable]);
   const selected = project.tracks
     .flatMap((track) => track.clips)
     .find((clip) => clip.id === selectedClipId);
@@ -266,6 +326,15 @@ export default function ConversationSession({
         editor,
         tasks: editor.tasks,
         branch: initialBranch?.checkpoint,
+        restoredTurns: initialBranch
+          ? undefined
+          : completedChatTurns(
+              initial.current.messages,
+              initial.current.historyTurnIds,
+            ),
+        restoredIndexScope: initialBranch
+          ? undefined
+          : initial.current.historyIndexScope,
         provider: connection.provider,
         projectId: project.id,
         model,
@@ -382,7 +451,6 @@ export default function ConversationSession({
       if (!resuming) {
         setPrompt('');
         setAttachments([]);
-        onDraftChange(false);
       }
       nearBottom.current = true;
       setFollowing(true);
@@ -583,7 +651,6 @@ export default function ConversationSession({
           ).values(),
         ]);
         composer.current?.focus();
-        onDraftChange(true);
       } catch (error) {
         if (mounted.current)
           setFailure(
@@ -595,7 +662,7 @@ export default function ConversationSession({
         if (mounted.current) setAttaching(false);
       }
     },
-    [active, readOnly, attaching, editor, onDraftChange],
+    [active, readOnly, attaching, editor],
   );
   useEffect(() => {
     if (!active) return;
@@ -900,6 +967,16 @@ export default function ConversationSession({
                                 );
                                 onBranch({
                                   checkpoint,
+                                  historyTurnIds: ensureAssistant()
+                                    .snapshot()
+                                    .historyTurnIds.filter((id) =>
+                                      messages
+                                        .slice(0, index + 1)
+                                        .some((item) => item.id === id),
+                                    ),
+                                  historyIndexScope:
+                                    ensureAssistant().snapshot()
+                                      .historyIndexScope,
                                   messages: messages
                                     .slice(0, index + 1)
                                     .map((item) => ({
@@ -1020,7 +1097,6 @@ export default function ConversationSession({
                       setAttachments((items) =>
                         items.filter((item) => item.id !== asset.id),
                       );
-                      onDraftChange(!!prompt || attachments.length > 1);
                     }}
                   >
                     <X />
@@ -1042,9 +1118,6 @@ export default function ConversationSession({
             value={prompt}
             onChange={(event) => {
               setPrompt(event.target.value);
-              onDraftChange(
-                event.target.value.length > 0 || attachments.length > 0,
-              );
             }}
             placeholder={
               messages.length ? 'Follow up…' : 'What would you like to change?'
@@ -1080,7 +1153,6 @@ export default function ConversationSession({
                 disabled={readOnly || running || applying}
                 onText={(text) => {
                   setPrompt((current) => (current ? current + ' ' : '') + text);
-                  onDraftChange(true);
                 }}
                 onError={setFailure}
               />
