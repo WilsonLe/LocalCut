@@ -3,6 +3,16 @@ import { AiError, httpError } from '../../src/ai/errors';
 import { errorText } from '../../src/workspace/conversation-errors';
 
 describe('safe conversation request diagnostics', () => {
+  it('explains empty replies without hiding committed actions or exposing provider text', () => {
+    const text = errorText(
+      new AiError('RESPONSE_INCOMPLETE', 'SECRET', {
+        reason: 'empty_response',
+      }),
+    );
+    expect(text).toContain('empty reply');
+    expect(text).toContain('completed actions remain saved');
+    expect(text).not.toContain('SECRET');
+  });
   it.each([
     [404, 'Refresh models or choose another tool-capable model.'],
     [413, 'Start a new chat or shorten your message.'],

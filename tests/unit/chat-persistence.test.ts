@@ -7,7 +7,7 @@ import {
   forkChatSession,
   legacyIndexChatScopes,
 } from '../../src/storage/chats';
-import { completedChatTurns } from '../../src/workspace/chat-transcript';
+import { restoredChatTurns } from '../../src/workspace/chat-transcript';
 
 describe('local chat records', () => {
   it('retains history and attachments beyond the former workspace caps', () => {
@@ -86,9 +86,20 @@ describe('local chat records', () => {
       status: 'interrupted',
       tools: [{ phase: 'failed', error: { code: 'CANCELLED' } }],
     });
-    expect(completedChatTurns(restored!.content.messages)).toEqual([
+    expect(restoredChatTurns(restored!.content.messages)).toEqual([
       { id: 'a1', user: 'Hello', assistant: 'Done' },
+      {
+        id: 'a2',
+        user: 'Cancelled question',
+        assistant: expect.stringContaining('interrupted before completion'),
+        interrupted: true,
+      },
     ]);
+    const interrupted = restoredChatTurns(restored!.content.messages, [
+      'a1',
+    ]).at(-1)!;
+    expect(interrupted.interrupted).toBe(true);
+    expect(interrupted.assistant).not.toContain('propose_edits');
   });
   it('rejects malformed and unknown-version records and assigns distinct session identities', () => {
     const a = newChatSession('scope'),
@@ -103,6 +114,59 @@ describe('local chat records', () => {
     ).toBeNull();
     expect(restoreChatSession(null)).toBeNull();
   });
+});
+
+it('restores canonical interruption context without replaying stale display rows', () => {
+  const chat = restoreChatSession({
+    ...newChatSession('scope'),
+    content: {
+      prompt: '',
+      attachmentIds: [],
+      historyIndexScope: 'current',
+      messages: [
+        {
+          id: 'user',
+          role: 'user',
+          text: 'Storyboard for Sydney',
+          status: 'complete',
+        },
+        {
+          id: 'partial',
+          role: 'assistant',
+          text: 'Retired private narration',
+          status: 'paused',
+          continuation: {
+            user: 'Storyboard for Sydney with captured asset IDs',
+            assistant: 'Confirmed completed receipt: appliedRevision 57',
+            indexScope: 'current',
+          },
+          tools: [
+            {
+              callId: 'old',
+              name: 'read_asset_index',
+              phase: 'completed',
+              result: { summary: 'Retired private observation' },
+            },
+          ],
+        },
+      ],
+    },
+  })!;
+  const turns = restoredChatTurns(chat.content.messages, [], 'current');
+  expect(turns[0]).toMatchObject({
+    user: 'Storyboard for Sydney with captured asset IDs',
+    interrupted: true,
+  });
+  expect(turns[0]!.assistant).toContain('appliedRevision 57');
+  expect(turns[0]!.assistant).not.toContain('Retired private');
+  expect(
+    restoredChatTurns(chat.content.messages, [], 'changed')[0]!.assistant,
+  ).not.toContain('appliedRevision');
+  const legacy = { ...chat.content.messages[1]!, continuation: undefined };
+  expect(
+    restoredChatTurns([chat.content.messages[0]!, legacy], [], 'current')[0]!
+      .assistant,
+  ).not.toContain('Retired private');
 });
 
 it('does not reintroduce compacted or retired turns from the visible transcript', () => {
@@ -132,10 +196,10 @@ it('does not reintroduce compacted or retired turns from the visible transcript'
       status: 'complete' as const,
     },
   ];
-  expect(completedChatTurns(messages, ['a2'])).toEqual([
+  expect(restoredChatTurns(messages, ['a2'])).toEqual([
     { id: 'a2', user: 'Current request', assistant: 'Current answer' },
   ]);
-  expect(completedChatTurns(messages, [])).toEqual([]);
+  expect(restoredChatTurns(messages, [])).toEqual([]);
 });
 
 it('keeps manual titles authoritative and supports old records without lifecycle fields', () => {

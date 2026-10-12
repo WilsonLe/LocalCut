@@ -34,6 +34,14 @@ const messageSchema = z.object({
       cost: z.number().optional(),
     })
     .optional(),
+  // Model continuation is canonical text context; display tools have no provenance.
+  continuation: z
+    .object({
+      user: z.string(),
+      assistant: z.string(),
+      indexScope: z.string().optional(),
+    })
+    .optional(),
   tools: z.array(toolSchema).optional(),
 });
 export const chatContentSchema = z.object({

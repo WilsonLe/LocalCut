@@ -35,6 +35,9 @@ import {
 } from '../../src/ai/tools';
 import { assistantCapabilities } from '../../src/ai/actions';
 import type { EditOperation } from '../../src/core/commands';
+import { newChatSession, restoreChatSession } from '../../src/storage/chats';
+import type { SavedChatMessage } from '../../src/storage/chats';
+import { restoredChatTurns } from '../../src/workspace/chat-transcript';
 
 it('retains every structural validation issue beyond the former detail cap', () => {
   try {
@@ -57,6 +60,46 @@ function deferred<T>() {
     reject = b;
   });
   return { promise, resolve, reject };
+}
+function savedInterruptedTurn(
+  events: AssistantEvent[],
+  id: string,
+  prompt: string,
+  state: { historyTurnIds: string[]; historyIndexScope?: string },
+) {
+  const tools = new Map<
+    string,
+    NonNullable<SavedChatMessage['tools']>[number]
+  >();
+  let text = '';
+  let continuation: SavedChatMessage['continuation'];
+  for (const event of events) {
+    if (!('turnId' in event) || event.turnId !== id) continue;
+    if (event.type === 'text') text += event.text;
+    if (event.type === 'tool')
+      tools.set(event.callId, { ...tools.get(event.callId), ...event });
+    if (event.type === 'continuation') continuation = event.context;
+  }
+  return restoreChatSession({
+    ...newChatSession('matching-scope'),
+    content: {
+      prompt: '',
+      attachmentIds: [],
+      historyTurnIds: state.historyTurnIds,
+      historyIndexScope: state.historyIndexScope,
+      messages: [
+        { id: 'user', role: 'user', text: prompt, status: 'complete' },
+        {
+          id,
+          role: 'assistant',
+          text,
+          status: 'interrupted',
+          tools: [...tools.values()],
+          continuation,
+        },
+      ],
+    },
+  })!;
 }
 function fixture() {
   let project: Project = {
@@ -1130,6 +1173,138 @@ describe('headless assistant boundaries', () => {
     expect(f.editor.commands.validate).not.toHaveBeenCalled();
     expect(a.snapshot()).toMatchObject({ state: 'idle', proposals: [] });
   });
+  it.each(['', '   ', null])(
+    'rejects empty terminal replies (%s) without retrying or freezing the session',
+    async (content) => {
+      const f = fixture();
+      const p = provider([
+        [
+          {
+            type: 'complete',
+            message: {
+              role: 'assistant',
+              content,
+              reasoning: 'Hidden thoughts',
+            },
+          },
+        ],
+        [final('Recovered')],
+      ]);
+      const a = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test/model',
+      });
+      const events: AssistantEvent[] = [];
+      a.subscribe((event) => events.push(event));
+      await expect(a.run('all').completion).rejects.toMatchObject({
+        code: 'RESPONSE_INCOMPLETE',
+        details: { reason: 'empty_response' },
+      });
+      expect(p.requests).toHaveLength(1);
+      expect(events.some((event) => event.type === 'completed')).toBe(false);
+      expect(a.snapshot()).toMatchObject({ state: 'idle', historyTurns: 1 });
+      expect(await a.run('Try all again').completion).toMatchObject({
+        text: 'Recovered',
+      });
+      expect(JSON.stringify(p.requests.at(-1)!.messages)).toContain(
+        'interrupted before completion',
+      );
+      await a.dispose();
+    },
+  );
+  it.each(
+    [false, true].flatMap((withText) =>
+      [
+        'keep going',
+        'Please finish the remaining panels',
+        'Resume with three panels per day',
+        'Actually, set aside the storyboard and inspect the audio tracks',
+      ].map((followup) => [withText, followup] as const),
+    ),
+  )(
+    'keeps interrupted intent and confirmed progress for any follow-up (partial text: %s, message: %s)',
+    async (withText, followup) => {
+      const f = fixture();
+      const waiting = deferred<void>();
+      let round = 0;
+      const requests: ChatRequest[] = [];
+      const a = createAssistant({
+        editor: f.editor,
+        projectId: f.project().id,
+        model: 'test/model',
+        provider: {
+          async *stream(request) {
+            requests.push(structuredClone(request));
+            switch (++round) {
+              case 1:
+                yield final('All assets indexed.');
+                break;
+              case 2:
+                yield final('', [
+                  call('load_skill', { skillId: 'storyboard' }),
+                ]);
+                break;
+              case 3:
+                yield final('', [call('inspect_project', {})]);
+                break;
+              case 4:
+                if (withText)
+                  yield { type: 'text', text: 'Planning five day panels.' };
+                waiting.resolve();
+                await new Promise(() => {});
+                break;
+              default:
+                yield final('Continuing the Sydney storyboard.');
+            }
+          },
+        },
+      });
+      await a.run('Index all project assets').completion;
+      const turn = a.run('Design a storyboard for my five-day Sydney trip');
+      await waiting.promise;
+      turn.cancel();
+      await expect(turn.completion).rejects.toMatchObject({
+        code: 'CANCELLED',
+      });
+      expect(a.canBranch(turn.id)).toBe(false);
+      expect(() => a.branch(turn.id)).toThrow();
+      const resumed = await a.run(followup).completion;
+      const context = requests.at(-1)!.messages;
+      expect(
+        context.filter((m) => m.role === 'user').map((m) => m.content),
+      ).toEqual([
+        'Index all project assets',
+        'Design a storyboard for my five-day Sydney trip',
+        followup,
+      ]);
+      const interruption = context.find(
+        (m) =>
+          m.role === 'assistant' &&
+          m.content?.includes('interrupted before completion'),
+      )!;
+      expect(interruption.content).toContain('inspect_project');
+      expect(interruption.content?.includes('Planning five day panels.')).toBe(
+        withText,
+      );
+      expect(interruption).not.toHaveProperty('tool_calls');
+      const declared = requests.at(-1)!.tools.map((tool) => tool.function.name);
+      expect(declared).toContain('load_skill');
+      expect(declared).not.toContain('propose_edits');
+      expect(a.canBranch(resumed.id)).toBe(true);
+      const branch = createAssistant({
+        editor: f.editor,
+        provider: provider([[final('Branched')]]),
+        projectId: f.project().id,
+        model: 'test/model',
+        branch: a.branch(resumed.id),
+      });
+      expect(branch.canBranch(turn.id)).toBe(false);
+      await branch.dispose();
+      await a.dispose();
+    },
+  );
   it('prevents late publication when cancelled during asynchronous validation', async () => {
     const f = setup(),
       started = deferred<void>(),
@@ -1619,7 +1794,7 @@ describe('headless assistant boundaries', () => {
       });
       gate.resolve(final());
       expect(a.snapshot().proposals).toEqual([]);
-      expect(a.snapshot().historyTurns).toBe(0);
+      expect(a.snapshot().historyTurns).toBe(failure === 'cancelled' ? 1 : 0);
       expect(f.editor.commands.apply).not.toHaveBeenCalled();
       await a.dispose();
     },
@@ -2882,6 +3057,184 @@ it('retires index-bearing model history when relinking invalidates saved labels'
   }
 });
 
+it('keeps committed receipts across cancellation before the tool completion event, saving and reload', async () => {
+  const f = fixture();
+  const committed = deferred<void>(),
+    release = deferred<void>();
+  const apply = f.editor.commands.apply;
+  f.editor.commands.apply = vi.fn(async (batch) => {
+    const receipt = await apply(batch);
+    committed.resolve();
+    await release.promise;
+    return receipt;
+  });
+  const a = createAssistant({
+    editor: f.editor,
+    provider: provider([[proposal()], [final('Saved')]]),
+    projectId: f.project().id,
+    model: 'test/model',
+    execution: 'requested',
+  });
+  const events: AssistantEvent[] = [];
+  a.subscribe((event) => events.push(event));
+  const turn = a.run('Move the opening clip');
+  await committed.promise;
+  turn.cancel();
+  release.resolve();
+  await expect(turn.completion).rejects.toMatchObject({ code: 'CANCELLED' });
+  expect(a.snapshot().proposals[0]!.result).toMatchObject({
+    kind: 'edit',
+    receipt: { appliedRevision: 1 },
+  });
+  const saved = savedInterruptedTurn(
+    events,
+    turn.id,
+    'Move the opening clip',
+    a.snapshot(),
+  );
+  expect(
+    saved.content.messages[1]!.tools?.find(
+      (tool) => tool.name === 'propose_edits',
+    )?.phase,
+  ).toBe('failed');
+  const p = provider([[final('The move is already saved.')]]);
+  const reloaded = createAssistant({
+    editor: f.editor,
+    provider: p,
+    projectId: f.project().id,
+    model: 'test/model',
+    execution: 'requested',
+    restoredTurns: restoredChatTurns(
+      saved.content.messages,
+      saved.content.historyTurnIds,
+      saved.content.historyIndexScope,
+    ),
+    restoredIndexScope: saved.content.historyIndexScope,
+  });
+  await reloaded.run('Keep going').completion;
+  expect(JSON.stringify(p.requests[0]!.messages)).toContain('appliedRevision');
+  expect(
+    p.requests[0]!.messages.some((message) => message.role === 'tool'),
+  ).toBe(false);
+  expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
+  await reloaded.dispose();
+  await a.dispose();
+});
+
+it('never restores retired index observations or narration from display rows after cancellation and reload', async () => {
+  const f = fixture();
+  const run: import('../../src/core/asset-index').AssetIndexRun = {
+    version: 1,
+    id: 'old-index',
+    assetId: 'asset',
+    createdAt: 1,
+    status: 'complete',
+    invalidated: false,
+    source: {
+      size: 10,
+      lastModified: 0,
+      kind: 'video',
+      width: 1920,
+      height: 1080,
+      durationUs: 4e6,
+      hasAudio: false,
+    },
+    analysis: {
+      version: 1,
+      settings: {
+        sampleRate: 4,
+        analysisWidth: 160,
+        cutThreshold: 0.45,
+        excerptUs: 4000000,
+      },
+      frames: [],
+      scenes: [],
+      scanMs: 0,
+      generationMs: 0,
+    },
+    label: {
+      summary: 'Private retired observation',
+      subjects: [],
+      scene: '',
+      style: '',
+      tags: [],
+      sound: '',
+    },
+    requests: [],
+  };
+  f.editor.assets.indexes = { list: async () => [structuredClone(run)] };
+  const waiting = deferred<void>();
+  let round = 0;
+  const a = createAssistant({
+    editor: f.editor,
+    projectId: f.project().id,
+    model: 'test/model',
+    execution: 'requested',
+    context: { includeAssetIndexes: true },
+    provider: {
+      async *stream() {
+        if (++round === 1) {
+          yield { type: 'text', text: 'Private retired narration' };
+          yield final('', [
+            call('read_asset_index', { assetId: 'asset' }),
+            call('load_skill', { skillId: 'editing' }, 'load'),
+          ]);
+        } else if (round === 2) {
+          run.invalidated = true;
+          yield final('', [call('inspect_project', {})]);
+        } else {
+          waiting.resolve();
+          await new Promise(() => {});
+        }
+      },
+    },
+  });
+  const events: AssistantEvent[] = [];
+  a.subscribe((event) => events.push(event));
+  const turn = a.run('Describe this asset');
+  await waiting.promise;
+  turn.cancel();
+  await expect(turn.completion).rejects.toMatchObject({ code: 'CANCELLED' });
+  expect(a.snapshot().historyIndexScope).toBe('[]');
+  const saved = savedInterruptedTurn(
+    events,
+    turn.id,
+    'Describe this asset',
+    a.snapshot(),
+  );
+  expect(JSON.stringify(saved.content.messages[1]!.tools)).toContain(
+    'Private retired observation',
+  );
+  expect(saved.content.messages[1]!.text).toContain(
+    'Private retired narration',
+  );
+  const p = provider([[final('Current source has no saved index.')]]);
+  const reloaded = createAssistant({
+    editor: f.editor,
+    provider: p,
+    projectId: f.project().id,
+    model: 'test/model',
+    execution: 'requested',
+    context: { includeAssetIndexes: true },
+    restoredTurns: restoredChatTurns(
+      saved.content.messages,
+      saved.content.historyTurnIds,
+      saved.content.historyIndexScope,
+    ),
+    restoredIndexScope: saved.content.historyIndexScope,
+  });
+  await reloaded.run('Keep going').completion;
+  expect(JSON.stringify(p.requests[0])).not.toContain('Private retired');
+  expect(
+    p.requests[0]!.messages.some(
+      (message) =>
+        message.role === 'user' && message.content === 'Describe this asset',
+    ),
+  ).toBe(true);
+  await reloaded.dispose();
+  await a.dispose();
+});
+
 it('keeps index consent independent of loaded assistant skills', () => {
   const capabilities = assistantCapabilities(fixture().editor);
   const names = (includeIndexes: boolean) =>
@@ -3824,9 +4177,13 @@ it('restores completed text history without tool, proposal or skill authority an
   ).toThrow('Invalid restored');
 });
 
-it.each(['[]', undefined, 'obsolete-index-runs'])(
-  'revalidates restored index history against current evidence: %s',
-  async (restoredIndexScope) => {
+it.each(
+  ['[]', undefined, 'obsolete-index-runs'].flatMap((scope) =>
+    [false, true].map((interrupted) => [scope, interrupted] as const),
+  ),
+)(
+  'revalidates restored index history against current evidence: %s, interrupted: %s',
+  async (restoredIndexScope, interrupted) => {
     const f = fixture();
     const p = provider([[final('Current answer')]], false);
     const assistant = createAssistant({
@@ -3840,6 +4197,7 @@ it.each(['[]', undefined, 'obsolete-index-runs'])(
           id: 'saved',
           user: 'Previous description',
           assistant: 'Previous index narration',
+          interrupted,
         },
       ],
       restoredIndexScope,
@@ -4613,39 +4971,53 @@ describe('requested chat execution', () => {
     ).toBe(true);
     await a.dispose();
   });
-  it('retains a committed result when cancellation wins during a later provider round', async () => {
-    const f = fixture();
-    const waiting = deferred<void>();
-    let round = 0;
-    const p = {
-      stream: async function* () {
-        if (round++ === 0)
-          yield final('', [call('load_skill', { skillId: 'editing' })]);
-        else if (round === 2) yield proposal();
-        else {
-          waiting.resolve();
-          await new Promise(() => {});
-        }
-      },
-    };
-    const a = createAssistant({
-      editor: f.editor,
-      provider: p,
-      projectId: f.project().id,
-      model: 'test/model',
-      execution: 'requested',
-    });
-    const turn = a.run('Move');
-    await waiting.promise;
-    turn.cancel();
-    await expect(turn.completion).rejects.toMatchObject({ code: 'CANCELLED' });
-    expect(f.project().revision).toBe(1);
-    expect(a.snapshot().proposals[0]!.result).toMatchObject({
-      kind: 'edit',
-      receipt: { appliedRevision: 1 },
-    });
-    await a.dispose();
-  });
+  it.each(['cancelled', 'empty'] as const)(
+    'retains a committed result when a later provider round is %s',
+    async (failure) => {
+      const f = fixture();
+      const waiting = deferred<void>();
+      let round = 0;
+      const requests: ChatRequest[] = [];
+      const p = {
+        stream: async function* (request: ChatRequest) {
+          requests.push(structuredClone(request));
+          if (round++ === 0)
+            yield final('', [call('load_skill', { skillId: 'editing' })]);
+          else if (round === 2) yield proposal();
+          else if (round === 3) {
+            waiting.resolve();
+            if (failure === 'cancelled') await new Promise(() => {});
+            else yield final('');
+          } else
+            yield final('The move is already saved; continuing narration.');
+        },
+      };
+      const a = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test/model',
+        execution: 'requested',
+      });
+      const turn = a.run('Move');
+      await waiting.promise;
+      if (failure === 'cancelled') turn.cancel();
+      await expect(turn.completion).rejects.toMatchObject({
+        code: failure === 'cancelled' ? 'CANCELLED' : 'RESPONSE_INCOMPLETE',
+      });
+      expect(f.project().revision).toBe(1);
+      expect(a.snapshot().proposals[0]!.result).toMatchObject({
+        kind: 'edit',
+        receipt: { appliedRevision: 1 },
+      });
+      await a.run('Continue').completion;
+      const context = JSON.stringify(requests.at(-1)!.messages);
+      expect(context).toContain('appliedRevision');
+      expect(context).toContain('interrupted before completion');
+      expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
+      await a.dispose();
+    },
+  );
   it('cancels requested service work with the response and retains no successful receipt', async () => {
     const f = fixture();
     const jobs = new Jobs();

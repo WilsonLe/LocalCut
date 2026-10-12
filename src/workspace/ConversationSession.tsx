@@ -57,10 +57,11 @@ import DictationButton from './DictationButton';
 import type { Asset } from '../editor';
 import type { AssistantBranch } from '../ai';
 import type { ChatContent, SavedChatMessage } from '../storage/chats';
-import { completedChatTurns } from './chat-transcript';
+import { restoredChatTurns } from './chat-transcript';
 const ChatMarkdown = lazy(() => import('./ChatMarkdown'));
 
-export type Message = ChatExportMessage;
+export type Message = ChatExportMessage &
+  Pick<SavedChatMessage, 'continuation'>;
 type HistoricalTool = NonNullable<SavedChatMessage['tools']>[number];
 function toolLabel(tool: HistoricalTool, includeSkill = false): string {
   if (tool.name !== 'load_skill') return tool.name.replaceAll('_', ' ');
@@ -189,10 +190,13 @@ export default function ConversationSession({
     attachments,
   }));
   const [branchable, setBranchable] = useState<string[]>(
-    completedChatTurns(
+    restoredChatTurns(
       initialContent.messages,
       initialContent.historyTurnIds,
-    ).map((turn) => turn.id),
+      initialContent.historyIndexScope,
+    )
+      .filter((turn) => !turn.interrupted)
+      .map((turn) => turn.id),
   );
   const [running, setRunning] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -337,9 +341,10 @@ export default function ConversationSession({
         branch: initialBranch?.checkpoint,
         restoredTurns: initialBranch
           ? undefined
-          : completedChatTurns(
+          : restoredChatTurns(
               initial.current.messages,
               initial.current.historyTurnIds,
+              initial.current.historyIndexScope,
             ),
         restoredIndexScope: initialBranch
           ? undefined
@@ -493,6 +498,14 @@ export default function ConversationSession({
       );
       stop = activeTurn.subscribe((event) => {
         if (!mounted.current) return;
+        if (event.type === 'continuation')
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === event.turnId
+                ? { ...message, continuation: event.context }
+                : message,
+            ),
+          );
         if (event.type === 'text')
           setMessages((current) =>
             current.map((message) =>
@@ -901,7 +914,8 @@ export default function ConversationSession({
                         <Copy />
                       </Button>
                     </Tooltip>
-                    {branchable.includes(message.id) &&
+                    {message.status === 'complete' &&
+                      branchable.includes(message.id) &&
                       !running &&
                       !applying && (
                         <Tooltip content="Continue from this response in a new chat">

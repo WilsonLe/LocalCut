@@ -41,7 +41,7 @@ export interface TaskRecord {
     message: string;
     action: string;
     diagnostic?: ErrorDiagnostic;
-    details?: { status?: number; reason?: 'output_limit' };
+    details?: { status?: number; reason?: 'output_limit' | 'empty_response' };
   };
 }
 export interface TaskContext {
@@ -167,9 +167,9 @@ const taskError = (error: unknown): TaskQueueError => {
   if (
     code === 'RESPONSE_INCOMPLETE' &&
     'reason' in metadata &&
-    metadata.reason === 'output_limit'
+    (metadata.reason === 'output_limit' || metadata.reason === 'empty_response')
   )
-    details.reason = 'output_limit';
+    details.reason = metadata.reason;
   // Retain only bounded HTTP metadata and the local enum; discard provider bodies.
   return {
     ...(Object.keys(details).length ? { details } : {}),
