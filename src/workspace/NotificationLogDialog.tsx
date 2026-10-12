@@ -8,6 +8,14 @@ import {
   OctagonX,
   TriangleAlert,
 } from 'lucide-react';
+import { HistoryTable, useHistoryPage } from './HistoryTable';
+import {
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '../components/ui/table';
 import { Button } from '../components/ui/button';
 import {
   Dialog,
@@ -37,6 +45,9 @@ export default function NotificationLogDialog({
     notificationHistory.subscribe,
     notificationHistory.getSnapshot,
   );
+  const { page, pageCount, setPage, start, end } = useHistoryPage(
+    entries.length,
+  );
   return (
     <Dialog
       open
@@ -46,11 +57,11 @@ export default function NotificationLogDialog({
     >
       <DialogContent
         finalFocus={trigger}
-        className="flex flex-col gap-4 sm:max-w-2xl"
+        className="flex flex-col gap-4 overflow-hidden sm:max-w-4xl"
       >
         <DialogHeader className="pr-8">
           <DialogTitle>Notifications</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="sr-only">
             Recent notifications saved on this device.
           </DialogDescription>
         </DialogHeader>
@@ -81,59 +92,93 @@ export default function NotificationLogDialog({
             </Button>
           )}
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <>
           {entries.length === 0 ? (
             <p className="py-8 text-center text-muted-foreground">
               No notifications yet.
             </p>
           ) : (
-            <ul className="divide-y">
-              {entries.map((entry) => {
-                const Icon = icons[entry.type];
-                return (
-                  <li
-                    key={entry.id}
-                    className="flex items-start gap-3 py-3"
-                    data-notification-type={entry.type}
-                  >
-                    <Icon
-                      className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                      aria-label={entry.type}
-                    />
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <p className="text-sm wrap-anywhere">{entry.message}</p>
-                      {entry.description && (
-                        <p className="text-xs text-muted-foreground wrap-anywhere">
-                          {entry.description}
-                        </p>
-                      )}
-                      <time
-                        className="block text-xs text-muted-foreground"
-                        dateTime={new Date(entry.updatedAt).toISOString()}
-                      >
-                        {new Date(entry.updatedAt).toLocaleString()}
-                      </time>
-                    </div>
-                    {entry.report && (
-                      <Button
-                        size="icon-sm"
-                        variant="ghost"
-                        aria-label={`View stack trace: ${entry.message}`}
-                        title="View stack trace"
-                        onClick={() => {
-                          onClose();
-                          openErrorDetails(entry.report!);
-                        }}
-                      >
-                        <ListTree />
-                      </Button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+            <HistoryTable
+              aria-label="Saved notifications"
+              label="Notifications"
+              className="min-w-[44rem] table-fixed"
+              page={page}
+              pageCount={pageCount}
+              onPageChange={setPage}
+            >
+              <TableHeader className="sticky top-0 z-10 bg-popover">
+                <TableRow>
+                  <TableHead scope="col" className="w-28">
+                    Type
+                  </TableHead>
+                  <TableHead scope="col" className="w-80">
+                    Notification
+                  </TableHead>
+                  <TableHead scope="col" className="w-44">
+                    Time
+                  </TableHead>
+                  <TableHead scope="col" className="w-24 text-right">
+                    Actions
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {entries.slice(start, end).map((entry) => {
+                  const Icon = icons[entry.type];
+                  return (
+                    <TableRow
+                      key={entry.id}
+                      aria-label={entry.message}
+                      data-notification-type={entry.type}
+                    >
+                      <TableCell className="align-top">
+                        <span className="flex items-center gap-2 text-xs capitalize text-muted-foreground">
+                          <Icon
+                            className="size-4 shrink-0"
+                            aria-hidden="true"
+                          />
+                          {entry.type}
+                        </span>
+                      </TableCell>
+                      <TableCell className="space-y-1 align-top whitespace-normal">
+                        <p className="text-sm wrap-anywhere">{entry.message}</p>
+                        {entry.description && (
+                          <p className="text-xs text-muted-foreground wrap-anywhere">
+                            {entry.description}
+                          </p>
+                        )}
+                      </TableCell>
+                      <TableCell className="align-top whitespace-normal">
+                        <time
+                          className="block text-xs text-muted-foreground"
+                          dateTime={new Date(entry.updatedAt).toISOString()}
+                        >
+                          {new Date(entry.updatedAt).toLocaleString()}
+                        </time>
+                      </TableCell>
+                      <TableCell className="align-top text-right">
+                        {entry.report && (
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            aria-label={`View stack trace: ${entry.message}`}
+                            title="View stack trace"
+                            onClick={() => {
+                              onClose();
+                              openErrorDetails(entry.report!);
+                            }}
+                          >
+                            <ListTree />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </HistoryTable>
           )}
-        </div>
+        </>
       </DialogContent>
     </Dialog>
   );

@@ -379,6 +379,11 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Pause unfinished assistant responses gracefully when navigating away from chat. Expected navigation interruption must not display an error; show Resume as the primary composer action on return while the draft is empty. Typing changes it to Send, and clearing the draft restores Resume. Resume explicitly restarts the paused request without requiring a follow-up message.
 
+## Task queue and notification pagination — 12 October 2026
+
+- Use shadcn tables for both Task queue and Notifications. Paginate with numbered controls in the form `< 1 2 … n-1 n >`.
+- Use standalone left and right chevrons over a shaded gray gradient to scroll overflowing columns, with theme-aware colors, accessible targets and keyboard focus.
+
 ## Task queue table — 11 October 2026
 
 - Render the task queue using the shadcn Base table. When columns overflow horizontally, show shaded left/right chevrons only in directions with more content; clicking moves one column in that direction. Render standalone chevrons without visible button boxes over a shaded gradient using theme colors; retain accessible click targets and keyboard focus.
