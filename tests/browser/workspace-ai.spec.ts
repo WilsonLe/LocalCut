@@ -135,7 +135,7 @@ function proposalResponse(route: Route) {
       {
         index: 0,
         delta: completed
-          ? { content: 'The new overlay track is ready for review.' }
+          ? { content: 'The new overlay track was added.' }
           : {
               tool_calls: [
                 {
@@ -233,62 +233,61 @@ test('conversation cancellation rejects late proposals and can start a fresh tur
   expect((await snapshot(page, name)).tracks).toEqual([]);
   await send(page, 'Try adding the overlay track again.');
   await expect(
-    page.getByRole('button', { name: 'Apply proposal', exact: true }),
-  ).toBeEnabled();
-  expect((await snapshot(page, name)).revision).toBe(0);
+    page.getByText('Applied at revision 1', { exact: true }),
+  ).toBeVisible();
+  expect((await snapshot(page, name)).revision).toBe(1);
 });
 
-test('manual edits make an earlier proposal stale without committing it', async ({
+test('text clarification waits for a typed reply before executing the requested edit', async ({
   page,
   context,
 }) => {
   await catalog(context);
+  let clarified = false;
   await context.route(
     'https://openrouter.ai/api/v1/chat/completions',
     async (route) => {
-      if (route.request().method() === 'OPTIONS')
+      if (route.request().method() === 'OPTIONS') {
         await route.fulfill({ headers: cors, body: '' });
+        return;
+      }
+      if (await fulfillChatTitle(route)) return;
+      const body = route.request().postDataJSON();
+      if (String(body.messages.at(-1)?.content).includes('Yes, add the track'))
+        clarified = true;
+      if (!clarified)
+        await route.fulfill({
+          headers: cors,
+          contentType: 'text/event-stream',
+          body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'Should I add an overlay track?' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+        });
       else await fulfillProposal(route);
     },
   );
   await page.goto('/LocalCut/');
-  const name = 'Stale proposal';
+  const name = 'Text clarification';
   await createProject(page, name);
   await connect(page);
-  await send(page, 'Add an overlay track.');
-  const apply = page.getByRole('button', {
-    name: 'Apply proposal',
-    exact: true,
-  });
-  await expect(apply).toBeEnabled();
-  await page.getByRole('button', { name: 'Add text', exact: true }).click();
-  await page
-    .getByRole('button', { name: 'Insert Plain text', exact: true })
-    .click();
+  await send(page, 'Improve the opening');
   await expect(
-    page.getByRole('dialog', { name: 'Clip properties', exact: true }),
+    page.getByText('Should I add an overlay track?', { exact: true }),
   ).toBeVisible();
-  await page.keyboard.press('Escape');
+  expect((await snapshot(page, name)).revision).toBe(0);
   await expect(
-    page.getByRole('dialog', { name: 'Clip properties', exact: true }),
-  ).not.toBeVisible();
-  await expect(apply).toHaveCount(0);
+    page.getByRole('button', { name: 'Apply proposal', exact: true }),
+  ).toHaveCount(0);
   await expect(
-    page.getByText('Project changed. Ask for a new proposal.', { exact: true }),
+    page.getByRole('button', { name: 'Discard proposal', exact: true }),
+  ).toHaveCount(0);
+  await send(page, 'Yes, add the track');
+  await expect(
+    page.getByText('Applied at revision 1', { exact: true }),
   ).toBeVisible();
-  const afterManual = await snapshot(page, name);
-  expect(afterManual.revision).toBe(1);
-  expect(afterManual.tracks.flatMap((track) => track.clips)).toHaveLength(1);
   expect(
-    afterManual.tracks.some((track) => track.id === 'proposed-overlay'),
-  ).toBe(false);
-  await page
-    .getByRole('button', { name: 'Discard proposal', exact: true })
-    .click();
-  await expect(
-    page.getByText('Proposal discarded', { exact: true }),
-  ).toBeVisible();
-  expect(await snapshot(page, name)).toEqual(afterManual);
+    (await snapshot(page, name)).tracks.some(
+      (track) => track.id === 'proposed-overlay',
+    ),
+  ).toBe(true);
 });
 
 test('rate-limit errors remain visible and retry requires a fresh send', async ({
@@ -333,10 +332,13 @@ test('rate-limit errors remain visible and retry requires a fresh send', async (
   await dismissNotifications(page);
   await send(page, 'Retry the overlay track request.');
   await expect(
-    page.getByRole('button', { name: 'Apply proposal', exact: true }),
-  ).toBeEnabled();
+    page.getByText('Applied at revision 1', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('The new overlay track was added.', { exact: true }),
+  ).toBeVisible();
   expect(requests).toBe(4);
-  expect((await snapshot(page, name)).revision).toBe(0);
+  expect((await snapshot(page, name)).revision).toBe(1);
 });
 
 for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>

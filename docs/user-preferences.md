@@ -2,6 +2,13 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Chat execution — 12 October 2026
+
+- Infer authorization from the user's request and context. Execute requested editing, history, indexing, export and transcription work without Apply/Approve/Discard cards or a second confirmation.
+- Use best judgement to ask an ordinary text question only when information is missing or the intended outcome is ambiguous. Do not double-confirm already requested work because it has cost or consequences.
+- Keep sharing choices, original-media boundaries, cancellation, authoritative results and explicit file Save. A failed paid action needs a new user retry request; it must not retry silently.
+- This supersedes earlier workspace chat approval-card and explicit edit/service proposal-approval preferences. Headless integrations retain their default reviewed proposal API.
+
 ## Header navigation — 12 October 2026
 
 - Put Editor and Storyboard (whiteboard) tab triggers at the far right of the project header, after the global actions, retaining left-aligned contents and their existing order.
