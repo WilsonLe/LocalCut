@@ -9,22 +9,14 @@ export interface ErrorDiagnostic {
   errors?: ErrorDiagnostic[];
 }
 
-const safeMessages = new WeakMap<Error, string>();
-
-/** Opt in only static application messages, never provider text or user content. */
-export function retainDiagnosticMessage<T extends Error>(error: T): T {
-  safeMessages.set(error, error.message);
-  return error;
-}
-
-/** Normalization may copy an already trusted message, but cannot grant new trust. */
-export function inheritDiagnosticMessage(source: Error, target: Error): void {
-  if (
-    safeMessages.get(source) === source.message &&
-    target.message === source.message
-  )
-    safeMessages.set(target, source.message);
-}
+// Exact static validation text only: safe even after queue/storage reconstruction.
+// Never allow arbitrary application/provider messages or user content here.
+const safeMessages = new Set([
+  'STT requires a timestamp-capable model, valid language, and at most 25 MB of 16 kHz audio.',
+  'Audio contains invalid samples.',
+  'STT returned no bounded timestamp segments.',
+  'STT returned invalid or unordered timestamps.',
+]);
 
 export function redactDiagnosticText(text: string): string {
   return (
@@ -88,8 +80,8 @@ export function errorDiagnostic(
   const value = error as Record<string, unknown>;
   const name = typeof value.name === 'string' ? value.name : 'Error';
   const safeMessage =
-    error instanceof Error && safeMessages.get(error) === value.message
-      ? safeMessages.get(error)
+    typeof value.message === 'string' && safeMessages.has(value.message)
+      ? value.message
       : undefined;
   const message =
     (includeMessage || safeMessage !== undefined) &&
@@ -102,13 +94,20 @@ export function errorDiagnostic(
       : 'Stack trace unavailable: the source did not retain it.';
   if (!includeMessage && typeof value.stack === 'string') {
     // Unknown/provider messages can echo bodies. Rebuild the header from safe text.
+    // Queue completion wrappers replace message but retain the original stack.
+    const stackMessage = stack.split('\n')[0]?.replace(/^[\w.]+:\s*/, '');
+    const headerMessage =
+      safeMessage ??
+      (stackMessage && safeMessages.has(stackMessage)
+        ? stackMessage
+        : '[message omitted]');
     const frames = stack
       .split('\n')
       .filter(
         (line) =>
           /^\s*at\s/.test(line) || /@(?:https?:|file:|blob:|\/)/.test(line),
       );
-    stack = `${name}: ${safeMessage ?? '[message omitted]'}${frames.length ? '\n' + frames.join('\n') : '\nStack trace unavailable: no source frames were retained.'}`;
+    stack = `${name}: ${headerMessage}${frames.length ? '\n' + frames.join('\n') : '\nStack trace unavailable: no source frames were retained.'}`;
   }
   const details: Record<string, unknown> = {};
   if (value.details && typeof value.details === 'object') {

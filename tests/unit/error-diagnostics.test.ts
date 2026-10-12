@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  errorDiagnostic,
-  retainDiagnosticMessage,
-} from '../../src/core/error-diagnostics';
+import { errorDiagnostic } from '../../src/core/error-diagnostics';
 import { asEditorError } from '../../src/core/errors';
 
 describe('local error diagnostics', () => {
@@ -71,19 +68,22 @@ describe('local error diagnostics', () => {
     expect(report.errors?.[0]?.stack).toContain('first');
     expect(report.errors?.[1]?.stack).toContain('unavailable');
   });
-  it('keeps explicitly safe validation messages without trusting modified messages or stack headers', () => {
-    const error = retainDiagnosticMessage(new Error('Invalid timestamps.'));
+  it('keeps only allowlisted static validation messages across serialization, excluding private headers and message extensions', () => {
+    const message = 'STT returned invalid or unordered timestamps.';
+    const error = new Error(message);
     error.stack = 'Error: private provider body\n    at validate (ai.js:1:2)';
     expect(errorDiagnostic(error, false)).toMatchObject({
-      message: 'Invalid timestamps.',
-      stack: 'Error: Invalid timestamps.\n    at validate (ai.js:1:2)',
+      message,
+      stack: `Error: ${message}\n    at validate (ai.js:1:2)`,
     });
-    error.message = 'private provider body';
+    const saved = structuredClone(errorDiagnostic(error, false));
+    expect(errorDiagnostic(saved, false).message).toBe(message);
+    error.message = message + ' private provider body';
     expect(JSON.stringify(errorDiagnostic(error, false))).not.toContain(
       'private',
     );
     expect(
-      errorDiagnostic(new Error('Invalid timestamps.'), false).message,
+      errorDiagnostic(new Error('Unknown validation message.'), false).message,
     ).toBe('Error details unavailable');
   });
 });

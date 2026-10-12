@@ -1,5 +1,3 @@
-import { retainDiagnosticMessage } from '../core/error-diagnostics';
-
 export type AiErrorCode =
   | 'AUTH_STORAGE'
   | 'AUTH_REQUIRED'
@@ -47,13 +45,8 @@ export function aiInvariant(
   condition: unknown,
   code: AiErrorCode,
   message: string,
-  retainMessage = false,
 ): asserts condition {
-  if (!condition) {
-    const error = new AiError(code, message);
-    // Explicit opt-in for static, content-free validation diagnostics only.
-    throw retainMessage ? retainDiagnosticMessage(error) : error;
-  }
+  if (!condition) throw new AiError(code, message);
 }
 
 /** Provider bodies can echo secrets or prompt data; only map status, never expose body text. */

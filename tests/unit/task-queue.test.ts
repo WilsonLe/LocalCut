@@ -111,11 +111,11 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 describe('durable task queue', () => {
-  it('retains safe speech validation causes and every frame through saved failures and reopening', async () => {
+  it('retains safe speech validation causes and every frame through nested measurement/generation queues and reopening', async () => {
     const storage = new MemoryStore(),
       q = queue(storage);
-    q.register('speech-diagnostic', {
-      lane: 'speech',
+    q.register('measurement-diagnostic', {
+      lane: 'transcription',
       recovery: 'manual',
       execute: async () => {
         try {
@@ -124,6 +124,7 @@ describe('durable task queue', () => {
             3,
           );
         } catch (error) {
+          (error as Error).cause = new Error('private provider body');
           (error as Error).stack =
             'AiError: STT returned invalid or unordered timestamps.\n' +
             Array.from(
@@ -134,6 +135,13 @@ describe('durable task queue', () => {
         }
       },
     });
+    q.register('speech-diagnostic', {
+      lane: 'speech',
+      recovery: 'manual',
+      execute: async () =>
+        q.enqueue('measurement-diagnostic', {}, { label: 'Measure speech' })
+          .completion,
+    });
     const job = q.enqueue(
       'speech-diagnostic',
       {},
@@ -143,22 +151,37 @@ describe('durable task queue', () => {
       code: 'WORKER_FAILED',
     });
     const saved = await q.get(job.id);
-    expect(saved?.error?.diagnostic?.cause).toMatchObject({
-      code: 'INVALID_RESPONSE',
-      message: 'STT returned invalid or unordered timestamps.',
-    });
-    expect(saved?.error?.diagnostic?.cause?.stack).toContain('frame199');
-    expect(JSON.stringify(saved)).not.toContain('private transcript');
+    let validation = saved?.error?.diagnostic;
+    while (validation && validation.code !== 'INVALID_RESPONSE')
+      validation = validation.cause;
+    expect(validation?.message).toBe(
+      'STT returned invalid or unordered timestamps.',
+    );
+    expect(JSON.stringify(saved?.error?.diagnostic)).toContain(
+      'STT returned invalid or unordered timestamps.',
+    );
+    expect(JSON.stringify(saved?.error?.diagnostic)).toContain(
+      'INVALID_RESPONSE',
+    );
+    expect(JSON.stringify(saved?.error?.diagnostic)).toContain('frame199');
+    expect(JSON.stringify(saved)).not.toContain('private');
     const restored = await queue(storage).get(job.id);
     expect(restored?.error?.diagnostic?.stack).toContain(
       'STT returned invalid or unordered timestamps.',
     );
+    const reserialized = errorDiagnostic(restored?.error?.diagnostic, false);
+    expect(JSON.stringify(reserialized)).toContain(
+      'STT returned invalid or unordered timestamps.',
+    );
+    expect(JSON.stringify(reserialized)).toContain('frame199');
+    expect(JSON.stringify(reserialized)).not.toContain('private');
     const failure = await job.completion.catch((error: unknown) => error);
     const report = errorDiagnostic(failure);
-    expect(report.cause?.cause?.stack).toContain(
-      'AiError: STT returned invalid or unordered timestamps.',
+    expect(JSON.stringify(report)).toContain(
+      'STT returned invalid or unordered timestamps.',
     );
-    expect(report.cause?.cause?.stack).toContain('frame199');
+    expect(JSON.stringify(report)).toContain('frame199');
+    expect(JSON.stringify(report)).not.toContain('private');
   });
   it('isolates reusable cache values from public result reads, retry completion and retained handler objects', async () => {
     const storage = new MemoryStore(),
