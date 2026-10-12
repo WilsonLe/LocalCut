@@ -8,6 +8,11 @@ This is the project record of the user's durable product and workflow choices. U
 - Remove the chevron from the active project name; the name still opens the project-switcher dialog.
 - Render the LocalCut logo as static branding without a navigation link. This supersedes earlier LocalCut home navigation; Settings → Project → Open project and Mod+O retain access to the Projects screen.
 
+## Chat agent capability discovery — 12 October 2026
+
+- Fix premature refusals at the shared capability-discovery layer across every domain, rather than special-casing an indexing symptom. Keep a complete, current capability map and actionable recovery when a skill is unloaded, sharing is disabled or a host service is missing. Continue supported portions of compound requests. Maintain scoped agent guides and AI documentation alongside runtime prompts and skills.
+- Make chat indexing and other supported workflows discoverable through accurate agent guidance. Distinguish supported features from disabled sharing, missing connections and pending approval; explain the concrete next step instead of denying a feature because its domain tools are not loaded. Keep existing consent and approval boundaries.
+
 ## Chat export — 12 October 2026
 
 - Provide chat-session export as an icon in the chat UI header, outside the primary application header. Use the existing task queue for local archive generation and saved downloads.
