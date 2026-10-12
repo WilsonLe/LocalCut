@@ -251,7 +251,7 @@ export function capabilityDiscovery(
       ],
       permission: [
         !!capabilities.indexing,
-        'Enable indexing consent and asset-index sharing. In the workspace, enable Allow asset indexing in AI connection → Data & analytics.',
+        'Enable indexing consent and asset-index sharing in the host. The workspace authorizes indexing when OpenRouter is connected.',
       ],
     }),
   } satisfies Record<
@@ -266,7 +266,7 @@ export function capabilityDiscovery(
     ],
     permission: [
       includeAssetIndexes,
-      'Enable asset-index sharing before reading saved labels. In the workspace, enable Allow asset indexing in AI connection → Data & analytics.',
+      'Enable asset-index sharing in the host before reading saved labels. The workspace includes saved labels automatically.',
     ],
   };
   const rules = {

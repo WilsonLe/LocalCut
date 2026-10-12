@@ -27,7 +27,6 @@ import {
 } from 'lucide-react';
 import type { Editor, Project } from '../editor';
 import type { ContextPolicy, OpenRouter, OpenRouterModel } from '../ai';
-import { useIndexConsent } from './index-consent';
 import { KlipMark } from './KlipMark';
 import { takePendingCallback } from './oauth-callback';
 import { parseProjectRoute } from './project-route';
@@ -137,7 +136,6 @@ export function Conversation(props: ConversationProps) {
     includeAssetIndexes: false,
     includeCaptureMetadata: false,
   });
-  const indexingAllowed = useIndexConsent();
   const settingsReturnFocus = useRef<HTMLButtonElement | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [speechOpen, setSpeechOpen] = useState(false);
@@ -909,9 +907,9 @@ export function Conversation(props: ConversationProps) {
     ],
   );
   useEffect(() => {
-    onIndexConnection?.(indexingAllowed ? indexConnection : null);
-  }, [indexConnection, indexingAllowed, onIndexConnection]);
-  const sessionKey = `${connection?.id}:${props.project?.id}:${model}:${privacy.includeText}:${privacy.includeAssetNames}:${privacy.includeTranscripts}:${privacy.includeCaptureMetadata}:${indexingAllowed}`;
+    onIndexConnection?.(indexConnection);
+  }, [indexConnection, onIndexConnection]);
+  const sessionKey = `${connection?.id}:${props.project?.id}:${model}:${privacy.includeText}:${privacy.includeAssetNames}:${privacy.includeTranscripts}:${privacy.includeCaptureMetadata}`;
 
   const chatScope =
     props.project && model
@@ -940,7 +938,6 @@ export function Conversation(props: ConversationProps) {
           privacy.includeText,
           privacy.includeAssetNames,
           privacy.includeTranscripts,
-          indexingAllowed,
           // Keep prior unshared scopes compatible; shared narration gets a separate owner.
           ...(privacy.includeCaptureMetadata ? ['capture-metadata'] : []),
         ])
@@ -1198,7 +1195,7 @@ export function Conversation(props: ConversationProps) {
                     model={model}
                     privacy={{
                       ...privacy,
-                      includeAssetIndexes: indexingAllowed,
+                      includeAssetIndexes: true,
                     }}
                     registerSession={registerSession}
                     composerControl={null}

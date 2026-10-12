@@ -324,7 +324,10 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
     await expect(
       dialog.getByRole('checkbox', { name: 'Allow asset indexing' }),
-    ).not.toBeChecked();
+    ).toHaveCount(0);
+    await expect(dialog).toContainText(
+      'Connecting OpenRouter allows asset indexing',
+    );
     await expect(
       dialog.getByRole('button', { name: 'Refresh models', exact: true }),
     ).toHaveCount(0);
