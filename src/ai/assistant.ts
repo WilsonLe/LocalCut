@@ -142,6 +142,12 @@ export interface AssistantResult {
   proposalIds: string[];
   usage: Usage;
 }
+/** Canonical text-only interruption context, separate from historical display tools. */
+export interface AssistantContinuation {
+  user: string;
+  assistant: string;
+  indexScope?: string;
+}
 /** Inspectable local activity, never raw provider JSON or continuation metadata. */
 export interface AssistantToolCall {
   /** Opaque local identity, unique even when the provider repeats a tool name/ID. */
@@ -171,6 +177,7 @@ export type AssistantEvent =
   | { type: 'proposal_progress'; proposalId: string; progress: Progress }
   | { type: 'usage'; turnId: string; usage: Usage }
   | { type: 'completed'; result: AssistantResult }
+  | { type: 'continuation'; turnId: string; context: AssistantContinuation }
   | { type: 'error'; turnId: string; error: AiError }
   | { type: 'cancelled'; turnId: string };
 export interface AssistantTurn {
@@ -433,6 +440,22 @@ export function createAssistant(options: AssistantOptions) {
     let controller = initialController;
     active = { id, controller };
     const local = new Set<(event: AssistantEvent) => void>();
+    const retainInterruption = (text: string, observations: unknown[] = []) => {
+      const context: AssistantContinuation = {
+        user: prompt,
+        assistant: interruptedChatText(text, observations),
+        ...(indexScope !== undefined ? { indexScope } : {}),
+      };
+      retain(
+        id,
+        [
+          { role: 'user', content: context.user },
+          { role: 'assistant', content: context.assistant },
+        ],
+        true,
+      );
+      emit({ type: 'continuation', turnId: id, context }, local);
+    };
     const execute = async (): Promise<AssistantResult> => {
       const staged: EditProposal[] = [];
       let outputBytes = 0,
@@ -1469,20 +1492,7 @@ export function createAssistant(options: AssistantOptions) {
                 ]
               : [];
           });
-          retain(
-            id,
-            [
-              { role: 'user', content: prompt },
-              {
-                role: 'assistant',
-                content: interruptedChatText(partialText, [
-                  ...observations,
-                  ...completed,
-                ]),
-              },
-            ],
-            true,
-          );
+          retainInterruption(partialText, [...observations, ...completed]);
         }
         emit(
           safe.code === 'CANCELLED'
@@ -1589,15 +1599,7 @@ export function createAssistant(options: AssistantOptions) {
       const safe = initialController.signal.aborted
         ? new AiError('CANCELLED', 'Assistant turn cancelled.')
         : localError(error);
-      if (safe.code === 'CANCELLED' && !disposed)
-        retain(
-          id,
-          [
-            { role: 'user', content: prompt },
-            { role: 'assistant', content: interruptedChatText('') },
-          ],
-          true,
-        );
+      if (safe.code === 'CANCELLED' && !disposed) retainInterruption('');
       emit(
         safe.code === 'CANCELLED'
           ? { type: 'cancelled', turnId: id }

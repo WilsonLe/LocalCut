@@ -35,6 +35,9 @@ import {
 } from '../../src/ai/tools';
 import { assistantCapabilities } from '../../src/ai/actions';
 import type { EditOperation } from '../../src/core/commands';
+import { newChatSession, restoreChatSession } from '../../src/storage/chats';
+import type { SavedChatMessage } from '../../src/storage/chats';
+import { restoredChatTurns } from '../../src/workspace/chat-transcript';
 
 it('retains every structural validation issue beyond the former detail cap', () => {
   try {
@@ -57,6 +60,46 @@ function deferred<T>() {
     reject = b;
   });
   return { promise, resolve, reject };
+}
+function savedInterruptedTurn(
+  events: AssistantEvent[],
+  id: string,
+  prompt: string,
+  state: { historyTurnIds: string[]; historyIndexScope?: string },
+) {
+  const tools = new Map<
+    string,
+    NonNullable<SavedChatMessage['tools']>[number]
+  >();
+  let text = '';
+  let continuation: SavedChatMessage['continuation'];
+  for (const event of events) {
+    if (!('turnId' in event) || event.turnId !== id) continue;
+    if (event.type === 'text') text += event.text;
+    if (event.type === 'tool')
+      tools.set(event.callId, { ...tools.get(event.callId), ...event });
+    if (event.type === 'continuation') continuation = event.context;
+  }
+  return restoreChatSession({
+    ...newChatSession('matching-scope'),
+    content: {
+      prompt: '',
+      attachmentIds: [],
+      historyTurnIds: state.historyTurnIds,
+      historyIndexScope: state.historyIndexScope,
+      messages: [
+        { id: 'user', role: 'user', text: prompt, status: 'complete' },
+        {
+          id,
+          role: 'assistant',
+          text,
+          status: 'interrupted',
+          tools: [...tools.values()],
+          continuation,
+        },
+      ],
+    },
+  })!;
 }
 function fixture() {
   let project: Project = {
@@ -3003,6 +3046,184 @@ it('retires index-bearing model history when relinking invalidates saved labels'
   } finally {
     await assistant.dispose();
   }
+});
+
+it('keeps committed receipts across cancellation before the tool completion event, saving and reload', async () => {
+  const f = fixture();
+  const committed = deferred<void>(),
+    release = deferred<void>();
+  const apply = f.editor.commands.apply;
+  f.editor.commands.apply = vi.fn(async (batch) => {
+    const receipt = await apply(batch);
+    committed.resolve();
+    await release.promise;
+    return receipt;
+  });
+  const a = createAssistant({
+    editor: f.editor,
+    provider: provider([[proposal()], [final('Saved')]]),
+    projectId: f.project().id,
+    model: 'test/model',
+    execution: 'requested',
+  });
+  const events: AssistantEvent[] = [];
+  a.subscribe((event) => events.push(event));
+  const turn = a.run('Move the opening clip');
+  await committed.promise;
+  turn.cancel();
+  release.resolve();
+  await expect(turn.completion).rejects.toMatchObject({ code: 'CANCELLED' });
+  expect(a.snapshot().proposals[0]!.result).toMatchObject({
+    kind: 'edit',
+    receipt: { appliedRevision: 1 },
+  });
+  const saved = savedInterruptedTurn(
+    events,
+    turn.id,
+    'Move the opening clip',
+    a.snapshot(),
+  );
+  expect(
+    saved.content.messages[1]!.tools?.find(
+      (tool) => tool.name === 'propose_edits',
+    )?.phase,
+  ).toBe('failed');
+  const p = provider([[final('The move is already saved.')]]);
+  const reloaded = createAssistant({
+    editor: f.editor,
+    provider: p,
+    projectId: f.project().id,
+    model: 'test/model',
+    execution: 'requested',
+    restoredTurns: restoredChatTurns(
+      saved.content.messages,
+      saved.content.historyTurnIds,
+      saved.content.historyIndexScope,
+    ),
+    restoredIndexScope: saved.content.historyIndexScope,
+  });
+  await reloaded.run('Keep going').completion;
+  expect(JSON.stringify(p.requests[0]!.messages)).toContain('appliedRevision');
+  expect(
+    p.requests[0]!.messages.some((message) => message.role === 'tool'),
+  ).toBe(false);
+  expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
+  await reloaded.dispose();
+  await a.dispose();
+});
+
+it('never restores retired index observations or narration from display rows after cancellation and reload', async () => {
+  const f = fixture();
+  const run: import('../../src/core/asset-index').AssetIndexRun = {
+    version: 1,
+    id: 'old-index',
+    assetId: 'asset',
+    createdAt: 1,
+    status: 'complete',
+    invalidated: false,
+    source: {
+      size: 10,
+      lastModified: 0,
+      kind: 'video',
+      width: 1920,
+      height: 1080,
+      durationUs: 4e6,
+      hasAudio: false,
+    },
+    analysis: {
+      version: 1,
+      settings: {
+        sampleRate: 4,
+        analysisWidth: 160,
+        cutThreshold: 0.45,
+        excerptUs: 4000000,
+      },
+      frames: [],
+      scenes: [],
+      scanMs: 0,
+      generationMs: 0,
+    },
+    label: {
+      summary: 'Private retired observation',
+      subjects: [],
+      scene: '',
+      style: '',
+      tags: [],
+      sound: '',
+    },
+    requests: [],
+  };
+  f.editor.assets.indexes = { list: async () => [structuredClone(run)] };
+  const waiting = deferred<void>();
+  let round = 0;
+  const a = createAssistant({
+    editor: f.editor,
+    projectId: f.project().id,
+    model: 'test/model',
+    execution: 'requested',
+    context: { includeAssetIndexes: true },
+    provider: {
+      async *stream() {
+        if (++round === 1) {
+          yield { type: 'text', text: 'Private retired narration' };
+          yield final('', [
+            call('read_asset_index', { assetId: 'asset' }),
+            call('load_skill', { skillId: 'editing' }, 'load'),
+          ]);
+        } else if (round === 2) {
+          run.invalidated = true;
+          yield final('', [call('inspect_project', {})]);
+        } else {
+          waiting.resolve();
+          await new Promise(() => {});
+        }
+      },
+    },
+  });
+  const events: AssistantEvent[] = [];
+  a.subscribe((event) => events.push(event));
+  const turn = a.run('Describe this asset');
+  await waiting.promise;
+  turn.cancel();
+  await expect(turn.completion).rejects.toMatchObject({ code: 'CANCELLED' });
+  expect(a.snapshot().historyIndexScope).toBe('[]');
+  const saved = savedInterruptedTurn(
+    events,
+    turn.id,
+    'Describe this asset',
+    a.snapshot(),
+  );
+  expect(JSON.stringify(saved.content.messages[1]!.tools)).toContain(
+    'Private retired observation',
+  );
+  expect(saved.content.messages[1]!.text).toContain(
+    'Private retired narration',
+  );
+  const p = provider([[final('Current source has no saved index.')]]);
+  const reloaded = createAssistant({
+    editor: f.editor,
+    provider: p,
+    projectId: f.project().id,
+    model: 'test/model',
+    execution: 'requested',
+    context: { includeAssetIndexes: true },
+    restoredTurns: restoredChatTurns(
+      saved.content.messages,
+      saved.content.historyTurnIds,
+      saved.content.historyIndexScope,
+    ),
+    restoredIndexScope: saved.content.historyIndexScope,
+  });
+  await reloaded.run('Keep going').completion;
+  expect(JSON.stringify(p.requests[0])).not.toContain('Private retired');
+  expect(
+    p.requests[0]!.messages.some(
+      (message) =>
+        message.role === 'user' && message.content === 'Describe this asset',
+    ),
+  ).toBe(true);
+  await reloaded.dispose();
+  await a.dispose();
 });
 
 it('keeps index consent independent of loaded assistant skills', () => {

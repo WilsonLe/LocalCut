@@ -163,7 +163,14 @@ for (const base of ['/', '/LocalCut/']) {
                     request.onsuccess = () => resolve(request.result);
                   });
                   const saved = await new Promise<
-                    { content: { messages: { status: string }[] } }[]
+                    {
+                      content: {
+                        messages: {
+                          status: string;
+                          continuation?: { user: string };
+                        }[];
+                      };
+                    }[]
                   >((resolve) => {
                     const request = db
                       .transaction('sessions')
@@ -172,9 +179,18 @@ for (const base of ['/', '/LocalCut/']) {
                     request.onsuccess = () => resolve(request.result);
                   });
                   db.close();
-                  return saved.some(
-                    (chat) =>
-                      chat.content.messages.at(-1)?.status === 'interrupted',
+                  return (
+                    saved.some(
+                      (chat) =>
+                        chat.content.messages.at(-1)?.status === 'interrupted',
+                    ) &&
+                    saved.some((chat) =>
+                      chat.content.messages
+                        .at(-1)
+                        ?.continuation?.user.startsWith(
+                          'Design a five-day Sydney storyboard',
+                        ),
+                    )
                   );
                 }),
               )

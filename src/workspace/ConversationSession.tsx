@@ -60,7 +60,8 @@ import type { ChatContent, SavedChatMessage } from '../storage/chats';
 import { restoredChatTurns } from './chat-transcript';
 const ChatMarkdown = lazy(() => import('./ChatMarkdown'));
 
-export type Message = ChatExportMessage;
+export type Message = ChatExportMessage &
+  Pick<SavedChatMessage, 'continuation'>;
 type HistoricalTool = NonNullable<SavedChatMessage['tools']>[number];
 function toolLabel(tool: HistoricalTool, includeSkill = false): string {
   if (tool.name !== 'load_skill') return tool.name.replaceAll('_', ' ');
@@ -189,7 +190,11 @@ export default function ConversationSession({
     attachments,
   }));
   const [branchable, setBranchable] = useState<string[]>(
-    restoredChatTurns(initialContent.messages, initialContent.historyTurnIds)
+    restoredChatTurns(
+      initialContent.messages,
+      initialContent.historyTurnIds,
+      initialContent.historyIndexScope,
+    )
       .filter((turn) => !turn.interrupted)
       .map((turn) => turn.id),
   );
@@ -339,6 +344,7 @@ export default function ConversationSession({
           : restoredChatTurns(
               initial.current.messages,
               initial.current.historyTurnIds,
+              initial.current.historyIndexScope,
             ),
         restoredIndexScope: initialBranch
           ? undefined
@@ -492,6 +498,14 @@ export default function ConversationSession({
       );
       stop = activeTurn.subscribe((event) => {
         if (!mounted.current) return;
+        if (event.type === 'continuation')
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === event.turnId
+                ? { ...message, continuation: event.context }
+                : message,
+            ),
+          );
         if (event.type === 'text')
           setMessages((current) =>
             current.map((message) =>

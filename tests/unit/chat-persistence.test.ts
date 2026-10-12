@@ -91,7 +91,7 @@ describe('local chat records', () => {
       {
         id: 'a2',
         user: 'Cancelled question',
-        assistant: expect.stringContaining('Partial'),
+        assistant: expect.stringContaining('interrupted before completion'),
         interrupted: true,
       },
     ]);
@@ -116,71 +116,57 @@ describe('local chat records', () => {
   });
 });
 
-it('restores only confirmed interruption observations and completed receipts as text', () => {
-  const turns = restoredChatTurns(
-    [
-      {
-        id: 'user',
-        role: 'user',
-        text: 'Storyboard for Sydney',
-        status: 'complete',
-      },
-      {
-        id: 'partial',
-        role: 'assistant',
-        text: '',
-        status: 'paused',
-        tools: [
-          {
-            callId: 'load',
-            name: 'load_skill',
-            phase: 'completed',
-            result: { instructions: 'Never restore this skill instruction' },
+it('restores canonical interruption context without replaying stale display rows', () => {
+  const chat = restoreChatSession({
+    ...newChatSession('scope'),
+    content: {
+      prompt: '',
+      attachmentIds: [],
+      historyIndexScope: 'current',
+      messages: [
+        {
+          id: 'user',
+          role: 'user',
+          text: 'Storyboard for Sydney',
+          status: 'complete',
+        },
+        {
+          id: 'partial',
+          role: 'assistant',
+          text: 'Retired private narration',
+          status: 'paused',
+          continuation: {
+            user: 'Storyboard for Sydney with captured asset IDs',
+            assistant: 'Confirmed completed receipt: appliedRevision 57',
+            indexScope: 'current',
           },
-          {
-            callId: 'read',
-            name: 'inspect_project',
-            phase: 'completed',
-            result: { revision: 57 },
-          },
-          {
-            callId: 'pending',
-            name: 'propose_edits',
-            phase: 'completed',
-            result: {
-              status: 'pending_review',
-              proposalId: 'discarded-proposal',
+          tools: [
+            {
+              callId: 'old',
+              name: 'read_asset_index',
+              phase: 'completed',
+              result: { summary: 'Retired private observation' },
             },
-          },
-          {
-            callId: 'saved',
-            name: 'propose_edits',
-            phase: 'completed',
-            result: {
-              status: 'completed',
-              result: { kind: 'edit', receipt: { appliedRevision: 57 } },
-            },
-          },
-          {
-            callId: 'incomplete',
-            name: 'inspect_storyboard',
-            phase: 'started',
-          },
-        ],
-      },
-    ],
-    [],
-  );
-  expect(turns).toHaveLength(1);
+          ],
+        },
+      ],
+    },
+  })!;
+  const turns = restoredChatTurns(chat.content.messages, [], 'current');
   expect(turns[0]).toMatchObject({
-    user: 'Storyboard for Sydney',
+    user: 'Storyboard for Sydney with captured asset IDs',
     interrupted: true,
   });
-  expect(turns[0]!.assistant).toContain('inspect_project');
-  expect(turns[0]!.assistant).toContain('appliedRevision');
-  expect(turns[0]!.assistant).not.toMatch(
-    /skill instruction|discarded-proposal|inspect_storyboard/,
-  );
+  expect(turns[0]!.assistant).toContain('appliedRevision 57');
+  expect(turns[0]!.assistant).not.toContain('Retired private');
+  expect(
+    restoredChatTurns(chat.content.messages, [], 'changed')[0]!.assistant,
+  ).not.toContain('appliedRevision');
+  const legacy = { ...chat.content.messages[1]!, continuation: undefined };
+  expect(
+    restoredChatTurns([chat.content.messages[0]!, legacy], [], 'current')[0]!
+      .assistant,
+  ).not.toContain('Retired private');
 });
 
 it('does not reintroduce compacted or retired turns from the visible transcript', () => {

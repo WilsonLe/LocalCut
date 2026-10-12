@@ -5,6 +5,7 @@ import { interruptedChatText } from '../ai/chat-context';
 export function restoredChatTurns(
   messages: readonly SavedChatMessage[],
   retainedIds?: readonly string[],
+  indexScope?: string,
 ): RestoredChatTurn[] {
   const turns: RestoredChatTurn[] = [];
   let user: string | undefined;
@@ -26,31 +27,13 @@ export function restoredChatTurns(
       )
         turns.push({
           id: message.id,
-          user,
+          user: interrupted ? (message.continuation?.user ?? user) : user,
           assistant: interrupted
-            ? interruptedChatText(
-                message.text,
-                (message.tools ?? []).flatMap((tool) =>
-                  tool.phase === 'completed' &&
-                  tool.name !== 'load_skill' &&
-                  // Proposal display rows alone do not prove an action committed.
-                  ((tool.name !== 'propose_edits' &&
-                    tool.name !== 'propose_action') ||
-                    (tool.result &&
-                      typeof tool.result === 'object' &&
-                      'status' in tool.result &&
-                      tool.result.status === 'completed' &&
-                      'result' in tool.result))
-                    ? [
-                        {
-                          name: tool.name,
-                          input: tool.input,
-                          result: tool.result,
-                        },
-                      ]
-                    : [],
-                ),
-              )
+            ? message.continuation &&
+              message.continuation.indexScope === indexScope
+              ? message.continuation.assistant
+              : // Legacy/mismatched display records cannot prove observation provenance.
+                interruptedChatText('')
             : message.text,
           ...(interrupted ? { interrupted: true } : {}),
         });
