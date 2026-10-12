@@ -2,6 +2,12 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Single OpenRouter connection — 13 October 2026
+
+- Allow only OpenRouter for remote AI. Remove OpenAI-compatible endpoints, ChatGPT sign-in and multiple provider accounts. The connection is binary: connected to OpenRouter or disconnected.
+- Remove all backup service routes and provider priority controls for LLM, TTS and STT. A failed request stops without switching services. Preserve local Whisper as the default local transcription choice; an explicitly chosen remote transcription service uses only OpenRouter.
+- Migrate old configuration to one retained OpenRouter account and its selections, preserving its credential namespace. Retire removed accounts' saved credentials and pending authentication; portable imports cannot revive them. These choices supersede prior multiple-provider, ChatGPT and fallback preferences.
+
 ## Mobile tab headers and scrolling — 13 October 2026
 
 - Use a shared header pattern in Edit, Chat and Media: title inline with one horizontally scrollable button row, with standalone chevrons over shaded gray theme gradients where more actions exist. Do not wrap header buttons onto a second row.

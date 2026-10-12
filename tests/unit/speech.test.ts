@@ -114,7 +114,6 @@ describe('OpenRouter speech', () => {
       { ...referenceRequest, reference: { data, transcript: '' } },
     ])
       expect(() => speechBody(invalid)).toThrow();
-    expect(() => speechBody(referenceRequest, true)).toThrow();
     for (const supports of [true, false]) {
       const fetch = vi.fn<typeof globalThis.fetch>(async (url) =>
         String(url).endsWith('/endpoints')

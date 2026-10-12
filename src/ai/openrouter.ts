@@ -24,27 +24,6 @@ import type {
 } from './types.ts';
 
 const API = 'https://openrouter.ai/api/v1';
-export function compatibleBaseUrl(value: string): string {
-  try {
-    const url = new URL(value);
-    aiInvariant(
-      value.length <= 2048 &&
-        !url.username &&
-        !url.password &&
-        !url.search &&
-        !url.hash &&
-        (url.protocol === 'https:' ||
-          (url.protocol === 'http:' &&
-            ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))),
-      'INVALID_REQUEST',
-      'Use an HTTPS API base URL or an HTTP loopback endpoint, without credentials or query parameters.',
-    );
-    return url.href.replace(/\/+$/, '');
-  } catch (error) {
-    if (error instanceof AiError) throw error;
-    throw new AiError('INVALID_REQUEST', 'Invalid provider API base URL.');
-  }
-}
 export const OPENROUTER_LIMITS = Object.freeze({
   requestBytes: 2_097_152,
   timeoutMs: 120_000,
@@ -132,10 +111,7 @@ function modelsFrom(value: unknown): OpenRouterModel[] {
   }
   return models;
 }
-export function validateRequest(
-  request: ChatRequest,
-  compatible = false,
-): string {
+export function validateRequest(request: ChatRequest): string {
   aiInvariant(
     typeof request.model === 'string' && request.model.length > 0,
     'MODEL_REQUIRED',
@@ -252,9 +228,7 @@ export function validateRequest(
       ...(request.tools.length
         ? { tool_choice: 'auto', parallel_tool_calls: false }
         : {}),
-      ...(!compatible
-        ? { provider: { data_collection: 'deny', require_parameters: true } }
-        : {}),
+      provider: { data_collection: 'deny', require_parameters: true },
     });
   } catch {
     throw new AiError('INVALID_REQUEST', 'AI request could not be serialized.');
@@ -264,8 +238,11 @@ export function validateRequest(
 
 /** No network, storage, worker or navigation activity occurs during construction. */
 export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
-  const compatible = options.compatible;
-  const apiBase = compatible ? compatibleBaseUrl(compatible.baseUrl) : API;
+  aiInvariant(
+    !Object.hasOwn(options, 'compatible'),
+    'INVALID_REQUEST',
+    'Only OpenRouter is supported.',
+  );
   const requestFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
   const timeout = options.requestTimeoutMs ?? OPENROUTER_LIMITS.timeoutMs;
   aiInvariant(
@@ -329,7 +306,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
             });
           });
           const response = await Promise.race([
-            requestFetch(`${apiBase}${path}`, {
+            requestFetch(`${API}${path}`, {
               ...init,
               signal: controller.signal,
               credentials: 'omit',
@@ -374,8 +351,8 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
   }
   function setKey(value: string) {
     assertActive();
-    const next = compatible && value.trim() === '' ? '' : credentialKey(value);
-    if (!compatible) writeCredential(options.credentialStorage, next);
+    const next = credentialKey(value);
+    writeCredential(options.credentialStorage, next);
     retire();
     key = next;
   }
@@ -417,47 +394,23 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
     disconnect() {
       if (disposed) return;
       retire();
-      if (!compatible) clearCredential(options.credentialStorage);
+      clearCredential(options.credentialStorage);
     },
     restoreCredential() {
       assertActive();
-      aiInvariant(
-        !compatible,
-        'MODEL_UNSUPPORTED',
-        'This endpoint uses an API key.',
-      );
       const saved = readCredential(options.credentialStorage);
       retire();
       key = saved ?? undefined;
       return client.status();
     },
     beginAuthorization: (args) => {
-      aiInvariant(
-        !compatible,
-        'MODEL_UNSUPPORTED',
-        'This endpoint uses an API key.',
-      );
       return auth.begin(args);
     },
     completeAuthorization: (args, signal) => {
-      aiInvariant(
-        !compatible,
-        'MODEL_UNSUPPORTED',
-        'This endpoint uses an API key.',
-      );
       return auth.complete(args, signal);
     },
     async listTranscriptionModels(signal) {
       assertActive();
-      if (compatible)
-        return compatible.transcriptionModel
-          ? [
-              {
-                id: compatible.transcriptionModel,
-                name: compatible.transcriptionModel,
-              },
-            ]
-          : [];
       const op = operation(signal);
       try {
         const response = await op.fetch(
@@ -501,16 +454,6 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
     },
     async listSpeechModels(signal) {
       assertActive();
-      if (compatible)
-        return compatible.speechModel && compatible.voices?.length
-          ? [
-              {
-                id: compatible.speechModel,
-                name: compatible.speechModel,
-                voices: [...compatible.voices],
-              },
-            ]
-          : [];
       const op = operation(signal);
       try {
         const response = await op.fetch('/models?output_modalities=speech', {
@@ -555,7 +498,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         'Connect to OpenRouter before generating speech.',
       );
       // Capture/validate user input before any async catalog request.
-      const body = speechBody(request, !!compatible);
+      const body = speechBody(request);
       const { model, voice, response_format } = JSON.parse(body) as {
         model: string;
         voice?: string;
@@ -607,19 +550,9 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
     async transcribeSpeech(request, signal) {
       assertActive();
       aiInvariant(
-        !compatible || compatible.transcriptionModel,
-        'MODEL_UNSUPPORTED',
-        'This connection does not support STT.',
-      );
-      aiInvariant(
         key !== undefined,
         'AUTH_REQUIRED',
         'Connect the transcription provider.',
-      );
-      aiInvariant(
-        !compatible || request.model === compatible.transcriptionModel,
-        'MODEL_UNSUPPORTED',
-        'Use the configured timestamp-capable transcription model.',
       );
       const body = transcriptionBody(request);
       const op = operation(signal);
@@ -643,11 +576,6 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
     },
     async label(request, signal) {
       assertActive();
-      aiInvariant(
-        !compatible,
-        'MODEL_UNSUPPORTED',
-        'Indexing evidence is only authorized for OpenRouter.',
-      );
       aiInvariant(
         key !== undefined,
         'AUTH_REQUIRED',
@@ -797,51 +725,26 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
       );
       const op = operation(signal);
       try {
-        const response = await op.fetch(compatible ? '/models' : '/key', {
+        const response = await op.fetch('/key', {
           method: 'GET',
           headers: key ? { Authorization: `Bearer ${key}` } : {},
         });
         const value = await readJson(response, op.signal);
         op.check();
         aiInvariant(
-          object(value) &&
-            (compatible ? Array.isArray(value.data) : object(value.data)),
+          object(value) && object(value.data),
           'INVALID_RESPONSE',
           'The provider returned an invalid verification response.',
         );
-        return compatible ? 'endpoint' : 'credentials';
+        return 'credentials';
       } catch (error) {
         throw op.error(error);
       } finally {
         op.finish();
       }
     },
-    async listModels(signal, routeModel) {
+    async listModels(signal) {
       assertActive();
-      if (compatible) {
-        const model = routeModel || compatible.model;
-        aiInvariant(
-          !model ||
-            (/^~?[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/.test(model) &&
-              !model.includes('://') &&
-              model !== 'openrouter/auto'),
-          'INVALID_REQUEST',
-          'Invalid provider model ID.',
-        );
-        const result = model
-          ? [
-              {
-                id: model,
-                name: model,
-                contextLength: 128000,
-                supportsTools: true,
-                supportedParameters: ['tools', 'tool_choice'],
-              },
-            ]
-          : [];
-        catalog = result;
-        return structuredClone(result);
-      }
       const op = operation(signal);
       try {
         const response = await op.fetch('/models', {
@@ -868,13 +771,11 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         'AUTH_REQUIRED',
         'Connect to OpenRouter before starting an AI request.',
       );
-      let body = validateRequest(request, !!compatible);
+      let body = validateRequest(request);
       const requestedModel = request.model;
       const requestedTokens = request.maxOutputTokens;
       const epoch = generation;
-      const models = compatible
-        ? await client.listModels(signal, requestedModel)
-        : (catalog ?? (await client.listModels(signal)));
+      const models = catalog ?? (await client.listModels(signal));
       assertActive();
       aiInvariant(epoch === generation, 'CANCELLED', 'AI request cancelled.');
       const model = models.find((candidate) => candidate.id === requestedModel);
@@ -899,10 +800,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
       }
       // Strict routing must not require an optional parameter the model cannot use.
       // The assistant already executes all validated tool calls sequentially.
-      if (
-        !compatible &&
-        !model.supportedParameters.includes('parallel_tool_calls')
-      ) {
+      if (!model.supportedParameters.includes('parallel_tool_calls')) {
         const payload = JSON.parse(body) as Record<string, unknown>;
         delete payload.parallel_tool_calls;
         body = JSON.stringify(payload);
