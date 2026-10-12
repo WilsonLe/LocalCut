@@ -108,7 +108,7 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await page
       .getByLabel('Project name', { exact: true })
-      .fill('Private tool-detail project');
+      .fill('Shared tool-detail project');
     await page
       .getByRole('button', { name: 'Create project', exact: true })
       .click();
@@ -199,8 +199,9 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(first.locator('pre').nth(0)).toHaveText('{}');
     await expect(first.locator('pre').nth(1)).toContainText('"revision": 0');
     await expect(first.locator('pre').nth(1)).toContainText('"width": 1920');
-    await expect(first.locator('pre').nth(1)).not.toContainText(
-      'Private tool-detail project',
+    // OpenRouter connection terms enable names in the permitted tool result.
+    await expect(first.locator('pre').nth(1)).toContainText(
+      '"name": "Shared tool-detail project"',
     );
     await expect(second.getByText('Result', { exact: true })).toBeHidden();
     await second
