@@ -122,10 +122,13 @@ export default function MediaLibrary({
           : []),
       ]
     : assets.map((asset) => ({ asset, entry: undefined }));
-  const [selection, setSelection] = useState({
+  const selectionScope = {
     editor,
     parentId: folders.parentId,
     trash: folders.trash,
+  };
+  const [selection, setSelection] = useState({
+    ...selectionScope,
     ids: [] as string[],
   });
   if (
@@ -133,21 +136,10 @@ export default function MediaLibrary({
     selection.parentId !== folders.parentId ||
     selection.trash !== folders.trash
   ) {
-    setSelection({
-      editor,
-      parentId: folders.parentId,
-      trash: folders.trash,
-      ids: [],
-    });
+    setSelection({ ...selectionScope, ids: [] });
   }
   const selectedIds = new Set(selection.ids);
-  const select = (ids: string[]) =>
-    setSelection({
-      editor,
-      parentId: folders.parentId,
-      trash: folders.trash,
-      ids,
-    });
+  const select = (ids: string[]) => setSelection({ ...selectionScope, ids });
   const dragged = useRef(false);
   const [dragPosition, setDragPosition] = useState<DragPosition | null>(null);
   const drag = useRef<{
