@@ -4,11 +4,13 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useLayoutEffect,
   useRef,
   useState,
 } from 'react';
-import type { FormEvent, ReactNode } from 'react';
+import type { FormEvent, ReactNode, Ref } from 'react';
+import type { ChatExportSource } from './chat-export';
 import {
   ArrowDown,
   ArrowUp,
@@ -120,6 +122,7 @@ interface SessionProps extends ConversationProps {
   titleLocked: boolean;
   initialContent: ChatContent;
   onSave: (id: string, content: ChatContent) => void;
+  exportRef?: Ref<() => ChatExportSource>;
   initialBranch?: ChatBranch;
   onBranch: (branch: ChatBranch) => void;
   active: boolean;
@@ -160,6 +163,7 @@ export default function ConversationSession({
   onSave,
   onBranch,
   active,
+  exportRef,
 }: SessionProps) {
   const [prompt, setPrompt] = useState(initialContent.prompt);
   const [messages, setMessages] = useState<Message[]>(
@@ -178,6 +182,12 @@ export default function ConversationSession({
     !initialContent.attachmentIds.length,
   );
   const [proposals, setProposals] = useState<Record<string, EditProposal>>({});
+  useImperativeHandle(exportRef, () => () => ({
+    messages,
+    proposals,
+    draft: prompt,
+    attachments,
+  }));
   const [branchable, setBranchable] = useState<string[]>(
     completedChatTurns(
       initialContent.messages,

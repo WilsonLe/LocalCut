@@ -20,6 +20,7 @@ import type { Ref, ReactNode } from 'react';
 import type { WorkspaceCommand } from './commands';
 import {
   ChevronDown,
+  Download,
   PanelRightClose,
   PanelRightOpen,
   PlugZap,
@@ -47,6 +48,14 @@ import {
 } from '../components/ui/empty';
 import { usePersistentChats } from './usePersistentChats';
 import type { ChatBranch } from './ConversationSession';
+import { Tooltip } from '../components/ui/tooltip';
+import { toast } from './notifications';
+import {
+  captureChatExport,
+  CHAT_EXPORT_TASK,
+  registerChatExportTask,
+} from './chat-export';
+import type { ChatExportSource } from './chat-export';
 const AIConnectionDialog = lazy(() => import('./AIConnectionDialog'));
 const ChatSessionPicker = lazy(() => import('./ChatSessionPicker'));
 const ConversationSession = lazy(() => import('./ConversationSession'));
@@ -144,6 +153,36 @@ export function Conversation(props: ConversationProps) {
   const [connecting, setConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [sessionBusy, setSessionBusy] = useState(false);
+  const selectedExport = useRef<(() => ChatExportSource) | null>(null);
+  useEffect(() => {
+    if (!props.editor) return;
+    const unregister = registerChatExportTask(props.editor.tasks);
+    void props.editor.tasks.poll().catch(props.onError);
+    return unregister;
+  }, [props.editor, props.onError]);
+  const exportChat = () => {
+    if (!props.editor || !props.project || !selectedExport.current) return;
+    try {
+      const selected = chatSessions.find(
+        (session) => session.id === conversationNumber,
+      );
+      const snapshot = captureChatExport(selectedExport.current(), {
+        sessionId: String(conversationNumber),
+        title: selected?.title ?? 'New chat',
+        projectId: props.project.id,
+        exportedAt: new Date().toISOString(),
+      });
+      const job = props.editor.tasks.enqueue(CHAT_EXPORT_TASK, snapshot, {
+        label: `Export chat: ${snapshot.title}`,
+        projectId: props.project.id,
+      });
+      toast.info('Chat export queued. Save the archive from Task queue.');
+      // The queue owns cancellation, durable output and error escalation.
+      void job.completion.catch(() => {});
+    } catch (error) {
+      props.onError(error);
+    }
+  };
   const [chatBranches, setChatBranches] = useState<Record<string, ChatBranch>>(
     {},
   );
@@ -1115,6 +1154,24 @@ export function Conversation(props: ConversationProps) {
           ) : (
             sessionTrigger
           )}
+          {ready &&
+            chatSessions.some(
+              (session) =>
+                session.id === conversationNumber &&
+                (session.hasMessages || session.hasDraft),
+            ) && (
+              <Tooltip content="Export chat">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="chat-export-trigger"
+                  aria-label="Export chat"
+                  onClick={exportChat}
+                >
+                  <Download aria-hidden="true" />
+                </Button>
+              </Tooltip>
+            )}
           {props.headerActions}
         </header>
         {!chats.saved && (
@@ -1141,6 +1198,7 @@ export function Conversation(props: ConversationProps) {
                 >
                   <ConversationSession
                     {...props}
+                    exportRef={session.id === conversationNumber ? selectedExport : undefined}
                     editor={props.editor!}
                     project={props.project!}
                     connection={connection}

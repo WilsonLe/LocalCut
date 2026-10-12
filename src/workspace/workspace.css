@@ -419,6 +419,12 @@
     .chat-session-trigger {
       margin-right: 52px;
     }
+    .chat-session-trigger:has(+ .chat-export-trigger) {
+      margin-right: 0;
+    }
+    .chat-export-trigger {
+      margin-right: 52px;
+    }
     .header-actions {
       flex-basis: 100%;
       justify-content: flex-end;
