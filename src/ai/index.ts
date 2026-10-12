@@ -12,7 +12,5 @@ export type * from './types';
 export type * from './assistant';
 export type * from './context';
 
-export { createOpenAICompatible, createServiceRouter } from './providers';
+export { createServiceRouter } from './providers';
 export type * from './providers';
-export { createChatGPT } from './chatgpt';
-export type { ChatGPTClient, ChatGPTOptions } from './chatgpt';

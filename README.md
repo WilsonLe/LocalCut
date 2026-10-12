@@ -11,7 +11,7 @@ A browser video editor with local media processing and an optional AI editing as
 - Import video, audio and images; record a screen, window or browser tab through the browser's source picker.
 - Arrange tracks, trim and group clips, separate audio, adjust speed and pitch, and edit transitions.
 - Add styled and animated text, use bundled fonts, and generate captions with explicitly prepared local Whisper transcription.
-- Review AI editing proposals before applying them. Optional OpenRouter, compatible endpoints and ChatGPT connections support configured service routes; speech generation uses an explicit Generate action.
+- Review AI editing proposals before applying them. Optional AI uses one OpenRouter connection with explicit service models and no backups; speech generation uses an explicit Generate action.
 - Export MP4/H.264/AAC or WebM/VP9/Opus when your browser supports the required codecs.
 - Save projects and versions in this browser and export portable project/workspace backups with optional original media.
 
@@ -21,7 +21,7 @@ The application builds to static files. Headless consumers discover content-hash
 
 Use current stable desktop **Google Chrome** for the complete supported experience; Safari has focused macOS regression coverage. Export and capture capabilities vary by browser/device. See [browser support](docs/browser-support.md).
 
-Projects stay in this browser with no cloud sync; export backups with originals. Read [privacy and data flows](docs/privacy.md) before connecting optional AI providers.
+Projects stay in this browser with no cloud sync; export backups with originals. Read [privacy and data flows](docs/privacy.md) before connecting optional OpenRouter.
 
 ## Your first edit
 

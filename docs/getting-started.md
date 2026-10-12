@@ -23,7 +23,7 @@ To recover or transfer, keep the downloaded archive outside browser storage, ope
 
 ## Optional AI and speech
 
-Open Chat's provider configuration to connect OpenRouter, a supported compatible endpoint or ChatGPT. Configure explicit models/service routes. Custom endpoints must permit browser CORS. ChatGPT uses the manual callback-paste flow described in [AI sign-in](ai.md#chatgpt-sign-in); never share the callback address.
+Open Chat's AI connection settings to connect OpenRouter with an existing API key or login. Choose explicit chat and speech models. Transcription defaults to local Whisper; selecting OpenRouter for transcription requires disclosed audio sharing.
 
 Ask for an edit, inspect the proposed operations and choose Apply or Discard. Approved edits use the engine and support Undo. Connection or model selection alone does not initiate paid inference.
 

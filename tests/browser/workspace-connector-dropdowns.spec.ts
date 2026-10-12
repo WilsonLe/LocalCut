@@ -60,19 +60,6 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Use API key', exact: true })
       .click();
-    await selectAISettingsTab(page, 'LLM - Chat');
-    await dialog
-      .getByRole('combobox', { name: 'LLM provider 1', exact: true })
-      .click();
-    await expect(
-      page.getByRole('option', { name: 'OpenRouter', exact: true }),
-    ).toBeVisible();
-    expect(
-      await page
-        .locator('[data-slot=combobox-empty]')
-        .evaluate((el) => el.getBoundingClientRect().height),
-    ).toBe(0);
-    await page.keyboard.press('Escape');
     await selectAISettingsTab(page, 'TTS - Speech');
     const model = dialog.getByRole('combobox', {
       name: 'OpenRouter tts route model',
@@ -159,15 +146,9 @@ for (const base of ['/', '/LocalCut/']) {
       path: testInfo.outputPath('tts-voice-dropdown-narrow.png'),
     });
     await page.keyboard.press('Escape');
-    await dialog
-      .getByRole('combobox', { name: 'Add TTS provider', exact: true })
-      .click();
     await expect(
-      page.getByText('All available providers are already added.', {
-        exact: true,
-      }),
-    ).toBeVisible();
-    await page.keyboard.press('Escape');
+      dialog.getByRole('combobox', { name: 'Add TTS provider', exact: true }),
+    ).toHaveCount(0);
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await page.reload();
     await openAISettings(page);

@@ -515,18 +515,6 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
     await expect(
       page.getByRole('button', { name: 'I have an API key', exact: true }),
     ).toBeVisible();
-    // Forget the disconnected profile through its replacement account control.
-    await selectAISettingsTab(page, 'Providers');
-    await page
-      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
-      .click();
-    await confirmProviderDisconnect(page);
-    await expect(
-      page.getByLabel('OpenRouter API key', { exact: true }),
-    ).toHaveCount(0);
-    await expect(
-      page.getByRole('button', { name: 'Add provider', exact: true }),
-    ).toBeVisible();
     expect(
       await page.evaluate(() =>
         localStorage.getItem('localcut.openrouter-credential.v1'),
@@ -648,117 +636,6 @@ for (const base of ['/', '/LocalCut/']) {
     expect(paid).toBe(0);
     await other.close();
   });
-  test(`saved connection preserves disabled services and cross-tab removal preserves another provider ${base}`, async ({
-    page,
-    context,
-  }) => {
-    await catalog(context, key);
-    const paid: string[] = [];
-    page.on('request', (request) => {
-      if (
-        /chat\/completions|audio\/speech|audio\/transcriptions/.test(
-          request.url(),
-        )
-      )
-        paid.push(request.url());
-    });
-    await page.goto(base);
-    const routes = {
-      llm: [
-        { providerId: 'backup', model: 'backup' },
-        { providerId: 'openrouter', model },
-      ],
-      tts: [],
-      stt: [{ providerId: 'local', model: 'whisper' }],
-    };
-    await page.evaluate(
-      ({ routes, key }) => {
-        localStorage.setItem(
-          'localcut.openrouter-credential.v1',
-          JSON.stringify({ version: 1, key }),
-        );
-        localStorage.setItem(
-          'localcut.workspace-preferences.v1',
-          JSON.stringify({
-            version: 1,
-            preferences: {
-              aiProviders: JSON.stringify({
-                profiles: [
-                  { id: 'openrouter', name: 'OpenRouter', kind: 'openrouter' },
-                  {
-                    id: 'backup',
-                    name: 'Local backup',
-                    kind: 'compatible',
-                    baseUrl: 'http://localhost:1234/v1',
-                    model: 'backup',
-                  },
-                ],
-                routes,
-              }),
-            },
-          }),
-        );
-      },
-      { routes, key },
-    );
-    await page.reload();
-    await openConnectedSettings(page);
-    const dialog = page.getByRole('dialog', {
-      name: 'AI connection',
-      exact: true,
-    });
-    await selectAISettingsTab(page, 'Providers');
-    await expect(
-      dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
-    ).toBeVisible();
-    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-    await createProject(page, 'Multi-provider credential isolation');
-    await expect(
-      page.getByRole('button', { name: 'Text to speech', exact: true }),
-    ).toHaveCount(0);
-    await openConnectedSettings(page);
-    await selectAISettingsTab(page, 'Providers');
-    await dialog.getByRole('button', { name: 'Connect', exact: true }).click();
-    await page
-      .getByRole('button', { name: 'Connect endpoint', exact: true })
-      .click();
-    await selectAISettingsTab(page, 'LLM - Chat');
-    await expect(
-      dialog.getByLabel('Local backup llm route model', { exact: true }),
-    ).toBeEnabled();
-    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-    await expect(
-      page.getByLabel('Describe your edit', { exact: true }),
-    ).toBeEnabled();
-    const other = await context.newPage();
-    await other.goto(base);
-    await openConnectedSettings(other);
-    await other.evaluate(() =>
-      localStorage.removeItem('localcut.openrouter-credential.v1'),
-    );
-    await openConnectedSettings(page);
-    await expect(
-      dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
-    ).toHaveCount(0);
-    await selectAISettingsTab(page, 'LLM - Chat');
-    await expect(
-      dialog.getByLabel('Local backup llm route model', { exact: true }),
-    ).toBeEnabled();
-    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-    await expect(
-      page.getByLabel('Describe your edit', { exact: true }),
-    ).toBeEnabled();
-    const savedRoutes = await page.evaluate(
-      () =>
-        JSON.parse(
-          JSON.parse(localStorage.getItem('localcut.workspace-preferences.v1')!)
-            .preferences.aiProviders,
-        ).routes,
-    );
-    expect(savedRoutes).toEqual(routes);
-    expect(paid).toEqual([]);
-    await other.close();
-  });
   test(`saved credential storage failures are actionable and never connect ${base}`, async ({
     page,
     context,
@@ -843,11 +720,9 @@ for (const base of ['/', '/LocalCut/']) {
         window as unknown as { allowCredentialRemoval(): void }
       ).allowCredentialRemoval();
     });
-    await selectAISettingsTab(page, 'Providers');
     await dialog
-      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
+      .getByRole('button', { name: 'Retry removing saved key', exact: true })
       .click();
-    await confirmProviderDisconnect(page);
     await expect(dialog.getByRole('alert')).toHaveCount(0);
     expect(
       await page.evaluate(() =>

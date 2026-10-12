@@ -1,927 +1,304 @@
-import {
-  accountStorage,
-  accountCredentialKey,
-} from '../../src/workspace/provider-account-storage';
-import { createOpenRouter } from '../../src/ai/openrouter';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  createOpenAICompatible,
-  createServiceRouter,
-} from '../../src/ai/providers';
-import { AiError } from '../../src/ai/errors';
+import { createOpenRouter } from '../../src/ai/openrouter';
+import { createServiceRouter } from '../../src/ai/providers';
+import type { ServiceRoutes } from '../../src/ai/providers';
 import type {
   ChatRequest,
   OpenRouter,
   ProviderEvent,
-  SpeechRequest,
 } from '../../src/ai/types';
 import {
-  defaultProviderConfiguration,
   parseProviderConfiguration,
+  defaultProviderConfiguration,
   workspaceContextPolicy,
 } from '../../src/workspace/provider-preferences';
-import { parseResponses, responsesBody } from '../../src/ai/responses';
+import {
+  accountStorage,
+  accountCredentialKey,
+} from '../../src/workspace/provider-account-storage';
+
 const signal = () => new AbortController().signal;
-it('grants all workspace context only while an actual OpenRouter account is connected', () => {
-  const profiles = parseProviderConfiguration(
-    JSON.stringify({
-      profiles: [
-        { id: 'router-one', name: 'One', kind: 'openrouter' },
-        { id: 'router-two', name: 'Two', kind: 'openrouter' },
-        {
-          id: 'endpoint',
-          name: 'Endpoint',
-          kind: 'compatible',
-          baseUrl: 'https://example.test/v1',
-        },
-        { id: 'chatgpt', name: 'ChatGPT', kind: 'chatgpt' },
-      ],
-      routes: {
-        llm: [],
-        tts: [],
-        stt: [{ providerId: 'local', model: 'whisper' }],
-      },
-    }),
-  ).profiles;
-  expect(profiles).toHaveLength(4);
-  const denied = {
-    includeText: false,
-    includeAssetNames: false,
-    includeTranscripts: false,
-    includeCaptureMetadata: false,
-    includeAssetIndexes: true,
-  };
-  for (const connected of [[], ['endpoint', 'chatgpt'], ['removed-account']])
-    expect(workspaceContextPolicy(profiles, connected)).toEqual(denied);
-  const allowed = {
-    ...denied,
-    includeText: true,
-    includeAssetNames: true,
-    includeTranscripts: true,
-    includeCaptureMetadata: true,
-  };
-  for (const connected of [
-    ['router-one', 'router-two'],
-    ['router-two'],
-    ['router-one', 'endpoint'],
-  ])
-    expect(workspaceContextPolicy(profiles, connected)).toEqual(allowed);
-  expect(workspaceContextPolicy([], ['router-one'])).toEqual(denied);
-  expect(workspaceContextPolicy(profiles, [])).toEqual(denied);
+const routes = (): ServiceRoutes => ({
+  llm: [{ providerId: 'openrouter', model: 'selected' }],
+  tts: [{ providerId: 'openrouter', model: 'speech', voice: 'voice' }],
+  stt: [{ providerId: 'local', model: 'whisper' }],
 });
 const chat: ChatRequest = {
-  model: 'primary-model',
+  model: 'selected',
   messages: [{ role: 'user', content: 'Hello' }],
   tools: [],
-  maxOutputTokens: 100,
 };
-const complete: ProviderEvent = {
-  type: 'complete',
-  message: { role: 'assistant', content: 'Hello' },
-};
-async function collect(stream: AsyncIterable<ProviderEvent>) {
-  const events = [];
-  for await (const e of stream) events.push(e);
-  return events;
+async function collect(events: AsyncIterable<ProviderEvent>) {
+  const result = [];
+  for await (const event of events) result.push(event);
+  return result;
 }
-function client(stream: OpenRouter['stream']): OpenRouter {
-  return {
-    ...createOpenAICompatible({
-      baseUrl: 'https://example.test/v1',
-      model: 'm',
-    }),
-    status: () => ({ connected: true }),
-    stream,
-  };
+function connected(): OpenRouter {
+  return { ...createOpenRouter(), status: () => ({ connected: true }) };
 }
-function routed(a: OpenRouter, b: OpenRouter) {
+function router(client: OpenRouter, selection = routes()) {
   return createServiceRouter(
-    [
-      { id: 'a', name: 'A', client: a },
-      { id: 'b', name: 'B', client: b },
-    ],
-    {
-      llm: [
-        { providerId: 'a', model: 'primary-model' },
-        { providerId: 'b', model: 'backup-model' },
-      ],
-      tts: [
-        { providerId: 'b', model: 'speech', voice: 'voice' },
-        { providerId: 'a', model: 'backup-speech', voice: 'backup-voice' },
-      ],
-      stt: [{ providerId: 'local', model: 'whisper' }],
-    },
+    [{ id: 'openrouter', name: 'OpenRouter', client }],
+    selection,
   );
 }
-describe('service providers', () => {
-  it.each([undefined, 16384, 128000])(
-    'uses provider output policy by default and respects explicit fallback limits (%s)',
-    async (maxOutputTokens) => {
-      const model = (id: string, max: number) => ({
-        id,
-        name: id,
-        context_length: 300000,
-        supported_parameters: ['tools', 'tool_choice', 'reasoning'],
-        top_provider: { max_completion_tokens: max },
-      });
-      const primaryFetch = vi.fn<typeof globalThis.fetch>(async (url) =>
-        String(url).endsWith('/models')
-          ? Response.json({ data: [model('primary-model', 256000)] })
-          : new Response(null, { status: 429 }),
-      );
-      const backupFetch = vi.fn<typeof globalThis.fetch>(async (url) =>
-        String(url).endsWith('/models')
-          ? Response.json({ data: [model('backup-model', 8192)] })
-          : new Response(
-              'data: {"choices":[{"index":0,"delta":{"content":"Backup completed"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
-              { headers: { 'Content-Type': 'text/event-stream' } },
-            ),
-      );
-      const a = createOpenRouter({ fetch: primaryFetch });
-      const b = createOpenRouter({ fetch: backupFetch });
-      a.setKey('synthetic-primary');
-      b.setKey('synthetic-backup');
-      const router = routed(a, b);
-      try {
-        const events = await collect(
-          router.stream({ ...chat, maxOutputTokens }, signal()),
-        );
-        expect(events.at(-1)).toMatchObject({
-          type: 'complete',
-          message: { content: 'Backup completed' },
-        });
-        const primary = primaryFetch.mock.calls.find(([url]) =>
-          String(url).endsWith('/chat/completions'),
-        )!;
-        const backup = backupFetch.mock.calls.find(([url]) =>
-          String(url).endsWith('/chat/completions'),
-        )!;
-        expect(JSON.parse(String(primary[1]?.body)).max_tokens).toBe(
-          maxOutputTokens ?? 256000,
-        );
-        expect(JSON.parse(String(backup[1]?.body)).max_tokens).toBe(8192);
-        expect(
-          backupFetch.mock.calls.filter(([url]) =>
-            String(url).endsWith('/chat/completions'),
-          ),
-        ).toHaveLength(1);
-      } finally {
-        router.dispose();
-        a.dispose();
-        b.dispose();
-      }
-    },
-  );
 
-  it('verifies independently stored OpenRouter keys without inference and disconnects only one account', async () => {
-    const records = new Map<string, string>();
-    const storage = {
-      getItem: (key: string) => records.get(key) ?? null,
-      setItem: (key: string, value: string) => {
-        records.set(key, value);
-      },
-      removeItem: (key: string) => {
-        records.delete(key);
-      },
-    };
-    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
-      Response.json({ data: { is_free_tier: true } }),
-    );
-    const profileA = { id: 'openrouter', kind: 'openrouter' as const };
-    const profileB = { id: 'openrouter-work', kind: 'openrouter' as const };
-    const a = createOpenRouter({
-      fetch,
-      credentialStorage: () => accountStorage(profileA, () => storage),
-    });
-    const b = createOpenRouter({
-      fetch,
-      credentialStorage: () => accountStorage(profileB, () => storage),
-    });
-    a.setKey('synthetic-account-a');
-    b.setKey('synthetic-account-b');
-    await expect(a.verifyConnection!()).resolves.toBe('credentials');
-    await expect(b.verifyConnection!()).resolves.toBe('credentials');
-    expect(fetch.mock.calls.map((call) => call[0])).toEqual([
-      'https://openrouter.ai/api/v1/key',
-      'https://openrouter.ai/api/v1/key',
-    ]);
-    expect(fetch.mock.calls.map((call) => call[1]?.headers)).toEqual([
-      { Authorization: 'Bearer synthetic-account-a' },
-      { Authorization: 'Bearer synthetic-account-b' },
-    ]);
-    a.disconnect();
-    expect(records.has(accountCredentialKey(profileA))).toBe(false);
-    expect(records.has(accountCredentialKey(profileB))).toBe(true);
-    expect(b.status().connected).toBe(true);
-    const restored = createOpenRouter({
-      credentialStorage: () => accountStorage(profileB, () => storage),
-    });
-    expect(restored.restoreCredential().connected).toBe(true);
-    a.dispose();
-    b.dispose();
-    restored.dispose();
-  });
-  it('does not expose provider bodies or claim successful verification for rejected credentials', async () => {
-    const p = createOpenRouter({
-      fetch: async () =>
-        new Response('secret echoed by provider', { status: 401 }),
-    });
-    p.setKey('synthetic-account');
-    await expect(p.verifyConnection!()).rejects.toMatchObject({
-      code: 'AUTH_INVALID',
-    });
-    await expect(p.verifyConnection!()).rejects.not.toThrow(
-      'secret echoed by provider',
-    );
-    p.dispose();
-  });
-
-  it('uses service route models without a duplicate compatible connection model and refreshes model identity', async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>(
-      async () =>
-        new Response(
-          'data: {"choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
-          { headers: { 'Content-Type': 'text/event-stream' } },
-        ),
-    );
-    const p = createOpenAICompatible(
-      { baseUrl: 'http://localhost:1234/v1' },
-      { fetch },
-    );
-    p.setKey('');
-    const c = defaultProviderConfiguration();
-    c.profiles.push({
-      id: 'custom',
-      kind: 'compatible',
-      name: 'Custom',
-      baseUrl: 'http://localhost:1234/v1',
-    });
-    c.routes.llm = [{ providerId: 'custom', model: '' }];
-    expect(parseProviderConfiguration(JSON.stringify(c))).toEqual(c);
-    expect(await p.listModels()).toEqual([]);
-    c.routes.llm[0]!.model = 'first-model';
-    const router = createServiceRouter(
-      [{ id: 'custom', name: 'Custom', client: p }],
-      c.routes,
-    );
-    expect((await router.listModels())[0]?.id).toBe('first-model');
-    expect(fetch).not.toHaveBeenCalled();
-    await collect(router.stream({ ...chat, model: 'first-model' }, signal()));
-    router.dispose();
-    const next = createServiceRouter(
-      [{ id: 'custom', name: 'Custom', client: p }],
-      {
-        ...c.routes,
-        llm: [{ providerId: 'custom', model: 'second-model' }],
-      },
-    );
-    expect((await next.listModels())[0]?.id).toBe('second-model');
-    await collect(next.stream({ ...chat, model: 'second-model' }, signal()));
-    expect(
-      fetch.mock.calls.map((call) => JSON.parse(String(call[1]?.body)).model),
-    ).toEqual(['first-model', 'second-model']);
-    await expect(
-      p.listModels(signal(), 'https://invalid.test'),
-    ).rejects.toHaveProperty('code', 'INVALID_REQUEST');
-    next.dispose();
-    p.dispose();
-  });
-
-  it('sends bounded compatible requests to only the explicit endpoint without OpenRouter extensions or key headers for local servers', async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>(
-      async () =>
-        new Response(
-          'data: {"choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
-          { headers: { 'Content-Type': 'text/event-stream' } },
-        ),
-    );
-    const p = createOpenAICompatible(
-      { baseUrl: 'http://localhost:1234/v1/', model: 'primary-model' },
-      { fetch },
-    );
-    expect(fetch).not.toHaveBeenCalled();
-    p.setKey('');
-    expect(await p.listModels()).toHaveLength(1);
-    expect(fetch).not.toHaveBeenCalled();
-    await collect(p.stream(chat, signal()));
-    expect(fetch.mock.calls[0]![0]).toBe(
-      'http://localhost:1234/v1/chat/completions',
-    );
-    expect(
-      JSON.parse(String(fetch.mock.calls[0]![1]!.body)),
-    ).not.toHaveProperty('provider');
-    expect(fetch.mock.calls[0]![1]!.headers).not.toHaveProperty(
-      'Authorization',
-    );
-    p.dispose();
-  });
-  it.each([
-    'http://example.test/v1',
-    'https://secret@example.test/v1',
-    'https://example.test/v1?key=secret',
-    'https://example.test/v1#secret',
-  ])('rejects unsafe endpoints %s', (baseUrl) => {
-    expect(() => createOpenAICompatible({ baseUrl })).toThrow(AiError);
-  });
-  it('falls back in configured LLM order with the backup model and no provider reasoning signatures', async () => {
-    const first = vi.fn(async function* () {
-      yield* [];
-      throw new AiError('RATE_LIMITED', 'limited');
-    });
-    const backup = vi.fn(async function* (r: ChatRequest) {
-      expect(r.model).toBe('backup-model');
-      expect(r.messages[0]).not.toHaveProperty('reasoning_details');
-      yield complete;
-    });
-    const router = routed(client(first), client(backup));
-    expect(
-      await collect(
-        router.stream(
-          {
-            ...chat,
-            messages: [
-              {
-                role: 'assistant',
-                content: 'Earlier',
-                reasoning_details: [
-                  { type: 'reasoning.encrypted', data: 'provider-only' },
-                ],
-              },
-            ],
-          },
-          signal(),
-        ),
+describe('single OpenRouter services', () => {
+  it('rejects multiple connections and backup routes for every service before any call', () => {
+    const client = connected();
+    expect(() =>
+      createServiceRouter(
+        [
+          { id: 'openrouter', name: 'OpenRouter', client },
+          { id: 'other', name: 'Other', client },
+        ],
+        routes(),
       ),
-    ).toEqual([complete]);
-    expect(first).toHaveBeenCalledTimes(1);
-    expect(backup).toHaveBeenCalledTimes(1);
-    router.dispose();
-  });
-  it('never retries after partial output or on refusal, cancellation or invalid requests', async () => {
-    for (const code of [
-      'NETWORK_ERROR',
-      'PROVIDER_REFUSAL',
-      'CANCELLED',
-      'INVALID_REQUEST',
-    ] as const) {
-      const backup = vi.fn(async function* () {
-        yield complete;
-      });
-      const first = client(async function* () {
-        if (code === 'NETWORK_ERROR') yield { type: 'text', text: 'partial' };
-        throw new AiError(code, 'failed');
-      });
-      const router = routed(first, client(backup));
-      await expect(
-        collect(router.stream(chat, signal())),
-      ).rejects.toMatchObject({ code });
-      expect(backup).not.toHaveBeenCalled();
-      router.dispose();
+    ).toThrow(/one OpenRouter/);
+    for (const service of ['llm', 'tts', 'stt'] as const) {
+      const selection = routes();
+      selection[service].push({ providerId: 'backup', model: 'backup' });
+      expect(() => router(client, selection)).toThrow(/one service/);
     }
+    const selection = routes();
+    selection.llm = [{ providerId: 'foreign', model: 'm' }];
+    expect(() => router(client, selection)).toThrow(/one service/);
+    client.dispose();
   });
-  it('retirement cancels work and cannot initiate a fallback', async () => {
-    let entered!: () => void;
-    const barrier = new Promise<void>((resolve) => {
-      entered = resolve;
+  it('preserves selected models, reasoning and requests without invoking another service on failure', async () => {
+    const client = connected();
+    const speech = vi.fn().mockRejectedValue(new Error('speech failed'));
+    const stt = vi.fn().mockRejectedValue(new Error('stt failed'));
+    const stream = vi.fn(async function* (
+      _request: ChatRequest,
+      _signal: AbortSignal,
+    ) {
+      void _request;
+      void _signal;
+      throw new Error('chat failed');
+      yield { type: 'text', text: '' } as ProviderEvent;
     });
-    const backup = vi.fn(async function* () {
-      yield complete;
-    });
-    const first = client(async function* (_, s) {
-      yield* [];
-      entered();
-      await new Promise<void>((resolve) =>
-        s.addEventListener('abort', () => resolve(), { once: true }),
-      );
-      throw new AiError('NETWORK_ERROR', 'ended');
-    });
-    const router = routed(first, client(backup));
-    const pending = collect(router.stream(chat, signal()));
-    await barrier;
-    router.dispose();
-    await expect(pending).rejects.toThrow();
-    expect(backup).not.toHaveBeenCalled();
-  });
-  it('TTS uses its own order and the explicitly configured backup model/voice', async () => {
-    const a = client(async function* () {
-      yield complete;
-    });
-    const b = client(async function* () {
-      yield complete;
-    });
-    b.synthesizeSpeech = vi.fn(async () => {
-      throw new AiError('PROVIDER_UNAVAILABLE', 'unavailable');
-    });
-    a.synthesizeSpeech = vi.fn(async (r: SpeechRequest) => {
-      expect(r.model).toBe('backup-speech');
-      expect(r.voice).toBe('backup-voice');
-      return { samples: new Float32Array([0]), sampleRate: 24000 as const };
-    });
-    const router = routed(a, b);
-    await router.synthesizeSpeech(
-      { model: 'speech', voice: 'voice', script: 'Hi', languages: ['English'] },
-      signal(),
+    client.stream = stream;
+    client.synthesizeSpeech = speech;
+    client.transcribeSpeech = stt;
+    const selection = routes();
+    selection.stt = [{ providerId: 'openrouter', model: 'whisper' }];
+    const service = router(client, selection);
+    const local = vi.fn();
+    await expect(collect(service.stream(chat, signal()))).rejects.toThrow(
+      'chat failed',
     );
-    expect(b.synthesizeSpeech).toHaveBeenCalledTimes(1);
-    expect(a.synthesizeSpeech).toHaveBeenCalledTimes(1);
-  });
-  it('never shares a saved reference with fallback speech providers', async () => {
-    const a = client(async function* () {
-      yield complete;
-    });
-    const b = client(async function* () {
-      yield complete;
-    });
-    b.synthesizeSpeech = vi.fn(async () => {
-      throw new AiError('PROVIDER_UNAVAILABLE', 'unavailable');
-    });
-    a.synthesizeSpeech = vi.fn();
-    const router = routed(a, b);
+    const request = {
+      model: 'speech',
+      voice: 'voice',
+      script: 'Hello',
+      languages: ['English'],
+      instructions: '',
+    };
+    await expect(service.synthesizeSpeech(request, signal())).rejects.toThrow(
+      'speech failed',
+    );
     await expect(
-      router.synthesizeSpeech(
-        {
-          model: 'fish-audio/s2.1-pro',
-          voice: 'reference',
-          script: 'New script',
-          languages: ['English'],
-          reference: { data: 'synthetic', transcript: 'Original' },
-        },
+      service.transcribe(
+        new Float32Array(16000),
+        { assetId: 'asset', startUs: 0, endUs: 1000000 },
+        local,
         signal(),
       ),
-    ).rejects.toHaveProperty('code', 'PROVIDER_UNAVAILABLE');
-    expect(b.synthesizeSpeech).toHaveBeenCalledTimes(1);
-    expect(a.synthesizeSpeech).not.toHaveBeenCalled();
-    router.dispose();
+    ).rejects.toThrow('stt failed');
+    expect(stream).toHaveBeenCalledTimes(1);
+    expect(stream.mock.calls[0]?.[0]).toEqual(chat);
+    expect(speech).toHaveBeenCalledTimes(1);
+    expect(speech.mock.calls[0]?.[0]).toEqual(request);
+    expect(stt).toHaveBeenCalledTimes(1);
+    expect(local).not.toHaveBeenCalled();
+    expect(service.transcriptionDisclosure).toContain('OpenRouter');
+    service.dispose();
+    client.dispose();
   });
-  it('keeps fresh and removed OpenRouter absent and accepts its explicit timestamped STT route', () => {
-    const c = defaultProviderConfiguration();
-    expect(c.profiles).toEqual([]);
-    expect(c.routes.llm).toEqual([]);
-    expect(c.routes.tts).toEqual([]);
-    expect(c.routes.stt).toEqual([{ providerId: 'local', model: 'whisper' }]);
-    expect(parseProviderConfiguration(JSON.stringify(c))).toEqual(c);
-    c.profiles.push({
-      id: 'openrouter',
-      kind: 'openrouter',
-      name: 'OpenRouter',
-    });
-    c.routes.stt.push({ providerId: 'openrouter', model: 'openai/whisper-1' });
-    expect(parseProviderConfiguration(JSON.stringify(c))).toEqual(c);
+  it('keeps Whisper local, including missing model failure, without remote fallback', async () => {
+    const client = connected();
+    client.transcribeSpeech = vi.fn();
+    const service = router(client);
+    const local = vi
+      .fn()
+      .mockRejectedValue(
+        Object.assign(new Error('Prepare Whisper'), { code: 'MODEL_REQUIRED' }),
+      );
+    await expect(
+      service.transcribe(
+        new Float32Array(16000),
+        { assetId: 'asset', startUs: 0, endUs: 1000000 },
+        local,
+        signal(),
+      ),
+    ).rejects.toMatchObject({ code: 'MODEL_REQUIRED' });
+    expect(local).toHaveBeenCalledTimes(1);
+    expect(client.transcribeSpeech).not.toHaveBeenCalled();
+    expect(service.transcriptionDisclosure).toContain('locally');
+    service.dispose();
+    client.dispose();
   });
-  it('portable routing configuration strips credentials and validates endpoint and service capabilities', () => {
-    const c = defaultProviderConfiguration();
-    c.profiles.push({
-      id: 'custom',
-      name: 'Custom',
-      kind: 'compatible',
-      baseUrl: 'https://example.test/v1',
-      model: 'm',
+  it('does not replace a failed catalog or replay visible chat output', async () => {
+    const client = connected();
+    client.listModels = vi.fn().mockRejectedValue(new Error('catalog failed'));
+    client.stream = vi.fn(async function* () {
+      yield { type: 'text', text: 'partial' } as ProviderEvent;
+      throw new Error('interrupted');
     });
-    c.routes.llm.push({ providerId: 'custom', model: 'm' });
-    const raw = JSON.stringify({
-      ...c,
-      accessToken: 'secret',
-      profiles: c.profiles.map((p) => ({
-        ...p,
-        apiKey: 'secret',
-        callback: 'http://localhost?code=secret',
-      })),
+    const service = router(client);
+    await expect(service.listModels()).rejects.toThrow('catalog failed');
+    const received = [];
+    try {
+      for await (const e of service.stream(chat, signal())) received.push(e);
+    } catch (e) {
+      expect((e as Error).message).toBe('interrupted');
+    }
+    expect(received).toEqual([{ type: 'text', text: 'partial' }]);
+    expect(client.stream).toHaveBeenCalledTimes(1);
+    service.dispose();
+    client.dispose();
+  });
+  it('freezes service choices and aborts active requests without disconnecting shared credentials', async () => {
+    const client = connected();
+    const selection = routes();
+    let used: AbortSignal | undefined;
+    client.synthesizeSpeech = vi.fn((_request, s) => {
+      used = s;
+      return new Promise<import('../../src/ai/types').SpeechAudio>(
+        (_resolve, reject) =>
+          s.addEventListener('abort', () => reject(new Error('cancelled'))),
+      );
     });
-    expect(JSON.stringify(parseProviderConfiguration(raw))).not.toContain(
-      'secret',
+    const service = router(client, selection);
+    selection.tts[0]!.providerId = 'other';
+    expect(service.selectedProvider('tts')).toBe('openrouter');
+    const pending = service.synthesizeSpeech(
+      {
+        model: 'speech',
+        voice: 'voice',
+        script: 'hi',
+        languages: ['English'],
+        instructions: '',
+      },
+      signal(),
     );
-    expect(parseProviderConfiguration(raw).routes.llm).toHaveLength(1);
-    c.routes.tts.push({ providerId: 'custom', model: 'm' });
-    expect(parseProviderConfiguration(JSON.stringify(c))).toEqual(
+    service.dispose();
+    await expect(pending).rejects.toThrow('cancelled');
+    expect(used?.aborted).toBe(true);
+    expect(client.status().connected).toBe(true);
+    client.dispose();
+  });
+});
+
+describe('portable single-provider migration', () => {
+  const legacy = {
+    profiles: [
+      {
+        id: 'endpoint',
+        name: 'Endpoint',
+        kind: 'compatible',
+        baseUrl: 'https://example.test/v1',
+        key: 'SECRET',
+      },
+      { id: 'one', name: 'Work', kind: 'openrouter' },
+      { id: 'two', name: 'Personal', kind: 'openrouter' },
+      {
+        id: 'chatgpt',
+        name: 'ChatGPT',
+        kind: 'chatgpt',
+        accessToken: 'SECRET',
+      },
+    ],
+    routes: {
+      llm: [
+        { providerId: 'two', model: 'selected' },
+        { providerId: 'one', model: 'backup' },
+      ],
+      tts: [
+        { providerId: 'one', model: 'backup-speech' },
+        { providerId: 'two', model: 'speech', voice: 'Kore' },
+      ],
+      stt: [
+        { providerId: 'local', model: 'whisper' },
+        { providerId: 'two', model: 'remote' },
+      ],
+    },
+  };
+  it('retains one selected OpenRouter namespace and choices, strips all backups and unsupported credentials', () => {
+    const result = parseProviderConfiguration(JSON.stringify(legacy));
+    expect(result).toEqual({
+      profiles: [{ id: 'two', name: 'OpenRouter', kind: 'openrouter' }],
+      routes: {
+        llm: [{ providerId: 'two', model: 'selected' }],
+        tts: [{ providerId: 'two', model: 'speech', voice: 'Kore' }],
+        stt: [{ providerId: 'local', model: 'whisper' }],
+      },
+    });
+    expect(JSON.stringify(result)).not.toMatch(
+      /SECRET|compatible|chatgpt|backup|baseUrl/,
+    );
+    expect(parseProviderConfiguration(JSON.stringify(result))).toEqual(result);
+    expect(accountCredentialKey(result.profiles[0]!)).toBe(
+      'localcut.openrouter-credential.v1:two',
+    );
+  });
+  it('never promotes removed remote STT backup and defaults unsupported-only imports to local', () => {
+    const value = structuredClone(legacy);
+    value.routes.stt = [
+      { providerId: 'endpoint', model: 'old' },
+      { providerId: 'two', model: 'remote' },
+    ];
+    expect(
+      parseProviderConfiguration(JSON.stringify(value)).routes.stt,
+    ).toEqual([{ providerId: 'local', model: 'whisper' }]);
+    value.profiles = value.profiles.filter((p) => p.kind !== 'openrouter');
+    expect(parseProviderConfiguration(JSON.stringify(value))).toEqual(
       defaultProviderConfiguration(),
     );
   });
-});
-describe('Responses protocol', () => {
-  const response = (events: unknown[]) =>
-    new Response(events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join(''), {
-      headers: { 'Content-Type': 'text/event-stream' },
-    });
-  it('maps tools/history and only publishes function calls after completed terminal validation', async () => {
-    const body = JSON.parse(
-      responsesBody({
-        ...chat,
-        messages: [
-          {
-            role: 'assistant',
-            content: null,
-            tool_calls: [
-              {
-                id: 'call1',
-                type: 'function',
-                function: { name: 'inspect', arguments: '{}' },
-              },
-            ],
-          },
-          { role: 'tool', tool_call_id: 'call1', content: '{}' },
-        ],
-      }),
-    );
-    expect(body.store).toBe(false);
-    expect(body.input[1]).toMatchObject({
-      type: 'function_call_output',
-      call_id: 'call1',
-    });
-    const output = await collect(
-      parseResponses(
-        response([
-          { type: 'response.output_text.delta', delta: 'ok' },
-          {
-            type: 'response.completed',
-            response: {
-              status: 'completed',
-              output: [
-                {
-                  type: 'function_call',
-                  call_id: 'c1',
-                  name: 'inspect',
-                  arguments: '{}',
-                },
-              ],
-              usage: { input_tokens: 1, output_tokens: 2, total_tokens: 3 },
-            },
-          },
-        ]),
-        signal(),
-      ),
-    );
-    expect(output[1]).toMatchObject({
-      type: 'complete',
-      message: { tool_calls: [{ id: 'c1' }] },
-    });
-  });
-  it('omits the default output cap and accepts long completed Responses text', async () => {
+  it('retains explicit OpenRouter STT selection with exactly one recipient', () => {
+    const value = structuredClone(legacy);
+    value.routes.stt = [
+      { providerId: 'two', model: 'remote' },
+      { providerId: 'local', model: 'whisper' },
+    ];
     expect(
-      JSON.parse(responsesBody({ ...chat, maxOutputTokens: undefined })),
-    ).not.toHaveProperty('max_output_tokens');
-    const text = 'x'.repeat(1024 * 1024 + 1);
-    const events = await collect(
-      parseResponses(
-        response([
-          { type: 'response.output_text.delta', delta: text },
-          {
-            type: 'response.completed',
-            response: {
-              status: 'completed',
-              output: [
-                {
-                  type: 'message',
-                  role: 'assistant',
-                  content: [{ type: 'output_text', text }],
-                },
-              ],
-              usage: {
-                input_tokens: 1,
-                output_tokens: 300000,
-                total_tokens: 300001,
-              },
-            },
-          },
-        ]),
-        signal(),
-      ),
-    );
-    expect(events.at(-1)).toMatchObject({
-      type: 'complete',
-      message: { content: text },
-    });
+      parseProviderConfiguration(JSON.stringify(value)).routes.stt,
+    ).toEqual([{ providerId: 'two', model: 'remote' }]);
   });
-  it('accepts large Responses requests, output arrays and tool arguments without application caps', async () => {
-    const args = JSON.stringify({ text: 'x'.repeat(262145) });
-    const messages = Array.from({ length: 300 }, () => ({
-      role: 'user' as const,
-      content: 'x'.repeat(8000),
-    }));
-    expect(JSON.parse(responsesBody({ ...chat, messages })).input).toHaveLength(
-      300,
-    );
-    const events = await collect(
-      parseResponses(
-        response([
-          {
-            type: 'response.completed',
-            response: {
-              status: 'completed',
-              output: Array.from({ length: 130 }, (_, index) => ({
-                type: 'function_call',
-                call_id: `call-${index}`,
-                name: 'inspect_project',
-                arguments: index === 0 ? args : '{}',
-              })),
-            },
-          },
-        ]),
-        signal(),
-      ),
-    );
-    const terminal = events.at(-1);
-    expect(
-      terminal?.type === 'complete' && terminal.message.tool_calls,
-    ).toHaveLength(130);
-    if (terminal?.type === 'complete')
-      expect(terminal.message.tool_calls![0]!.function.arguments).toBe(args);
-  });
-  it('rejects failed/truncated/duplicate terminal frames and malformed calls', async () => {
-    const terminal = {
-      type: 'response.completed',
-      response: { status: 'completed', output: [] },
-    };
-    for (const events of [
-      [{ type: 'response.output_text.delta', delta: 'partial' }],
-      [{ type: 'response.failed' }],
-      [terminal, terminal],
-      [
-        {
-          type: 'response.completed',
-          response: {
-            status: 'completed',
-            output: [
-              {
-                type: 'function_call',
-                call_id: 'c1',
-                name: 'inspect',
-                arguments: 1,
-              },
-            ],
-          },
-        },
-      ],
-    ])
-      await expect(
-        collect(parseResponses(response(events), signal())),
-      ).rejects.toThrow(AiError);
-  });
-});
-
-describe('ordered transcription routes', () => {
-  it('uses independent remote STT models after missing local preparation and preserves source bounds', async () => {
-    const a = client(async function* () {
-      yield complete;
-    });
-    a.transcribeSpeech = vi.fn(async () => [
-      { text: 'Hello', timestamp: [0, 1] as [number, number] },
-    ]);
-    const local = vi.fn(async () => {
-      throw { code: 'MODEL_REQUIRED' };
-    });
-    const router = createServiceRouter(
-      [{ id: 'a', name: 'Remote STT', client: a }],
-      {
-        llm: [],
-        tts: [],
-        stt: [
-          { providerId: 'local', model: 'whisper' },
-          { providerId: 'a', model: 'whisper-1' },
-        ],
-      },
-    );
-    expect(router.transcriptionDisclosure).toContain('Remote STT');
-    const result = await router.transcribe(
-      new Float32Array(16000),
-      { assetId: 'asset', startUs: 100000, endUs: 1100000 },
-      local,
-      signal(),
-    );
-    expect(result).toMatchObject({
-      assetId: 'asset',
-      model: 'whisper-1',
-      revision: 'provider:a',
-      cues: [{ timeUs: 100000, endUs: 1100000, text: 'Hello' }],
-    });
-    expect(local).toHaveBeenCalledTimes(1);
-    expect(a.transcribeSpeech).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'whisper-1' }),
-      expect.any(AbortSignal),
-    );
-    router.dispose();
-    a.dispose();
-  });
-  it('uses a local fallback only after recoverable remote failures and stops for invalid segments or cancellation', async () => {
-    const a = client(async function* () {
-      yield complete;
-    });
-    a.transcribeSpeech = vi.fn(async () => {
-      throw new AiError('RATE_LIMITED', 'busy');
-    });
-    const saved = {
-      id: 't',
-      assetId: 'a',
-      model: 'whisper',
-      revision: 'pinned',
-      cues: [],
-    };
-    const local = vi.fn(async () => saved);
-    const router = createServiceRouter(
-      [{ id: 'a', name: 'Remote', client: a }],
-      {
-        llm: [],
-        tts: [],
-        stt: [
-          { providerId: 'a', model: 'remote' },
-          { providerId: 'local', model: 'whisper' },
-        ],
-      },
-    );
-    const request = () =>
-      router.transcribe(
-        new Float32Array(16000),
-        { assetId: 'a', startUs: 0, endUs: 1000000 },
-        local,
-        signal(),
+  it('requires an actual retained OpenRouter connection for workspace sharing', () => {
+    const result = parseProviderConfiguration(JSON.stringify(legacy));
+    for (const ids of [[], ['one'], ['endpoint'], ['chatgpt']])
+      expect(workspaceContextPolicy(result.profiles, ids).includeText).toBe(
+        false,
       );
-    expect(await request()).toEqual(saved);
-    local.mockClear();
-    a.transcribeSpeech = vi.fn(async () => {
-      throw new AiError('INVALID_RESPONSE', 'invalid');
+    expect(workspaceContextPolicy(result.profiles, ['two'])).toEqual({
+      includeText: true,
+      includeAssetNames: true,
+      includeTranscripts: true,
+      includeCaptureMetadata: true,
+      includeAssetIndexes: true,
     });
-    await expect(request()).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
-    expect(local).not.toHaveBeenCalled();
-    const cancelled = new AbortController();
-    cancelled.abort();
-    await expect(
-      router.transcribe(
-        new Float32Array(16000),
-        { assetId: 'a', startUs: 0, endUs: 1000000 },
-        local,
-        cancelled.signal,
-      ),
-    ).rejects.toMatchObject({ code: 'CANCELLED' });
-    expect(local).not.toHaveBeenCalled();
-    router.dispose();
-    a.dispose();
   });
-  it('reuses OpenRouter credentials for timestamped transcription and rejects untimed responses', async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
-      Response.json({ segments: [{ text: 'Hello', start: 0, end: 1 }] }),
-    );
-    const client = createOpenRouter({ fetch });
-    client.setKey('synthetic');
-    expect(
-      await client.transcribeSpeech!(
-        {
-          model: 'openai/whisper-1',
-          audio: new Float32Array(16000),
-          language: 'en',
-        },
-        signal(),
-      ),
-    ).toEqual([{ text: 'Hello', timestamp: [0, 1] }]);
-    const [url, init] = fetch.mock.calls[0]!;
-    expect(url).toBe('https://openrouter.ai/api/v1/audio/transcriptions');
-    expect(init?.headers).toMatchObject({ Authorization: 'Bearer synthetic' });
-    expect((init?.body as FormData).get('model')).toBe('openai/whisper-1');
-    fetch.mockResolvedValue(Response.json({ text: 'Hello' }));
-    await expect(
-      client.transcribeSpeech!(
-        { model: 'openai/whisper-1', audio: new Float32Array(16000) },
-        signal(),
-      ),
-    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
-    client.dispose();
-  });
-  it('sends only bounded WAV and validates timestamp JSON without exposing provider errors', async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
-      Response.json({ segments: [{ text: 'Hello', start: 0, end: 1 }] }),
-    );
-    const a = createOpenAICompatible(
-      {
-        baseUrl: 'https://stt.example.test/v1',
-        transcriptionModel: 'whisper-1',
+  it('keeps credential wrappers scoped and never writes secrets to portable settings', () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (k: string) => values.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        values.set(k, v);
       },
-      { fetch },
-    );
-    a.setKey('synthetic');
-    expect(
-      await a.transcribeSpeech!(
-        { model: 'whisper-1', audio: new Float32Array(16000) },
-        signal(),
-      ),
-    ).toEqual([{ text: 'Hello', timestamp: [0, 1] as [number, number] }]);
-    const body = fetch.mock.calls[0]![1]!.body as FormData;
-    expect(body.get('response_format')).toBe('verbose_json');
-    expect(body.get('timestamp_granularities[]')).toBe('segment');
-    expect((body.get('file') as File).size).toBe(32044);
-    fetch.mockResolvedValue(
-      Response.json({ segments: [{ text: 'private', start: -1, end: 2 }] }),
-    );
-    await expect(
-      a.transcribeSpeech!(
-        { model: 'whisper-1', audio: new Float32Array(16000) },
-        signal(),
-      ),
-    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
-    fetch.mockClear();
-    await expect(
-      a.transcribeSpeech!(
-        { model: 'whisper-1', audio: new Float32Array([NaN]) },
-        signal(),
-      ),
-    ).rejects.toMatchObject({ code: 'INVALID_REQUEST' });
-    expect(fetch).not.toHaveBeenCalled();
-    a.dispose();
-  });
-});
-
-describe('catalog ownership through fallback', () => {
-  it('discovers a connected backup and binds selected models and voices to its own requests', async () => {
-    const backup = createOpenAICompatible({
-      baseUrl: 'https://backup.example.test/v1',
-      model: 'backup',
-      speechModel: 'tts',
-      voices: ['voice'],
-    });
-    backup.setKey('synthetic');
-    const stream = vi.fn<OpenRouter['stream']>(async function* () {
-      yield complete;
-    });
-    backup.stream = stream;
-    backup.synthesizeSpeech = vi.fn(async () => ({
-      samples: new Float32Array(1),
-      sampleRate: 24000 as const,
-    }));
-    const router = createServiceRouter(
-      [{ id: 'backup', name: 'Backup', client: backup }],
-      {
-        llm: [
-          { providerId: 'missing', model: 'primary' },
-          { providerId: 'backup', model: 'backup' },
-        ],
-        tts: [
-          { providerId: 'missing', model: 'primary-tts', voice: 'primary' },
-          { providerId: 'backup', model: 'tts', voice: 'voice' },
-        ],
-        stt: [],
+      removeItem: (k: string) => {
+        values.delete(k);
       },
+    };
+    const wrapped = accountStorage(
+      { id: 'two', kind: 'openrouter' },
+      () => storage,
     );
-    expect((await router.listModels())[0]!.id).toBe('backup');
-    expect((await router.listSpeechModels())[0]!.id).toBe('tts');
-    expect(router.selectedProvider('llm')).toBe('backup');
-    expect(router.selectedProvider('tts')).toBe('backup');
-    await collect(router.stream({ ...chat, model: 'backup' }, signal()));
-    expect(stream.mock.calls[0]![0].model).toBe('backup');
-    await router.synthesizeSpeech(
-      { model: 'tts', voice: 'voice', script: 'Hello', languages: ['English'] },
-      signal(),
-    );
-    expect(backup.synthesizeSpeech).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'tts', voice: 'voice' }),
-      expect.any(AbortSignal),
-    );
-    router.dispose();
-    backup.dispose();
-  });
-  it('recovers once from a primary catalog outage and keeps indexing on its original primary', async () => {
-    const first = client(async function* () {
-      yield complete;
-    });
-    first.listModels = vi.fn(async () => {
-      throw new AiError('PROVIDER_UNAVAILABLE', 'outage');
-    });
-    first.label = vi.fn(async () => {
-      throw new AiError('PROVIDER_UNAVAILABLE', 'outage');
-    });
-    const backup = createOpenAICompatible({
-      baseUrl: 'https://backup.example.test/v1',
-      model: 'backup',
-    });
-    backup.setKey('synthetic');
-    const router = createServiceRouter(
-      [
-        { id: 'a', name: 'A', client: first },
-        { id: 'b', name: 'B', client: backup },
-      ],
-      {
-        llm: [
-          { providerId: 'a', model: 'primary' },
-          { providerId: 'b', model: 'backup' },
-        ],
-        tts: [],
-        stt: [],
-      },
-    );
-    expect((await router.listModels())[0]!.id).toBe('backup');
-    expect(first.listModels).toHaveBeenCalledTimes(1);
-    expect(router.selectedProvider('llm')).toBe('b');
-    await expect(
-      router.label(
-        {
-          model: 'primary',
-          prompt: 'Label',
-          media: [],
-          consent: true,
-          maxOutputTokens: 100,
-        },
-        signal(),
-      ),
-    ).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
-    expect(first.label).toHaveBeenCalledTimes(1);
-    router.dispose();
-    first.dispose();
-    backup.dispose();
+    wrapped.setItem('owned', 'value');
+    expect(values.get('owned:two')).toBe('value');
+    wrapped.removeItem('owned');
+    expect(values.size).toBe(0);
   });
 });

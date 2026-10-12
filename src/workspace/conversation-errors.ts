@@ -1,4 +1,3 @@
-import { chatGPTNetworkErrorText } from '../ai/chatgpt-network';
 export function errorCode(error: unknown): string {
   return error &&
     typeof error === 'object' &&
@@ -8,49 +7,6 @@ export function errorCode(error: unknown): string {
     : '';
 }
 export function errorText(error: unknown): string {
-  if (
-    errorCode(error) === 'NETWORK_ERROR' &&
-    error &&
-    typeof error === 'object' &&
-    'details' in error &&
-    error.details &&
-    typeof error.details === 'object' &&
-    'stage' in error.details
-  ) {
-    const text = chatGPTNetworkErrorText(error.details.stage);
-    if (text) return text;
-  }
-  if (
-    errorCode(error) === 'AUTH_FLOW_INVALID' &&
-    error &&
-    typeof error === 'object' &&
-    'details' in error &&
-    error.details &&
-    typeof error.details === 'object' &&
-    'stage' in error.details &&
-    error.details.stage === 'chatgpt_identity'
-  ) {
-    const reasons: Record<string, string> = {
-      token_response: 'ChatGPT returned incomplete sign-in credentials.',
-      token_format: 'ChatGPT returned an unsupported identity token.',
-      issuer: 'The ChatGPT identity token has an unexpected issuer.',
-      audience: 'The ChatGPT identity token does not authorize this app.',
-      token_expired:
-        'The ChatGPT identity token has expired. Check your device clock.',
-      token_not_yet_valid:
-        'The ChatGPT identity token is not valid yet. Check your device clock.',
-      nonce: 'The ChatGPT identity token does not match this sign-in attempt.',
-      subject:
-        'The ChatGPT identity token does not match the selected account.',
-      signature: 'The ChatGPT identity token signature could not be verified.',
-    };
-    const reason = 'reason' in error.details ? error.details.reason : undefined;
-    const message =
-      typeof reason === 'string' && Object.hasOwn(reasons, reason)
-        ? reasons[reason]
-        : 'ChatGPT identity verification failed.';
-    return `${message} Start a new connection with Continue with ChatGPT.`;
-  }
   if (
     errorCode(error) === 'RESPONSE_INCOMPLETE' &&
     error &&

@@ -69,22 +69,10 @@ export async function openVideoExport(page: Page) {
 }
 
 export async function addOpenRouter(page: Page) {
-  const dialog = page.getByRole('dialog', {
-    name: 'AI connection',
-    exact: true,
-  });
   await selectAISettingsTab(page, 'Providers');
-  await dialog
-    .getByRole('button', { name: 'Add provider', exact: true })
-    .click();
-  await page
-    .getByRole('combobox', { name: 'Provider type', exact: true })
-    .click();
-  await page.getByRole('option', { name: 'OpenRouter', exact: true }).click();
-  await page.getByLabel('Account name', { exact: true }).fill('');
-  await page
-    .getByRole('button', { name: 'Add OpenRouter account', exact: true })
-    .click();
+  await expect(
+    page.getByRole('group', { name: 'OpenRouter connection', exact: true }),
+  ).toBeVisible();
 }
 
 export async function prepareOpenRouterKey(page: Page) {
@@ -93,15 +81,6 @@ export async function prepareOpenRouterKey(page: Page) {
     exact: true,
   });
   await selectAISettingsTab(page, 'Providers');
-  await expect(
-    dialog.getByRole('button', { name: 'Add provider', exact: true }),
-  ).toBeVisible();
-  if (
-    (await dialog
-      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
-      .count()) === 0
-  )
-    await addOpenRouter(page);
   await dialog
     .getByRole('group', { name: 'OpenRouter connection', exact: true })
     .getByRole('button', { name: 'I have an API key', exact: true })
@@ -115,12 +94,13 @@ export async function selectAISettingsTab(
   page: Page,
   name: 'Providers' | 'LLM - Chat' | 'TTS - Speech' | 'STT - Transcription',
 ) {
+  const sectionName = name === 'Providers' ? 'OpenRouter' : name;
   const trigger = page
     .getByRole('dialog', { name: 'AI connection', exact: true })
     .getByRole('combobox', { name: 'AI settings section', exact: true });
-  if ((await trigger.textContent()) === name) return;
+  if ((await trigger.textContent()) === sectionName) return;
   await trigger.click();
-  await page.getByRole('option', { name, exact: true }).click();
+  await page.getByRole('option', { name: sectionName, exact: true }).click();
 }
 
 export async function confirmProviderDisconnect(page: Page) {

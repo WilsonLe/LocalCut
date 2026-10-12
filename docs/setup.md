@@ -6,7 +6,7 @@ For editing without a source checkout, [open LocalCut](https://wilsonle.github.i
 
 Install Node 24 LTS and check that `node --version` reports `v24.x`. Use the pinned pnpm 11.25.0. Current stable desktop Google Chrome is the native codec, OPFS, Web Locks and production integration acceptance target; see [browser support](browser-support.md).
 
-Local editing requires no runtime environment variables, accounts, backend servers or secrets. Browser storage requires HTTPS or localhost. Optional remote AI needs an explicitly connected provider key or ChatGPT OAuth sign-in; custom endpoints must allow browser CORS. Read [privacy and data flows](privacy.md) before connecting a provider.
+Local editing requires no runtime environment variables, accounts, backend servers or secrets. Browser storage requires HTTPS or localhost. Optional remote AI uses one explicitly connected OpenRouter account. Read [privacy and data flows](privacy.md) before connecting.
 
 ## Clone, install and start
 

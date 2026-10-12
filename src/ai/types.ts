@@ -101,13 +101,9 @@ export interface OpenRouterClient {
   disconnect(): void;
   /** Explicitly restore an optional local credential, without network activity. */
   restoreCredential(): ConnectionStatus;
-  /** Explicit non-inference check. Public/local endpoints prove reachability only. */
-  verifyConnection?(signal?: AbortSignal): Promise<'credentials' | 'endpoint'>;
-  /** Compatible endpoints may declare their tool model in the service route. */
-  listModels(
-    signal?: AbortSignal,
-    routeModel?: string,
-  ): Promise<OpenRouterModel[]>;
+  /** Explicit non-inference check of the OpenRouter credential. */
+  verifyConnection?(signal?: AbortSignal): Promise<'credentials'>;
+  listModels(signal?: AbortSignal): Promise<OpenRouterModel[]>;
   listSpeechModels(signal?: AbortSignal): Promise<SpeechModel[]>;
   /** Discover transcription choices without uploading audio or starting inference. */
   listTranscriptionModels?(
@@ -117,7 +113,7 @@ export interface OpenRouterClient {
     request: SpeechRequest,
     signal: AbortSignal,
   ): Promise<SpeechAudio>;
-  /** Optional timestamp-capable OpenAI-compatible STT, explicitly configured. */
+  /** Optional timestamp-capable OpenRouter STT, explicitly selected. */
   transcribeSpeech?(
     request: { model: string; audio: Float32Array; language?: string },
     signal: AbortSignal,
@@ -163,17 +159,7 @@ export interface IndexLabelResult {
   model?: string;
   usage?: Usage;
 }
-export interface CompatibleEndpoint {
-  baseUrl: string;
-  /** Explicit user declaration: this chat model supports function tools. */
-  model?: string;
-  speechModel?: string;
-  transcriptionModel?: string;
-  voices?: string[];
-}
 export interface OpenRouterOptions {
-  /** Internal shared transport configuration; use createOpenAICompatible. */
-  compatible?: CompatibleEndpoint;
   fetch?: typeof fetch;
   /** Total time for one HTTP request, including a streamed response (default 120 s). */
   requestTimeoutMs?: number;

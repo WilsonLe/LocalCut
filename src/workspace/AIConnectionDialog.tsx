@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { ProviderProfile } from './provider-preferences';
-import { KeyRound, ArrowLeft, LoaderCircle, Unplug, Info } from 'lucide-react';
+import { KeyRound, ArrowLeft, LoaderCircle, Info } from 'lucide-react';
 import type { OpenRouterModel } from '../ai';
 import { Button } from '../components/ui/button';
 import {
@@ -44,6 +44,7 @@ interface Props extends Omit<
   models: OpenRouterModel[];
   refreshCatalog: () => Promise<void>;
   connectionError: string | null;
+  retryCredentialRemoval?: () => void;
 }
 export default function AIConnectionDialog({
   returnFocus,
@@ -58,31 +59,27 @@ export default function AIConnectionDialog({
   models,
   refreshCatalog,
   connectionError,
+  retryCredentialRemoval,
   ...providerProps
 }: Props) {
   const [activeTab, setActiveTab] =
     useState<ProviderSettingsProps['activeTab']>(initialTab);
-  const [confirmation, setConfirmation] = useState<{
-    id: string;
-    remove: boolean;
-  } | null>(null);
+  const [confirmation, setConfirmation] = useState(false);
   const sections = [
-    { value: 'providers', label: 'Providers' },
+    { value: 'providers', label: 'OpenRouter' },
     { value: 'llm', label: 'LLM - Chat' },
     { value: 'tts', label: 'TTS - Speech' },
     { value: 'stt', label: 'STT - Transcription' },
   ];
-  const account = providerProps.providerConfiguration.profiles.find(
-    (p) => p.id === confirmation?.id,
-  );
+  const account = providerProps.providerConfiguration.profiles[0];
   const connectionDialog = useRef<HTMLDivElement | null>(null);
   const confirmationOpener = useRef<HTMLElement | null>(null);
-  const confirmDisconnect = (id: string, remove = false) => {
+  const confirmDisconnect = () => {
     confirmationOpener.current =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
-    setConfirmation({ id, remove });
+    setConfirmation(true);
   };
   return (
     <Dialog
@@ -117,7 +114,7 @@ export default function AIConnectionDialog({
             </div>
           </div>
           <DialogDescription className="sr-only">
-            Configure providers, service routes and models.
+            Connect OpenRouter and choose chat, speech and transcription models.
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 space-y-8 overflow-y-auto pr-2">
@@ -127,7 +124,7 @@ export default function AIConnectionDialog({
                 className="size-4 motion-safe:animate-spin"
                 aria-hidden="true"
               />
-              Connecting provider…
+              Connecting OpenRouter…
             </p>
           )}
           {connectionError && (
@@ -135,13 +132,17 @@ export default function AIConnectionDialog({
               <p role="alert" className="text-sm text-destructive">
                 {connectionError}
               </p>
+              {retryCredentialRemoval && (
+                <Button variant="outline" onClick={retryCredentialRemoval}>
+                  Retry removing saved key
+                </Button>
+              )}
             </div>
           )}
           <ProviderSettings
             {...providerProps}
             activeTab={activeTab}
-            disconnectProvider={(id) => confirmDisconnect(id)}
-            removeProvider={(id) => confirmDisconnect(id, true)}
+            disconnect={confirmDisconnect}
             connecting={connecting}
             models={models}
             model={model}
@@ -149,16 +150,13 @@ export default function AIConnectionDialog({
             refreshCatalog={refreshCatalog}
             openRouterControls={(profile, management) => (
               <OpenRouterConnection
-                key={`${profile.id}:${providerProps.connectedProviders.includes(profile.id)}`}
+                key={`${profile.id}:${providerProps.connected}`}
                 profile={profile}
                 management={management}
-                connected={providerProps.connectedProviders.includes(
-                  profile.id,
-                )}
+                connected={providerProps.connected}
                 connecting={connecting}
                 authorize={authorize}
                 connect={connect}
-                remove={(id) => confirmDisconnect(id, true)}
               />
             )}
           />
@@ -177,7 +175,7 @@ export default function AIConnectionDialog({
       <Dialog
         open={!!confirmation && !!account}
         onOpenChange={(open) => {
-          if (!open) setConfirmation(null);
+          if (!open) setConfirmation(false);
         }}
       >
         <DialogContent
@@ -195,16 +193,15 @@ export default function AIConnectionDialog({
           <DialogHeader>
             <DialogTitle>Disconnect {account?.name}?</DialogTitle>
             <DialogDescription>
-              {confirmation?.remove
-                ? 'Forget this account and remove its saved credentials and provider routes from this browser?'
-                : 'Remove this account’s saved credentials from this browser? You can connect it again later.'}
+              Remove the saved OpenRouter key from this browser? You can connect
+              again later.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button
               variant="outline"
               autoFocus
-              onClick={() => setConfirmation(null)}
+              onClick={() => setConfirmation(false)}
             >
               Cancel
             </Button>
@@ -213,10 +210,8 @@ export default function AIConnectionDialog({
               disabled={connecting}
               onClick={() => {
                 if (!confirmation || !account) return;
-                const action = confirmation;
-                setConfirmation(null);
-                if (action.remove) providerProps.removeProvider(action.id);
-                else providerProps.disconnectProvider(action.id);
+                setConfirmation(false);
+                providerProps.disconnect();
               }}
             >
               Disconnect
@@ -235,7 +230,6 @@ function OpenRouterConnection({
   connecting,
   authorize,
   connect,
-  remove,
 }: {
   profile: ProviderProfile;
   management: ReactNode;
@@ -243,7 +237,6 @@ function OpenRouterConnection({
   connecting: boolean;
   authorize: Props['authorize'];
   connect: Props['connect'];
-  remove: (id: string) => void;
 }) {
   const [apiKey, setApiKey] = useState('');
   const [method, setMethod] = useState<'choice' | 'key'>('choice');
@@ -291,10 +284,9 @@ function OpenRouterConnection({
                   By connecting OpenRouter, you agree to share project and media
                   names, overlay, caption and storyboard text (including frame
                   names), source transcript text, and embedded capture dates and
-                  GPS with your configured AI chat providers and fallback routes
-                  when you send a request. All these context categories stay
-                  enabled while an OpenRouter account is connected, including
-                  after reload.
+                  GPS with your selected OpenRouter model when you send a
+                  request. All these context categories stay enabled while
+                  OpenRouter is connected, including after reload.
                 </p>
                 <p>
                   Explicit Index or a chat indexing request can also send
@@ -308,9 +300,8 @@ function OpenRouterConnection({
                 </p>
                 <p>
                   Your key is saved only in this browser and is excluded from
-                  backups. Disconnect removes that account’s saved key. Sharing
-                  authorization ends when the last OpenRouter account is
-                  disconnected. Provider processing is governed by the{' '}
+                  backups. Disconnect removes your saved key and ends sharing
+                  authorization. Provider processing is governed by the{' '}
                   <a
                     className="underline underline-offset-4"
                     href="https://openrouter.ai/terms"
@@ -334,21 +325,7 @@ function OpenRouterConnection({
             </PopoverContent>
           </Popover>
         </div>
-        <div className="flex items-center gap-2">
-          {management}
-          {!connected && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              disabled={connecting}
-              aria-label={`Disconnect ${profile.name}`}
-              title="Forget disconnected account"
-              onClick={() => remove(profile.id)}
-            >
-              <Unplug />
-            </Button>
-          )}
-        </div>
+        <div className="flex items-center gap-2">{management}</div>
       </div>
       {!connected && (
         <div className="space-y-3">
