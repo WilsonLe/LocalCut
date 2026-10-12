@@ -244,8 +244,9 @@ for (const base of ['/', '/LocalCut/']) {
       await expect(editorTab).toBeVisible();
       await expect(storyboardTab).toBeVisible();
       await expect
-        .poll(() =>
-          page.evaluate(() => {
+        .poll(async () => {
+          await storyboardTab.focus();
+          return page.evaluate(() => {
             const header = [
               ...document.querySelectorAll<HTMLElement>(
                 '.workspace-header, .mobile-edit-heading',
@@ -274,8 +275,8 @@ for (const base of ['/', '/LocalCut/']) {
                 'button[aria-label="Open project"] svg',
               ).length,
             };
-          }),
-        )
+          });
+        })
         .toEqual({
           actionsBeforeTabs: true,
           firstAtStart: true,

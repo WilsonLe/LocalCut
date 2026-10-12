@@ -2,6 +2,7 @@ import { LoadingDialog, onDemandDialog } from './on-demand-dialog';
 import type { StoryboardControls } from './Storyboard';
 import { ProjectTabs } from './ProjectTabs';
 import type { ProjectTab } from './ProjectTabs';
+const PanelHeader = lazy(() => import('./PanelHeader'));
 const Storyboard = lazy(() =>
   import('./Storyboard').then(({ Storyboard }) => ({ default: Storyboard })),
 );
@@ -22,7 +23,6 @@ import {
   Files,
   Upload,
   Settings2,
-  X,
 } from 'lucide-react';
 import { toast } from './notifications';
 import type {
@@ -240,7 +240,7 @@ export function Workspace() {
         tab === 'edit'
           ? document.getElementById('workspace-editor')
           : document.querySelector<HTMLElement>(
-              tab === 'chat' ? '.conversation-toggle' : '.media-toggle',
+              tab === 'chat' ? '.chat-session-trigger' : '#workspace-media',
             );
       target?.focus({ preventScroll: true });
     });
@@ -261,7 +261,7 @@ export function Workspace() {
           const active = document.activeElement;
           if (
             active === document.body ||
-            active?.closest('[inert]') ||
+            active?.closest('[inert], #workspace-media') ||
             !active?.getClientRects().length
           )
             trigger.focus();
@@ -1828,18 +1828,16 @@ export function Workspace() {
   const mediaToggle = (
     <Button
       className="media-toggle"
-      id={narrow ? undefined : 'desktop-media-trigger'}
-      ref={narrow ? undefined : mediaTriggerRef}
+      id="desktop-media-trigger"
+      ref={mediaTriggerRef}
       variant="ghost"
       size="icon-sm"
-      aria-label={
-        drawer ? (narrow ? 'Close media' : 'Collapse media') : 'Expand media'
-      }
+      aria-label={drawer ? 'Collapse media' : 'Expand media'}
       aria-expanded={drawer}
       aria-controls="workspace-media-content"
       onClick={toggleMedia}
     >
-      {drawer ? narrow ? <X /> : <PanelLeftClose /> : <Files />}
+      {drawer ? <PanelLeftClose /> : <Files />}
     </Button>
   );
   const headerActions = (
@@ -1911,6 +1909,7 @@ export function Workspace() {
     <aside
       className="media-panel"
       id="workspace-media"
+      tabIndex={-1}
       aria-label="Media library"
       data-collapsed={!drawer}
       onFocusCapture={() => {
@@ -1925,15 +1924,13 @@ export function Workspace() {
           mediaHasFocus.current = false;
       }}
     >
-      <Suspense fallback={mediaToggle}>
-        <Tooltip
-          content={
-            drawer ? (narrow ? 'Close media' : 'Collapse media') : 'Open media'
-          }
-        >
-          {mediaToggle}
-        </Tooltip>
-      </Suspense>
+      {!narrow && (
+        <Suspense fallback={mediaToggle}>
+          <Tooltip content={drawer ? 'Collapse media' : 'Open media'}>
+            {mediaToggle}
+          </Tooltip>
+        </Suspense>
+      )}
       <div
         id="workspace-media-content"
         className="media-content"
@@ -2168,6 +2165,7 @@ export function Workspace() {
               }
             >
               <Conversation
+                mobile={narrow}
                 headerActions={
                   narrow && mobileTab === 'chat' ? headerActions : null
                 }
@@ -2200,28 +2198,42 @@ export function Workspace() {
               }
             >
               {narrow && (
-                <header className="mobile-edit-heading">
-                  <Button
-                    variant="ghost"
-                    className="project-picker"
-                    ref={projectSwitcherTrigger}
-                    aria-label="Open project"
-                    aria-haspopup="dialog"
-                    aria-expanded={projectSwitcherOpen}
-                    onClick={showProjectSwitcher}
-                  >
-                    <span className="project-picker-name">
-                      {viewProject?.name ?? 'Edit'}
-                    </span>
-                  </Button>
-                  {mobileTab === 'edit' ? headerActions : null}
-                  {project && (
-                    <ProjectTabs
-                      value={projectTab}
-                      onChange={chooseProjectTab}
+                <Suspense
+                  fallback={
+                    <header
+                      className="mobile-edit-heading panel-header"
+                      aria-busy="true"
                     />
-                  )}
-                </header>
+                  }
+                >
+                  <PanelHeader
+                    className="mobile-edit-heading"
+                    label="Edit"
+                    title={
+                      <Button
+                        variant="ghost"
+                        className="project-picker"
+                        ref={projectSwitcherTrigger}
+                        aria-label="Open project"
+                        aria-haspopup="dialog"
+                        aria-expanded={projectSwitcherOpen}
+                        onClick={showProjectSwitcher}
+                      >
+                        <span className="project-picker-name">
+                          {viewProject?.name ?? 'Edit'}
+                        </span>
+                      </Button>
+                    }
+                  >
+                    {mobileTab === 'edit' ? headerActions : null}
+                    {project && (
+                      <ProjectTabs
+                        value={projectTab}
+                        onChange={chooseProjectTab}
+                      />
+                    )}
+                  </PanelHeader>
+                </Suspense>
               )}
               {versionsOpen && (
                 <section

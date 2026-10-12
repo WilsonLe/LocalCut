@@ -489,7 +489,27 @@ for (const base of ['/', '/LocalCut/']) {
       .fill('My chosen title');
     await dialog.getByLabel('Chat title', { exact: true }).press('Enter');
     await expect(trigger).toHaveText('My chosen title');
-    expect((await trigger.boundingBox())!.width).toBeGreaterThan(180);
+    await expect(trigger).toBeInViewport();
+    const title = trigger.locator('.chat-session-title > span');
+    expect(
+      await title.evaluate((el) => ({
+        fits: el.scrollWidth <= el.clientWidth,
+        whiteSpace: getComputedStyle(el).whiteSpace,
+      })),
+    ).toEqual({ fits: true, whiteSpace: 'nowrap' });
+    const heading = page.locator('.conversation-heading');
+    const titleBounds = (await trigger.boundingBox())!;
+    const actionsBounds = (await heading
+      .getByRole('region', { name: 'Chat actions' })
+      .boundingBox())!;
+    expect(
+      Math.abs(
+        titleBounds.y +
+          titleBounds.height / 2 -
+          actionsBounds.y -
+          actionsBounds.height / 2,
+      ),
+    ).toBeLessThan(2);
     await page.screenshot({
       path: testInfo.outputPath('renamed-chat-narrow.png'),
     });

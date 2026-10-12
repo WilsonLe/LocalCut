@@ -33,11 +33,11 @@ async function indexAction(page: Page, name: string, asset = 'red.png') {
     exact: true,
   });
   if ((await trigger.getAttribute('aria-expanded')) !== 'true') {
-    // Reopening mobile media restores focus to its close button. Reveal the
-    // hover-only desktop trigger before clicking instead of racing that focus.
+    // Reopening mobile media focuses its panel. Reveal the hover-only
+    // desktop trigger before clicking instead of racing that focus.
     await page
       .getByRole('button', { name: `Asset details for ${asset}`, exact: true })
-      .hover();
+      .hover({ position: { x: 8, y: 8 }, timeout: 10_000 });
     await trigger.focus();
     await trigger.click();
   }
@@ -576,7 +576,8 @@ for (const base of ['/', '/LocalCut/']) {
       }, originalToasterStyle);
       await page.keyboard.press('Escape');
       await page
-        .getByRole('button', { name: 'Close media', exact: true })
+        .getByRole('navigation', { name: 'Workspace sections' })
+        .getByRole('button', { name: 'Edit', exact: true })
         .click();
       await expect(
         page.getByRole('complementary', { name: 'Media library', exact: true }),

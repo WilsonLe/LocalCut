@@ -346,22 +346,24 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('navigation', { name: 'Workspace sections' })
       .getByRole('button', { name: 'Chat', exact: true })
       .click();
-    await expect(exportButton).toBeVisible();
+    await exportButton.focus();
+    await expect(exportButton).toBeInViewport();
     const bounds = await exportButton.boundingBox();
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
     const titleBounds = await page
       .getByRole('button', { name: 'Chat sessions', exact: true })
       .boundingBox();
-    expect(titleBounds!.width).toBeGreaterThan(150);
+    expect(titleBounds!.width).toBeGreaterThan(44);
+    expect(titleBounds!.x + titleBounds!.width).toBeLessThanOrEqual(bounds!.x);
     await page.screenshot({
       path: testInfo.outputPath('chat-export-mobile.png'),
     });
     await page.setViewportSize({ width: 320, height: 740 });
-    const smallest = await exportButton.boundingBox();
-    const collapse = await page
-      .getByRole('button', { name: 'Collapse chat', exact: true })
-      .boundingBox();
-    expect(smallest!.x + smallest!.width).toBeLessThanOrEqual(collapse!.x);
+    await expect(
+      page.getByRole('button', { name: 'Collapse chat', exact: true }),
+    ).toHaveCount(0);
+    await exportButton.focus();
+    await expect(exportButton).toBeInViewport();
     await exportButton.click();
     // Switch away from the exported session without changing its captured state.
     await page

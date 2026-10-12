@@ -166,7 +166,10 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await hold(page, folder, 'New folder');
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Close media', exact: true }).tap();
+    await page
+      .getByRole('navigation', { name: 'Workspace sections' })
+      .getByRole('button', { name: 'Edit', exact: true })
+      .tap();
 
     // Popup controls keep their ordinary taps, including when portalled.
     const settings = page.getByRole('button', {

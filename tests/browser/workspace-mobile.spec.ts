@@ -41,11 +41,147 @@ async function select(page: Page, name: RegExp) {
   await page.getByRole('option', { name }).click();
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`mobile shared headers scroll actions and Edit scrolls from the preview surface ${base}`, async ({
+    page,
+  }, info) => {
+    test.setTimeout(40_000);
+    await page.setViewportSize({ width: 320, height: 450 });
+    await page.goto(base);
+    await create(page);
+    await addText(page);
+    const properties = page.getByRole('dialog', {
+      name: 'Clip properties',
+      exact: true,
+    });
+    await expect(properties).toBeVisible();
+    await properties
+      .getByRole('button', { name: 'Close', exact: true })
+      .click();
+    const nav = page.getByRole('navigation', { name: 'Workspace sections' });
+    for (const [tab, label, headingClass] of [
+      ['Edit', 'Edit', '.mobile-edit-heading'],
+      ['Chat', 'Chat', '.conversation-heading'],
+      ['Media', 'Media', '.media-library > .section-heading'],
+    ] as const) {
+      await nav
+        .getByRole('button', {
+          name: tab === 'Media' ? 'Expand media' : tab,
+          exact: true,
+        })
+        .click();
+      const heading = page.locator(headingClass);
+      await expect(heading).toBeInViewport();
+      const before = (await heading.boundingBox())!;
+      expect(before.y).toBeLessThan(1);
+      const lane = heading.getByRole('region', { name: `${label} actions` });
+      const right = heading.getByRole('button', {
+        name: `Scroll ${label} actions right`,
+      });
+      if (tab === 'Media') {
+        await lane.evaluate((el) => (el.scrollLeft = 0));
+        const rect = (await lane.boundingBox())!;
+        const cdp = await page.context().newCDPSession(page);
+        const x = rect.x + rect.width * 0.7;
+        const y = rect.y + rect.height / 2;
+        await cdp.send('Input.dispatchTouchEvent', {
+          type: 'touchStart',
+          touchPoints: [{ x, y }],
+        });
+        for (let step = 1; step <= 6; step++)
+          await cdp.send('Input.dispatchTouchEvent', {
+            type: 'touchMove',
+            touchPoints: [{ x: x - step * 12, y }],
+          });
+        await cdp.send('Input.dispatchTouchEvent', {
+          type: 'touchEnd',
+          touchPoints: [],
+        });
+        await cdp.detach();
+        await expect
+          .poll(() => lane.evaluate((el) => el.scrollLeft))
+          .toBeGreaterThan(20);
+        await lane.evaluate((el) => (el.scrollLeft = 0));
+      }
+
+      if (await right.count()) {
+        await right.click();
+        await expect
+          .poll(() => lane.evaluate((el) => el.scrollLeft))
+          .toBeGreaterThan(0);
+        await expect(
+          heading.getByRole('button', { name: `Scroll ${label} actions left` }),
+        ).toBeVisible();
+      }
+      for (const button of await heading
+        .locator('.panel-header-actions button')
+        .all()) {
+        if (!(await button.isVisible())) continue;
+        await button.focus();
+        const bounds = (await button.boundingBox())!;
+        expect(
+          Math.abs(bounds.y + bounds.height / 2 - before.y - before.height / 2),
+        ).toBeLessThan(2);
+        expect(bounds.x).toBeGreaterThanOrEqual(0);
+        expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
+      }
+      const lastAction = heading.locator('.panel-header-actions button').last();
+      await lastAction.focus();
+      for (const width of [390, 320]) {
+        await page.setViewportSize({ width, height: 450 });
+        await expect(lastAction).toBeFocused();
+        await expect(lastAction).toBeInViewport();
+      }
+      await page.screenshot({
+        path: info.outputPath(`mobile-header-${label}.png`),
+      });
+    }
+    await expect(
+      page.getByRole('button', { name: 'Close media', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Collapse chat', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Media root', exact: true }),
+    ).toHaveCount(0);
+    await nav.getByRole('button', { name: 'Edit', exact: true }).click();
+    const editor = page.locator('#editor-panel');
+    await editor.evaluate((el) => (el.scrollTop = 0));
+    await expect.poll(() => editor.evaluate((el) => el.scrollTop)).toBe(0);
+    const heading = page.locator('.mobile-edit-heading');
+    const preview = (await page.locator('.preview-stage').boundingBox())!;
+    const cdp = await page.context().newCDPSession(page);
+    const x = preview.x + preview.width / 2;
+    const y = preview.y + preview.height / 2;
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x, y }],
+    });
+    for (let step = 1; step <= 8; step++)
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ x, y: y - step * 12 }],
+      });
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchEnd',
+      touchPoints: [],
+    });
+    await cdp.detach();
+    await expect
+      .poll(() => editor.evaluate((el) => el.scrollTop))
+      .toBeGreaterThan(40);
+    await expect(heading).toBeInViewport();
+    expect((await heading.boundingBox())!.y).toBeLessThan(1);
+    await expect(nav).toBeInViewport();
+    await fits(page);
+  });
+
   test(`mobile chat keyboard keeps its heading and restores navigation; speech opens from Media ${base}`, async ({
     page,
     context,
   }, info) => {
     test.setTimeout(45000);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.addInitScript(() => {
       localStorage.setItem(
@@ -122,6 +258,24 @@ for (const base of ['/', '/LocalCut/']) {
     ).toHaveCount(0);
     await expect(heading).toBeInViewport();
     const initial = (await heading.boundingBox())!;
+    await page.evaluate(() => {
+      const heading = document.querySelector('.conversation-heading')!;
+      const workspace = document.querySelector('.workspace')!;
+      const frames: { y: number; position: string }[] = [];
+      (window as unknown as { headerFrames: typeof frames }).headerFrames =
+        frames;
+      let remaining = 20;
+      const sample = () => {
+        frames.push({
+          y:
+            heading.getBoundingClientRect().y -
+            (window.visualViewport?.offsetTop ?? 0),
+          position: getComputedStyle(workspace).position,
+        });
+        if (--remaining) requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    });
     await composer.fill('Keep this draft');
     await expect(nav).toHaveCount(0);
     await page.evaluate(() => {
@@ -155,6 +309,28 @@ for (const base of ['/', '/LocalCut/']) {
         Math.abs((await heading.boundingBox())!.y - initial.y - 35),
       )
       .toBeLessThan(1);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (window as unknown as { headerFrames: unknown[] }).headerFrames
+              .length,
+        ),
+      )
+      .toBe(20);
+    const frames = await page.evaluate(
+      () =>
+        (
+          window as unknown as {
+            headerFrames: { y: number; position: string }[];
+          }
+        ).headerFrames,
+    );
+    expect(frames.every(({ position }) => position === 'fixed')).toBe(true);
+    expect(
+      Math.max(...frames.map(({ y }) => y)) -
+        Math.min(...frames.map(({ y }) => y)),
+    ).toBeLessThan(1);
     await heading.getByRole('button', { name: 'Chat sessions' }).focus();
     await expect(nav).toBeVisible();
     await page.evaluate(() => {
@@ -226,6 +402,7 @@ for (const base of ['/', '/LocalCut/']) {
       'Workspace settings',
       'Record screen',
     ]) {
+      await media.getByRole('button', { name, exact: true }).focus();
       await expect(
         media.getByRole('button', { name, exact: true }),
       ).toBeInViewport();
@@ -236,7 +413,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(composer).toHaveValue('Keep this draft');
     expect(completions).toBe(0);
     await expect(
-      page.getByRole('button', { name: 'Collapse chat', exact: true }),
+      page.getByRole('button', { name: 'Chat sessions', exact: true }),
     ).toBeFocused();
     await composer.focus();
     await expect(composer).toBeFocused();
@@ -355,9 +532,7 @@ for (const base of ['/', '/LocalCut/']) {
         .evaluate((el) => getComputedStyle(el).transitionDuration),
     ).not.toBe('0s');
     await page.screenshot({ path: info.outputPath('mobile-active-media.png') });
-    await media
-      .getByRole('button', { name: 'Close media', exact: true })
-      .click();
+    await chatTab.click();
     await expect(chatTab).toHaveAttribute('aria-current', 'page');
     await expect(chat).toBeVisible();
     for (let i = 0; i < 3; i++) {
@@ -486,7 +661,7 @@ for (const base of ['/', '/LocalCut/']) {
           name: 'Close media',
           exact: true,
         });
-        await expect(close).toBeInViewport();
+        await expect(close).toHaveCount(0);
         await media
           .getByRole('button', { name: 'Import media', exact: true })
           .scrollIntoViewIfNeeded();
@@ -498,9 +673,11 @@ for (const base of ['/', '/LocalCut/']) {
             path: info.outputPath(`media-sheet-${viewport.width}.png`),
           });
         }
-        await close.click();
+        await page
+          .getByRole('navigation', { name: 'Workspace sections' })
+          .getByRole('button', { name: 'Edit', exact: true })
+          .click();
         await expect(media).toBeHidden();
-        await expect(trigger).toBeFocused();
       }
     }
     await page.evaluate(() =>
@@ -532,6 +709,7 @@ for (const base of ['/', '/LocalCut/']) {
       exact: true,
     });
     const headerBounds = (await header.boundingBox())!;
+    await commands.focus();
     const commandsBounds = (await commands.boundingBox())!;
     expect(commandsBounds.y + commandsBounds.height).toBeLessThanOrEqual(
       headerBounds.y + headerBounds.height,
@@ -615,7 +793,7 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeInViewport();
     await expect(
       media.getByRole('button', { name: 'Close media', exact: true }),
-    ).toBeInViewport();
+    ).toHaveCount(0);
     await page.screenshot({
       path: info.outputPath('media-sheet-scrolled.png'),
     });
@@ -818,8 +996,11 @@ for (const base of ['/', '/LocalCut/']) {
           .toBe(initialWidth);
         await nav.getByRole('button', { name: 'Chat', exact: true }).click();
         await expect(
-          page.getByRole('button', { name: 'Collapse chat', exact: true }),
+          page.getByRole('button', { name: 'Chat sessions', exact: true }),
         ).toBeFocused();
+        await page
+          .getByRole('button', { name: 'Workspace settings', exact: true })
+          .focus();
         await expect(
           page.getByRole('button', { name: 'Workspace settings', exact: true }),
         ).toBeInViewport();
@@ -968,7 +1149,8 @@ for (const base of ['/', '/LocalCut/']) {
           .getByRole('button', { name: 'Expand media', exact: true })
           .click();
         await page
-          .getByRole('button', { name: 'Close media', exact: true })
+          .getByRole('navigation', { name: 'Workspace sections' })
+          .getByRole('button', { name: 'Edit', exact: true })
           .click();
         expect(
           await page.evaluate(() =>
@@ -1050,7 +1232,7 @@ test('media focus follows the mounted trigger across both breakpoints', async ({
   await page.goto('/LocalCut/');
   await create(page);
   await page.getByRole('button', { name: 'Expand media', exact: true }).click();
-  await page.getByRole('button', { name: 'Close media', exact: true }).focus();
+  await page.locator('#workspace-media').focus();
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.locator('#desktop-media-trigger')).toBeFocused();
   await page.locator('#desktop-media-trigger').click();
