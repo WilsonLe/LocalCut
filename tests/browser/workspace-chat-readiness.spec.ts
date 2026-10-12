@@ -386,7 +386,7 @@ for (const base of ['/', '/LocalCut/']) {
         'Share capture dates and GPS with chat and indexing',
         'Capture-sharing scope draft',
       ],
-    ]) {
+    ] as const) {
       await openAISettings(page);
       await settings
         .getByRole('button', { name: 'Data & analytics', exact: true })
