@@ -1,6 +1,84 @@
 import { useSyncExternalStore } from 'react';
+import type { FontId } from '../core/text-library';
 
 export const APPEARANCE_KEY = 'localcut.appearance.v1';
+export const systemAppearanceFonts = [
+  {
+    id: 'sans',
+    name: 'System sans',
+    family: 'system-ui, sans-serif',
+    labels: ['sans', 'minimal'],
+  },
+  {
+    id: 'serif',
+    name: 'System serif',
+    family: 'ui-serif, Georgia, serif',
+    labels: ['serif', 'classic'],
+  },
+  {
+    id: 'mono',
+    name: 'System mono',
+    family: 'ui-monospace, SFMono-Regular, Consolas, monospace',
+    labels: ['mono', 'code'],
+  },
+  {
+    id: 'arial',
+    name: 'Arial',
+    family: 'Arial, Helvetica, sans-serif',
+    labels: ['sans'],
+  },
+  {
+    id: 'verdana',
+    name: 'Verdana',
+    family: 'Verdana, Geneva, sans-serif',
+    labels: ['sans'],
+  },
+  {
+    id: 'tahoma',
+    name: 'Tahoma',
+    family: 'Tahoma, Verdana, sans-serif',
+    labels: ['sans'],
+  },
+  {
+    id: 'trebuchet',
+    name: 'Trebuchet MS',
+    family: '"Trebuchet MS", Verdana, sans-serif',
+    labels: ['sans'],
+  },
+  {
+    id: 'georgia',
+    name: 'Georgia',
+    family: 'Georgia, "Times New Roman", serif',
+    labels: ['serif'],
+  },
+  {
+    id: 'palatino',
+    name: 'Palatino',
+    family: 'Palatino, "Palatino Linotype", "Book Antiqua", serif',
+    labels: ['serif'],
+  },
+  {
+    id: 'times',
+    name: 'Times New Roman',
+    family: '"Times New Roman", Times, serif',
+    labels: ['serif'],
+  },
+  {
+    id: 'courier',
+    name: 'Courier New',
+    family: '"Courier New", Courier, monospace',
+    labels: ['mono'],
+  },
+] as const;
+export type AppearanceFont =
+  FontId | (typeof systemAppearanceFonts)[number]['id'];
+const fontOptions: AppearanceFont[] = systemAppearanceFonts.map(
+  (font) => font.id,
+);
+const headingOptions: (AppearanceFont | 'inherit')[] = [
+  'inherit',
+  ...fontOptions,
+];
 export const appearanceOptions = {
   mode: ['light', 'dark', 'system'],
   base: ['neutral', 'stone', 'zinc', 'gray', 'slate'],
@@ -14,8 +92,8 @@ export const appearanceOptions = {
     'violet',
     'yellow',
   ],
-  font: ['sans', 'serif', 'mono'],
-  heading: ['inherit', 'sans', 'serif', 'mono'],
+  font: fontOptions,
+  heading: headingOptions,
   radius: ['none', 'small', 'medium', 'large'],
   density: ['compact', 'default', 'comfortable'],
   interfaceSize: ['default', 'small', 'large'],
@@ -70,11 +148,33 @@ function parseAppearance(raw: string | null): Appearance {
   }
 }
 
-const fonts = {
-  sans: 'system-ui, sans-serif',
-  serif: 'ui-serif, Georgia, serif',
-  mono: 'ui-monospace, SFMono-Regular, Consolas, monospace',
-};
+const fonts = new Map<string, string>(
+  systemAppearanceFonts.map((font) => [font.id, font.family]),
+);
+let catalog: Promise<typeof import('./appearance-fonts')> | undefined;
+export function loadAppearanceFonts() {
+  return (catalog ??= import('./appearance-fonts')
+    .then((module) => {
+      for (const font of module.appearanceFontChoices)
+        fonts.set(font.id, font.family);
+      fontOptions.splice(
+        0,
+        fontOptions.length,
+        ...module.appearanceFontChoices.map((font) => font.id),
+      );
+      headingOptions.splice(
+        0,
+        headingOptions.length,
+        'inherit',
+        ...fontOptions,
+      );
+      return module;
+    })
+    .catch((error) => {
+      catalog = undefined;
+      throw error;
+    }));
+}
 const bases = {
   neutral: [0, 0],
   stone: [0.008, 60],
@@ -94,15 +194,78 @@ export const themeColors = {
   yellow: [0.16, 96, 0.852, 0.852],
 } as const;
 
-type Snapshot = { preferences: Appearance; dark: boolean; saved: boolean };
+type Snapshot = {
+  preferences: Appearance;
+  dark: boolean;
+  saved: boolean;
+  fontLoading: boolean;
+  fontError: string;
+};
 let snapshot: Snapshot = {
   preferences: { ...defaultAppearance },
   dark: false,
   saved: true,
+  fontLoading: false,
+  fontError: '',
 };
 const listeners = new Set<() => void>();
 let colorScheme: MediaQueryList | undefined;
 let initialized = false;
+let restoreGeneration = 0;
+let pendingRestore: string | null = null;
+let fontJob: string | undefined;
+let fontGeneration = 0;
+
+function restoreAppearance(raw: string | null) {
+  const generation = ++restoreGeneration;
+  pendingRestore = null;
+  snapshot = {
+    ...snapshot,
+    preferences: parseAppearance(raw),
+    saved: true,
+  };
+  publish();
+  try {
+    const record = JSON.parse(raw ?? 'null');
+    if (record?.version !== 1) return;
+    if (
+      !['font', 'heading'].some(
+        (key) =>
+          typeof record?.preferences?.[key] === 'string' &&
+          !fonts.has(record.preferences[key]) &&
+          record.preferences[key] !== 'inherit',
+      )
+    )
+      return;
+  } catch {
+    return;
+  }
+  pendingRestore = raw;
+  void loadAppearanceFonts()
+    .then(() => {
+      if (generation !== restoreGeneration) return;
+      pendingRestore = null;
+      snapshot = {
+        ...snapshot,
+        preferences: parseAppearance(raw),
+        fontError: '',
+      };
+      publish();
+    })
+    .catch(() => {
+      if (generation !== restoreGeneration) return;
+      snapshot = { ...snapshot, fontError: 'Could not load the font catalog.' };
+      for (const listener of listeners) listener();
+    });
+}
+
+export function retryAppearanceFonts() {
+  if (pendingRestore !== null) restoreAppearance(pendingRestore);
+  else {
+    fontJob = undefined;
+    publish();
+  }
+}
 
 function apply() {
   const p = snapshot.preferences;
@@ -171,11 +334,39 @@ function apply() {
       p.radius
     ],
   );
-  set('appearance-font-sans', fonts[p.font]);
+  set('appearance-font-sans', fonts.get(p.font) ?? fonts.get('sans')!);
   set(
     'appearance-font-heading',
-    fonts[p.heading === 'inherit' ? p.font : p.heading],
+    fonts.get(p.heading === 'inherit' ? p.font : p.heading) ??
+      fonts.get('sans')!,
   );
+  const selected = [p.font, p.heading === 'inherit' ? p.font : p.heading];
+  const job = JSON.stringify(selected);
+  if (fontJob === job) return;
+  fontJob = job;
+  const generation = ++fontGeneration;
+  const bundled = selected.some((id) => id.startsWith('font-'));
+  snapshot = { ...snapshot, fontLoading: bundled, fontError: '' };
+  if (!bundled) return;
+  void loadAppearanceFonts()
+    .then((module) => module.prepareAppearanceFonts(selected))
+    .then(() => {
+      if (generation !== fontGeneration) return;
+      snapshot = { ...snapshot, fontLoading: false };
+      publish();
+    })
+    .catch((error: unknown) => {
+      if (generation !== fontGeneration) return;
+      snapshot = {
+        ...snapshot,
+        fontLoading: false,
+        fontError:
+          error instanceof Error
+            ? error.message
+            : 'Could not load the selected fonts.',
+      };
+      for (const listener of listeners) listener();
+    });
 }
 
 export function interfaceScale() {
@@ -193,13 +384,12 @@ function publish() {
 export function initializeAppearance() {
   if (initialized) return;
   initialized = true;
+  let raw: string | null = null;
+  let readable = true;
   try {
-    snapshot = {
-      ...snapshot,
-      preferences: parseAppearance(localStorage.getItem(APPEARANCE_KEY)),
-    };
+    raw = localStorage.getItem(APPEARANCE_KEY);
   } catch {
-    snapshot = { ...snapshot, saved: false };
+    readable = false;
   }
   colorScheme = window.matchMedia('(prefers-color-scheme: dark)');
   colorScheme.addEventListener('change', publish);
@@ -213,17 +403,15 @@ export function initializeAppearance() {
     } catch {
       return;
     }
-    snapshot = {
-      ...snapshot,
-      preferences: parseAppearance(event.newValue),
-      saved: true,
-    };
-    publish();
+    restoreAppearance(event.newValue);
   });
-  apply();
+  restoreAppearance(raw);
+  if (!readable) snapshot = { ...snapshot, saved: false };
 }
 
 export function saveAppearance(preferences: Appearance, reset = false) {
+  restoreGeneration++;
+  pendingRestore = null;
   let saved = true;
   try {
     if (reset) localStorage.removeItem(APPEARANCE_KEY);
