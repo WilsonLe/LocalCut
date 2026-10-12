@@ -109,6 +109,9 @@ async function connect(page: Page, context: BrowserContext, base: string) {
     exact: true,
   });
   if (await closeToast.count()) await closeToast.first().click();
+  // Project activation hands focus to the editor after the dialog closes.
+  // Starting another popup before that handoff can immediately dismiss it.
+  await expect(page.locator('[data-editor-shortcuts]')).toBeFocused();
   await openAISettings(page);
   const connection = page.getByRole('dialog', {
     name: 'AI connection',
