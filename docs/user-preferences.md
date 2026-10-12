@@ -212,7 +212,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Save pasted and OAuth-issued OpenRouter credentials locally in this browser/origin and restore the connection after refresh or navigation. This supersedes the earlier memory-only credential choices.
 - Keep credentials separate from preferences, project data and all portable backups. Disconnect removes the saved credential; ordinary cleanup preserves it. Removing or replacing it in another tab retires the old connection.
-- Restoring a connection may refresh the model catalog, but never sends chat, generates speech or indexes media automatically. Text/name/transcript sharing remains off after reload; conversations remain session-only. Active project restoration follows the newer project-routing choice above.
+- Restoring a connection may refresh the model catalog, but never sends chat, generates speech or indexes media automatically. Text/name/transcript sharing remains off after reload; the newer persistent chat choice below supersedes the original session-only conversation lifetime. Active project restoration follows the newer project-routing choice above.
 
 ## Mobile usability — 10 October 2026
 
@@ -395,6 +395,14 @@ This is the project record of the user's durable product and workflow choices. U
 - Apply cache admission to every new task. Read valid cached results before enqueueing; on a miss, persist the cache claim and inputs before scheduling. Write newly computed results before reporting completion.
 - Use multiple local layers: the existing artifact/result owner, in-memory queue lookup and durable queue claims/results. Matching reusable requests share in-flight work across tabs and reuse valid completed results after reload. Keep source/version/parameter invalidation and explicit action/consent boundaries.
 - Declare each task's reuse policy or concrete fresh-work reason through the shared queue, following [the development contract](development.md#persist-reusable-computation).
+
+## Persistent chat sessions — 12 October 2026
+
+- Persist chat sessions locally in the existing workspace system, including titles, messages, branches, drafts and selection across refreshes and returning to a project. Preserve current sharing/approval boundaries and require explicit Send for further model work.
+
+- Allow renaming chat titles, archiving/restoring sessions and creating independent session forks in the existing chat picker. Preserve local persistence and explicit model-request boundaries.
+
+- Keep chat session actions subtle and icon-only, with accessible names and tooltips.
 
 ## Assistant caps — 12 October 2026
 

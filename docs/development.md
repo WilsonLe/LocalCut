@@ -231,3 +231,7 @@ Run `pnpm test tests/unit/chat-title.test.ts tests/unit/providers.test.ts`, then
 ## Notification history checks
 
 For error diagnostics and notification history, run `pnpm test tests/unit/error-diagnostics.test.ts tests/unit/notification-history.test.ts tests/unit/services.test.ts tests/unit/task-queue.test.ts tests/unit/worker-publication.test.ts`, then `pnpm test:ui --grep 'notification history|concurrent notification reports'`. The Chrome scenario covers both static bases, original stack/session capture, clipboard success/check/reset and denial, dismissal, persisted reopening, informational notifications, unread dots, clear history, narrow layouts and simultaneous reports under a shared write lock. Notification history is user-owned lifecycle UI; it grants no assistant edit operation.
+
+## Chat persistence checks
+
+Run `pnpm test tests/unit/chat-persistence.test.ts tests/unit/assistant.test.ts`, then `pnpm test:ui --grep 'chat readiness|chat title runs|chat navigation pauses|chat picker matches'`. The persistence journey covers local IndexedDB reload/selection/drafts, text-only continuation, branching, rename/title races, archive/restore, independent forks, last-active-chat recovery, concurrent-tab session creation, project/sharing isolation, startup without inference, same-effective-model continuity and multi-scope save-failure recovery at both hosting bases. Session retention is workspace lifecycle state and grants no assistant editing operation. Native transcription/export/performance behavior is unchanged.
