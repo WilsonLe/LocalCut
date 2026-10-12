@@ -1188,7 +1188,11 @@ export function Conversation(props: ConversationProps) {
                 >
                   <ConversationSession
                     {...props}
-                    exportRef={session.id === conversationNumber ? selectedExport : undefined}
+                    exportRef={
+                      session.id === conversationNumber
+                        ? selectedExport
+                        : undefined
+                    }
                     editor={props.editor!}
                     project={props.project!}
                     connection={connection}

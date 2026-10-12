@@ -239,6 +239,7 @@ Run `pnpm test tests/unit/capture-metadata.test.ts tests/unit/asset-indexer-capt
 ## Chat persistence checks
 
 Run `pnpm test tests/unit/chat-persistence.test.ts tests/unit/assistant.test.ts`, then `pnpm test:ui --grep 'chat readiness|chat title runs|chat navigation pauses|chat picker matches'`. The persistence journey covers local IndexedDB reload/selection/drafts, text-only continuation, branching, rename/title races, archive/restore, independent forks, last-active-chat recovery, concurrent-tab session creation, project/sharing isolation, startup without inference, same-effective-model continuity and multi-scope save-failure recovery at both hosting bases. Session retention is workspace lifecycle state and grants no assistant editing operation. Native transcription/export/performance behavior is unchanged.
+
 ## Chat export checks
 
 Run `pnpm test tests/unit/chat-export.test.ts tests/unit/task-queue.test.ts`, then `pnpm test:ui --grep 'chat export queues|chat export captures|chat export recovers'`. The Chrome journey verifies the chat-header icon, immutable queued snapshots, cancellation/retry, queued and abandoned-running reload recovery, actual ZIP downloads, Markdown/JSON contents, session switching and mobile bounds at both hosting bases. Chat export is a user-owned download boundary and adds no assistant editing operation. Native rendering/transcription paths are unchanged.

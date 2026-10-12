@@ -330,6 +330,12 @@ for (const base of ['/', '/LocalCut/']) {
     ).toContainText('My exported edit');
     await input.fill('Second unsent draft');
     const countBeforeExport = requests;
+    await page.reload();
+    await expect(input).toHaveValue('Second unsent draft');
+    await expect(
+      page.getByRole('article', { name: 'Assistant response' }),
+    ).toContainText('Ready to edit. Tiếng Việt.');
+    expect(requests).toBe(countBeforeExport);
     await page.screenshot({
       path: testInfo.outputPath('chat-export-desktop.png'),
     });
