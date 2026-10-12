@@ -1129,6 +1129,14 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByLabel('Import media', { exact: true })
       .setInputFiles(await redPng(page));
+    // Let the UI-owned thumbnail job finish before opening fixture engine handles.
+    await expect(
+      page.getByRole('img', {
+        name: 'Thumbnail for red.png',
+        exact: true,
+        includeHidden: true,
+      }),
+    ).toBeAttached();
     await closeMediaImportAndPlace(page);
     await page.getByRole('button', { name: 'red.png', exact: true }).click();
     const initial = await snapshot(page, base, name);

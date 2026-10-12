@@ -25,9 +25,19 @@ export async function waitForWorkspaceSettings(page: Page) {
 
 export async function openAISettings(page: Page) {
   await waitForWorkspaceSettings(page);
-  await page
-    .getByRole('button', { name: 'Workspace settings', exact: true })
-    .click();
+  // A late project focus handoff can dismiss a menu just opened by the fixture.
+  // Reopen a dismissed menu and require its real popup before choosing an item.
+  const trigger = page.getByRole('button', {
+    name: 'Workspace settings',
+    exact: true,
+  });
+  await expect(async () => {
+    if ((await trigger.getAttribute('aria-expanded')) !== 'true')
+      await trigger.click({ timeout: 1000 });
+    await expect(
+      page.getByRole('menu', { name: 'Workspace settings', exact: true }),
+    ).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 10000 });
   await page
     .getByRole('menuitem', { name: 'AI settings', exact: true })
     .click();
