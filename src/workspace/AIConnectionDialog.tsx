@@ -80,7 +80,7 @@ export default function AIConnectionDialog({
           returnFocus ??
           (() => document.getElementById('workspace-settings-trigger'))
         }
-        className="ai-settings-dialog flex max-h-[calc(var(--app-viewport-height)*0.9)] flex-col gap-6 overflow-hidden p-6 sm:max-w-3xl sm:p-8"
+        className="ai-settings-dialog flex flex-col gap-6 overflow-hidden p-6 sm:max-w-3xl sm:p-8"
       >
         <DialogHeader>
           <DialogTitle>AI connection</DialogTitle>
@@ -128,7 +128,7 @@ export default function AIConnectionDialog({
             )}
           />
         </div>
-        <div className="flex items-center justify-between">
+        <div className="flex shrink-0 items-center justify-between">
           <Popover>
             <PopoverTrigger
               render={

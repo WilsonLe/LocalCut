@@ -128,7 +128,7 @@ export default function WorkspaceDialogs({
           if (!open && !busy) onDialogChange(null);
         }}
       >
-        <DialogContent className="flex max-h-[calc(var(--app-viewport-height)-2rem)] flex-col overflow-hidden sm:max-w-xl">
+        <DialogContent className="flex flex-col overflow-hidden sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Clip properties</DialogTitle>
             <DialogDescription>
@@ -266,7 +266,7 @@ export default function WorkspaceDialogs({
           if (!open) onDialogChange(null);
         }}
       >
-        <DialogContent className="max-h-[calc(var(--app-viewport-height)*0.85)] overflow-y-auto sm:max-w-xl">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Keyboard shortcuts</DialogTitle>
             <DialogDescription>
@@ -282,11 +282,11 @@ export default function WorkspaceDialogs({
                 <dl className="space-y-2">
                   {group.items.map((item) => (
                     <div
-                      className="flex justify-between gap-4 text-sm"
+                      className="flex min-w-0 flex-col gap-1 text-sm min-[400px]:flex-row min-[400px]:justify-between min-[400px]:gap-4"
                       key={item.keys}
                     >
                       <dt>{item.label}</dt>
-                      <dd className="shrink-0 font-mono text-xs text-muted-foreground">
+                      <dd className="min-w-0 font-mono text-xs text-muted-foreground wrap-anywhere min-[400px]:max-w-3/5 min-[400px]:text-right">
                         {item.keys}
                       </dd>
                     </div>

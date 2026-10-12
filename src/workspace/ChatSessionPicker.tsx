@@ -322,7 +322,7 @@ export default function ChatSessionPicker({
           if (!value) setRenaming(null);
         }}
       >
-        <DialogContent className="h-auto" finalFocus={trigger}>
+        <DialogContent finalFocus={trigger}>
           <DialogHeader>
             <DialogTitle>Rename chat</DialogTitle>
             <DialogDescription>Choose a title for this chat.</DialogDescription>

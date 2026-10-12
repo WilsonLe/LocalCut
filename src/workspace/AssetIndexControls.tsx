@@ -330,10 +330,7 @@ export default function AssetIndexControls({
             </div>
           )}
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent
-              finalFocus={trigger}
-              className="max-h-[calc(var(--app-viewport-height)*0.85)] overflow-y-auto sm:max-w-2xl"
-            >
+            <DialogContent finalFocus={trigger} className="sm:max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Asset index</DialogTitle>
                 <DialogDescription>

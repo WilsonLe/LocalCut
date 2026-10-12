@@ -116,6 +116,8 @@ For native file dropping and retained batch progress, use `pnpm test:ui --grep '
 
 Keyboard and assistant service regressions have their own specs. After the same two builds are current, run `pnpm test:browser tests/browser/keyboard.spec.ts tests/browser/ai-actions.spec.ts`. The keyboard tests use real persisted edits and native playback; the assistant tests reopen native MP4/WebM artifacts. To check just the AAC configuration regression before building, use `pnpm test tests/unit/audio-config.test.ts`.
 
+For shared dialog sizing, run `pnpm test:ui --grep 'dialog sizing fits'` for content-sized short forms, rich editors, mobile backup bounds, project browsing, command search, shortcut reflow, internal scrolling and focus return at both static bases and all interface scales. Select the affected consumer journeys as well when changing their internal layout.
+
 For track schema/locks/output/AI changes, run `pnpm test tests/unit/track-operations.test.ts tests/unit/timeline-features.test.ts tests/unit/assistant.test.ts`, then `pnpm test:ui --grep 'track menu operations|track disable mute solo|timeline add tracks'`. These cover menus, revision-bound forms, locked edits, history, both bases/mobile, approved assistant batches and real visual/audio MP4/WebM reopening. Composition changes retain the separate performance gate.
 
 For interface sizing and timeline anchoring, run `pnpm test:ui --grep 'interface size'`. This checks all three sizes, portal placement, narrow popup bounds, touch playback with expanded media, scaled editing gestures and saved choices at both bases. Native Safari's `pnpm test:safari` additionally measures size and bottom alignment before its media/storage scenarios.
