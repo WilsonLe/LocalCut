@@ -29,11 +29,11 @@ import {
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '../components/ui/accordion';
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '../components/ui/tabs';
 import { CollapsibleDisclosure } from '../components/ui/collapsible';
 import {
   Popover,
@@ -47,6 +47,7 @@ import type {
   ProviderProfile,
 } from './provider-preferences';
 export interface ProviderSettingsProps {
+  initialTab?: 'providers' | 'llm' | 'tts' | 'stt';
   openRouterControls?: (
     profile: ProviderProfile,
     management: ReactNode,
@@ -80,6 +81,9 @@ export interface ProviderSettingsProps {
 }
 export function ProviderSettings(props: ProviderSettingsProps) {
   const { providerConfiguration: config } = props;
+  const [activeTab, setActiveTab] = useState<string>(
+    props.initialTab ?? 'providers',
+  );
   const [kind, setKind] = useState('compatible');
   const [name, setName] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
@@ -153,702 +157,654 @@ export function ProviderSettings(props: ProviderSettingsProps) {
     };
   };
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-sm font-medium">Providers &amp; services</h3>
-        <div className="space-y-6 pt-4 pb-2">
-          <Accordion multiple defaultValue={['providers', 'llm']}>
-            <AccordionItem
-              value="providers"
-              className="border-b border-border/60"
-            >
-              <AccordionTrigger>Provider connections</AccordionTrigger>
-              <AccordionContent keepMounted>
-                <div className="space-y-2">
-                  {config.profiles.map((p) =>
-                    p.kind === 'openrouter' ? (
-                      <div key={p.id}>
-                        {props.openRouterControls?.(
-                          p,
-                          props.connectedProviders.includes(p.id) ? (
-                            <ProviderActions
-                              key={`${p.id}:connected`}
-                              profile={p}
-                              disabled={props.connecting}
-                              disconnect={props.disconnectProvider}
-                              verify={props.verifyProvider}
-                            />
-                          ) : null,
-                        )}
-                      </div>
-                    ) : (
-                      <div
-                        key={p.id}
-                        className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">
-                            {p.name}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1">
-                          {props.connectedProviders.includes(p.id) && (
-                            <ProviderActions
-                              key={`${p.id}:connected`}
-                              profile={p}
-                              disabled={props.connecting}
-                              disconnect={props.disconnectProvider}
-                              verify={props.verifyProvider}
-                            />
-                          )}
-                          {!props.connectedProviders.includes(p.id) && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={props.connecting}
-                              onClick={() => {
-                                setKind(p.kind);
-                                setName(p.name);
-                                setBaseUrl(p.baseUrl ?? '');
-                                setSpeechModel(p.speechModel ?? '');
-                                setTranscriptionModel(
-                                  p.transcriptionModel ?? '',
-                                );
-                                setVoices(p.voices?.join(', ') ?? '');
-                                setKey('');
-                                setEditing(p.id);
-                                setShowForm(true);
-                              }}
-                            >
-                              Connect
-                            </Button>
-                          )}
-                          {!props.connectedProviders.includes(p.id) && (
-                            <Tooltip content="Forget disconnected account">
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                disabled={props.connecting}
-                                aria-label={`Disconnect ${p.name}`}
-                                onClick={() => props.removeProvider(p.id)}
-                              >
-                                <Unplug />
-                              </Button>
-                            </Tooltip>
-                          )}
-                        </div>
-                      </div>
-                    ),
-                  )}
-                  <Popover open={showForm} onOpenChange={setShowForm}>
-                    <Empty
-                      className={
-                        config.profiles.length === 0
-                          ? 'border py-8'
-                          : 'contents'
-                      }
-                    >
-                      {config.profiles.length === 0 && (
-                        <EmptyHeader>
-                          <EmptyMedia variant="icon">
-                            <PlugZap aria-hidden="true" />
-                          </EmptyMedia>
-                          <EmptyTitle className="text-sm">
-                            No AI providers added
-                          </EmptyTitle>
-                        </EmptyHeader>
-                      )}
-                      <EmptyContent
-                        className={
-                          config.profiles.length === 0 ? undefined : 'contents'
-                        }
-                      >
-                        <PopoverTrigger
-                          render={
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={props.connecting}
-                            />
-                          }
-                          onClick={() => {
-                            if (!showForm && editing) resetDraft();
-                          }}
-                        >
-                          <Plus />
-                          Add provider
-                        </PopoverTrigger>
-                      </EmptyContent>
-                    </Empty>
-                    <PopoverContent
-                      className="w-[min(32rem,calc(var(--app-viewport-width)-2rem))] space-y-5"
-                      aria-label="Add provider connection"
-                    >
-                      <PopoverTitle className="text-sm font-medium">
-                        {editing ? 'Connect provider' : 'Add provider'}
-                      </PopoverTitle>
-                      <SettingsSelect
-                        label="Provider type"
-                        value={kind}
-                        selectedLabel={
-                          kind === 'compatible'
-                            ? 'OpenAI-compatible endpoint'
-                            : kind === 'openrouter'
-                              ? 'OpenRouter'
-                              : 'ChatGPT plan'
-                        }
-                        onChange={(value) => {
-                          setKind(value);
-                          setKey('');
-                          setCallback('');
-                        }}
-                        options={[
-                          {
-                            value: 'compatible',
-                            label: 'OpenAI-compatible endpoint',
-                          },
-                          { value: 'chatgpt', label: 'ChatGPT plan' },
-                          { value: 'openrouter', label: 'OpenRouter' },
-                        ]}
-                      />
-                      {kind !== 'compatible' && (
-                        <div className="space-y-1">
-                          <Label htmlFor="provider-account-name">
-                            Account name
-                          </Label>
-                          <Input
-                            id="provider-account-name"
-                            value={name}
-                            maxLength={80}
-                            placeholder={
-                              kind === 'openrouter'
-                                ? 'OpenRouter account'
-                                : 'ChatGPT account'
-                            }
-                            onChange={(event) => setName(event.target.value)}
-                          />
-                        </div>
-                      )}
-                      {kind === 'openrouter' ? (
-                        <Button
-                          disabled={props.connecting}
-                          onClick={() => {
-                            patch((next) => {
-                              const id =
-                                editing ??
-                                (config.profiles.some(
-                                  (p) => p.id === 'openrouter',
-                                )
-                                  ? newId
-                                  : 'openrouter');
-                              next.profiles.push({
-                                id,
-                                name:
-                                  name.trim() ||
-                                  (config.profiles.some(
-                                    (p) => p.kind === 'openrouter',
-                                  )
-                                    ? `OpenRouter ${config.profiles.filter((p) => p.kind === 'openrouter').length + 1}`
-                                    : 'OpenRouter'),
-                                kind: 'openrouter',
-                              });
-                              if (
-                                !config.profiles.some(
-                                  (p) => p.kind === 'openrouter',
-                                )
-                              ) {
-                                next.routes.llm.push({
-                                  providerId: id,
-                                  model: '',
-                                });
-                                next.routes.tts.push({
-                                  providerId: id,
-                                  model: '',
-                                });
-                              }
-                            });
-                            finishConnection();
-                          }}
-                        >
-                          Add OpenRouter account
-                        </Button>
-                      ) : kind === 'compatible' ? (
-                        <form
-                          className="space-y-5"
-                          onSubmit={(event) => {
-                            event.preventDefault();
-                            const profile: ProviderProfile = {
-                              id: editing ?? crypto.randomUUID(),
-                              kind: 'compatible',
-                              name: name.trim(),
-                              baseUrl: baseUrl.trim(),
-                              // Preserve legacy declarations when restoring an existing endpoint.
-                              ...(editing &&
-                              config.profiles.find((p) => p.id === editing)
-                                ?.model
-                                ? {
-                                    model: config.profiles.find(
-                                      (p) => p.id === editing,
-                                    )!.model,
-                                  }
-                                : {}),
-                              ...(transcriptionModel.trim()
-                                ? {
-                                    transcriptionModel:
-                                      transcriptionModel.trim(),
-                                  }
-                                : {}),
-                              ...(speechModel.trim()
-                                ? {
-                                    speechModel: speechModel.trim(),
-                                    voices: voices
-                                      .split(',')
-                                      .map((v) => v.trim())
-                                      .filter(Boolean),
-                                  }
-                                : {}),
-                            };
-                            const credential = key;
-                            setKey('');
-                            void props
-                              .connectProvider(profile, credential)
-                              .then((connected) => {
-                                if (connected) finishConnection();
-                              });
-                          }}
-                        >
-                          <div className="space-y-1">
-                            <Label htmlFor="provider-name">Name</Label>
-                            <Input
-                              id="provider-name"
-                              value={name}
-                              maxLength={80}
-                              onChange={(e) => setName(e.target.value)}
-                              required
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label htmlFor="provider-url">API base URL</Label>
-                            <Input
-                              id="provider-url"
-                              value={baseUrl}
-                              onChange={(e) => setBaseUrl(e.target.value)}
-                              placeholder="https://api.example.com/v1"
-                              required
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label htmlFor="provider-key">
-                              API key (optional for local servers)
-                            </Label>
-                            <Input
-                              id="provider-key"
-                              type="password"
-                              autoComplete="off"
-                              value={key}
-                              onChange={(e) => setKey(e.target.value)}
-                            />
-                          </div>
-                          <CollapsibleDisclosure summary="Text to speech">
-                            <div className="mt-3 space-y-2">
-                              <Label htmlFor="provider-speech-model">
-                                Speech model
-                              </Label>
-                              <Input
-                                id="provider-speech-model"
-                                value={speechModel}
-                                onChange={(e) => setSpeechModel(e.target.value)}
-                              />
-                              <Label htmlFor="provider-voices">
-                                Voices (comma separated)
-                              </Label>
-                              <Input
-                                id="provider-voices"
-                                value={voices}
-                                onChange={(e) => setVoices(e.target.value)}
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                Endpoint must accept delivery instructions and
-                                return 24 kHz mono PCM.
-                              </p>
-                            </div>
-                          </CollapsibleDisclosure>
-                          <CollapsibleDisclosure summary="Speech to text">
-                            <div className="mt-3 space-y-2">
-                              <Label htmlFor="provider-transcription-model">
-                                Transcription model
-                              </Label>
-                              <Input
-                                id="provider-transcription-model"
-                                value={transcriptionModel}
-                                onChange={(e) =>
-                                  setTranscriptionModel(e.target.value)
-                                }
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                Requires verbose JSON segment timestamps (for
-                                example whisper-1). Selected source audio is
-                                sent only after transcription approval.
-                              </p>
-                            </div>
-                          </CollapsibleDisclosure>
-                          <Button
-                            type="submit"
-                            disabled={
-                              props.connecting ||
-                              !name.trim() ||
-                              !baseUrl.trim()
-                            }
-                          >
-                            Connect endpoint
-                          </Button>
-                        </form>
-                      ) : (
-                        <div className="space-y-3">
-                          <Button
-                            disabled={signingIn || props.connecting}
-                            onClick={() => {
-                              setSigningIn(true);
-                              setCallback('');
-                              const popup = window.open(
-                                'about:blank',
-                                '_blank',
-                              );
-                              if (popup) popup.opener = null;
-                              void props
-                                .authorizeChatGPT(chatgpt)
-                                .then((url) => {
-                                  setAuthUrl(url);
-                                  if (popup) popup.location.href = url;
-                                })
-                                .catch((error) => {
-                                  popup?.close();
-                                  showErrorToast(
-                                    error,
-                                    'Could not start ChatGPT sign-in. Allow browser storage and retry.',
-                                  );
-                                })
-                                .finally(() => setSigningIn(false));
-                            }}
-                          >
-                            Continue with ChatGPT
-                          </Button>
-                          {signingIn && (
-                            <p role="status" className="text-sm">
-                              Preparing sign-in…
-                            </p>
-                          )}
-                          {authUrl && (
-                            <a
-                              href={authUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="block text-sm underline"
-                            >
-                              Open ChatGPT sign-in
-                            </a>
-                          )}
-                          <div className="flex items-center gap-2">
-                            <Label htmlFor="chatgpt-callback">
-                              Callback URL
-                            </Label>
-                            <Tooltip
-                              toggleOnClick
-                              content="After signing in, copy the full 127.0.0.1 callback URL from the address bar, even if that page cannot load. Paste it here. Tokens are saved in this browser; Disconnect removes them."
-                            >
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label="ChatGPT connection help"
-                                type="button"
-                              >
-                                <Info aria-hidden="true" />
-                              </Button>
-                            </Tooltip>
-                          </div>
-                          <Input
-                            id="chatgpt-callback"
-                            type="password"
-                            autoComplete="off"
-                            value={callback}
-                            onChange={(e) => setCallback(e.target.value)}
-                          />
-                          <Button
-                            disabled={props.connecting || !callback.trim()}
-                            onClick={() => {
-                              const url = callback.trim();
-                              setCallback('');
-                              setAuthUrl('');
-                              void props
-                                .connectProvider(chatgpt, url)
-                                .then((connected) => {
-                                  if (connected) finishConnection();
-                                });
-                            }}
-                          >
-                            Complete sign-in
-                          </Button>
-                          {editing && (
-                            <Button
-                              variant="outline"
-                              disabled={props.connecting}
-                              onClick={() =>
-                                void props
-                                  .connectProvider(chatgpt, '', true)
-                                  .then((connected) => {
-                                    if (connected) finishConnection();
-                                  })
-                              }
-                            >
-                              Connect
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-            {(['llm', 'tts', 'stt'] as const).map((service) => (
-              <AccordionItem
-                value={service}
-                key={service}
-                className="border-b border-border/60"
+    <Tabs
+      value={activeTab}
+      onValueChange={(value) => setActiveTab(String(value))}
+    >
+      <TabsList
+        aria-label="AI settings"
+        className="grid grid-cols-2 gap-1 sm:grid-cols-4"
+      >
+        <TabsTrigger value="providers">Providers</TabsTrigger>
+        <TabsTrigger value="llm">LLM - Chat</TabsTrigger>
+        <TabsTrigger value="tts">TTS - Speech</TabsTrigger>
+        <TabsTrigger value="stt">STT - Transcription</TabsTrigger>
+      </TabsList>
+      <TabsContent value="providers" keepMounted>
+        <div className="space-y-2">
+          {config.profiles.map((p) =>
+            p.kind === 'openrouter' ? (
+              <div key={p.id}>
+                {props.openRouterControls?.(
+                  p,
+                  props.connectedProviders.includes(p.id) ? (
+                    <ProviderActions
+                      key={`${p.id}:connected`}
+                      profile={p}
+                      disabled={props.connecting}
+                      disconnect={props.disconnectProvider}
+                      verify={props.verifyProvider}
+                    />
+                  ) : null,
+                )}
+              </div>
+            ) : (
+              <div
+                key={p.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4"
               >
-                <AccordionTrigger>
-                  {service === 'llm'
-                    ? 'LLM · Chat'
-                    : service === 'tts'
-                      ? 'TTS · Speech'
-                      : 'STT · Transcription'}
-                </AccordionTrigger>
-                <AccordionContent keepMounted>
-                  {service === 'llm' && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {config.routes.llm
-                        .map(
-                          (route) =>
-                            config.profiles.find(
-                              (profile) => profile.id === route.providerId,
-                            )?.name,
-                        )
-                        .join(' → ') || 'Disabled'}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{p.name}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-1">
+                  {props.connectedProviders.includes(p.id) && (
+                    <ProviderActions
+                      key={`${p.id}:connected`}
+                      profile={p}
+                      disabled={props.connecting}
+                      disconnect={props.disconnectProvider}
+                      verify={props.verifyProvider}
+                    />
+                  )}
+                  {!props.connectedProviders.includes(p.id) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={props.connecting}
+                      onClick={() => {
+                        setKind(p.kind);
+                        setName(p.name);
+                        setBaseUrl(p.baseUrl ?? '');
+                        setSpeechModel(p.speechModel ?? '');
+                        setTranscriptionModel(p.transcriptionModel ?? '');
+                        setVoices(p.voices?.join(', ') ?? '');
+                        setKey('');
+                        setEditing(p.id);
+                        setShowForm(true);
+                      }}
+                    >
+                      Connect
+                    </Button>
+                  )}
+                  {!props.connectedProviders.includes(p.id) && (
+                    <Tooltip content="Forget disconnected account">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={props.connecting}
+                        aria-label={`Disconnect ${p.name}`}
+                        onClick={() => props.removeProvider(p.id)}
+                      >
+                        <Unplug />
+                      </Button>
+                    </Tooltip>
+                  )}
+                </div>
+              </div>
+            ),
+          )}
+          <Popover open={showForm} onOpenChange={setShowForm}>
+            <Empty
+              className={
+                config.profiles.length === 0 ? 'border py-8' : 'contents'
+              }
+            >
+              {config.profiles.length === 0 && (
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <PlugZap aria-hidden="true" />
+                  </EmptyMedia>
+                  <EmptyTitle className="text-sm">
+                    No AI providers added
+                  </EmptyTitle>
+                </EmptyHeader>
+              )}
+              <EmptyContent
+                className={
+                  config.profiles.length === 0 ? undefined : 'contents'
+                }
+              >
+                <PopoverTrigger
+                  render={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={props.connecting}
+                    />
+                  }
+                  onClick={() => {
+                    if (!showForm && editing) resetDraft();
+                  }}
+                >
+                  <Plus />
+                  Add provider
+                </PopoverTrigger>
+              </EmptyContent>
+            </Empty>
+            <PopoverContent
+              className="w-[min(32rem,calc(var(--app-viewport-width)-2rem))] space-y-5"
+              aria-label="Add provider connection"
+            >
+              <PopoverTitle className="text-sm font-medium">
+                {editing ? 'Connect provider' : 'Add provider'}
+              </PopoverTitle>
+              <SettingsSelect
+                label="Provider type"
+                value={kind}
+                selectedLabel={
+                  kind === 'compatible'
+                    ? 'OpenAI-compatible endpoint'
+                    : kind === 'openrouter'
+                      ? 'OpenRouter'
+                      : 'ChatGPT plan'
+                }
+                onChange={(value) => {
+                  setKind(value);
+                  setKey('');
+                  setCallback('');
+                }}
+                options={[
+                  {
+                    value: 'compatible',
+                    label: 'OpenAI-compatible endpoint',
+                  },
+                  { value: 'chatgpt', label: 'ChatGPT plan' },
+                  { value: 'openrouter', label: 'OpenRouter' },
+                ]}
+              />
+              {kind !== 'compatible' && (
+                <div className="space-y-1">
+                  <Label htmlFor="provider-account-name">Account name</Label>
+                  <Input
+                    id="provider-account-name"
+                    value={name}
+                    maxLength={80}
+                    placeholder={
+                      kind === 'openrouter'
+                        ? 'OpenRouter account'
+                        : 'ChatGPT account'
+                    }
+                    onChange={(event) => setName(event.target.value)}
+                  />
+                </div>
+              )}
+              {kind === 'openrouter' ? (
+                <Button
+                  disabled={props.connecting}
+                  onClick={() => {
+                    patch((next) => {
+                      const id =
+                        editing ??
+                        (config.profiles.some((p) => p.id === 'openrouter')
+                          ? newId
+                          : 'openrouter');
+                      next.profiles.push({
+                        id,
+                        name:
+                          name.trim() ||
+                          (config.profiles.some((p) => p.kind === 'openrouter')
+                            ? `OpenRouter ${config.profiles.filter((p) => p.kind === 'openrouter').length + 1}`
+                            : 'OpenRouter'),
+                        kind: 'openrouter',
+                      });
+                      if (
+                        !config.profiles.some((p) => p.kind === 'openrouter')
+                      ) {
+                        next.routes.llm.push({
+                          providerId: id,
+                          model: '',
+                        });
+                        next.routes.tts.push({
+                          providerId: id,
+                          model: '',
+                        });
+                      }
+                    });
+                    finishConnection();
+                  }}
+                >
+                  Add OpenRouter account
+                </Button>
+              ) : kind === 'compatible' ? (
+                <form
+                  className="space-y-5"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const profile: ProviderProfile = {
+                      id: editing ?? crypto.randomUUID(),
+                      kind: 'compatible',
+                      name: name.trim(),
+                      baseUrl: baseUrl.trim(),
+                      // Preserve legacy declarations when restoring an existing endpoint.
+                      ...(editing &&
+                      config.profiles.find((p) => p.id === editing)?.model
+                        ? {
+                            model: config.profiles.find(
+                              (p) => p.id === editing,
+                            )!.model,
+                          }
+                        : {}),
+                      ...(transcriptionModel.trim()
+                        ? {
+                            transcriptionModel: transcriptionModel.trim(),
+                          }
+                        : {}),
+                      ...(speechModel.trim()
+                        ? {
+                            speechModel: speechModel.trim(),
+                            voices: voices
+                              .split(',')
+                              .map((v) => v.trim())
+                              .filter(Boolean),
+                          }
+                        : {}),
+                    };
+                    const credential = key;
+                    setKey('');
+                    void props
+                      .connectProvider(profile, credential)
+                      .then((connected) => {
+                        if (connected) finishConnection();
+                      });
+                  }}
+                >
+                  <div className="space-y-1">
+                    <Label htmlFor="provider-name">Name</Label>
+                    <Input
+                      id="provider-name"
+                      value={name}
+                      maxLength={80}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="provider-url">API base URL</Label>
+                    <Input
+                      id="provider-url"
+                      value={baseUrl}
+                      onChange={(e) => setBaseUrl(e.target.value)}
+                      placeholder="https://api.example.com/v1"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="provider-key">
+                      API key (optional for local servers)
+                    </Label>
+                    <Input
+                      id="provider-key"
+                      type="password"
+                      autoComplete="off"
+                      value={key}
+                      onChange={(e) => setKey(e.target.value)}
+                    />
+                  </div>
+                  <CollapsibleDisclosure summary="Text to speech">
+                    <div className="mt-3 space-y-2">
+                      <Label htmlFor="provider-speech-model">
+                        Speech model
+                      </Label>
+                      <Input
+                        id="provider-speech-model"
+                        value={speechModel}
+                        onChange={(e) => setSpeechModel(e.target.value)}
+                      />
+                      <Label htmlFor="provider-voices">
+                        Voices (comma separated)
+                      </Label>
+                      <Input
+                        id="provider-voices"
+                        value={voices}
+                        onChange={(e) => setVoices(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Endpoint must accept delivery instructions and return 24
+                        kHz mono PCM.
+                      </p>
+                    </div>
+                  </CollapsibleDisclosure>
+                  <CollapsibleDisclosure summary="Speech to text">
+                    <div className="mt-3 space-y-2">
+                      <Label htmlFor="provider-transcription-model">
+                        Transcription model
+                      </Label>
+                      <Input
+                        id="provider-transcription-model"
+                        value={transcriptionModel}
+                        onChange={(e) => setTranscriptionModel(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Requires verbose JSON segment timestamps (for example
+                        whisper-1). Selected source audio is sent only after
+                        transcription approval.
+                      </p>
+                    </div>
+                  </CollapsibleDisclosure>
+                  <Button
+                    type="submit"
+                    disabled={
+                      props.connecting || !name.trim() || !baseUrl.trim()
+                    }
+                  >
+                    Connect endpoint
+                  </Button>
+                </form>
+              ) : (
+                <div className="space-y-3">
+                  <Button
+                    disabled={signingIn || props.connecting}
+                    onClick={() => {
+                      setSigningIn(true);
+                      setCallback('');
+                      const popup = window.open('about:blank', '_blank');
+                      if (popup) popup.opener = null;
+                      void props
+                        .authorizeChatGPT(chatgpt)
+                        .then((url) => {
+                          setAuthUrl(url);
+                          if (popup) popup.location.href = url;
+                        })
+                        .catch((error) => {
+                          popup?.close();
+                          showErrorToast(
+                            error,
+                            'Could not start ChatGPT sign-in. Allow browser storage and retry.',
+                          );
+                        })
+                        .finally(() => setSigningIn(false));
+                    }}
+                  >
+                    Continue with ChatGPT
+                  </Button>
+                  {signingIn && (
+                    <p role="status" className="text-sm">
+                      Preparing sign-in…
                     </p>
                   )}
-                  <fieldset className="mt-3 space-y-2">
-                    {config.routes[service].map((route, index) => {
-                      const profile =
-                        route.providerId === 'local'
-                          ? { id: 'local', name: 'Local Whisper' }
-                          : config.profiles.find(
-                              (p) => p.id === route.providerId,
-                            )!;
-                      return (
-                        <div
-                          key={route.providerId}
-                          className="space-y-2 border-b pb-3 last:border-b-0"
-                        >
-                          <div className="flex items-center gap-1">
-                            <span className="text-sm text-muted-foreground">
-                              {index + 1}.
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <ProviderPicker
-                                label={`${service.toUpperCase()} provider ${index + 1}`}
-                                selectedId={route.providerId}
-                                selectedName={`${profile.name}${route.providerId !== 'local' && !props.connectedProviders.includes(route.providerId) ? ' · Disconnected' : ''}`}
-                                providers={availableProviders(service).filter(
-                                  (p) =>
-                                    p.id === route.providerId ||
-                                    !config.routes[service].some(
-                                      (r) => r.providerId === p.id,
-                                    ),
-                                )}
-                                emptyMessage="No connected providers. Connect a provider above."
-                                disabled={props.connecting}
-                                onChange={(id) =>
-                                  patch((next) => {
-                                    next.routes[service][index] = newRoute(
-                                      service,
-                                      id,
-                                    );
-                                  })
-                                }
-                              />
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label={`Move ${profile.name} up in ${service}`}
-                              disabled={props.connecting || index === 0}
-                              onClick={() =>
-                                patch((next) => {
-                                  [
-                                    next.routes[service][index - 1],
-                                    next.routes[service][index],
-                                  ] = [
-                                    next.routes[service][index]!,
-                                    next.routes[service][index - 1]!,
-                                  ];
-                                })
-                              }
-                            >
-                              <ArrowUp />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label={`Move ${profile.name} down in ${service}`}
-                              disabled={
-                                props.connecting ||
-                                index === config.routes[service].length - 1
-                              }
-                              onClick={() =>
-                                patch((next) => {
-                                  [
-                                    next.routes[service][index + 1],
-                                    next.routes[service][index],
-                                  ] = [
-                                    next.routes[service][index]!,
-                                    next.routes[service][index + 1]!,
-                                  ];
-                                })
-                              }
-                            >
-                              <ArrowDown />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label={`Remove ${profile.name} from ${service}`}
-                              disabled={props.connecting}
-                              onClick={() =>
-                                patch((next) => {
-                                  next.routes[service].splice(index, 1);
-                                })
-                              }
-                            >
-                              <Trash2 />
-                            </Button>
-                          </div>
-                          {service === 'llm' &&
-                          profile.id === props.modelProviderId &&
-                          config.profiles.find((p) => p.id === profile.id)
-                            ?.kind !== 'compatible' ? (
-                            <ModelPicker
-                              models={props.models}
-                              model={props.model}
-                              onChange={props.setModel}
-                              loading={props.connecting}
-                              refresh={props.refreshCatalog}
-                            />
-                          ) : service !== 'llm' ? (
-                            <ServiceModelPicker
-                              key={`${route.providerId}:${props.connectedProviders.includes(route.providerId)}`}
-                              providerId={route.providerId}
-                              service={service}
-                              model={route.model}
-                              label={`${profile.name} ${service} route model`}
-                              disabled={
-                                props.connecting ||
-                                route.providerId === 'local' ||
-                                !props.connectedProviders.includes(
-                                  route.providerId,
-                                )
-                              }
-                              load={props.loadServiceModels}
-                              voice={route.voice}
-                              onVoiceChange={(voice) =>
-                                patch((next) => {
-                                  next.routes[service][index]!.voice = voice;
-                                })
-                              }
-                              onChange={(model, voice) =>
-                                patch((next) => {
-                                  const route = next.routes[service][index]!;
-                                  route.model = model;
-                                  if (service === 'tts') {
-                                    if (voice) route.voice = voice;
-                                    else delete route.voice;
-                                  }
-                                })
-                              }
-                            />
-                          ) : (
-                            <Input
-                              disabled={
-                                props.connecting ||
-                                route.providerId === 'local' ||
-                                (route.providerId !== 'local' &&
-                                  !props.connectedProviders.includes(
-                                    route.providerId,
-                                  ))
-                              }
-                              aria-label={`${profile.name} ${service} route model`}
-                              placeholder={
-                                index === 0
-                                  ? service === 'llm'
-                                    ? 'LLM model ID (must support tools)'
-                                    : 'Speech model ID'
-                                  : 'Fallback model ID'
-                              }
-                              defaultValue={route.model}
-                              onBlur={(e) =>
-                                patch((next) => {
-                                  next.routes[service][index]!.model =
-                                    e.target.value;
-                                })
-                              }
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                    {!props.connectedProviders.length && (
-                      <p className="text-xs text-muted-foreground">
-                        No connected providers. Connect a provider above.
-                      </p>
-                    )}
-                    <ProviderPicker
-                      label={`Add ${service.toUpperCase()} provider`}
-                      providers={availableProviders(service).filter(
-                        (p) =>
-                          !config.routes[service].some(
-                            (r) => r.providerId === p.id,
-                          ),
-                      )}
-                      emptyMessage={
-                        availableProviders(service).length
-                          ? 'All available providers are already added.'
-                          : 'No connected providers for this service. Connect a provider above.'
-                      }
+                  {authUrl && (
+                    <a
+                      href={authUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block text-sm underline"
+                    >
+                      Open ChatGPT sign-in
+                    </a>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="chatgpt-callback">Callback URL</Label>
+                    <Tooltip
+                      toggleOnClick
+                      content="After signing in, copy the full 127.0.0.1 callback URL from the address bar, even if that page cannot load. Paste it here. Tokens are saved in this browser; Disconnect removes them."
+                    >
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="ChatGPT connection help"
+                        type="button"
+                      >
+                        <Info aria-hidden="true" />
+                      </Button>
+                    </Tooltip>
+                  </div>
+                  <Input
+                    id="chatgpt-callback"
+                    type="password"
+                    autoComplete="off"
+                    value={callback}
+                    onChange={(e) => setCallback(e.target.value)}
+                  />
+                  <Button
+                    disabled={props.connecting || !callback.trim()}
+                    onClick={() => {
+                      const url = callback.trim();
+                      setCallback('');
+                      setAuthUrl('');
+                      void props
+                        .connectProvider(chatgpt, url)
+                        .then((connected) => {
+                          if (connected) finishConnection();
+                        });
+                    }}
+                  >
+                    Complete sign-in
+                  </Button>
+                  {editing && (
+                    <Button
+                      variant="outline"
                       disabled={props.connecting}
-                      onChange={(id) =>
+                      onClick={() =>
+                        void props
+                          .connectProvider(chatgpt, '', true)
+                          .then((connected) => {
+                            if (connected) finishConnection();
+                          })
+                      }
+                    >
+                      Connect
+                    </Button>
+                  )}
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
+        </div>
+      </TabsContent>
+      {(['llm', 'tts', 'stt'] as const).map((service) => (
+        <TabsContent value={service} key={service} keepMounted>
+          <fieldset className="space-y-4">
+            {config.routes[service].map((route, index) => {
+              const profile =
+                route.providerId === 'local'
+                  ? { id: 'local', name: 'Local Whisper' }
+                  : config.profiles.find((p) => p.id === route.providerId)!;
+              return (
+                <div
+                  key={route.providerId}
+                  className="space-y-2 border-b pb-3 last:border-b-0"
+                >
+                  {service === 'llm' && (
+                    <h3 className="text-sm font-medium">
+                      {index === 0
+                        ? 'Primary provider'
+                        : `Backup provider ${index}`}
+                    </h3>
+                  )}
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm text-muted-foreground">
+                      {index + 1}.
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <ProviderPicker
+                        label={`${service.toUpperCase()} provider ${index + 1}`}
+                        selectedId={route.providerId}
+                        selectedName={`${profile.name}${route.providerId !== 'local' && !props.connectedProviders.includes(route.providerId) ? ' · Disconnected' : ''}`}
+                        providers={availableProviders(service).filter(
+                          (p) =>
+                            p.id === route.providerId ||
+                            !config.routes[service].some(
+                              (r) => r.providerId === p.id,
+                            ),
+                        )}
+                        emptyMessage="No connected providers. Connect a provider in the Providers tab."
+                        disabled={props.connecting}
+                        onChange={(id) =>
+                          patch((next) => {
+                            next.routes[service][index] = newRoute(service, id);
+                          })
+                        }
+                      />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Move ${profile.name} up in ${service}`}
+                      disabled={props.connecting || index === 0}
+                      onClick={() =>
                         patch((next) => {
-                          next.routes[service].push(newRoute(service, id));
+                          [
+                            next.routes[service][index - 1],
+                            next.routes[service][index],
+                          ] = [
+                            next.routes[service][index]!,
+                            next.routes[service][index - 1]!,
+                          ];
+                        })
+                      }
+                    >
+                      <ArrowUp />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Move ${profile.name} down in ${service}`}
+                      disabled={
+                        props.connecting ||
+                        index === config.routes[service].length - 1
+                      }
+                      onClick={() =>
+                        patch((next) => {
+                          [
+                            next.routes[service][index + 1],
+                            next.routes[service][index],
+                          ] = [
+                            next.routes[service][index]!,
+                            next.routes[service][index + 1]!,
+                          ];
+                        })
+                      }
+                    >
+                      <ArrowDown />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Remove ${profile.name} from ${service}`}
+                      disabled={props.connecting}
+                      onClick={() =>
+                        patch((next) => {
+                          next.routes[service].splice(index, 1);
+                        })
+                      }
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
+                  {service === 'llm' &&
+                  profile.id === props.modelProviderId &&
+                  config.profiles.find((p) => p.id === profile.id)?.kind !==
+                    'compatible' ? (
+                    <ModelPicker
+                      models={props.models}
+                      model={props.model}
+                      onChange={props.setModel}
+                      loading={props.connecting}
+                      refresh={props.refreshCatalog}
+                    />
+                  ) : service !== 'llm' ? (
+                    <ServiceModelPicker
+                      key={`${route.providerId}:${props.connectedProviders.includes(route.providerId)}`}
+                      providerId={route.providerId}
+                      service={service}
+                      model={route.model}
+                      label={`${profile.name} ${service} route model`}
+                      disabled={
+                        props.connecting ||
+                        activeTab !== service ||
+                        route.providerId === 'local' ||
+                        !props.connectedProviders.includes(route.providerId)
+                      }
+                      load={props.loadServiceModels}
+                      voice={route.voice}
+                      onVoiceChange={(voice) =>
+                        patch((next) => {
+                          next.routes[service][index]!.voice = voice;
+                        })
+                      }
+                      onChange={(model, voice) =>
+                        patch((next) => {
+                          const route = next.routes[service][index]!;
+                          route.model = model;
+                          if (service === 'tts') {
+                            if (voice) route.voice = voice;
+                            else delete route.voice;
+                          }
                         })
                       }
                     />
-                  </fieldset>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-          {(['llm', 'tts', 'stt'] as const).some(
-            (service) =>
-              config.routes[service].filter((r) => r.providerId !== 'local')
-                .length > 1,
-          ) && (
-            <p className="text-xs text-muted-foreground">
-              Fallback shares this request with each listed provider in order
-              and may incur charges. Chat stops switching after output begins.
-              Indexing stays on OpenRouter.
+                  ) : (
+                    <Input
+                      disabled={
+                        props.connecting ||
+                        route.providerId === 'local' ||
+                        (route.providerId !== 'local' &&
+                          !props.connectedProviders.includes(route.providerId))
+                      }
+                      aria-label={`${profile.name} ${service} route model`}
+                      placeholder={
+                        index === 0
+                          ? service === 'llm'
+                            ? 'LLM model ID (must support tools)'
+                            : 'Speech model ID'
+                          : 'Fallback model ID'
+                      }
+                      defaultValue={route.model}
+                      onBlur={(e) =>
+                        patch((next) => {
+                          next.routes[service][index]!.model = e.target.value;
+                        })
+                      }
+                    />
+                  )}
+                </div>
+              );
+            })}
+            {!props.connectedProviders.length && (
+              <p className="text-xs text-muted-foreground">
+                No connected providers. Connect a provider in the Providers tab.
+              </p>
+            )}
+            <ProviderPicker
+              label={
+                service === 'llm' && config.routes.llm.length
+                  ? 'Add backup provider'
+                  : `Add ${service.toUpperCase()} provider`
+              }
+              placeholder={
+                service === 'llm' && config.routes.llm.length
+                  ? 'Add backup provider'
+                  : 'Add provider'
+              }
+              providers={availableProviders(service).filter(
+                (p) =>
+                  !config.routes[service].some((r) => r.providerId === p.id),
+              )}
+              emptyMessage={
+                availableProviders(service).length
+                  ? 'All available providers are already added.'
+                  : 'No connected providers for this service. Connect a provider in the Providers tab.'
+              }
+              disabled={props.connecting}
+              onChange={(id) =>
+                patch((next) => {
+                  next.routes[service].push(newRoute(service, id));
+                })
+              }
+            />
+          </fieldset>
+          {config.routes[service].filter(
+            (route) => route.providerId !== 'local',
+          ).length > 1 && (
+            <p className="mt-4 text-xs text-muted-foreground">
+              {service === 'llm'
+                ? 'Backups receive this request in order if the primary provider fails before output begins. Each provider may incur charges. Indexing stays on OpenRouter.'
+                : 'Fallback shares this request with each listed provider in order and may incur charges.'}
             </p>
           )}
-        </div>
-      </div>
-    </div>
+        </TabsContent>
+      ))}
+    </Tabs>
   );
 }
 

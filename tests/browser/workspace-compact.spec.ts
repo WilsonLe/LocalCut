@@ -1,5 +1,6 @@
 import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { dismissNotifications } from './workspace-notifications-helper';
+import { selectAISettingsTab } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 
 for (const base of ['/', '/LocalCut/']) {
@@ -300,7 +301,7 @@ for (const base of ['/', '/LocalCut/']) {
 
     // A compatible endpoint works independently of OpenRouter, without a paid request.
     await connect.click();
-    await dialog.getByText('Providers & services', { exact: true }).click();
+    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
     await dialog
       .getByRole('button', { name: 'Add provider', exact: true })
       .click();
@@ -311,8 +312,11 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Connect endpoint', exact: true })
       .click();
+    await selectAISettingsTab(page, 'LLM - Chat');
     await dialog.getByLabel('Local model llm route model').fill('local-editor');
+    await selectAISettingsTab(page, 'LLM - Chat');
     await dialog.getByLabel('Local model llm route model').press('Tab');
+    await selectAISettingsTab(page, 'LLM - Chat');
     await expect(
       dialog.getByLabel('Local model llm route model'),
     ).toBeEnabled();

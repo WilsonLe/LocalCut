@@ -1,4 +1,5 @@
 import { closeMediaImportAndPlace } from './workspace-import-helper';
+import { selectAISettingsTab } from './workspace-settings-helper';
 import {
   prepareOpenRouterKey,
   openAISettings,
@@ -37,6 +38,7 @@ async function connect(page: Page) {
   await dialog
     .getByRole('button', { name: 'Use API key', exact: true })
     .click();
+  await selectAISettingsTab(page, 'LLM - Chat');
   await expect(
     dialog.getByRole('combobox', { name: 'AI model', exact: true }),
   ).toBeEnabled();
@@ -531,6 +533,7 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await page.goto(base);
     let dialog = await connect(page);
+    await selectAISettingsTab(page, 'LLM - Chat');
     const choice = dialog.getByRole('combobox', {
       name: 'AI model',
       exact: true,
@@ -542,6 +545,7 @@ for (const base of ['/', '/LocalCut/']) {
         exact: true,
       })
       .click();
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       dialog.getByRole('region', { name: 'OpenRouter connection terms' }),
     ).toContainText('context categories stay enabled');
@@ -566,15 +570,18 @@ for (const base of ['/', '/LocalCut/']) {
     await openAISettings(page);
     await expect.poll(() => requests).toBe(2);
     dialog = page.getByRole('dialog', { name: 'AI connection', exact: true });
+    await selectAISettingsTab(page, 'LLM - Chat');
     await expect(
       dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toContainText('Preference model');
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       dialog.getByRole('region', { name: 'OpenRouter connection terms' }),
     ).toContainText('including after reload');
     await expect(
       dialog.getByRole('button', { name: 'Data & analytics' }),
     ).toHaveCount(0);
+    await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
@@ -584,18 +591,21 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     available = false;
     dialog = await connect(page);
+    await selectAISettingsTab(page, 'LLM - Chat');
     await expect(
       dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toContainText('Choose a model');
     expect((await preferences(page)).aiModel).toBe(
       '~deepseek/deepseek-pro-latest',
     );
+    await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     available = true;
     dialog = await connect(page);
+    await selectAISettingsTab(page, 'LLM - Chat');
     await expect(
       dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toContainText('Preference model');

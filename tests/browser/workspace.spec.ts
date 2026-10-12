@@ -1,4 +1,5 @@
 import { closeMediaImportAndPlace } from './workspace-import-helper';
+import { selectAISettingsTab } from './workspace-settings-helper';
 import { mediaVideo } from './workspace-video-fixture';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { dragPlayhead } from './workspace-playhead-helper';
@@ -1143,18 +1144,21 @@ for (const base of ['/', '/LocalCut/']) {
     await settings
       .getByRole('button', { name: 'Use API key', exact: true })
       .click();
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       settings.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toBeVisible();
     await expect(
       settings.getByLabel('OpenRouter API key', { exact: true }),
     ).not.toBeVisible();
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       settings.getByRole('button', {
         name: 'Disconnect OpenRouter',
         exact: true,
       }),
     ).toBeVisible();
+    await selectAISettingsTab(page, 'LLM - Chat');
     await settings
       .getByRole('combobox', { name: 'AI model', exact: true })
       .click();
@@ -1167,6 +1171,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       settings.getByRole('button', { name: 'Data & analytics' }),
     ).toHaveCount(0);
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       settings.getByRole('region', { name: 'OpenRouter connection terms' }),
     ).toContainText('storyboard text');

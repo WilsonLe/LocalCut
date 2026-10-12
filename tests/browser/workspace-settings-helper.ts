@@ -61,6 +61,7 @@ export async function addOpenRouter(page: Page) {
     name: 'AI connection',
     exact: true,
   });
+  await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
   await dialog
     .getByRole('button', { name: 'Add provider', exact: true })
     .click();
@@ -79,6 +80,7 @@ export async function prepareOpenRouterKey(page: Page) {
     name: 'AI connection',
     exact: true,
   });
+  await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
   await expect(
     dialog.getByRole('button', { name: 'Add provider', exact: true }),
   ).toBeVisible();
@@ -95,4 +97,14 @@ export async function prepareOpenRouterKey(page: Page) {
   await expect(
     dialog.getByLabel('OpenRouter API key', { exact: true }),
   ).toBeVisible();
+}
+
+export async function selectAISettingsTab(
+  page: Page,
+  name: 'Providers' | 'LLM - Chat' | 'TTS - Speech' | 'STT - Transcription',
+) {
+  await page
+    .getByRole('dialog', { name: 'AI connection', exact: true })
+    .getByRole('tab', { name, exact: true })
+    .click();
 }

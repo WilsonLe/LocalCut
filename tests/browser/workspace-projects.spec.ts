@@ -1,3 +1,4 @@
+import { selectAISettingsTab } from './workspace-settings-helper';
 import {
   prepareOpenRouterKey,
   openAISettings,
@@ -138,6 +139,7 @@ for (const base of ['/', '/LocalCut/']) {
           .getByLabel('OpenRouter API key')
           .fill('synthetic-navigation-key');
         await connection.getByRole('button', { name: 'Use API key' }).click();
+        await selectAISettingsTab(page, 'LLM - Chat');
         await connection
           .getByRole('combobox', { name: 'AI model', exact: true })
           .click();

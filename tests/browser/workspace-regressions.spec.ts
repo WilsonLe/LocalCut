@@ -1,3 +1,4 @@
+import { selectAISettingsTab } from './workspace-settings-helper';
 import {
   prepareOpenRouterKey,
   openAISettings,
@@ -98,6 +99,7 @@ test('long assistant replies scroll inside the conversation and keep the compose
   await settings
     .getByRole('button', { name: 'Use API key', exact: true })
     .click();
+  await selectAISettingsTab(page, 'LLM - Chat');
   const select = settings.getByRole('combobox', {
     name: 'AI model',
     exact: true,

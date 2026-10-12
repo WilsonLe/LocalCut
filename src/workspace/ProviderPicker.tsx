@@ -17,6 +17,7 @@ interface ProviderOption {
 /** Select only the connected, service-capable providers supplied by the owner. */
 export function ProviderPicker({
   label,
+  placeholder = 'Add provider',
   providers,
   selectedId,
   selectedName,
@@ -25,6 +26,7 @@ export function ProviderPicker({
   onChange,
 }: {
   label: string;
+  placeholder?: string;
   providers: ProviderOption[];
   selectedId?: string;
   selectedName?: string;
@@ -50,7 +52,7 @@ export function ProviderPicker({
       }
     >
       <ComboboxTrigger aria-label={label} disabled={disabled}>
-        <span className="truncate">{selectedName ?? 'Add provider'}</span>
+        <span className="truncate">{selectedName ?? placeholder}</span>
       </ComboboxTrigger>
       <ComboboxContent
         aria-label={label}

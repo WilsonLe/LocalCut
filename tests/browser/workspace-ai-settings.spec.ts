@@ -3,47 +3,9 @@ import {
   openAISettings,
 } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
-import type { Locator } from '@playwright/test';
-
-async function toggleAnimation(trigger: Locator) {
-  const result = await trigger.evaluate(async (element) => {
-    const id = element.getAttribute('aria-controls');
-    (element as HTMLButtonElement).click();
-    await new Promise(requestAnimationFrame);
-    await new Promise(requestAnimationFrame);
-    const panel = document.getElementById(
-      id ?? element.getAttribute('aria-controls')!,
-    )!;
-    const animation = panel
-      .getAnimations()
-      .find((animation) => animation.playState === 'running');
-    const state = {
-      panelId: panel.id,
-      expanded: element.getAttribute('aria-expanded') === 'true',
-    };
-    if (!animation) return { ...state, animated: false, between: false };
-    const duration = Number(animation.effect!.getComputedTiming().duration);
-    animation.currentTime = duration / 2;
-    const height = panel.getBoundingClientRect().height;
-    const between = height > 0 && height < panel.scrollHeight;
-    animation.finish();
-    return { ...state, animated: duration > 0, between };
-  });
-  // Finishing the sampled CSS animation still leaves Base UI's completion
-  // callback pending. Wait for its committed panel state before sending keys.
-  await expect
-    .poll(() =>
-      trigger.evaluate((_, id) => {
-        const panel = document.getElementById(id);
-        return !panel || panel.hidden;
-      }, result.panelId),
-    )
-    .toBe(!result.expanded);
-  return { animated: result.animated, between: result.between };
-}
 
 for (const base of ['/', '/LocalCut/']) {
-  test(`spacious AI settings animate disclosures and preserve input on desktop and phone ${base}`, async ({
+  test(`AI settings tabs preserve input and keyboard focus on desktop and phone ${base}`, async ({
     page,
   }, testInfo) => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
@@ -57,11 +19,14 @@ for (const base of ['/', '/LocalCut/']) {
     await expect
       .poll(async () => (await dialog.boundingBox())!.width)
       .toBeGreaterThanOrEqual(760);
+    await expect(dialog.getByRole('tab')).toHaveText([
+      'Providers',
+      'LLM - Chat',
+      'TTS - Speech',
+      'STT - Transcription',
+    ]);
     await expect(
-      dialog.getByRole('heading', {
-        name: 'Providers & services',
-        exact: true,
-      }),
+      dialog.getByRole('tabpanel', { name: 'Providers', exact: true }),
     ).toBeVisible();
     await dialog
       .getByRole('button', { name: 'Add provider', exact: true })
@@ -92,25 +57,35 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await expect(name).toHaveValue('');
     await page.keyboard.press('Escape');
-    const service = dialog.getByRole('button', {
-      name: 'STT · Transcription',
+    await key.fill('synthetic-retained-draft');
+    const providers = dialog.getByRole('tab', {
+      name: 'Providers',
       exact: true,
     });
-    await service.scrollIntoViewIfNeeded();
-    expect(await toggleAnimation(service)).toEqual({
-      animated: true,
-      between: true,
+    await providers.focus();
+    await providers.press('ArrowRight');
+    const chat = dialog.getByRole('tab', { name: 'LLM - Chat', exact: true });
+    await expect(chat).toBeFocused();
+    await chat.press('Enter');
+    await expect(chat).toHaveAttribute('aria-selected', 'true');
+    await expect(key).toBeHidden();
+    await chat.press('End');
+    const service = dialog.getByRole('tab', {
+      name: 'STT - Transcription',
+      exact: true,
     });
-    await expect(
-      dialog.getByLabel('Local Whisper stt route model', { exact: true }),
-    ).toHaveCount(0);
-    expect(await toggleAnimation(service)).toEqual({
-      animated: true,
-      between: true,
-    });
-    await service.focus();
+    await expect(service).toBeFocused();
     await service.press('Enter');
-    await expect(service).toHaveAttribute('aria-expanded', 'true');
+    await expect(
+      dialog.getByRole('combobox', {
+        name: 'STT provider 1',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await service.press('Home');
+    await providers.press('Enter');
+    await expect(key).toHaveValue('synthetic-retained-draft');
+    await expect(dialog.getByRole('tabpanel')).toHaveCount(1);
     await page.screenshot({
       path: testInfo.outputPath('ai-settings-desktop.png'),
     });
@@ -138,20 +113,10 @@ for (const base of ['/', '/LocalCut/']) {
       path: testInfo.outputPath('ai-settings-phone.png'),
     });
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await service.scrollIntoViewIfNeeded();
-    const noMotion = await service.evaluate(async (element) => {
-      const panel = document.getElementById(
-        element.getAttribute('aria-controls')!,
-      )!;
-      (element as HTMLButtonElement).click();
-      await new Promise(requestAnimationFrame);
-      await new Promise(requestAnimationFrame);
-      return {
-        property: getComputedStyle(panel).transitionProperty,
-        animations: panel.getAnimations().length,
-      };
-    });
-    expect(noMotion).toEqual({ property: 'none', animations: 0 });
+    await service.click();
+    await expect(service).toHaveAttribute('aria-selected', 'true');
+    await providers.click();
+    await expect(key).toHaveValue('synthetic-retained-draft');
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await expect(dialog).not.toBeVisible();
     await expect(
@@ -274,21 +239,25 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
+    await dialog.getByRole('tab', { name: 'LLM - Chat', exact: true }).click();
     const addLLM = dialog.getByRole('combobox', {
       name: 'Add LLM provider',
       exact: true,
     });
     await expect(
       dialog
-        .getByRole('region', { name: 'LLM · Chat', exact: true })
-        .getByText('No connected providers. Connect a provider above.', {
-          exact: true,
-        }),
+        .getByRole('tabpanel', { name: 'LLM - Chat', exact: true })
+        .getByText(
+          'No connected providers. Connect a provider in the Providers tab.',
+          {
+            exact: true,
+          },
+        ),
     ).toBeVisible();
     await addLLM.click();
     await expect(
       page.getByText(
-        'No connected providers for this service. Connect a provider above.',
+        'No connected providers for this service. Connect a provider in the Providers tab.',
         { exact: true },
       ),
     ).toBeVisible();
@@ -341,6 +310,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('link', { name: 'Return to LocalCut', exact: true })
       .click();
+    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
     await expect(
       dialog.getByRole('button', {
         name: 'Verify OpenRouter work',
@@ -358,15 +328,19 @@ for (const base of ['/', '/LocalCut/']) {
     ]);
     // Search all three services, and ensure the primary route cannot be duplicated.
     for (const [service, title] of [
-      ['LLM', 'LLM · Chat'],
-      ['TTS', 'TTS · Speech'],
-      ['STT', 'STT · Transcription'],
+      ['LLM', 'LLM - Chat'],
+      ['TTS', 'TTS - Speech'],
+      ['STT', 'STT - Transcription'],
     ] as const) {
-      const section = dialog.getByRole('button', { name: title, exact: true });
-      if ((await section.getAttribute('aria-expanded')) !== 'true')
-        await section.click();
+      await dialog.getByRole('tab', { name: title, exact: true }).click();
       await dialog
-        .getByRole('combobox', { name: `Add ${service} provider`, exact: true })
+        .getByRole('combobox', {
+          name:
+            service === 'LLM'
+              ? 'Add backup provider'
+              : `Add ${service} provider`,
+          exact: true,
+        })
         .click();
       const search = page.getByRole('combobox', {
         name: 'Search connected providers',
@@ -388,6 +362,71 @@ for (const base of ['/', '/LocalCut/']) {
           exact: true,
         }),
       ).toContainText('OpenRouter work');
+      if (service === 'LLM') {
+        await expect(
+          dialog.getByRole('heading', {
+            name: 'Primary provider',
+            exact: true,
+          }),
+        ).toBeVisible();
+        await expect(
+          dialog.getByRole('heading', {
+            name: 'Backup provider 1',
+            exact: true,
+          }),
+        ).toBeVisible();
+        await page.screenshot({
+          path: info.outputPath('ai-chat-backups-desktop.png'),
+        });
+        await dialog
+          .getByLabel('OpenRouter work llm route model', { exact: true })
+          .fill('test/small');
+        await dialog
+          .getByLabel('OpenRouter work llm route model', { exact: true })
+          .press('Tab');
+        await dialog
+          .getByRole('button', {
+            name: 'Move OpenRouter work up in llm',
+            exact: true,
+          })
+          .click();
+        await expect(
+          dialog.getByRole('combobox', { name: 'LLM provider 1', exact: true }),
+        ).toContainText('OpenRouter work');
+        await dialog
+          .getByRole('button', {
+            name: 'Move OpenRouter work down in llm',
+            exact: true,
+          })
+          .click();
+        await expect(
+          dialog.getByRole('combobox', { name: 'LLM provider 2', exact: true }),
+        ).toContainText('OpenRouter work');
+        await dialog
+          .getByRole('button', {
+            name: 'Remove OpenRouter work from llm',
+            exact: true,
+          })
+          .click();
+        await expect(
+          dialog.getByRole('heading', {
+            name: 'Backup provider 1',
+            exact: true,
+          }),
+        ).toHaveCount(0);
+        await dialog
+          .getByRole('combobox', { name: 'Add backup provider', exact: true })
+          .click();
+        await page
+          .getByRole('option', { name: 'OpenRouter work', exact: true })
+          .click();
+        await dialog
+          .getByLabel('OpenRouter work llm route model', { exact: true })
+          .fill('test/small');
+        await dialog
+          .getByLabel('OpenRouter work llm route model', { exact: true })
+          .press('Tab');
+      }
       if (service === 'STT') {
         // OpenRouter itself remains available alongside the selected local/second account routes.
         await dialog
@@ -420,33 +459,25 @@ for (const base of ['/', '/LocalCut/']) {
       'Bearer synthetic-first-account',
     ]);
     await page.setViewportSize({ width: 390, height: 844 });
-    await dialog
-      .getByRole('button', { name: 'Provider connections', exact: true })
-      .click();
-    await expect(
-      dialog.getByRole('button', {
-        name: 'Verify OpenRouter work',
-        exact: true,
-      }),
-    ).toBeHidden();
-    await dialog
-      .getByRole('button', { name: 'Provider connections', exact: true })
-      .click();
+    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
     await page.screenshot({
       path: info.outputPath('provider-accounts-mobile.png'),
     });
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
+    await dialog.getByRole('tab', { name: 'LLM - Chat', exact: true }).click();
     await expect(
       dialog.getByRole('combobox', { name: 'LLM provider 1', exact: true }),
     ).toContainText('Disconnected');
+    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
     await expect(
       dialog.getByRole('button', {
         name: 'Verify OpenRouter work',
         exact: true,
       }),
     ).toBeVisible();
+    await dialog.getByRole('tab', { name: 'LLM - Chat', exact: true }).click();
     const models = dialog.getByRole('combobox', {
       name: 'AI model',
       exact: true,
@@ -477,6 +508,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page.keyboard.press('Escape');
     await page.reload();
     await openAISettings(page);
+    await dialog.getByRole('tab', { name: 'Providers', exact: true }).click();
     await expect(
       dialog.getByRole('button', {
         name: 'Verify OpenRouter work',

@@ -5,6 +5,7 @@ import {
   addOpenRouter,
   prepareOpenRouterKey,
   openAISettings,
+  selectAISettingsTab,
 } from './workspace-settings-helper';
 const cors = {
   'access-control-allow-origin': '*',
@@ -110,6 +111,7 @@ for (const base of ['/', '/LocalCut/']) {
       await expect
         .poll(() => dialog.evaluate((el) => el.scrollWidth <= el.clientWidth))
         .toBe(true);
+      await selectAISettingsTab(page, 'Providers');
       await dialog
         .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
         .click();
@@ -334,6 +336,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Use API key', exact: true })
       .click();
+    await selectAISettingsTab(page, 'LLM - Chat');
     await dialog
       .getByRole('combobox', { name: 'AI model', exact: true })
       .click();
@@ -483,6 +486,7 @@ for (const base of ['/', '/LocalCut/']) {
     expect(migrated.selections).not.toContain('legacy-0');
     expect(requests).toHaveLength(6);
     await openAISettings(page);
+    await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
@@ -546,6 +550,7 @@ for (const base of ['/', '/LocalCut/']) {
       .fill('synthetic-stale-key');
     await dialog.getByText('Saved endpoint', { exact: true }).first().click();
     await expect(form).toBeHidden();
+    await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Disconnect Saved endpoint', exact: true })
       .click();
@@ -677,6 +682,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Use API key', exact: true })
       .click();
+    await selectAISettingsTab(page, 'LLM - Chat');
     await expect(
       dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toBeVisible();
@@ -693,15 +699,17 @@ for (const base of ['/', '/LocalCut/']) {
       dialog.getByLabel('OpenRouter API key', { exact: true }),
     ).toHaveCount(0);
     await dialog
-      .getByRole('button', { name: 'STT · Transcription', exact: true })
+      .getByRole('tab', { name: 'STT - Transcription', exact: true })
       .click();
     await dialog
       .getByRole('combobox', { name: 'Add STT provider', exact: true })
       .click();
     await page.getByRole('option', { name: 'OpenRouter', exact: true }).click();
+    await selectAISettingsTab(page, 'STT - Transcription');
     await expect(dialog.getByLabel('OpenRouter stt route model')).toContainText(
       'openai/whisper-1',
     );
+    await selectAISettingsTab(page, 'STT - Transcription');
     await dialog
       .getByRole('combobox', {
         name: 'OpenRouter stt route model',
@@ -732,18 +740,13 @@ for (const base of ['/', '/LocalCut/']) {
     expect(
       original.routes.stt.map((r: { providerId: string }) => r.providerId),
     ).toEqual(['openrouter', 'local']);
-    const connections = dialog.getByRole('button', {
-      name: 'Provider connections',
+    const connections = dialog.getByRole('tab', {
+      name: 'Providers',
       exact: true,
     });
     await connections.click();
-    await expect(
-      dialog.getByRole('button', {
-        name: 'Disconnect OpenRouter',
-        exact: true,
-      }),
-    ).toBeHidden();
-    await connections.click();
+
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       dialog.getByRole('button', {
         name: 'Disconnect OpenRouter',
@@ -752,6 +755,7 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
     await page.reload();
     await openAISettings(page);
+    await selectAISettingsTab(page, 'LLM - Chat');
     await expect(
       dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toBeVisible();
@@ -764,11 +768,13 @@ for (const base of ['/', '/LocalCut/']) {
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
     await page.screenshot({ path: info.outputPath('connector-mobile.png') });
+    await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
     expect(await credential()).toBeNull();
     // A disconnected account can be forgotten through the same control.
+    await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();

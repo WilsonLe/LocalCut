@@ -2,6 +2,7 @@ import { fulfillChatTitle } from './chat-title-fixture';
 import {
   prepareOpenRouterKey,
   openAISettings,
+  selectAISettingsTab,
 } from './workspace-settings-helper';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test } from '@playwright/test';
@@ -180,6 +181,7 @@ for (const base of ['/', '/LocalCut/']) {
       await dialog
         .getByRole('button', { name: 'Use API key', exact: true })
         .click();
+      await selectAISettingsTab(page, 'LLM - Chat');
       await dialog
         .getByRole('combobox', { name: 'AI model', exact: true })
         .click();
@@ -310,6 +312,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Use API key', exact: true })
       .click();
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       dialog.getByRole('button', { name: 'Verify OpenRouter', exact: true }),
     ).toBeVisible();
@@ -322,6 +325,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       dialog.getByRole('button', { name: 'Refresh models', exact: true }),
     ).toHaveCount(0);
+    await selectAISettingsTab(page, 'LLM - Chat');
     const picker = dialog.getByRole('combobox', {
       name: 'AI model',
       exact: true,
@@ -364,6 +368,7 @@ for (const base of ['/', '/LocalCut/']) {
     await search.focus();
     await page.keyboard.press('Escape');
     await expect(dialog).toBeVisible();
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       dialog.getByRole('region', { name: 'OpenRouter connection terms' }),
     ).toContainText('source transcript text');
@@ -372,6 +377,7 @@ for (const base of ['/', '/LocalCut/']) {
     ).toHaveCount(0);
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await openAISettings(page);
+    await selectAISettingsTab(page, 'LLM - Chat');
     await expect(
       dialog.getByRole('combobox', { name: 'AI model', exact: true }),
     ).toContainText('Editing model 119');
@@ -381,6 +387,7 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeFocused();
     await openAISettings(page);
     await expect(dialog).toBeVisible();
+    await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
@@ -388,6 +395,7 @@ for (const base of ['/', '/LocalCut/']) {
       dialog.getByRole('button', { name: 'I have an API key', exact: true }),
     ).toBeVisible();
     // Forget the disconnected profile through its replacement account control.
+    await selectAISettingsTab(page, 'Providers');
     await dialog
       .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
       .click();
@@ -407,6 +415,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Use API key', exact: true })
       .click();
+    await selectAISettingsTab(page, 'Providers');
     await expect(
       dialog.getByRole('region', { name: 'OpenRouter connection terms' }),
     ).toContainText('context categories stay enabled');
@@ -446,6 +455,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog
       .getByRole('button', { name: 'Use API key', exact: true })
       .click();
+    await selectAISettingsTab(page, 'LLM - Chat');
     await dialog
       .getByRole('combobox', { name: 'AI model', exact: true })
       .click();

@@ -1,3 +1,4 @@
+import { selectAISettingsTab } from './workspace-settings-helper';
 import { fulfillChatTitle } from './chat-title-fixture';
 import {
   prepareOpenRouterKey,
@@ -126,6 +127,7 @@ for (const base of ['/', '/LocalCut/']) {
     await connection
       .getByRole('button', { name: 'Use API key', exact: true })
       .click();
+    await selectAISettingsTab(page, 'LLM - Chat');
     const model = connection.getByRole('combobox', {
       name: 'AI model',
       exact: true,
@@ -379,6 +381,7 @@ for (const base of ['/', '/LocalCut/']) {
     await connection
       .getByRole('button', { name: 'Use API key', exact: true })
       .click();
+    await selectAISettingsTab(page, 'LLM - Chat');
     const model = connection.getByRole('combobox', {
       name: 'AI model',
       exact: true,

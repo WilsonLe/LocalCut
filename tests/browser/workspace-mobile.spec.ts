@@ -1,3 +1,4 @@
+import { selectAISettingsTab } from './workspace-settings-helper';
 import { fulfillChatTitle } from './chat-title-fixture';
 import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { dismissNotifications } from './workspace-notifications-helper';
@@ -177,6 +178,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'AI connection',
       exact: true,
     });
+    await selectAISettingsTab(page, 'LLM - Chat');
     await settings
       .getByRole('combobox', { name: 'AI model', exact: true })
       .click();
@@ -282,6 +284,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('menuitem', { name: 'AI settings', exact: true })
       .click();
+    await selectAISettingsTab(page, 'LLM - Chat');
     await settings
       .getByRole('combobox', { name: 'AI model', exact: true })
       .click();
