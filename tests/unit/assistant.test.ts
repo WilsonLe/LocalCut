@@ -4310,6 +4310,111 @@ describe('requested chat execution', () => {
     ]);
     await a.dispose();
   });
+  it('rejects a stale model plan when another edit commits during provider latency', async () => {
+    const f = fixture();
+    const requests: ChatRequest[] = [];
+    let round = 0;
+    const p = {
+      stream: async function* (request: ChatRequest) {
+        requests.push(structuredClone(request));
+        if (round++ === 0)
+          yield final('', [call('load_skill', { skillId: 'editing' })]);
+        else if (round === 2) {
+          f.changeRevision();
+          yield proposal();
+        } else yield final('The project changed.');
+      },
+    };
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      execution: 'requested',
+    });
+    const result = await a.run('Move').completion;
+    expect(
+      JSON.parse(requests[1]!.messages[1]!.content!).selectedProject.revision,
+    ).toBe(0);
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+    expect(f.project().revision).toBe(1);
+    expect(f.project().tracks[0]!.clips[0]!.startUs).toBe(0);
+    expect(result.proposalIds).toEqual([]);
+    expect(JSON.stringify(requests.at(-1))).toContain('REVISION_CONFLICT');
+    await a.dispose();
+  });
+  it('retains a successful receipt but rejects stale siblings after intervening post-commit edits', async () => {
+    const f = fixture();
+    const apply = f.editor.commands.apply;
+    f.editor.commands.apply = vi.fn(async (batch) => {
+      const receipt = await apply(batch);
+      f.changeRevision();
+      return receipt;
+    });
+    const p = provider([
+      [
+        final('', [
+          call(
+            'propose_edits',
+            {
+              summary: 'Move',
+              operations: [
+                {
+                  type: 'moveClip',
+                  clipId: 'video',
+                  trackId: 'main',
+                  startUs: 1e6,
+                },
+              ],
+            },
+            'move',
+          ),
+          call(
+            'propose_edits',
+            {
+              summary: 'Fade',
+              operations: [
+                {
+                  type: 'updateClip',
+                  clipId: 'video',
+                  patch: { opacity: 0.5 },
+                },
+              ],
+            },
+            'fade',
+          ),
+        ]),
+      ],
+      [final('The move completed; the fade needs a fresh plan.')],
+    ]);
+    const a = requested(f, p);
+    const result = await a.run('Move and fade').completion;
+    expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
+    expect(f.project().revision).toBe(2);
+    expect(f.project().tracks[0]!.clips[0]).toMatchObject({
+      startUs: 1e6,
+      opacity: 0.75,
+    });
+    expect(a.getProposal(result.proposalIds[0]!).result).toMatchObject({
+      kind: 'edit',
+      receipt: { appliedRevision: 1 },
+    });
+    const replies = p.requests
+      .at(-1)!
+      .messages.filter((m) => m.role === 'tool')
+      .map((m) => JSON.parse(m.content!));
+    expect(
+      replies.some(
+        (r) =>
+          r.status === 'completed' &&
+          r.contextRefreshError?.code === 'REVISION_CONFLICT',
+      ),
+    ).toBe(true);
+    expect(replies.some((r) => r.error?.code === 'REVISION_CONFLICT')).toBe(
+      true,
+    );
+    await a.dispose();
+  });
   it('refreshes the project after a rejected concurrent revision before recovery', async () => {
     const f = fixture();
     const apply = f.editor.commands.apply;
@@ -4474,6 +4579,169 @@ describe('requested chat execution', () => {
     await a.dispose();
     await jobs.dispose();
   });
+  it.each([false, true])(
+    'reuses failed indexing requests unless fresh reindexing is explicit: restart=%s',
+    async (restart) => {
+      const f = fixture();
+      const jobs = new Jobs();
+      const requestIds: string[] = [];
+      let fail = true;
+      const execute = vi.fn((_assetId: string, requestId: string) =>
+        jobs.start(async () => {
+          requestIds.push(requestId);
+          if (fail) {
+            fail = false;
+            throw new AiError('NETWORK_ERROR', 'Summary failed');
+          }
+          return {
+            id: 'retained-run',
+            assetId: 'asset',
+            analysis: { scenes: [] },
+          } as unknown as import('../../src/core/asset-index').AssetIndexRun;
+        }),
+      );
+      const action = (restart?: boolean) =>
+        final('', [
+          call('propose_action', {
+            summary: 'Index',
+            action: {
+              type: 'index_asset',
+              assetId: 'asset',
+              ...(restart ? { restart: true } : {}),
+            },
+          }),
+        ]);
+      const p = provider(
+        [
+          [final('', [call('load_skill', { skillId: 'indexing' })])],
+          [action()],
+          [final('Retry with a new request.')],
+          [final('', [call('load_skill', { skillId: 'indexing' })])],
+          [action(restart)],
+          [final('Done.')],
+        ],
+        false,
+      );
+      const a = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test/model',
+        execution: 'requested',
+        context: { includeAssetIndexes: true },
+        indexing: {
+          run: execute,
+          consent: () => true,
+          disclosure: 'Generated evidence.',
+        },
+      });
+      await a.run('Index').completion;
+      await a.run(restart ? 'Start a fresh reindex' : 'Retry indexing')
+        .completion;
+      expect(requestIds).toHaveLength(2);
+      expect(requestIds[0] === requestIds[1]).toBe(!restart);
+      expect(a.snapshot().proposals.at(-1)!.result).toMatchObject({
+        kind: 'indexing',
+        runId: 'retained-run',
+      });
+      await a.dispose();
+      await jobs.dispose();
+    },
+  );
+  it.each(['remove', 'relink', 'replace'])(
+    'retires current index observations and history when scope changes: %s',
+    async (change) => {
+      const f = fixture();
+      const old = {
+        id: 'old',
+        assetId: 'asset',
+        createdAt: 1,
+        status: 'complete',
+        invalidated: false,
+        label: { summary: 'Private retired observation', tags: [] },
+        analysis: { scenes: [] },
+      } as unknown as import('../../src/core/asset-index').AssetIndexRun;
+      const runs = [old];
+      f.editor.assets.indexes = { list: async () => structuredClone(runs) };
+      let round = 0;
+      const requests: ChatRequest[] = [];
+      const p = {
+        stream: async function* (request: ChatRequest) {
+          requests.push(structuredClone(request));
+          if (round++ === 0)
+            yield final('', [
+              call('read_asset_index', { assetId: 'asset' }),
+              call('load_skill', { skillId: 'editing' }, 'load'),
+            ]);
+          else if (round === 2) {
+            if (change === 'remove')
+              yield final('', [
+                call('propose_edits', {
+                  summary: 'Remove',
+                  operations: [{ type: 'removeClip', clipId: 'video' }],
+                }),
+              ]);
+            else {
+              if (change === 'relink') old.invalidated = true;
+              else
+                runs.push({
+                  ...structuredClone(old),
+                  id: 'fresh',
+                  createdAt: 2,
+                  label: {
+                    ...old.label!,
+                    summary: 'Fresh permitted observation',
+                  },
+                });
+              yield final('', [call('inspect_project', {})]);
+            }
+          } else yield final('Done.');
+        },
+      };
+      const a = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test/model',
+        execution: 'requested',
+        context: { includeAssetIndexes: true },
+        restoredTurns: [
+          {
+            id: 'prior-index-turn',
+            user: 'Describe previous observations',
+            assistant: 'Private retired observation',
+          },
+        ],
+        restoredIndexScope: JSON.stringify([['asset', 'old']]),
+      });
+      await a.run('Inspect observations, then update the context').completion;
+      expect(JSON.stringify(requests[1])).toContain(
+        'Private retired observation',
+      );
+      expect(JSON.stringify(requests[2])).not.toContain(
+        'Private retired observation',
+      );
+      await a.run('Continue using current context').completion;
+      expect(JSON.stringify(requests.at(-1))).not.toContain(
+        'Private retired observation',
+      );
+      if (change === 'replace')
+        expect(JSON.stringify(requests.at(-1))).toContain(
+          'Fresh permitted observation',
+        );
+      else
+        expect(
+          JSON.parse(requests.at(-1)!.messages[1]!.content!).assetIndex
+            .indexedAssetCount,
+        ).toBe(0);
+      if (change === 'remove')
+        expect(a.snapshot().proposals[0]!.result).toMatchObject({
+          kind: 'edit',
+          receipt: { appliedRevision: 1 },
+        });
+      await a.dispose();
+    },
+  );
   it('does not retry a failed indexing request in the same turn even if the model asks', async () => {
     const f = fixture();
     const jobs = new Jobs();

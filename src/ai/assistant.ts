@@ -300,6 +300,7 @@ export function createAssistant(options: AssistantOptions) {
   const proposals = new Map<string, EditProposal>();
   const applying = new Map<string, Promise<AssistantActionResult>>();
   const serviceControllers = new Map<string, AbortController>();
+  const failedIndexRequests = new Map<string, string>();
   const artifacts = new Map<
     string,
     ExportResult & { dispose: () => Promise<void> }
@@ -459,6 +460,7 @@ export function createAssistant(options: AssistantOptions) {
         const user: ChatMessage = { role: 'user', content: prompt };
         const conversation: ChatMessage[] = [user];
         const liveConversation: ChatMessage[] = [user];
+        let retireConversation = false;
         const loadedSkills = new Set<SkillId>();
         const discovery = (budgetExhausted = false) =>
           capabilityDiscovery(
@@ -517,10 +519,17 @@ export function createAssistant(options: AssistantOptions) {
             .filter(([, assetId]) => availableAssets.has(assetId))
             .map(([id]) => id),
         ]);
-        const refreshExecutionContext = async () => {
-          snapshot = structuredClone(
+        const refreshExecutionContext = async (expectedRevision?: number) => {
+          const current = structuredClone(
             await interruptible(editor.projects.snapshot(projectId), signal),
           );
+          aiInvariant(
+            expectedRevision === undefined ||
+              current.revision === expectedRevision,
+            'REVISION_CONFLICT',
+            'The project changed outside this response. Inspect the updated project in the next round.',
+          );
+          snapshot = current;
           referencedAssets.clear();
           availableAssets.clear();
           for (const assetId of assetIds(snapshot)) {
@@ -552,9 +561,16 @@ export function createAssistant(options: AssistantOptions) {
               limits.maxContextBytes,
               policy,
             );
-            indexScope = JSON.stringify(
+            const scope = JSON.stringify(
               indexes.map((run) => [run.assetId, run.id]).sort(),
             );
+            if (indexScope !== undefined && indexScope !== scope) {
+              history.length = 0;
+              historyIds.length = 0;
+              memory = '';
+              retireConversation = true;
+            }
+            indexScope = scope;
           }
         };
         const validate = async (operations: unknown[]) => {
@@ -962,7 +978,11 @@ export function createAssistant(options: AssistantOptions) {
                 summary: args.summary as string,
                 batch: {
                   projectId,
-                  requestId: crypto.randomUUID(),
+                  requestId:
+                    action.type === 'index_asset' && !action.restart
+                      ? (failedIndexRequests.get(action.assetId) ??
+                        crypto.randomUUID())
+                      : crypto.randomUUID(),
                   expectedRevision: snapshot.revision,
                   operations: [],
                 },
@@ -992,6 +1012,29 @@ export function createAssistant(options: AssistantOptions) {
           check();
           if (options.execution === 'requested')
             await refreshExecutionContext();
+          if (retireConversation) {
+            // Retire whole exchanges, never leave orphan tool replies or retain
+            // labels through model narration, compaction or the current turn.
+            const completed = [...proposals.values()]
+              .filter((proposal) => proposal.turnId === id && proposal.result)
+              .map((proposal) => ({
+                proposalId: proposal.id,
+                result: proposal.result,
+              }));
+            const retained: ChatMessage[] = [
+              user,
+              {
+                role: 'system',
+                content:
+                  'Saved index context changed; previous observations and conversation were retired. These actions already completed in this turn; do not repeat them: ' +
+                  JSON.stringify(completed),
+              },
+            ];
+            conversation.splice(0, conversation.length, ...retained);
+            liveConversation.splice(0, liveConversation.length, ...retained);
+            loadedSkills.clear();
+            retireConversation = false;
+          }
           const finishing = round === limits.maxRounds || callBudgetReached;
           capabilities.indexing = canIndex();
           const tools = finishing
@@ -1193,8 +1236,6 @@ export function createAssistant(options: AssistantOptions) {
                 local,
               );
               started = true;
-              if (options.execution === 'requested')
-                await refreshExecutionContext();
               result = await handleTool(parsed.name, parsed.args);
               if (
                 options.execution === 'requested' &&
@@ -1221,6 +1262,29 @@ export function createAssistant(options: AssistantOptions) {
                   result: receipt,
                 };
                 check();
+                try {
+                  // Only our own receipt can advance this response's revision.
+                  // Never rebind a model's stale plan to an intervening edit.
+                  await refreshExecutionContext(
+                    receipt.kind === 'edit' || receipt.kind === 'history'
+                      ? receipt.receipt.appliedRevision
+                      : proposal.batch.expectedRevision,
+                  );
+                } catch (error) {
+                  check();
+                  // Completion remains authoritative even if its follow-up read
+                  // fails. Remaining sibling mutations retain their stale revision.
+                  result = {
+                    proposalId: proposal.id,
+                    status: 'completed',
+                    result: receipt,
+                    contextRefreshError: {
+                      code: localError(error).code,
+                      nextStep:
+                        'Inspect the updated project in the next model round before more changes.',
+                    },
+                  };
+                }
               }
               boundedContext(result, limits.maxContextBytes);
               const output = disclose(result);
@@ -1583,6 +1647,7 @@ export function createAssistant(options: AssistantOptions) {
               const run = await runJob(
                 indexing.run(action.assetId, proposal.batch.requestId),
               );
+              failedIndexRequests.delete(action.assetId);
               result = {
                 kind: 'indexing',
                 runId: run.id,
@@ -1639,6 +1704,11 @@ export function createAssistant(options: AssistantOptions) {
           emit({ type: 'proposal', proposal });
           return structuredClone(result);
         } catch (error) {
+          if (proposal.action?.type === 'index_asset')
+            failedIndexRequests.set(
+              proposal.action.assetId,
+              proposal.batch.requestId,
+            );
           proposal.status = disposed ? 'discarded' : 'pending';
           proposal.progress = undefined;
           emit({ type: 'proposal', proposal });

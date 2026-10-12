@@ -334,6 +334,9 @@ test('rate-limit errors remain visible and retry requires a fresh send', async (
   await expect(
     page.getByText('Applied at revision 1', { exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByText('The new overlay track was added.', { exact: true }),
+  ).toBeVisible();
   expect(requests).toBe(4);
   expect((await snapshot(page, name)).revision).toBe(1);
 });

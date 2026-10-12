@@ -213,7 +213,20 @@ for (const base of ['/', '/LocalCut/']) {
                   name: 'propose_action',
                   arguments: JSON.stringify({
                     summary: 'Index the red image',
-                    action: { type: 'index_asset', assetId },
+                    action: {
+                      type: 'index_asset',
+                      assetId,
+                      ...(String(
+                        body.messages
+                          .filter(
+                            (message: { role: string }) =>
+                              message.role === 'user',
+                          )
+                          .at(-1)?.content,
+                      ).endsWith('Reindex from chat')
+                        ? { restart: true }
+                        : {}),
+                    },
                   }),
                 },
               },
@@ -334,16 +347,16 @@ for (const base of ['/', '/LocalCut/']) {
         .last(),
     ).toContainText('Saved red image observations are available.');
     await expect(page.getByText('Completed', { exact: true })).toBeVisible();
-    expect(evidenceRequests).toBe(4);
-    expect(sceneRequests).toBe(2);
-    expect(
-      (await runs()).filter((run) => run.status === 'complete'),
-    ).toHaveLength(1);
+    expect(evidenceRequests).toBe(3);
+    expect(sceneRequests).toBe(1);
+    expect(await runs()).toEqual([
+      { id: failedRuns[0]!.id, status: 'complete' },
+    ]);
     await expect(await indexAction(page, 'Reindex')).toBeEnabled();
     await page.keyboard.press('Escape');
     await send('Find the red image');
     await expect(
-      page.getByText('Saved red image observations are available.', {
+      response.getByText('Saved red image observations are available.', {
         exact: true,
       }),
     ).toBeVisible();
@@ -367,13 +380,16 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(approve).toHaveCount(0);
     await expect(page.getByText('Completed', { exact: true })).toHaveCount(2);
     const reindexed = await runs();
-    expect(reindexed).toHaveLength(3);
-    expect(reindexed.filter((run) => run.status === 'complete')).toEqual([
-      { id: expect.any(String), status: 'complete' },
+    expect(reindexed).toHaveLength(2);
+    expect(reindexed.find((run) => run.id === failedRuns[0]!.id)).toEqual({
+      id: failedRuns[0]!.id,
+      status: 'complete',
+    });
+    expect(reindexed.filter((run) => run.id !== failedRuns[0]!.id)).toEqual([
       { id: expect.any(String), status: 'complete' },
     ]);
-    expect(sceneRequests).toBe(3);
-    expect(evidenceRequests).toBe(6);
+    expect(sceneRequests).toBe(2);
+    expect(evidenceRequests).toBe(5);
     await page.reload();
     await page
       .getByRole('button', { name: 'Expand media', exact: true })
@@ -391,7 +407,7 @@ for (const base of ['/', '/LocalCut/']) {
         exact: true,
       }),
     ).toBeVisible();
-    expect(evidenceRequests).toBe(6);
+    expect(evidenceRequests).toBe(5);
     expect(JSON.stringify(bodies.at(-1))).toContain(label.summary);
   });
 
