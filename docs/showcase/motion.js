@@ -4,240 +4,215 @@ window.motionReady = (async () => {
   const timing = await (await fetch('timeline.json')).json();
   await document.fonts.ready;
   await Promise.all([...document.images].map((image) => image.decode()));
-  for (let i = 0; i < 153; i++) {
+  for (let i = 0; i < 87; i++) {
     const bar = document.createElement('i');
     bar.className = 'bar';
-    bar.style.height = `${7 + 40 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.31))}px`;
+    bar.style.height = `${8 + 77 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.31))}px`;
     document.getElementById('waveform').append(bar);
-  }
-  for (let i = 0; i < 5; i++) {
-    const shutter = document.createElement('div');
-    shutter.className = 'shutter';
-    shutter.style.left = `${i * 20}%`;
-    shutter.style.backgroundPosition = `${-i * 384}px center`;
-    document.getElementById('shutters').append(shutter);
   }
   const c = timing.cues,
     tl = gsap.timeline({ paused: true });
-  const scenes = [
-    'footage',
-    'rhythm',
-    'studio',
-    'tools',
-    'local',
-    'make',
-    'brand',
-  ];
+  const scenes = Object.keys(c).filter((name) => name !== 'end');
   gsap.set('.scene', { autoAlpha: 0 });
   gsap.set('#footage', { autoAlpha: 1 });
   scenes.forEach((name, i) => {
-    if (i > 0)
+    if (i)
       tl.fromTo(
-        `#${name}`,
+        '#' + name,
         { autoAlpha: 0 },
         { autoAlpha: 1, duration: 0.001 },
         c[name] - 0.001,
       );
     if (i < scenes.length - 1)
-      tl.set(`#${name}`, { autoAlpha: 0 }, c[scenes[i + 1]]);
+      tl.set('#' + name, { autoAlpha: 0 }, c[scenes[i + 1]]);
+    if (document.querySelector('#' + name + ' h2'))
+      tl.fromTo(
+        '#' + name + ' h2',
+        { y: 45, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.4, ease: 'expo.out' },
+        c[name],
+      );
+    if (document.querySelector('#' + name + ' .eyebrow'))
+      tl.fromTo(
+        '#' + name + ' .eyebrow',
+        { opacity: 0 },
+        { opacity: 1, duration: 0.25 },
+        c[name],
+      );
   });
   tl.fromTo(
-    '#footage .huge',
-    { y: 160, opacity: 0 },
-    { y: 0, opacity: 1, duration: 0.72, ease: 'expo.out' },
-    0.12,
+    '#footage h1',
+    { y: 110, opacity: 0 },
+    { y: 0, opacity: 1, duration: 0.6, ease: 'expo.out' },
+    0.04,
   )
     .fromTo(
-      '#footage .eyebrow,#footage .sub',
-      { opacity: 0, y: 20 },
-      { opacity: 1, y: 0, duration: 0.5, stagger: 0.1 },
-      0.25,
+      '.intro-mark',
+      { rotation: -20, scale: 0.7, opacity: 0 },
+      { rotation: 0, scale: 1, opacity: 1, duration: 0.65, ease: 'expo.out' },
+      0.1,
     )
     .fromTo(
       '.cutline',
       { scaleX: 0 },
-      { scaleX: 1, duration: 0.75, ease: 'expo.inOut' },
-      0.65,
+      { scaleX: 1, duration: 0.4, ease: 'expo.inOut' },
+      0.4,
+    )
+    .fromTo('.sub', { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.3)
+    .fromTo(
+      '.media-ui',
+      { y: 90, scale: 0.96, opacity: 0 },
+      { y: 0, scale: 1, opacity: 1, duration: 0.5, ease: 'expo.out' },
+      c.media,
     )
     .fromTo(
-      '.cutmark',
-      { x: -1500 },
-      { x: 450, duration: 0.9, ease: 'power3.inOut' },
-      0.72,
+      '.media-stack img',
+      { x: 400, opacity: 0 },
+      { x: 0, opacity: 1, duration: 0.5, stagger: 0.075, ease: 'expo.out' },
+      c.media + 0.05,
     )
     .fromTo(
-      '#footage .huge',
-      { x: 0 },
-      { x: -80, duration: 0.3, ease: 'power3.in', immediateRender: false },
-      c.rhythm - 0.3,
+      '.media-chips span',
+      { y: 25, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.3, stagger: 0.06 },
+      c.media + 0.5,
     )
     .fromTo(
-      '#rhythm .huge',
-      { y: 100, opacity: 0 },
-      { y: 0, opacity: 1, duration: 0.55, ease: 'expo.out' },
-      c.rhythm,
+      '.index-shot',
+      { y: 65, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.45, ease: 'expo.out' },
+      c.index,
     )
     .fromTo(
-      '.strip',
-      { y: 460, rotation: 8 },
-      {
-        y: 0,
-        rotation: 0,
-        duration: 0.72,
-        stagger: 0.09,
-        ease: 'expo.out',
-      },
-      c.rhythm + 0.12,
-    )
-    .fromTo(
-      '#rhythm .sub',
-      { opacity: 0 },
-      { opacity: 1, duration: 0.3 },
-      c.rhythm + 0.85,
-    )
-    .fromTo(
-      '.strip img',
-      { scale: 1.2 },
-      { scale: 1, duration: 1.7, ease: 'sine.out' },
-      c.rhythm,
-    )
-    .fromTo(
-      '.strip',
-      { y: 0 },
-      {
-        y: -65,
-        stagger: 0.04,
-        duration: 0.28,
-        ease: 'power2.in',
-        immediateRender: false,
-      },
-      c.studio - 0.3,
-    )
-    .fromTo(
-      '.studio-title',
-      { y: 45, opacity: 0 },
-      { y: 0, opacity: 1, duration: 0.6, ease: 'expo.out' },
-      c.studio + 0.05,
-    )
-    .fromTo(
-      '.screen',
-      { scale: 0.72, rotationX: 12, y: 150, opacity: 0 },
-      {
-        scale: 0.78,
-        rotationX: 0,
-        y: 0,
-        opacity: 1,
-        duration: 0.8,
-        ease: 'expo.out',
-      },
-      c.studio,
-    )
-    .fromTo(
-      '.screen',
-      { scale: 0.78, y: 0 },
-      {
-        scale: 0.82,
-        y: -10,
-        duration: 2.6,
-        ease: 'sine.inOut',
-        immediateRender: false,
-      },
-      c.studio + 0.85,
-    )
-    .fromTo(
-      '.studio-foot',
-      { opacity: 0 },
-      { opacity: 1, duration: 0.35 },
-      c.studio + 0.7,
-    )
-    .fromTo(
-      '.tools-title',
-      { x: -120, opacity: 0 },
+      '.index-copy',
+      { x: 80, opacity: 0 },
       { x: 0, opacity: 1, duration: 0.5, ease: 'expo.out' },
-      c.tools,
+      c.index + 0.08,
     )
     .fromTo(
-      '.track',
-      { x: 1700 },
-      { x: 0, duration: 0.7, stagger: 0.1, ease: 'expo.out' },
-      c.tools + 0.05,
+      '.tag-row span',
+      { y: 20, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.35, stagger: 0.09 },
+      c.index + 0.5,
     )
     .fromTo(
-      '.playhead',
-      { x: -470 },
-      { x: 1140, duration: 1.7, ease: 'none' },
-      c.tools + 0.12,
+      '.scanline',
+      { y: 0, opacity: 0.5 },
+      { y: 600, opacity: 0, duration: 1.3, ease: 'none' },
+      c.index + 0.15,
     )
     .fromTo(
-      '#local .huge',
-      { y: 100, opacity: 0 },
-      { y: 0, opacity: 1, duration: 0.55, ease: 'expo.out' },
-      c.local,
+      '.chat-shot',
+      { x: 140, opacity: 0 },
+      { x: 0, opacity: 1, duration: 0.5, ease: 'expo.out' },
+      c.chat,
     )
     .fromTo(
-      '.local-icon',
-      { scale: 0, rotation: -35 },
-      { scale: 1, rotation: 0, duration: 0.65, ease: 'back.out(1.4)' },
-      c.local + 0.15,
+      '.chat-copy h3,.request',
+      { y: 45, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.4, stagger: 0.1, ease: 'expo.out' },
+      c.chat + 0.05,
     )
     .fromTo(
-      '.local-orbit',
-      { scale: 1.5, opacity: 0 },
+      '.chat-copy .chips span',
+      { opacity: 0 },
+      { opacity: 1, duration: 0.3, stagger: 0.06 },
+      c.chat + 0.5,
+    )
+    .fromTo(
+      '.grade-result',
+      { scale: 1.08, opacity: 0 },
+      { scale: 1, opacity: 1, duration: 0.45, ease: 'expo.out' },
+      c.color,
+    )
+    .fromTo(
+      '.grade-split',
+      { clipPath: 'inset(0 0 0 100%)' },
+      { clipPath: 'inset(0 0 0 15%)', duration: 1.5, ease: 'power2.inOut' },
+      c.color + 0.1,
+    )
+    .fromTo(
+      '.control-card',
+      { y: 80, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.4, stagger: 0.08, ease: 'expo.out' },
+      c.color + 0.05,
+    )
+    .fromTo(
+      '.mask-result,.mask-shot',
+      { y: 60, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.4, stagger: 0.08, ease: 'expo.out' },
+      c.motion,
+    )
+    .fromTo(
+      '.mask-window,.tracking-box',
+      { x: 0 },
+      { x: 240, duration: 1.8, ease: 'sine.inOut' },
+      c.motion,
+    )
+    .fromTo(
+      '.motion-grid>div',
+      { y: 35, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.35, stagger: 0.075, ease: 'expo.out' },
+      c.motion + 0.25,
+    )
+    .fromTo(
+      '.audio-shot',
+      { x: -80, opacity: 0 },
+      { x: 0, opacity: 1, duration: 0.5, ease: 'expo.out' },
+      c.audio,
+    )
+    .fromTo(
+      '.eq>div',
+      { y: 55, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.45, stagger: 0.08, ease: 'expo.out' },
+      c.audio + 0.05,
+    )
+    .fromTo(
+      '.eq i',
+      { scaleY: 0.7 },
+      { scaleY: 1, duration: 0.7, stagger: 0.12, ease: 'back.out(2)' },
+      c.audio + 0.2,
+    )
+    .fromTo(
+      '.bar',
+      { scaleY: 0.15 },
       {
-        scale: 1,
-        opacity: 1,
-        duration: 0.9,
-        stagger: 0.12,
+        scaleY: 1,
+        duration: 0.5,
+        stagger: { each: 0.009, from: 'center' },
         ease: 'expo.out',
       },
-      c.local,
+      c.audio + 0.2,
     )
     .fromTo(
-      '.satellite',
-      { y: -80, opacity: 0 },
-      { y: 0, opacity: 1, duration: 0.5 },
-      c.local + 0.2,
+      '.sound-playhead',
+      { x: 0 },
+      { x: 860, duration: 2.4, ease: 'none' },
+      c.audio + 0.2,
     )
     .fromTo(
-      '.satellite',
-      { rotation: 0 },
-      { rotation: 90, duration: 1.2, immediateRender: false },
-      c.local + 0.6,
+      '.ramp',
+      { opacity: 0, y: 20 },
+      { opacity: 1, y: 0, duration: 0.4 },
+      c.audio + 0.55,
     )
     .fromTo(
-      '.shutter',
-      { y: (i) => (i % 2 ? 1080 : -1080) },
-      { y: 0, duration: 0.65, stagger: 0.055, ease: 'expo.out' },
-      c.make,
-    )
-    .fromTo(
-      '.make-title',
-      { scale: 0.8, opacity: 0 },
-      { scale: 1, opacity: 1, duration: 0.65, ease: 'expo.out' },
-      c.make + 0.28,
-    )
-    .fromTo(
-      '.make-title',
-      { scale: 1 },
-      {
-        scale: 1.06,
-        duration: 0.9,
-        ease: 'sine.inOut',
-        immediateRender: false,
-      },
-      c.make + 0.95,
+      '.audio-features span',
+      { y: 20, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.3, stagger: 0.04 },
+      c.audio + 0.4,
     )
     .fromTo(
       '.lockup',
-      { y: 75, opacity: 0, scale: 0.94 },
-      { y: 0, opacity: 1, scale: 1, duration: 0.6, ease: 'expo.out' },
+      { scale: 0.86, y: 65, opacity: 0 },
+      { scale: 1, y: 0, opacity: 1, duration: 0.7, ease: 'expo.out' },
       c.brand,
     )
     .fromTo(
-      '.tagline,.url',
+      '.tagline,.brand-features,.url',
       { y: 25, opacity: 0 },
-      { y: 0, opacity: 1, duration: 0.45, stagger: 0.13 },
-      c.brand + 0.35,
+      { y: 0, opacity: 1, duration: 0.45, stagger: 0.1 },
+      c.brand + 0.3,
     )
     .fromTo(
       '#progress',
@@ -247,7 +222,6 @@ window.motionReady = (async () => {
     );
   window.__timelines.film = tl;
   window.seek = (t) => {
-    tl.totalTime(Math.max(0, Math.min(timing.duration, t)), true);
+    tl.totalTime(Math.min(timing.duration, Math.max(0, t)), true);
   };
-  window.seek(0);
 })();

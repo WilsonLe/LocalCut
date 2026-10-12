@@ -6,11 +6,12 @@
   "bpm": 128,
   "cues": {
     "footage": 0,
-    "rhythm": 1.875,
-    "studio": 3.75,
-    "tools": 7.5,
-    "local": 9.375,
-    "make": 11.25,
+    "media": 0.9375,
+    "index": 2.8125,
+    "chat": 4.6875,
+    "color": 6.5625,
+    "motion": 8.4375,
+    "audio": 10.3125,
     "brand": 13.125,
     "end": 15
   }
