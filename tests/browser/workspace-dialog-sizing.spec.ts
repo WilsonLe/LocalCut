@@ -7,6 +7,7 @@ import {
 
 async function bounds(dialog: Locator, page: Page) {
   await expect(dialog).toBeVisible();
+  await expect(dialog).not.toHaveAttribute('data-dialog-loading');
   await expect
     .poll(() =>
       dialog.evaluate((element) => {
