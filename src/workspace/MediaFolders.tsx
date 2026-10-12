@@ -160,14 +160,16 @@ export function FolderNavigation({
   editable,
   onUpload,
   open,
+  actions,
 }: {
   state: MediaFoldersState;
   editable: boolean;
   onUpload: () => void;
   open: (mode: 'create', entry?: LibraryEntry) => void;
+  actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-1 border-b px-2 py-1">
+    <nav className="media-folder-navigation" aria-label="Media folders">
       <Button
         variant="ghost"
         size="icon-sm"
@@ -210,7 +212,7 @@ export function FolderNavigation({
           </Button>
         </span>
       )}
-      <div className="ml-auto flex gap-1">
+      <div className="ml-auto flex shrink-0 items-center gap-1">
         {editable && !state.trash && (
           <>
             <Button
@@ -241,8 +243,9 @@ export function FolderNavigation({
         >
           <Trash2 />
         </Button>
+        {actions}
       </div>
-    </div>
+    </nav>
   );
 }
 type Mode = 'create' | 'rename' | 'move' | 'copy' | 'trash';

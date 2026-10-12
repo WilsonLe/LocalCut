@@ -269,46 +269,51 @@ export default function MediaLibrary({
       }
     },
   });
+  const mediaActions = (
+    <>
+      {onSpeech && !readOnly && (
+        <Tooltip content="Generate a spoken narration from your script">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Text to speech"
+            onClick={onSpeech}
+          >
+            <AudioLines />
+          </Button>
+        </Tooltip>
+      )}
+      {canEdit && (
+        <Tooltip content="Record screen">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Record screen"
+            onClick={onRecord}
+          >
+            <ScreenShare aria-hidden="true" />
+          </Button>
+        </Tooltip>
+      )}
+    </>
+  );
   return (
     <section className="media-library" aria-label="Project media">
       <div className="section-heading">
         <h2>Media</h2>
-        <div className="ml-auto flex items-center gap-1">
-          {onSpeech && !readOnly && (
-            <Tooltip content="Generate a spoken narration from your script">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Text to speech"
-                onClick={onSpeech}
-              >
-                <AudioLines />
-              </Button>
-            </Tooltip>
-          )}
-          {canEdit && (
-            <Tooltip content="Record screen">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Record screen"
-                onClick={onRecord}
-              >
-                <ScreenShare aria-hidden="true" />
-              </Button>
-            </Tooltip>
-          )}
-        </div>
+        {editor && !readOnly ? (
+          <FolderNavigation
+            state={folders}
+            editable={canEdit}
+            onUpload={() => folderInput.current?.click()}
+            open={folderDialog.open}
+            actions={mediaActions}
+          />
+        ) : (
+          <div className="ml-auto flex items-center gap-1">{mediaActions}</div>
+        )}
         {headerActions}
       </div>
-      {editor && !readOnly && (
-        <FolderNavigation
-          state={folders}
-          editable={canEdit}
-          onUpload={() => folderInput.current?.click()}
-          open={folderDialog.open}
-        />
-      )}
       <input
         ref={folderInput}
         type="file"

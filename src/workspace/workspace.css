@@ -613,12 +613,25 @@
   pointer-events: none;
 }
 .media-library .section-heading {
+  min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
   flex-direction: row;
   gap: 8px;
   padding-right: 26px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
+}
+.media-folder-navigation {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.media-library .section-heading h2 {
+  flex-shrink: 0;
 }
 .new-project-dialog {
   padding: 28px;
