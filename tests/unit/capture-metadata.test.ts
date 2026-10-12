@@ -72,6 +72,22 @@ describe('embedded capture facts', () => {
         ),
       ).toBeUndefined();
   });
+  it('uses the first valid EXIF date with its own offset, subseconds and provenance', async () => {
+    for (const original of ['0000:00:00 00:00:00', '2024:06:15 12:34:56']) {
+      const bytes = embedExif(
+        new Uint8Array([255, 216, 255, 217]),
+        'image/jpeg',
+        exifFixture({ original, digitized: '2023:05:14 11:22:33' }),
+      );
+      expect(
+        (await imageCapture(new Blob([bytes]), 'image/jpeg'))?.time,
+      ).toEqual(
+        original.startsWith('0000')
+          ? { value: '2023-05-14T11:22:33.75-07:00', source: 'exif-digitized' }
+          : captureFixture.time,
+      );
+    }
+  });
   it('skips oversized EXIF payloads without reading compressed pixels or the payload', async () => {
     const bytes = new Uint8Array(8 + 12 + 1024 * 1024 + 1);
     bytes.set([137, 80, 78, 71, 13, 10, 26, 10]);

@@ -107,20 +107,23 @@ export async function imageCapture(
         ? value.replace(/\0/g, '').trim()
         : undefined;
     };
-    const original = string('DateTimeOriginal');
-    const value = original ?? string('DateTimeDigitized');
-    const suffix = original ? 'Original' : 'Digitized';
-    const sub = string(`SubSecTime${suffix}`);
-    const offset = string(`OffsetTime${suffix}`);
-    const time = captureTime(
-      `${value ?? ''}${sub && /^\d{1,9}$/.test(sub) ? '.' + sub : ''}${offset && /^[+-]\d{2}:\d{2}$/.test(offset) ? offset : ''}`,
-    );
     const capture: CaptureMetadata = {};
-    if (time)
-      capture.time = {
-        value: time,
-        source: original ? 'exif-original' : 'exif-digitized',
-      };
+    for (const suffix of ['Original', 'Digitized'] as const) {
+      const value = string(`DateTime${suffix}`);
+      if (!value) continue;
+      const sub = string(`SubSecTime${suffix}`);
+      const offset = string(`OffsetTime${suffix}`);
+      const time = captureTime(
+        `${value}${sub && /^\d{1,9}$/.test(sub) ? '.' + sub : ''}${offset && /^[+-]\d{2}:\d{2}$/.test(offset) ? offset : ''}`,
+      );
+      if (time) {
+        capture.time = {
+          value: time,
+          source: suffix === 'Original' ? 'exif-original' : 'exif-digitized',
+        };
+        break;
+      }
+    }
     const latitude = tags.gps?.Latitude,
       longitude = tags.gps?.Longitude;
     // Missing hemisphere references must not be interpreted as north/east.

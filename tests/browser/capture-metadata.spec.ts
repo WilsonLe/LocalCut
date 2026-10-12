@@ -153,6 +153,7 @@ for (const base of ['/', '/LocalCut/']) {
           base + 'ai.js'
         )) as typeof import('../../src/ai');
         const prompts: string[] = [];
+        let failSummary = false;
         const label = {
           summary: 'Red image',
           subjects: ['shape'],
@@ -172,6 +173,8 @@ for (const base of ['/', '/LocalCut/']) {
           ],
           label: async (request: { prompt: string; media: unknown[] }) => {
             prompts.push(request.prompt);
+            if (failSummary && !request.media.length)
+              throw new Error('Synthetic summary failure');
             const scene = request.media.length
               ? /"sceneId":"([^"]+)"/.exec(request.prompt)?.[1]
               : undefined;
@@ -194,6 +197,49 @@ for (const base of ['/', '/LocalCut/']) {
           } finally {
             await indexer.dispose();
           }
+        }
+        let partialRun = '';
+        failSummary = true;
+        const partial = createAssetIndexer({
+          editor,
+          provider,
+          model: 'synthetic',
+          consent: () => true,
+          includeCaptureMetadata: true,
+          onRunId: (id) => {
+            partialRun = id;
+          },
+        });
+        let partialFailed: boolean;
+        try {
+          partialFailed = await partial
+            .run(window.captureAssets[0]!)
+            .completion.then(
+              () => false,
+              () => true,
+            );
+        } finally {
+          await partial.dispose();
+        }
+        failSummary = false;
+        const beforeRetry = prompts.length;
+        const retry = createAssetIndexer({
+          editor,
+          provider,
+          model: 'synthetic',
+          consent: () => true,
+          includeCaptureMetadata: false,
+        });
+        let retryCode: string | undefined;
+        try {
+          retryCode = await retry
+            .run(window.captureAssets[0]!, partialRun)
+            .completion.then(
+              () => undefined,
+              (error: { code?: string }) => error.code,
+            );
+        } finally {
+          await retry.dispose();
         }
         const indexes = await editor.assets.indexes.list(
           window.captureAssets[0]!,
@@ -230,6 +276,12 @@ for (const base of ['/', '/LocalCut/']) {
         );
         return {
           prompts,
+          retry: {
+            partialFailed,
+            retryCode,
+            beforeRetry,
+            afterRetry: prompts.length,
+          },
           indexes: indexes.map((r) => ({
             capture: r.source.capture,
             captureShared: !!r.captureShared,
@@ -241,6 +293,9 @@ for (const base of ['/', '/LocalCut/']) {
         };
       }, base);
       expect(proof.prompts.slice(0, 2).join(' ')).not.toContain('2024-06-15');
+      expect(proof.retry.partialFailed).toBe(true);
+      expect(proof.retry.retryCode).toBe('INVALID_COMMAND');
+      expect(proof.retry.afterRetry).toBe(proof.retry.beforeRetry);
       expect(
         proof.prompts
           .slice(2)

@@ -3,7 +3,7 @@ import type { AssetIndexRun, IndexLabel } from '../core/asset-index';
 import { parseIndexLabel, indexSceneResponseSchema } from '../core/asset-index';
 import { Jobs, checkAbort } from '../services/jobs';
 import { runQueuedJob } from '../services/task-queue';
-import { asEditorError } from '../core/errors';
+import { asEditorError, invariant } from '../core/errors';
 import { AiError, aiInvariant } from './errors';
 import type { OpenRouter, IndexLabelRequest } from './types';
 
@@ -79,6 +79,11 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
                 run = await options.editor.assets.indexes.get(run.id);
                 check(signal);
                 if (run.status === 'complete') return run;
+                invariant(
+                  !run.captureShared || !!options.includeCaptureMetadata,
+                  'INVALID_COMMAND',
+                  'This index used capture dates and GPS. Enable capture sharing to retry it, or start a new index without capture context.',
+                );
                 const label = async (
                   prompt: string,
                   sceneId?: string,

@@ -11,11 +11,13 @@ export const captureFixture = {
     source: 'exif-gps' as const,
   },
 };
-export function exifFixture(): Uint8Array<ArrayBuffer> {
+export function exifFixture(
+  dates: { original?: string; digitized?: string } = {},
+): Uint8Array<ArrayBuffer> {
   const bytes = new Uint8Array(512),
     v = new DataView(bytes.buffer);
   bytes.set([73, 73, 42, 0, 8, 0, 0, 0]);
-  let data = 220;
+  let data = 240;
   function ifd(
     offset: number,
     entries: {
@@ -57,14 +59,21 @@ export function exifFixture(): Uint8Array<ArrayBuffer> {
   };
   ifd(8, [
     { tag: 0x8769, type: 4, count: 1, value: 40 },
-    { tag: 0x8825, type: 4, count: 1, value: 100 },
+    { tag: 0x8825, type: 4, count: 1, value: 140 },
   ]);
   ifd(40, [
-    text(0x9003, '2024:06:15 12:34:56'),
+    text(0x9003, dates.original ?? '2024:06:15 12:34:56'),
     text(0x9011, '+10:00'),
     text(0x9291, '125'),
+    ...(dates.digitized
+      ? [
+          text(0x9004, dates.digitized),
+          text(0x9012, '-07:00'),
+          text(0x9292, '75'),
+        ]
+      : []),
   ]);
-  ifd(100, [
+  ifd(140, [
     text(1, 'S'),
     rational(2, [27, 30, 0]),
     text(3, 'E'),
@@ -86,8 +95,8 @@ function concat(...parts: Uint8Array[]) {
 export function embedExif(
   original: Uint8Array,
   type: string,
+  exif = exifFixture(),
 ): Uint8Array<ArrayBuffer> {
-  const exif = exifFixture();
   if (type === 'image/jpeg') {
     const header = new Uint8Array(10);
     header.set([255, 225]);
