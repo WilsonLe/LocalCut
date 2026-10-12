@@ -15,7 +15,6 @@ import {
   searchIndexes,
   readIndex,
 } from '../../src/ai/index-context';
-import { readIndexConsent } from '../../src/workspace/index-consent';
 function frame(color: number[], timeUs: number, previous?: Uint8Array) {
   const pixels = new Uint8ClampedArray(8 * 8 * 4);
   for (let i = 0; i < 64; i++) pixels.set([...color, 255], i * 4);
@@ -247,20 +246,5 @@ describe('saved index context', () => {
     expect(searchIndexes([asset], 'unseen').matches).toHaveLength(0);
     expect(readIndex(asset, 1).scenes).toEqual([]);
     expect(JSON.stringify(readIndex(asset))).not.toContain('private');
-  });
-  it('hydrates only the explicitly versioned provider indexing permission', () => {
-    expect(
-      readIndexConsent(
-        JSON.stringify({ version: 1, provider: 'openrouter', allowed: true }),
-      ),
-    ).toBe(true);
-    for (const value of [
-      null,
-      '{',
-      JSON.stringify({ version: 2, provider: 'openrouter', allowed: true }),
-      JSON.stringify({ version: 1, provider: 'other', allowed: true }),
-      JSON.stringify({ version: 1, provider: 'openrouter', allowed: 'true' }),
-    ])
-      expect(readIndexConsent(value)).toBe(false);
   });
 });

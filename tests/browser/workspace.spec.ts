@@ -750,12 +750,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByRole('tooltip', { name: /tone.wav/ }),
     ).not.toContainText('0 × 0');
-    await page.evaluate(() =>
-      localStorage.setItem(
-        'localcut.asset-index-consent.v1',
-        JSON.stringify({ version: 1, provider: 'openrouter', allowed: true }),
-      ),
-    );
+
     await page
       .getByRole('button', { name: 'Collapse media', exact: true })
       .click();
