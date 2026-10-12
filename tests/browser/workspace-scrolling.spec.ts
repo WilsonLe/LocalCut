@@ -16,6 +16,7 @@ async function positions(page: Page) {
   return page.evaluate(() => ({
     page: window.scrollY,
     workspace: document.querySelector('.workspace-body')!.scrollTop,
+    editor: document.querySelector('#editor-panel')!.scrollTop,
     header: document
       .querySelector(
         '.workspace-header, .mobile-edit-heading, .conversation-heading',
@@ -59,11 +60,11 @@ for (const base of ['/', '/LocalCut/']) {
         await page.setViewportSize(viewport);
         await page.goto(base);
         await expect(page.locator('.editing-area')).toBeVisible();
-        const body = page.locator('.workspace-body');
+        const editor = page.locator('#editor-panel');
         if (viewport.width < 900) {
-          await wheel(page, body, 600);
+          await wheel(page, editor, 600);
           await expect
-            .poll(() => body.evaluate((el) => el.scrollTop))
+            .poll(() => editor.evaluate((el) => el.scrollTop))
             .toBeGreaterThan(0);
         }
         await page.evaluate(() => window.scrollTo(0, 1000));
