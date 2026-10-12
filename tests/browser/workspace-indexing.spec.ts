@@ -748,7 +748,21 @@ for (const base of ['/', '/LocalCut/']) {
       page.getByText('I can use the indexed red scene.'),
     ).toBeVisible();
     expect(JSON.stringify(bodies.at(-1))).not.toContain('assetIndex');
-    expect(JSON.stringify(bodies.at(-1))).not.toContain('search_asset_index');
+    expect(JSON.stringify(bodies.at(-1)!.tools)).not.toContain(
+      'search_asset_index',
+    );
+    const blockedScope = JSON.parse(
+      (bodies.at(-1)!.messages as { content: string }[])[1]!.content,
+    );
+    expect(blockedScope.capabilityMap.tools.search_asset_index).toMatchObject({
+      supported: true,
+      available: false,
+    });
+    expect(
+      blockedScope.capabilityMap.tools.search_asset_index.blockers.map(
+        (blocker: { reason: string }) => blocker.reason,
+      ),
+    ).toContain('sharing_disabled');
     await page.reload();
     await page.keyboard.press('Escape');
     dialog = await settings(page);

@@ -27,6 +27,7 @@ import { EditorError } from '../../src/core/errors';
 import { Jobs } from '../../src/services/jobs';
 import {
   supportedEditOperations,
+  capabilityDiscovery,
   toolDefinitions,
   editingProperties,
   parseTool,
@@ -213,24 +214,9 @@ function provider(rounds: ProviderEvent[][], loadDomains = true) {
           rounds[0]?.flatMap((event) =>
             event.type === 'complete' ? (event.message.tool_calls ?? []) : [],
           ) ?? [];
-        const catalog = JSON.parse(request.messages[1]!.content!)
-          .skillCatalog as { id: string }[];
-        const names = new Set(request.tools.map((tool) => tool.function.name));
-        const loaded = new Set(
-          request.messages
-            .slice(
-              request.messages
-                .map((message) => message.role)
-                .lastIndexOf('user') + 1,
-            )
-            .filter((message) => message.role === 'tool')
-            .flatMap((message) => {
-              const result = JSON.parse(message.content);
-              return result.status === 'loaded' ? [result.skillId] : [];
-            }),
-        );
-        // History cannot authorize this turn; infer current loads from declared tools instead.
-        if (names.size === 4) loaded.clear();
+        const scope = JSON.parse(request.messages[1]!.content!);
+        const catalog = scope.skillCatalog as { id: string }[];
+        const loaded = new Set<string>(scope.capabilityMap.loadedSkills);
         const required = new Set<string>();
         for (const tool of calls) {
           const name = tool.function.name;
@@ -1948,9 +1934,13 @@ describe('headless assistant boundaries', () => {
       [final()],
     ]);
     expect((await f.assistant.run('Undo').completion).proposalIds).toEqual([]);
-    expect(JSON.stringify(f.provider.requests[1])).toContain(
+    expect(JSON.stringify(f.provider.requests.at(-1))).toContain(
       'TOOL_NOT_ALLOWED',
     );
+    expect(
+      JSON.parse(f.provider.requests[0]!.messages[1]!.content!).capabilityMap
+        .actions.undo,
+    ).toMatchObject({ supported: false, available: false });
   });
   it('requires explicit approval for history and preserves its request ID and committed receipt', async () => {
     const f = fixture();
@@ -2562,7 +2552,7 @@ describe('incremental assistant skills', () => {
     await f.assistant.dispose();
   });
 
-  it('rejects unavailable and unknown skills without broadening the catalog', async () => {
+  it('loads known unsupported-domain guidance without enabling its service and rejects unknown skills', async () => {
     const f = rawSetup([
       [final('', [load('export'), load('network', 'unknown')])],
       [final()],
@@ -2572,12 +2562,23 @@ describe('incremental assistant skills', () => {
       JSON.parse(
         f.provider.requests[0]!.messages[1]!.content!,
       ).skillCatalog.map((skill: { id: string }) => skill.id),
-    ).toEqual(['storyboard', 'editing']);
+    ).toEqual([
+      'storyboard',
+      'editing',
+      'export',
+      'transcription',
+      'indexing',
+      'history',
+    ]);
     expect(names(f.provider.requests[1]!)).toEqual(baseTools);
     const results = f.provider.requests[1]!.messages.filter(
       (message) => message.role === 'tool',
     ).map((message) => JSON.parse(message.content));
-    expect(results[0].error.code).toBe('TOOL_NOT_ALLOWED');
+    expect(results[0]).toMatchObject({ skillId: 'export', status: 'loaded' });
+    expect(
+      JSON.parse(f.provider.requests[1]!.messages[1]!.content!).capabilityMap
+        .actions.export,
+    ).toMatchObject({ supported: false, available: false });
     expect(results[1].error.code).toBe('INVALID_TOOL_ARGUMENTS');
     await f.assistant.dispose();
   });
@@ -3646,7 +3647,7 @@ describe('approved chat asset indexing', () => {
           ).skillCatalog.some(
             (skill: { id: string }) => skill.id === 'indexing',
           ),
-        ).toBe(options.supported !== false);
+        ).toBe(true);
         const discovery = f.provider.requests[1]!.messages.find(
           (message) =>
             message.role === 'tool' && message.tool_call_id === 'caps',
@@ -3667,7 +3668,7 @@ describe('approved chat asset indexing', () => {
           f.provider.requests[1]!.tools.map(
             (tool) => tool.function.name,
           ).includes('inspect_asset'),
-        ).toBe(options.supported !== false);
+        ).toBe(true);
         expect(
           f.provider.requests[1]!.tools.map((tool) => tool.function.name),
         ).not.toContain('search_asset_index');
@@ -3852,3 +3853,385 @@ it.each(['[]', undefined, 'obsolete-index-runs'])(
     await assistant.dispose();
   },
 );
+
+describe('complete capability discovery and recovery', () => {
+  const allSkills = new Set<import('../../src/ai/skills').SkillId>([
+    'editing',
+    'storyboard',
+    'export',
+    'transcription',
+    'indexing',
+    'history',
+  ]);
+  const full = {
+    undo: true,
+    redo: true,
+    export: true,
+    transcriptionStatus: true,
+    transcription: true,
+    transcriptionPreparation: true,
+    indexingSupported: true,
+    indexing: true,
+  };
+  it.each([
+    ['undo', 'history', 'undo'],
+    ['redo', 'history', 'redo'],
+    ['export', 'export', 'export'],
+    ['transcribe', 'transcription', 'transcription'],
+    ['prepare_transcription', 'transcription', 'transcriptionPreparation'],
+    ['index_asset', 'indexing', 'indexing'],
+  ] as const)(
+    'distinguishes support, loading and declaration for %s',
+    (type, skill, flag) => {
+      const caps = { ...assistantCapabilities(fixture().editor), [flag]: true };
+      const before = capabilityDiscovery(false, caps);
+      expect(before.actions[type]).toMatchObject({
+        supported: true,
+        available: false,
+        requiredSkills: [skill],
+      });
+      expect(
+        before.actions[type].blockers.map((blocker) => blocker.reason),
+      ).toEqual(['skill_not_loaded']);
+      expect(
+        toolDefinitions(false, caps).map((tool) => tool.function.name),
+      ).not.toContain('propose_action');
+      const loaded = new Set<import('../../src/ai/skills').SkillId>([skill]);
+      expect(
+        capabilityDiscovery(false, caps, loaded).actions[type],
+      ).toMatchObject({ supported: true, available: true, blockers: [] });
+      const action = toolDefinitions(false, caps, loaded).find(
+        (tool) => tool.function.name === 'propose_action',
+      )!;
+      expect(JSON.stringify(action.function.parameters)).toContain(
+        `"const":"${type}"`,
+      );
+      const unavailable = { ...caps, [flag]: false, indexingSupported: false };
+      expect(
+        capabilityDiscovery(false, unavailable, loaded).actions[type],
+      ).toMatchObject({ supported: false, available: false });
+      expect(
+        JSON.stringify(toolDefinitions(false, unavailable, loaded)),
+      ).not.toContain(`"const":"${type}"`);
+    },
+  );
+  it('covers every canonical tool/action and separately reports sharing, storage and explicit budgets', () => {
+    const open = capabilityDiscovery(true, full, allSkills, true, true);
+    expect(Object.keys(open.tools)).toEqual([
+      'load_skill',
+      'search_asset_index',
+      'read_asset_index',
+      'inspect_project',
+      'inspect_storyboard',
+      'inspect_asset',
+      'inspect_timeline',
+      'inspect_capabilities',
+      'search_text_library',
+      'inspect_transcription',
+      'inspect_proposals',
+      'read_transcript',
+      'validate_edits',
+      'check_export',
+      'propose_edits',
+      'propose_action',
+    ]);
+    expect(Object.keys(open.actions)).toEqual([
+      'undo',
+      'redo',
+      'export',
+      'transcribe',
+      'prepare_transcription',
+      'index_asset',
+    ]);
+    expect(
+      Object.values(open.tools).every(
+        (tool) => tool.supported && tool.available,
+      ),
+    ).toBe(true);
+    expect(
+      toolDefinitions(true, full, allSkills, true).map(
+        (tool) => tool.function.name,
+      ),
+    ).toEqual(Object.keys(open.tools));
+    const closed = capabilityDiscovery(
+      false,
+      { ...full, indexing: false },
+      allSkills,
+      false,
+      true,
+    );
+    for (const name of [
+      'read_transcript',
+      'read_asset_index',
+      'search_asset_index',
+    ] as const) {
+      expect(closed.tools[name]).toMatchObject({
+        supported: true,
+        available: false,
+      });
+      expect(
+        closed.tools[name].blockers.map((blocker) => blocker.reason),
+      ).toEqual(['sharing_disabled']);
+    }
+    expect(
+      closed.actions.index_asset.blockers.map((blocker) => blocker.reason),
+    ).toEqual(['sharing_disabled']);
+    expect(closed.tools.propose_edits.available).toBe(true);
+    expect(closed.actions.transcribe.available).toBe(true);
+    expect(
+      capabilityDiscovery(true, full, allSkills, true, false).tools
+        .read_asset_index,
+    ).toMatchObject({ supported: false, available: false });
+    const limited = capabilityDiscovery(
+      true,
+      full,
+      allSkills,
+      true,
+      true,
+      true,
+    );
+    for (const state of [
+      ...Object.values(limited.tools),
+      ...Object.values(limited.actions),
+    ]) {
+      expect(state.available).toBe(false);
+      expect(
+        state.blockers.some((blocker) => blocker.reason === 'caller_budget'),
+      ).toBe(true);
+    }
+  });
+  it('advertises all known domains initially without claiming unsupported methods or disclosing private content', async () => {
+    const f = fixture(),
+      p = provider([[final()]], false);
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    try {
+      await a.run('Help with editing, Storyboard, export, speech and Undo')
+        .completion;
+      const scope = JSON.parse(p.requests[0]!.messages[1]!.content!);
+      expect(
+        scope.skillCatalog.map((skill: { id: string }) => skill.id),
+      ).toEqual([
+        'storyboard',
+        'editing',
+        'export',
+        'transcription',
+        'indexing',
+        'history',
+      ]);
+      expect(scope.capabilityMap.loadedSkills).toEqual([]);
+      expect(scope.privacy).toEqual({
+        rawMediaAvailable: false,
+        includeText: false,
+        includeAssetNames: false,
+        includeTranscripts: false,
+        includeAssetIndexes: false,
+        includeCaptureMetadata: false,
+      });
+      expect(scope.capabilityMap.tools.propose_edits).toMatchObject({
+        supported: true,
+        available: false,
+      });
+      expect(scope.capabilityMap.actions.export).toMatchObject({
+        supported: false,
+        available: false,
+      });
+      expect(scope.userActions).toContain('capture_and_generate_speech');
+      expect(JSON.stringify(p.requests)).not.toMatch(
+        /Private client project|Private overlay text|Private transcript phrase|Private recording.mov/,
+      );
+      expect(f.editor.transcription.transcript).not.toHaveBeenCalled();
+    } finally {
+      await a.dispose();
+    }
+  });
+  it('recovers an available action after loading the wrong domain without executing either service', async () => {
+    const f = fixture();
+    f.editor.commands.undo = vi.fn();
+    f.editor.exports = { preflight: vi.fn(), start: vi.fn() };
+    const p = provider(
+      [
+        [final('', [call('load_skill', { skillId: 'history' })])],
+        [
+          final('', [
+            call('propose_action', {
+              summary: 'Export',
+              action: { type: 'export', options: { format: 'mp4' } },
+            }),
+          ]),
+        ],
+        [final('', [call('load_skill', { skillId: 'export' })])],
+        [
+          final('', [
+            call('propose_action', {
+              summary: 'Export',
+              action: { type: 'export', options: { format: 'mp4' } },
+            }),
+          ]),
+        ],
+        [final()],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    try {
+      const result = await a.run('Export the video').completion;
+      const failure = JSON.parse(
+        p.requests[2]!.messages.at(-1)!.content!,
+      ).error;
+      expect(failure.code).toBe('TOOL_NOT_ALLOWED');
+      expect(failure.details.recovery.action).toMatchObject({
+        supported: true,
+        available: false,
+        requiredSkills: ['export'],
+      });
+      expect(
+        failure.details.recovery.action.blockers.map(
+          (blocker: { reason: string }) => blocker.reason,
+        ),
+      ).toEqual(['skill_not_loaded']);
+      expect(
+        JSON.parse(p.requests[3]!.messages[1]!.content!).capabilityMap.actions
+          .export.available,
+      ).toBe(true);
+      expect(result.proposalIds).toHaveLength(1);
+      expect(a.getProposal(result.proposalIds[0]!).action).toEqual({
+        type: 'export',
+        options: { format: 'mp4' },
+      });
+      expect(f.editor.exports.start).not.toHaveBeenCalled();
+      expect(f.editor.commands.undo).not.toHaveBeenCalled();
+    } finally {
+      await a.dispose();
+    }
+  });
+  it('identifies the requested service before any domain is loaded without granting it authority', async () => {
+    const f = fixture();
+    f.editor.exports = { preflight: vi.fn(), start: vi.fn() };
+    const p = provider(
+      [
+        [
+          final('', [
+            call('propose_action', {
+              summary: 'Export',
+              action: { type: 'export', options: { format: 'mp4' } },
+            }),
+          ]),
+        ],
+        [final('', [call('load_skill', { skillId: 'export' })])],
+        [
+          final('', [
+            call('propose_action', {
+              summary: 'Export',
+              action: { type: 'export', options: { format: 'mp4' } },
+            }),
+          ]),
+        ],
+        [final()],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    try {
+      const result = await a.run('Export the video').completion;
+      const failure = JSON.parse(
+        p.requests[1]!.messages.at(-1)!.content!,
+      ).error;
+      expect(failure.details.recovery.action).toMatchObject({
+        supported: true,
+        available: false,
+        requiredSkills: ['export'],
+      });
+      expect(result.proposalIds).toHaveLength(1);
+      expect(f.editor.exports.start).not.toHaveBeenCalled();
+      expect(f.editor.exports.preflight).not.toHaveBeenCalled();
+    } finally {
+      await a.dispose();
+    }
+  });
+  it('keeps accessible edits available when transcript sharing blocks one step and resets discovery on the next turn', async () => {
+    const f = fixture();
+    const p = provider(
+      [
+        [
+          final('', [
+            call('load_skill', { skillId: 'editing' }, 'edit'),
+            call('load_skill', { skillId: 'transcription' }, 'speech'),
+          ]),
+        ],
+        [
+          final('', [
+            call('read_transcript', { transcriptId: 'transcript' }, 'private'),
+            call(
+              'search_text_library',
+              { kind: 'fonts', query: 'Space Mono' },
+              'fonts',
+            ),
+          ]),
+        ],
+        [proposal()],
+        [final()],
+        [
+          final('', [
+            call('search_text_library', { kind: 'fonts', query: 'Space Mono' }),
+          ]),
+        ],
+        [final('', [call('load_skill', { skillId: 'editing' })])],
+        [proposal()],
+        [final()],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    try {
+      const first = await a.run('Read my transcript and adjust the clip')
+        .completion;
+      expect(first.proposalIds).toHaveLength(1);
+      const blocked = p.requests[2]!.messages.find(
+        (message) =>
+          message.role === 'tool' && message.tool_call_id === 'private',
+      )!;
+      expect(
+        JSON.parse(blocked.content!).error.details.recovery.blockers.map(
+          (blocker: { reason: string }) => blocker.reason,
+        ),
+      ).toEqual(['sharing_disabled']);
+      expect(f.editor.transcription.transcript).not.toHaveBeenCalled();
+      expect(JSON.stringify(p.requests)).not.toContain(
+        'Private transcript phrase',
+      );
+      const next = await a.run('Continue editing').completion;
+      expect(next.proposalIds).toHaveLength(1);
+      expect(
+        JSON.parse(p.requests[4]!.messages[1]!.content!).capabilityMap
+          .loadedSkills,
+      ).toEqual([]);
+      expect(
+        JSON.parse(p.requests[5]!.messages.at(-1)!.content!).error.details
+          .recovery.requiredSkills,
+      ).toEqual(['editing']);
+      expect(f.editor.commands.apply).not.toHaveBeenCalled();
+    } finally {
+      await a.dispose();
+    }
+  });
+});

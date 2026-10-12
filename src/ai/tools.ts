@@ -19,7 +19,7 @@ import { EditorError } from '../core/errors';
 import { AiError, aiInvariant } from './errors';
 import type { ToolDefinition } from './types';
 import type { AssistantCapabilities } from './actions';
-import { availableSkills } from './skills';
+import { skillCatalog } from './skills';
 import type { SkillId } from './skills';
 
 const emptySchema = z.object({}).strict();
@@ -156,11 +156,191 @@ export function searchTextLibrary(
   };
 }
 
+type AccessBlocker = {
+  reason:
+    | 'host_unavailable'
+    | 'sharing_disabled'
+    | 'skill_not_loaded'
+    | 'caller_budget';
+  nextStep: string;
+};
+type AccessRule = {
+  skills: readonly SkillId[];
+  support?: readonly [boolean, string];
+  permission?: readonly [boolean, string];
+};
+
+/** The same rules own declarations, complete discovery and rejected-call recovery. */
+export function capabilityDiscovery(
+  includeTranscripts: boolean,
+  capabilities: AssistantCapabilities,
+  loadedSkills: ReadonlySet<SkillId> = new Set(),
+  includeAssetIndexes = false,
+  hasAssetIndexes = true,
+  budgetExhausted = false,
+) {
+  const access = (rule: AccessRule) => {
+    const supported = rule.support?.[0] ?? true;
+    const blockers: AccessBlocker[] = [];
+    if (!supported)
+      blockers.push({ reason: 'host_unavailable', nextStep: rule.support![1] });
+    if (rule.permission && !rule.permission[0])
+      blockers.push({
+        reason: 'sharing_disabled',
+        nextStep: rule.permission[1],
+      });
+    if (rule.skills.length && !rule.skills.some((id) => loadedSkills.has(id)))
+      blockers.push({
+        reason: 'skill_not_loaded',
+        nextStep: `Call load_skill with one of: ${rule.skills.join(', ')}. Its tools become available in the next round.`,
+      });
+    if (budgetExhausted)
+      blockers.push({
+        reason: 'caller_budget',
+        nextStep:
+          'The explicit caller tool budget is exhausted. Summarize completed results and request a new turn for unfinished work.',
+      });
+    return {
+      supported,
+      available: !blockers.length,
+      requiredSkills: rule.skills,
+      blockers,
+    };
+  };
+  const actions = {
+    undo: access({
+      skills: ['history'],
+      support: [
+        capabilities.undo,
+        'This session has no Undo executor. Use the workspace history control or reconnect with history support.',
+      ],
+    }),
+    redo: access({
+      skills: ['history'],
+      support: [
+        capabilities.redo,
+        'This session has no Redo executor. Use the workspace history control or reconnect with history support.',
+      ],
+    }),
+    export: access({
+      skills: ['export'],
+      support: [
+        capabilities.export,
+        'This session has no export executor. Use the workspace Export control or a host with export support.',
+      ],
+    }),
+    transcribe: access({
+      skills: ['transcription'],
+      support: [
+        capabilities.transcription,
+        'This session has no transcription executor. Use the workspace transcription control or a host with transcription support.',
+      ],
+    }),
+    prepare_transcription: access({
+      skills: ['transcription'],
+      support: [
+        capabilities.transcriptionPreparation,
+        'This session has no model-preparation executor. Use the workspace transcription preparation control or a host with preparation support.',
+      ],
+    }),
+    index_asset: access({
+      skills: ['indexing'],
+      support: [
+        !!(capabilities.indexingSupported || capabilities.indexing),
+        'This session has no compatible indexing executor. In the workspace, select an OpenRouter model with image or audio input.',
+      ],
+      permission: [
+        !!capabilities.indexing,
+        'Enable indexing consent and asset-index sharing. In the workspace, enable Allow asset indexing in AI connection → Data & analytics.',
+      ],
+    }),
+  } satisfies Record<
+    z.infer<typeof actionSchema>['type'],
+    ReturnType<typeof access>
+  >;
+  const indexRead: AccessRule = {
+    skills: [],
+    support: [
+      hasAssetIndexes,
+      'This session cannot read saved indexes. Use a host with asset-index storage support.',
+    ],
+    permission: [
+      includeAssetIndexes,
+      'Enable asset-index sharing before reading saved labels. In the workspace, enable Allow asset indexing in AI connection → Data & analytics.',
+    ],
+  };
+  const rules = {
+    load_skill: { skills: [] },
+    inspect_project: { skills: [] },
+    inspect_capabilities: { skills: [] },
+    inspect_proposals: { skills: [] },
+    search_asset_index: indexRead,
+    read_asset_index: indexRead,
+    inspect_asset: { skills: ['editing', 'transcription', 'indexing'] },
+    inspect_storyboard: { skills: ['storyboard'] },
+    inspect_timeline: { skills: ['editing'] },
+    search_text_library: { skills: ['editing'] },
+    validate_edits: { skills: ['editing', 'storyboard'] },
+    propose_edits: { skills: ['editing', 'storyboard'] },
+    read_transcript: {
+      skills: ['transcription'],
+      permission: [
+        includeTranscripts,
+        'Enable transcript-text sharing in the context policy before reading existing transcripts. Local transcription approval does not enable this sharing.',
+      ],
+    },
+    check_export: {
+      skills: ['export'],
+      support: [
+        capabilities.export,
+        'This session cannot probe export codecs. Use the workspace Export control or a host with export support.',
+      ],
+    },
+    inspect_transcription: {
+      skills: ['transcription'],
+      support: [
+        capabilities.transcriptionStatus,
+        'This session cannot inspect model readiness. Use the workspace transcription preparation control or a host with readiness support.',
+      ],
+    },
+    // Individual service variants retain their own domain/support/permission checks below.
+    propose_action: { skills: [] },
+  } satisfies Record<ToolName, AccessRule>;
+  const tools = Object.fromEntries(
+    (Object.keys(schemas) as ToolName[]).map((name) => [
+      name,
+      access(rules[name]),
+    ]),
+  ) as Record<ToolName, ReturnType<typeof access>>;
+  const serviceStates = Object.values(actions);
+  tools.propose_action = {
+    supported: serviceStates.some((state) => state.supported),
+    available: serviceStates.some((state) => state.available),
+    requiredSkills: [
+      ...new Set(
+        serviceStates
+          .filter((state) => state.supported)
+          .flatMap((state) => state.requiredSkills),
+      ),
+    ],
+    blockers: serviceStates.some((state) => state.available)
+      ? []
+      : serviceStates
+          .filter(
+            (state) =>
+              !serviceStates.some((item) => item.supported) || state.supported,
+          )
+          .flatMap((state) => state.blockers),
+  };
+  return { loadedSkills: [...loadedSkills], tools, actions };
+}
+
 export function toolDefinitions(
   includeTranscripts: boolean,
   capabilities: AssistantCapabilities,
   loadedSkills: ReadonlySet<SkillId> = new Set(),
   includeAssetIndexes = false,
+  hasAssetIndexes = true,
 ): ToolDefinition[] {
   const descriptions: Record<ToolName, string> = {
     load_skill:
@@ -178,7 +358,7 @@ export function toolDefinitions(
     inspect_timeline:
       'Evaluate active clips at a timeline time: exact frame time, source positions, animated transforms, effects, audio gain, captions and transition weights. Structural metadata only; never renders or uploads a frame.',
     inspect_capabilities:
-      'Discover domain skills, supported service actions, indexing support and permission blockers, plus edit operations, properties, timing rules and approval boundaries. Read before claiming a requested workflow is unavailable.',
+      'Read the complete capabilityMap for every known tool and service action, including host support, required skills, permission blockers and recovery. Also describes canonical edit properties/rules and approval boundaries. Read before claiming any workflow is unavailable.',
     search_text_library:
       'Search the shared text templates or font catalog by name/labels. Paginated read-only results include stable font IDs or complete template styles for insertClip/updateClip. Empty query browses every entry. No private text, media, downloads or inference.',
     inspect_transcription:
@@ -196,54 +376,22 @@ export function toolDefinitions(
     propose_action:
       'Propose a supported local action for explicit user approval. No service runs automatically and no media is uploaded.',
   };
+  const discovery = capabilityDiscovery(
+    includeTranscripts,
+    capabilities,
+    loadedSkills,
+    includeAssetIndexes,
+    hasAssetIndexes,
+  );
   const permittedActions = allowedActions(capabilities, loadedSkills);
   return (Object.keys(schemas) as ToolName[])
-    .filter((name) => {
-      switch (name) {
-        case 'search_asset_index':
-        case 'read_asset_index':
-          return includeAssetIndexes;
-        case 'load_skill':
-        case 'inspect_project':
-        case 'inspect_proposals':
-        case 'inspect_capabilities':
-          return true;
-        case 'inspect_asset':
-          return (
-            loadedSkills.has('editing') ||
-            loadedSkills.has('transcription') ||
-            (loadedSkills.has('indexing') &&
-              !!(capabilities.indexingSupported || capabilities.indexing))
-          );
-        case 'inspect_storyboard':
-          return loadedSkills.has('storyboard');
-        case 'validate_edits':
-        case 'propose_edits':
-          return loadedSkills.has('editing') || loadedSkills.has('storyboard');
-        case 'inspect_timeline':
-        case 'search_text_library':
-          return loadedSkills.has('editing');
-        case 'read_transcript':
-          return loadedSkills.has('transcription') && includeTranscripts;
-        case 'check_export':
-          return loadedSkills.has('export') && capabilities.export;
-        case 'inspect_transcription':
-          return (
-            loadedSkills.has('transcription') &&
-            capabilities.transcriptionStatus
-          );
-        case 'propose_action':
-          return permittedActions.size > 0;
-      }
-    })
+    .filter((name) => discovery.tools[name].available)
     .map((name) => {
       const parameters = z.toJSONSchema(schemas[name], { io: 'input' });
       if (name === 'load_skill') {
         parameters.properties!.skillId = {
           type: 'string',
-          enum: availableSkills(capabilities, includeTranscripts).map(
-            (skill) => skill.id,
-          ),
+          enum: skillCatalog.map((skill) => skill.id),
         };
       }
       if (name === 'propose_action') {
@@ -275,20 +423,16 @@ export function allowedActions(
   capabilities: AssistantCapabilities,
   loadedSkills: ReadonlySet<SkillId>,
 ) {
-  const allowed = new Set<z.infer<typeof actionSchema>['type']>();
-  if (loadedSkills.has('indexing') && capabilities.indexing)
-    allowed.add('index_asset');
-  if (loadedSkills.has('history')) {
-    if (capabilities.undo) allowed.add('undo');
-    if (capabilities.redo) allowed.add('redo');
-  }
-  if (loadedSkills.has('export') && capabilities.export) allowed.add('export');
-  if (loadedSkills.has('transcription')) {
-    if (capabilities.transcription) allowed.add('transcribe');
-    if (capabilities.transcriptionPreparation)
-      allowed.add('prepare_transcription');
-  }
-  return allowed;
+  const actions = capabilityDiscovery(
+    false,
+    capabilities,
+    loadedSkills,
+  ).actions;
+  return new Set(
+    (Object.keys(actions) as z.infer<typeof actionSchema>['type'][]).filter(
+      (type) => actions[type].available,
+    ),
+  );
 }
 
 export function parseTool(
