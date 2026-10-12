@@ -2,6 +2,12 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Header navigation — 12 October 2026
+
+- Put Editor and Storyboard (whiteboard) tab triggers at the far right of the project header, after the global actions, retaining left-aligned contents and their existing order.
+- Remove the chevron from the active project name; the name still opens the project-switcher dialog.
+- Render the LocalCut logo as static branding without a navigation link. This supersedes earlier LocalCut home navigation; Settings → Project → Open project and Mod+O retain access to the Projects screen.
+
 ## Chat agent capability discovery — 12 October 2026
 
 - Fix premature refusals at the shared capability-discovery layer across every domain, rather than special-casing an indexing symptom. Keep a complete, current capability map and actionable recovery when a skill is unloaded, sharing is disabled or a host service is missing. Continue supported portions of compound requests. Maintain scoped agent guides and AI documentation alongside runtime prompts and skills.
