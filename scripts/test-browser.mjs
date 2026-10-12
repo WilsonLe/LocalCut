@@ -1,5 +1,6 @@
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { runProcess } from './build-state.mjs';
+import { normalBrowserEnv, sampleResources } from './test-resources.ts';
 
 const runPlaywright = (args, env, options) =>
   runProcess(
@@ -15,7 +16,12 @@ const runPlaywright = (args, env, options) =>
 export async function runBrowserTests(
   args = [],
   env = process.env,
-  { launchServer, run = runPlaywright, signals = process } = {},
+  {
+    launchServer,
+    run = runPlaywright,
+    signals = process,
+    measure = sampleResources,
+  } = {},
 ) {
   const command = ['test', '--project=chrome', ...args];
   if (args.some((arg) => ['--list', '--help', '-h'].includes(arg))) {
@@ -46,6 +52,13 @@ export async function runBrowserTests(
     signals.on(signal, handler);
   }
   try {
+    const allocation = await measure(normalBrowserEnv(env));
+    console.log('LocalCut Chrome resources:', JSON.stringify(allocation));
+    if (env.LOCALCUT_BROWSER_WORKERS)
+      console.log(
+        `LocalCut Chrome explicit worker limit: ${env.LOCALCUT_BROWSER_WORKERS}; omit LOCALCUT_BROWSER_WORKERS for automatic allocation.`,
+      );
+    if (controller.signal.aborted) return exitCodes[interrupted];
     server = await launch({
       channel: 'chrome',
       executablePath: env.LOCALCUT_CHROME_EXECUTABLE,
@@ -63,7 +76,11 @@ export async function runBrowserTests(
     if (!controller.signal.aborted)
       await run(
         command,
-        { ...env, LOCALCUT_BROWSER_WS_ENDPOINT: server.wsEndpoint() },
+        {
+          ...normalBrowserEnv(env),
+          LOCALCUT_TEST_GRANTED_SLOTS: String(allocation.slots),
+          LOCALCUT_BROWSER_WS_ENDPOINT: server.wsEndpoint(),
+        },
         { signal: controller.signal },
       );
   } catch (error) {

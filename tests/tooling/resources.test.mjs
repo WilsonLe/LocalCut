@@ -181,6 +181,32 @@ test('large hosts scale past old ceilings, narrowing overrides never exceed live
   );
 });
 
+test('shared pools use generous memory headroom without a fixed worker ceiling', () => {
+  const env = { LOCALCUT_BROWSER_MODE: 'shared' };
+  assert.equal(
+    allocation({ ...host, freeBytes: 7 * GiB }, env).browserWorkers,
+    12,
+  );
+  assert.equal(allocation({ ...host, freeBytes: 7 * GiB }).browserWorkers, 4);
+  assert.equal(
+    allocation(
+      { ...host, cpus: 64, freeBytes: 40 * GiB, totalBytes: 128 * GiB },
+      env,
+    ).browserWorkers,
+    64,
+  );
+  assert.equal(allocation({ ...host, cpuLimit: 3 }, env).browserWorkers, 3);
+  assert.equal(
+    allocation({ ...host, freeBytes: 7 * GiB, load: 14 }, env).browserWorkers,
+    2,
+  );
+  assert.equal(
+    allocation({ ...host, memoryLimit: 3 * GiB, memoryUsed: GiB }, env)
+      .browserWorkers,
+    2,
+  );
+});
+
 test('running reservations are accounted once while external pressure narrows new launches', () => {
   assert.equal(
     allocation({ ...host, load: 8, freeBytes: 12 * GiB }, {}, 8).slots,

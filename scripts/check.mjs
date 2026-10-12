@@ -4,13 +4,14 @@ import {
   poolMaxCost,
   normalBrowserEnv,
   browserWorkerCost,
+  sampleResources,
 } from './test-resources.ts';
 import { schedule } from './test-scheduler.mjs';
 
-const initial = resources();
-console.log('LocalCut initial test resources:', JSON.stringify(initial));
 const env = process.env;
 const chromeEnv = normalBrowserEnv(env);
+const initial = await sampleResources(chromeEnv);
+console.log('LocalCut initial test resources:', JSON.stringify(initial));
 const poolEnv = (cost, browser = false) => ({
   ...env,
   LOCALCUT_TEST_SLOTS: String(cost),
@@ -53,4 +54,4 @@ const tasks = [
     run: ({ cost }) => runPnpm(['test:browser'], poolEnv(cost, true)),
   },
 ];
-await schedule(tasks, (used) => resources(env, used).slots);
+await schedule(tasks, (used) => resources(chromeEnv, used).slots);

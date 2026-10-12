@@ -2,6 +2,11 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Test allocation and runtime — 12 October 2026
+
+- Target under five minutes for the full normal local test run using broadly applicable improvements and best practices. Preserve correctness, production Chrome codecs, privacy, transcription and export acceptance.
+- Be generous with dynamic worker allocation, with no fixed worker ceilings. Follow current CPU/memory and container limits; avoid routinely narrowing healthy runs to a small worker count. Keep separate native transcription/performance measurements serial.
+
 ## Header navigation — 12 October 2026
 
 - Put Editor and Storyboard (whiteboard) tab triggers at the far right of the project header, after the global actions, retaining left-aligned contents and their existing order.
