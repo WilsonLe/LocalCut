@@ -56,6 +56,11 @@ This is the project record of the user's durable product and workflow choices. U
 - Provide an appearance section inspired by shadcn Create. The actual workspace is the live preview, and appearance preferences survive reload locally in the browser.
 - Keep the existing Base UI and Lucide foundations. System font stacks provide body/heading choices without downloading fonts. Appearance changes must preserve the active editing session and conversation.
 
+## Appearance font choices — 12 October 2026
+
+- Offer more named local font stacks for both body and heading appearance, alongside the generic system choices. Preserve heading inheritance and browser-local persistence; keep font downloads unnecessary.
+- Remove the “Your workspace is the preview.” subtitle from appearance settings.
+
 ## Local user preferences — 10 October 2026
 
 - Persist chat sidebar width as a local browser user preference; restore the preferred width across reloads and temporary responsive/layout constraints.

@@ -1,6 +1,19 @@
 import { useSyncExternalStore } from 'react';
 
 export const APPEARANCE_KEY = 'localcut.appearance.v1';
+const fontOptions = [
+  'sans',
+  'serif',
+  'mono',
+  'arial',
+  'verdana',
+  'tahoma',
+  'trebuchet',
+  'georgia',
+  'palatino',
+  'times',
+  'courier',
+] as const;
 export const appearanceOptions = {
   mode: ['light', 'dark', 'system'],
   base: ['neutral', 'stone', 'zinc', 'gray', 'slate'],
@@ -14,8 +27,8 @@ export const appearanceOptions = {
     'violet',
     'yellow',
   ],
-  font: ['sans', 'serif', 'mono'],
-  heading: ['inherit', 'sans', 'serif', 'mono'],
+  font: fontOptions,
+  heading: ['inherit', ...fontOptions],
   radius: ['none', 'small', 'medium', 'large'],
   density: ['compact', 'default', 'comfortable'],
   interfaceSize: ['default', 'small', 'large'],
@@ -74,6 +87,14 @@ const fonts = {
   sans: 'system-ui, sans-serif',
   serif: 'ui-serif, Georgia, serif',
   mono: 'ui-monospace, SFMono-Regular, Consolas, monospace',
+  arial: 'Arial, Helvetica, sans-serif',
+  verdana: 'Verdana, Geneva, sans-serif',
+  tahoma: 'Tahoma, Verdana, sans-serif',
+  trebuchet: '"Trebuchet MS", Verdana, sans-serif',
+  georgia: 'Georgia, "Times New Roman", serif',
+  palatino: 'Palatino, "Palatino Linotype", "Book Antiqua", serif',
+  times: '"Times New Roman", Times, serif',
+  courier: '"Courier New", Courier, monospace',
 };
 const bases = {
   neutral: [0, 0],

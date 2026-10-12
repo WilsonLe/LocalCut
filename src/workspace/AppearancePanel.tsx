@@ -29,6 +29,14 @@ const optionLabel = (value: string) =>
     sans: 'System sans',
     serif: 'System serif',
     mono: 'System mono',
+    arial: 'Arial',
+    verdana: 'Verdana',
+    tahoma: 'Tahoma',
+    trebuchet: 'Trebuchet MS',
+    georgia: 'Georgia',
+    palatino: 'Palatino',
+    times: 'Times New Roman',
+    courier: 'Courier New',
     inherit: 'Same as body',
   })[value] ?? value.charAt(0).toUpperCase() + value.slice(1);
 
@@ -78,10 +86,7 @@ export default function AppearancePanel({ onClose }: { onClose: () => void }) {
       }}
     >
       <div className="appearance-header">
-        <div>
-          <h2>Appearance</h2>
-          <p>Your workspace is the preview.</p>
-        </div>
+        <h2>Appearance</h2>
         <Button
           ref={close}
           variant="ghost"

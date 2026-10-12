@@ -286,6 +286,9 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       panel.getByRole('button', { name: 'Close appearance' }),
     ).toBeFocused();
+    await expect(
+      panel.getByText('Your workspace is the preview.', { exact: true }),
+    ).toHaveCount(0);
     await panel.getByRole('button', { name: 'Dark', exact: true }).click();
     await panel.getByRole('button', { name: 'Violet theme' }).click();
     await choose(page, 'Base color', 'Slate');
@@ -296,6 +299,35 @@ for (const base of ['/', '/LocalCut/']) {
     await choose(page, 'Menu color', 'Tinted');
     await choose(page, 'Menu accent', 'Bold');
     await expect(page.locator('html')).toHaveClass('dark');
+    const generic = await styles(page);
+    expect(generic.font).toContain('monospace');
+    expect(generic.heading).toContain('Georgia');
+    const namedFonts = [
+      'Arial',
+      'Verdana',
+      'Tahoma',
+      'Trebuchet MS',
+      'Georgia',
+      'Palatino',
+      'Times New Roman',
+      'Courier New',
+    ];
+    for (const name of namedFonts) {
+      await choose(page, 'Font', name);
+      await expect(page.locator('body')).toHaveCSS(
+        'font-family',
+        new RegExp(name),
+      );
+      await choose(page, 'Heading', name);
+      await expect(panel.locator('h2')).toHaveCSS(
+        'font-family',
+        new RegExp(name),
+      );
+    }
+    await choose(page, 'Font', 'Verdana');
+    await choose(page, 'Heading', 'Same as body');
+    await expect(panel.locator('h2')).toHaveCSS('font-family', /Verdana/);
+    await choose(page, 'Heading', 'Palatino');
     const after = await styles(page);
     await panel
       .getByRole('button', { name: 'Dark', exact: true })
@@ -305,9 +337,9 @@ for (const base of ['/', '/LocalCut/']) {
     });
     expect(after.primary).not.toBe(before.primary);
     expect(after.foreground).not.toBe(before.foreground);
-    expect(after.font).toContain('monospace');
-    expect(after.heading).toContain('Georgia');
-    await expect(panel.locator('h2')).toHaveCSS('font-family', /Georgia/);
+    expect(after.font).toContain('Verdana');
+    expect(after.heading).toContain('Palatino');
+    await expect(panel.locator('h2')).toHaveCSS('font-family', /Palatino/);
     expect(after.radius).toBe('0px');
     await expect(page.locator('.chat-composer')).toHaveCSS(
       'border-radius',
@@ -329,8 +361,8 @@ for (const base of ['/', '/LocalCut/']) {
       mode: 'dark',
       base: 'slate',
       theme: 'violet',
-      font: 'mono',
-      heading: 'serif',
+      font: 'verdana',
+      heading: 'palatino',
       radius: 'none',
       density: 'compact',
       menuColor: 'tinted',
