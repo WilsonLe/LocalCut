@@ -348,3 +348,68 @@ test('nested runner grants avoid subtracting parent load twice but retain RAM/qu
   );
   assert.throws(() => allocation(host, { LOCALCUT_TEST_GRANTED_SLOTS: '0' }));
 });
+
+test('check preserves ordinary low-memory admission before granting the generous Chrome phase', async () => {
+  const { runChecks } = await import('../../scripts/check.mjs');
+  const capacity = { ...host, freeBytes: 3 * GiB };
+  const events = [];
+  const budgets = [];
+  const run = async ([command], env) => {
+    events.push(command);
+    if (command === 'test') assert.equal(env.LOCALCUT_UNIT_WORKERS, '2');
+    if (command === 'test:browser') {
+      assert.equal(env.LOCALCUT_BROWSER_WORKERS, '4');
+      assert.equal(env.LOCALCUT_TEST_GRANTED_SLOTS, '4');
+      assert.ok(events.includes('test'));
+      assert.ok(events.includes('check:bundle'));
+    }
+  };
+  await runChecks(
+    {},
+    {
+      run,
+      build: async () => events.push('build'),
+      sample: async (env) => allocation(capacity, env),
+      getResources: (env, used) => {
+        const shared = env.LOCALCUT_BROWSER_MODE === 'shared';
+        // Reflect running reservations in free memory as the real host does.
+        const result = allocation(
+          {
+            ...capacity,
+            freeBytes: capacity.freeBytes - used * (shared ? 0.5 : 0.75) * GiB,
+            load: used,
+          },
+          env,
+          used,
+        );
+        budgets.push({ shared, slots: result.slots });
+        return result;
+      },
+    },
+  );
+  assert.deepEqual(events.slice(0, 2), ['format:check', 'lint']);
+  assert.equal(events.at(-1), 'test:browser');
+  assert.ok(budgets.filter((b) => !b.shared).every((b) => b.slots === 2));
+  assert.ok(budgets.some((b) => b.shared && b.slots === 4));
+});
+
+test('check drains an earlier failure without admitting Chrome', async () => {
+  const { runChecks } = await import('../../scripts/check.mjs');
+  const events = [];
+  await assert.rejects(
+    runChecks(
+      {},
+      {
+        sample: async () => ({ slots: 2 }),
+        getResources: () => ({ slots: 2 }),
+        build: () => assert.fail('failed static phase must not build'),
+        run: async ([command]) => {
+          events.push(command);
+          if (command === 'format:check') throw new Error('format failed');
+        },
+      },
+    ),
+    /format failed/,
+  );
+  assert.deepEqual(events, ['format:check', 'lint']);
+});
