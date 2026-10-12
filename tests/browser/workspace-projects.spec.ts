@@ -1,6 +1,7 @@
 import {
   prepareOpenRouterKey,
   openAISettings,
+  openWorkspaceGroup,
 } from './workspace-settings-helper';
 import { versionJourney } from './workspace-version-journey';
 import { expect, test } from '@playwright/test';
@@ -182,8 +183,9 @@ for (const base of ['/', '/LocalCut/']) {
             ),
           )
           .toBeGreaterThan(0);
-        await page
-          .getByRole('button', { name: 'LocalCut home', exact: true })
+        const projectMenu = await openWorkspaceGroup(page, 'Project');
+        await projectMenu
+          .getByRole('menuitem', { name: 'Open project', exact: true })
           .click();
         await expect(browser).toBeVisible();
         await expect(

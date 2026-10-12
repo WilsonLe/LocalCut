@@ -18,7 +18,6 @@ import {
   Search,
   PanelLeftClose,
   Scissors,
-  ChevronDown,
   Files,
   Upload,
   Settings2,
@@ -1982,22 +1981,10 @@ export function Workspace() {
       )}
       {(!narrow || projectsOpen) && (
         <header ref={header} className="workspace-header">
-          {busy ? (
-            <span className="brand">
-              <Scissors aria-hidden="true" />
-              <span className="brand-name">LocalCut</span>
-            </span>
-          ) : (
-            <button
-              className="brand"
-              type="button"
-              aria-label="LocalCut home"
-              onClick={showProjects}
-            >
-              <Scissors aria-hidden="true" />
-              <span className="brand-name">LocalCut</span>
-            </button>
-          )}
+          <span className="brand">
+            <Scissors aria-hidden="true" />
+            <span className="brand-name">LocalCut</span>
+          </span>
           {!busy && !projectsOpen && (
             <Button
               variant="ghost"
@@ -2012,13 +1999,12 @@ export function Workspace() {
                 {viewProject?.name ?? 'Untitled project'}
               </span>
               <span className="sr-only">Projects</span>
-              <ChevronDown />
             </Button>
           )}
+          {headerActions}
           {!projectsOpen && project && (
             <ProjectTabs value={projectTab} onChange={chooseProjectTab} />
           )}
-          {headerActions}
         </header>
       )}
       {projectSwitcherOpen && (
@@ -2134,15 +2120,14 @@ export function Workspace() {
                     <span className="project-picker-name">
                       {viewProject?.name ?? 'Edit'}
                     </span>
-                    <ChevronDown />
                   </Button>
+                  {mobileTab === 'edit' ? headerActions : null}
                   {project && (
                     <ProjectTabs
                       value={projectTab}
                       onChange={chooseProjectTab}
                     />
                   )}
-                  {mobileTab === 'edit' ? headerActions : null}
                 </header>
               )}
               {versionsOpen && (
