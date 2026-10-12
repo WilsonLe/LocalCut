@@ -124,6 +124,13 @@ for (const base of ['/', '/LocalCut/']) {
         expect(bounds.x).toBeGreaterThanOrEqual(0);
         expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
       }
+      const lastAction = heading.locator('.panel-header-actions button').last();
+      await lastAction.focus();
+      for (const width of [390, 320]) {
+        await page.setViewportSize({ width, height: 450 });
+        await expect(lastAction).toBeFocused();
+        await expect(lastAction).toBeInViewport();
+      }
       await page.screenshot({
         path: info.outputPath(`mobile-header-${label}.png`),
       });

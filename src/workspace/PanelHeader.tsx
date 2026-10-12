@@ -2,6 +2,21 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '../components/ui/button';
 
+function revealAction(lane: HTMLDivElement, action: HTMLElement) {
+  const bounds = lane.getBoundingClientRect();
+  const target = action.getBoundingClientRect();
+  if (!bounds.width || !lane.clientWidth || !target.width) return;
+  const scale = bounds.width / lane.clientWidth;
+  const inset = 32 * scale;
+  const delta =
+    target.left < bounds.left + inset
+      ? target.left - bounds.left - inset
+      : target.right > bounds.right - inset
+        ? target.right - bounds.right + inset
+        : 0;
+  lane.scrollLeft += delta / scale;
+}
+
 /** Titles stay visible while actions share one touch/keyboard scroll lane. */
 export function PanelHeader({
   title,
@@ -30,7 +45,17 @@ export function PanelHeader({
           : { left, right },
       );
     };
-    const observer = new ResizeObserver(update);
+    const resize = () => {
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLElement &&
+        active !== element &&
+        element.contains(active)
+      )
+        revealAction(element, active);
+      update();
+    };
+    const observer = new ResizeObserver(resize);
     observer.observe(element);
     if (content.current) observer.observe(content.current);
     element.addEventListener('scroll', update, { passive: true });
@@ -52,18 +77,7 @@ export function PanelHeader({
           tabIndex={0}
           onFocusCapture={(event) => {
             if (event.target === event.currentTarget) return;
-            const lane = event.currentTarget;
-            const bounds = lane.getBoundingClientRect();
-            const target = event.target.getBoundingClientRect();
-            const scale = bounds.width / lane.clientWidth;
-            const inset = 32 * scale;
-            const delta =
-              target.left < bounds.left + inset
-                ? target.left - bounds.left - inset
-                : target.right > bounds.right - inset
-                  ? target.right - bounds.right + inset
-                  : 0;
-            lane.scrollLeft += delta / scale;
+            revealAction(event.currentTarget, event.target);
           }}
         >
           <div ref={content} className="panel-header-actions">
