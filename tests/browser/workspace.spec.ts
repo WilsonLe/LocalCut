@@ -1059,7 +1059,7 @@ for (const base of ['/', '/LocalCut/']) {
                   {
                     index: 0,
                     delta: {
-                      content: 'The opacity change is ready for your review.',
+                      content: 'The clip opacity is now 50%.',
                     },
                     finish_reason: 'stop',
                   },
