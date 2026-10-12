@@ -95,7 +95,8 @@ export default function TouchTooltips() {
       press = undefined;
       suppress = undefined;
     };
-    const click = (event: MouseEvent) => {
+    // Select triggers also open on the compatibility mousedown after touch release.
+    const suppressMouse = (event: MouseEvent) => {
       if (
         suppress &&
         event.detail !== 0 &&
@@ -104,6 +105,9 @@ export default function TouchTooltips() {
         event.preventDefault();
         event.stopImmediatePropagation();
       }
+    };
+    const click = (event: MouseEvent) => {
+      suppressMouse(event);
       suppress = undefined;
     };
     const contextMenu = (event: MouseEvent) => {
@@ -121,6 +125,8 @@ export default function TouchTooltips() {
     document.addEventListener('pointermove', move, true);
     document.addEventListener('pointerup', up, true);
     document.addEventListener('pointercancel', cancel, true);
+    document.addEventListener('mousedown', suppressMouse, true);
+    document.addEventListener('mouseup', suppressMouse, true);
     document.addEventListener('click', click, true);
     document.addEventListener('contextmenu', contextMenu, true);
     document.addEventListener('scroll', reset, true);
@@ -135,6 +141,8 @@ export default function TouchTooltips() {
       document.removeEventListener('pointermove', move, true);
       document.removeEventListener('pointerup', up, true);
       document.removeEventListener('pointercancel', cancel, true);
+      document.removeEventListener('mousedown', suppressMouse, true);
+      document.removeEventListener('mouseup', suppressMouse, true);
       document.removeEventListener('click', click, true);
       document.removeEventListener('contextmenu', contextMenu, true);
       document.removeEventListener('scroll', reset, true);

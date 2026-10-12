@@ -90,7 +90,12 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(page.locator('.timeline-clip')).toHaveCount(0);
     await page.getByRole('button', { name: 'Redo', exact: true }).tap();
     await expect(page.locator('.timeline-clip')).toHaveCount(1);
+    await hold(page, picker, 'Select timeline clip');
+    await expect(picker).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByRole('listbox')).toHaveCount(0);
     await picker.tap();
+    await expect(picker).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByRole('listbox')).toBeVisible();
     await page.getByRole('option').first().tap();
     await expect(
       page.locator('.timeline-clip[aria-pressed="true"]'),
