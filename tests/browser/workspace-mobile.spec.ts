@@ -61,7 +61,7 @@ for (const base of ['/', '/LocalCut/']) {
     for (const [tab, label, headingClass] of [
       ['Edit', 'Edit', '.mobile-edit-heading'],
       ['Chat', 'Chat', '.conversation-heading'],
-      ['Media', 'Media', '.media-library > .section-heading'],
+      ['Media', 'Media', '.media-library-header > .section-heading'],
     ] as const) {
       await nav
         .getByRole('button', {
