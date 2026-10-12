@@ -493,3 +493,7 @@ This is the project record of the user's durable product and workflow choices. U
 - Disclose these categories in visible connection terms before either API-key use or OAuth login. Include indexing excerpts, charges, credential storage/removal, original-media boundaries and links to OpenRouter terms/privacy. No extra approval checkbox or confirmation step.
 - Derive permission from actual connected OpenRouter accounts. Imported profiles alone grant nothing; disconnecting the last account retires shared context. Keep headless caller-controlled policies and compatible/ChatGPT-only boundaries.
 - Preserve matching saved chats from old sharing/indexing scopes, with exact project/model/provider isolation. Connecting, importing and reloading must not submit chat or indexing requests.
+
+## Unified Media header — 12 October 2026
+
+- Merge the Media title/actions and folder navigation into one compact header with one divider. Keep root/breadcrumb navigation, new folder, folder upload, Trash, speech, recording and collapse reachable; wrap within the same header on narrow screens.
