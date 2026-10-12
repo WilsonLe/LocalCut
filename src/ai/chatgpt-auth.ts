@@ -30,10 +30,21 @@ interface Credential {
   scopes: string[];
   sessionId: string;
 }
-const invalid = () =>
+type IdentityFailure =
+  | 'token_response'
+  | 'token_format'
+  | 'issuer'
+  | 'audience'
+  | 'token_expired'
+  | 'token_not_yet_valid'
+  | 'nonce'
+  | 'subject'
+  | 'signature';
+const invalid = (reason?: IdentityFailure) =>
   new AiError(
     'AUTH_FLOW_INVALID',
     'ChatGPT sign-in could not be verified. Start sign-in again.',
+    reason ? { stage: 'chatgpt_identity', reason } : {},
   );
 const bytes = (value: string) =>
   Uint8Array.from(atob(value.replaceAll('-', '+').replaceAll('_', '/')), (c) =>
@@ -265,7 +276,7 @@ export class ChatGPTAuthorization {
         signal,
       );
       if (pending.subject && credential.subject !== pending.subject)
-        throw invalid();
+        throw invalid('subject');
       if (signal?.aborted || epoch !== this.generation)
         throw new AiError('CANCELLED', 'Sign-in cancelled.');
       const commit = async () => {
@@ -334,7 +345,7 @@ export class ChatGPTAuthorization {
       value.expires_in > 86400 ||
       typeof value.scope !== 'string'
     )
-      throw invalid();
+      throw invalid('token_response');
     const scopes = value.scope.split(' ');
     aiInvariant(
       scopes.includes('chatgpt.tokens.use.direct') &&
@@ -347,36 +358,46 @@ export class ChatGPTAuthorization {
       value.refresh_token,
       value.id_token,
     ])
-      if (!/^[\x21-\x7e]{1,20000}$/.test(token)) throw invalid();
+      if (!/^[\x21-\x7e]{1,20000}$/.test(token)) throw invalid('token_format');
     const parts = value.id_token.split('.');
-    if (parts.length !== 3) throw invalid();
-    const header: unknown = JSON.parse(
-      new TextDecoder().decode(bytes(parts[0]!)),
-    );
-    const claims: unknown = JSON.parse(
-      new TextDecoder().decode(bytes(parts[1]!)),
-    );
+    if (parts.length !== 3) throw invalid('token_format');
+    let header: unknown;
+    let claims: unknown;
+    try {
+      header = JSON.parse(new TextDecoder().decode(bytes(parts[0]!)));
+      claims = JSON.parse(new TextDecoder().decode(bytes(parts[1]!)));
+    } catch {
+      throw invalid('token_format');
+    }
     if (
       !object(header) ||
       header.alg !== 'RS256' ||
       typeof header.kid !== 'string' ||
-      !object(claims) ||
-      claims.iss !== ISSUER ||
-      !(
-        claims.aud === clientId ||
-        (Array.isArray(claims.aud) &&
-          claims.aud.includes(clientId) &&
-          claims.azp === clientId)
-      ) ||
-      typeof claims.exp !== 'number' ||
-      claims.exp * 1000 <= this.now() ||
-      (typeof claims.nbf === 'number' &&
-        claims.nbf * 1000 > this.now() + 60000) ||
-      (nonce && claims.nonce !== nonce) ||
-      typeof claims.sub !== 'string' ||
-      !claims.sub
+      !object(claims)
     )
-      throw invalid();
+      throw invalid('token_format');
+    if (claims.iss !== ISSUER) throw invalid('issuer');
+    const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+    if (
+      !audiences.every(
+        (audience) => typeof audience === 'string' && audience.length > 0,
+      ) ||
+      !audiences.includes(clientId) ||
+      (audiences.length > 1 && claims.azp !== clientId) ||
+      (claims.azp !== undefined && claims.azp !== clientId)
+    )
+      throw invalid('audience');
+    if (typeof claims.exp !== 'number' || !Number.isFinite(claims.exp))
+      throw invalid('token_format');
+    if (claims.exp * 1000 <= this.now()) throw invalid('token_expired');
+    if (claims.nbf !== undefined) {
+      if (typeof claims.nbf !== 'number' || !Number.isFinite(claims.nbf))
+        throw invalid('token_format');
+      if (claims.nbf * 1000 > this.now() + 60000)
+        throw invalid('token_not_yet_valid');
+    }
+    if (nonce && claims.nonce !== nonce) throw invalid('nonce');
+    if (typeof claims.sub !== 'string' || !claims.sub) throw invalid('subject');
     const response = await this.request(
       `${ISSUER}/.well-known/jwks.json`,
       { method: 'GET' },
@@ -387,7 +408,7 @@ export class ChatGPTAuthorization {
       signal ?? new AbortController().signal,
       131072,
     );
-    if (!object(jwks) || !Array.isArray(jwks.keys)) throw invalid();
+    if (!object(jwks) || !Array.isArray(jwks.keys)) throw invalid('signature');
     const keys = jwks.keys.filter(
       (k) =>
         object(k) &&
@@ -396,7 +417,7 @@ export class ChatGPTAuthorization {
         (k.use === undefined || k.use === 'sig') &&
         (k.alg === undefined || k.alg === 'RS256'),
     );
-    if (keys.length !== 1) throw invalid();
+    if (keys.length !== 1) throw invalid('signature');
     const key = await crypto.subtle.importKey(
       'jwk',
       keys[0] as JsonWebKey,
@@ -412,7 +433,7 @@ export class ChatGPTAuthorization {
         new TextEncoder().encode(`${parts[0]}.${parts[1]}`),
       ))
     )
-      throw invalid();
+      throw invalid('signature');
     return {
       version: 1,
       clientId,

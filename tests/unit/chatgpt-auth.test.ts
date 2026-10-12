@@ -10,6 +10,8 @@ import {
   CHATGPT_CREDENTIAL_KEY,
 } from '../../src/ai/chatgpt-auth';
 import { createChatGPT } from '../../src/ai/chatgpt';
+import { errorText } from '../../src/workspace/conversation-errors';
+import { errorDiagnostic } from '../../src/core/error-diagnostics';
 import type { AuthorizationStorage } from '../../src/ai';
 const memory = (): AuthorizationStorage => {
   const m = new Map<string, string>();
@@ -52,6 +54,7 @@ async function setup(
   };
   let nonce = '';
   let granted = true;
+  let identity: Record<string, unknown> = {};
   const token = async () => {
     const header = b64(
       new TextEncoder().encode(JSON.stringify({ alg: 'RS256', kid: 'test' })),
@@ -64,6 +67,7 @@ async function setup(
           sub: 'subject',
           exp: time / 1000 + 3600,
           nonce,
+          ...identity,
         }),
       ),
     );
@@ -114,9 +118,98 @@ async function setup(
     grant: (v: boolean) => {
       granted = v;
     },
+    identity: (v: Record<string, unknown>) => {
+      identity = v;
+    },
   };
 }
 describe('ChatGPT OAuth', () => {
+  it.each(['token_response', 'signature'] as const)(
+    'reports %s without publishing credentials or leaking tokens',
+    async (reason) => {
+      const s = await setup();
+      const original = s.request.getMockImplementation()!;
+      s.request.mockImplementation(async (url, init) => {
+        const response = await original(url, init);
+        if (!url.endsWith('/token')) return response;
+        const value = await response.json();
+        if (reason === 'token_response') delete value.id_token;
+        else {
+          const parts = value.id_token.split('.');
+          parts[2] = `${parts[2][0] === 'A' ? 'B' : 'A'}${parts[2].slice(1)}`;
+          value.id_token = parts.join('.');
+        }
+        return Response.json(value);
+      });
+      const error = await s.auth
+        .complete(s.callback.href)
+        .catch((error: unknown) => error);
+      expect(error).toMatchObject({
+        code: 'AUTH_FLOW_INVALID',
+        details: { stage: 'chatgpt_identity', reason },
+      });
+      expect(s.persistent.getItem(CHATGPT_CREDENTIAL_KEY)).toBeNull();
+      expect(errorText(error)).not.toMatch(/synthetic|one-use-code/);
+    },
+  );
+  it('accepts a signed singleton audience array without an optional authorized party', async () => {
+    const s = await setup();
+    s.identity({ aud: ['oaiapp_test'] });
+    await s.auth.complete(s.callback.href);
+    expect(s.auth.connected()).toBe(true);
+    expect(s.persistent.getItem(CHATGPT_CREDENTIAL_KEY)).not.toBeNull();
+    expect(
+      s.request.mock.calls.some(([url]) => url.endsWith('jwks.json')),
+    ).toBe(true);
+  });
+  it.each([
+    { aud: 'oaiapp_test', azp: 'oaiapp_test' },
+    { aud: ['oaiapp_test'], azp: 'oaiapp_test' },
+    { aud: ['oaiapp_test', 'other-audience'], azp: 'oaiapp_test' },
+  ])('accepts the existing authorized audience forms: %j', async (claims) => {
+    const s = await setup();
+    s.identity(claims);
+    await s.auth.complete(s.callback.href);
+    expect(s.auth.connected()).toBe(true);
+  });
+  it.each([
+    [{ aud: ['other-client'] }, 'audience'],
+    [{ aud: [] }, 'audience'],
+    [{ aud: ['oaiapp_test', 42], azp: 'oaiapp_test' }, 'audience'],
+    [{ aud: ['oaiapp_test', 'other-audience'] }, 'audience'],
+    [{ aud: ['oaiapp_test'], azp: 'other-client' }, 'audience'],
+    [{ aud: 'oaiapp_test', azp: 'other-client' }, 'audience'],
+    [{ iss: 'https://wrong-issuer.example' }, 'issuer'],
+    [{ exp: 1000 }, 'token_expired'],
+    [{ nbf: 1061 }, 'token_not_yet_valid'],
+    [{ nbf: '1000' }, 'token_format'],
+    [{ nonce: 'private-wrong-nonce' }, 'nonce'],
+    [{ sub: '' }, 'subject'],
+  ] as const)(
+    'rejects signed identity %j with safe reason %s',
+    async (claims, reason) => {
+      const s = await setup();
+      s.identity(claims);
+      const error = await s.auth
+        .complete(s.callback.href)
+        .catch((error: unknown) => error);
+      expect(error).toMatchObject({
+        code: 'AUTH_FLOW_INVALID',
+        details: { stage: 'chatgpt_identity', reason },
+      });
+      expect(errorDiagnostic(error).details).toEqual({
+        stage: 'chatgpt_identity',
+        reason,
+      });
+      expect(errorText(error)).toContain('ChatGPT');
+      expect(errorText(error)).not.toContain('link is invalid');
+      expect(JSON.stringify(errorDiagnostic(error))).not.toMatch(
+        /synthetic-access-token|private-wrong-nonce|wrong-issuer\.example|other-client/,
+      );
+      expect(s.auth.connected()).toBe(false);
+      expect(s.persistent.getItem(CHATGPT_CREDENTIAL_KEY)).toBeNull();
+    },
+  );
   it('isolates multiple accounts pending state, signed tokens, restore and disconnect authority', async () => {
     const persistent = memory(),
       temporary = memory();

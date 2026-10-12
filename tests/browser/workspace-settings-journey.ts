@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { waitForWorkspaceSettings } from './workspace-settings-helper';
 
 export async function settingsJourney(page: Page, base: string) {
   await test.step(`workspace settings progressively disclose groups and support keyboard navigation ${base}`, async () => {
@@ -105,6 +106,7 @@ export async function settingsJourney(page: Page, base: string) {
       .click();
     await expect(dialog).not.toBeVisible();
 
+    await waitForWorkspaceSettings(page);
     await settings.click();
     await menu.getByRole('menuitem', { name: 'Project', exact: true }).click();
     await expect(
