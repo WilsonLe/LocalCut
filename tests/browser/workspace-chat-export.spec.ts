@@ -6,7 +6,7 @@ import {
   prepareOpenRouterKey,
 } from './workspace-settings-helper';
 import { fulfillChatTitle } from './chat-title-fixture';
-import type { ChatExportSnapshot } from '../../src/workspace/chat-export';
+import type { ChatExportSnapshot } from '../../src/services/chat-export';
 
 const cors = {
   'access-control-allow-origin': '*',
@@ -81,6 +81,101 @@ async function save(page: Page, label: string | RegExp) {
 }
 
 for (const base of ['/', '/LocalCut/']) {
+  test(`chat export recovers an abandoned running archive before chat UI loads ${base}`, async ({
+    page,
+  }) => {
+    await page.goto(base);
+    const namespace = `test-chat-export-${crypto.randomUUID()}`;
+    const outcome = await page.evaluate(
+      async ({ base, namespace }) => {
+        const id = 'abandoned-chat-export';
+        const captured = {
+          version: 1,
+          sessionId: 'old-session',
+          projectId: 'old-project',
+          title: 'Original capture',
+          exportedAt: '2026-10-12T01:00:00.000Z',
+          messages: [
+            {
+              id: 'message-1',
+              role: 'user',
+              text: 'Retained before closing',
+              status: 'complete',
+              proposalIds: [],
+            },
+          ],
+          proposals: [],
+          draft: { text: '', attachments: [] },
+        };
+        const db = await new Promise<IDBDatabase>((resolve, reject) => {
+          const request = indexedDB.open(`${namespace}-tasks-v1`, 1);
+          request.onupgradeneeded = () => {
+            request.result.createObjectStore('tasks', { keyPath: 'id' });
+            request.result.createObjectStore('inputs');
+            request.result.createObjectStore('results');
+          };
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(['tasks', 'inputs'], 'readwrite');
+            tx.objectStore('tasks').add({
+              version: 1,
+              id,
+              kind: 'chat.export.v1',
+              label: 'Abandoned export',
+              lane: 'chat-export',
+              state: 'running',
+              stage: 'Preparing chat archive…',
+              attempts: 1,
+              maxAttempts: 3,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            });
+            tx.objectStore('inputs').add(captured, id);
+            tx.oncomplete = () => resolve();
+            tx.onabort = () => reject(tx.error);
+          });
+        } finally {
+          db.close();
+        }
+        const { createEditor } = await import(base + 'editor.js');
+        const editor = await createEditor({ namespace });
+        try {
+          let task;
+          for (let attempt = 0; attempt < 100; attempt++) {
+            await editor.tasks.poll();
+            task = await editor.tasks.get(id);
+            if (['completed', 'interrupted', 'failed'].includes(task?.state))
+              break;
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          }
+          const result = await editor.tasks.result(id);
+          return {
+            state: task?.state,
+            error: task?.error,
+            bytes: result?.file
+              ? Array.from(new Uint8Array(await result.file.arrayBuffer()))
+              : [],
+          };
+        } finally {
+          await editor.dispose();
+        }
+      },
+      { base, namespace },
+    );
+    expect(outcome.state).toBe('completed');
+    expect(outcome.error).toBeUndefined();
+    const zip = unzipSync(Uint8Array.from(outcome.bytes));
+    expect(JSON.parse(strFromU8(zip['chat.json']!))).toMatchObject({
+      title: 'Original capture',
+      messages: [{ text: 'Retained before closing' }],
+    });
+    await expect(
+      page.getByRole('textbox', { name: 'Describe your edit', exact: true }),
+    ).toHaveCount(0);
+  });
   test(`chat export captures an unfinished response without stopping it ${base}`, async ({
     page,
     context,

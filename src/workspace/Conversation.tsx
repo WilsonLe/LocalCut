@@ -50,12 +50,8 @@ import { usePersistentChats } from './usePersistentChats';
 import type { ChatBranch } from './ConversationSession';
 import { Tooltip } from '../components/ui/tooltip';
 import { toast } from './notifications';
-import {
-  captureChatExport,
-  CHAT_EXPORT_TASK,
-  registerChatExportTask,
-} from './chat-export';
-import type { ChatExportSource } from './chat-export';
+import { captureChatExport, CHAT_EXPORT_TASK } from '../services/chat-export';
+import type { ChatExportSource } from '../services/chat-export';
 const AIConnectionDialog = lazy(() => import('./AIConnectionDialog'));
 const ChatSessionPicker = lazy(() => import('./ChatSessionPicker'));
 const ConversationSession = lazy(() => import('./ConversationSession'));
@@ -154,12 +150,6 @@ export function Conversation(props: ConversationProps) {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [sessionBusy, setSessionBusy] = useState(false);
   const selectedExport = useRef<(() => ChatExportSource) | null>(null);
-  useEffect(() => {
-    if (!props.editor) return;
-    const unregister = registerChatExportTask(props.editor.tasks);
-    void props.editor.tasks.poll().catch(props.onError);
-    return unregister;
-  }, [props.editor, props.onError]);
   const exportChat = () => {
     if (!props.editor || !props.project || !selectedExport.current) return;
     try {

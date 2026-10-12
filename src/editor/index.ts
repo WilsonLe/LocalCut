@@ -23,6 +23,7 @@ import { Autosave } from '../services/autosave';
 export type { ProjectVersion, ProjectVersionInfo } from '../storage/store';
 import { Jobs, checkAbort } from '../services/jobs';
 import { TaskQueue, runQueuedJob, taskTerminal } from '../services/task-queue';
+import { registerChatExportTask } from '../services/chat-export';
 import type { TaskHandler, TaskContext } from '../services/task-queue';
 export { TaskQueue } from '../services/task-queue';
 export { freshTask, pureTaskCache, taskCacheKey } from '../services/task-cache';
@@ -1213,6 +1214,7 @@ export async function createEditor(options: EditorOptions = {}) {
       return renderSpeech(value.audio, value.timing, context.signal);
     },
   });
+  registerChatExportTask(tasks);
   tasks.start();
   return api;
 }

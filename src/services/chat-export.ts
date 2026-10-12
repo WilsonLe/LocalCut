@@ -1,12 +1,16 @@
 import { strToU8, zipSync } from 'fflate';
-import type { Asset, Editor } from '../editor';
+import type { Asset } from '../core/model';
 import type { EditProposal } from '../ai';
-import type { Message } from './ConversationSession';
-import { freshTask } from '../services/task-cache';
+import type { SavedChatMessage } from '../storage/chats';
+import type { TaskQueue } from './task-queue';
+import { freshTask } from './task-cache';
 
 export const CHAT_EXPORT_TASK = 'chat.export.v1';
+export interface ChatExportMessage extends SavedChatMessage {
+  proposalIds: string[];
+}
 export interface ChatExportSource {
-  messages: Message[];
+  messages: ChatExportMessage[];
   proposals: Record<string, EditProposal>;
   draft: string;
   attachments: Asset[];
@@ -143,7 +147,7 @@ export function chatExportFile(snapshot: ChatExportSnapshot) {
 }
 
 /** Editor lifetime owns recovery even after a session or provider is retired. */
-export function registerChatExportTask(tasks: Editor['tasks']) {
+export function registerChatExportTask(tasks: Pick<TaskQueue, 'register'>) {
   return tasks.register(CHAT_EXPORT_TASK, {
     cache: freshTask(
       'Each click captures a new point-in-time chat archive; the task retains its output for later downloads.',

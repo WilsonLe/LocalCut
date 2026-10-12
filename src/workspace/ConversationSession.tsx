@@ -10,7 +10,10 @@ import {
   useState,
 } from 'react';
 import type { FormEvent, ReactNode, Ref } from 'react';
-import type { ChatExportSource } from './chat-export';
+import type {
+  ChatExportSource,
+  ChatExportMessage,
+} from '../services/chat-export';
 import {
   ArrowDown,
   ArrowUp,
@@ -58,9 +61,7 @@ import type { ChatContent, SavedChatMessage } from '../storage/chats';
 import { completedChatTurns } from './chat-transcript';
 const ChatMarkdown = lazy(() => import('./ChatMarkdown'));
 
-export interface Message extends SavedChatMessage {
-  proposalIds: string[];
-}
+export type Message = ChatExportMessage;
 type HistoricalTool = NonNullable<SavedChatMessage['tools']>[number];
 function toolLabel(tool: HistoricalTool, includeSkill = false): string {
   if (tool.name !== 'load_skill') return tool.name.replaceAll('_', ' ');

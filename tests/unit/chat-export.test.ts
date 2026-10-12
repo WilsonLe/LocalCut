@@ -5,8 +5,8 @@ import {
   chatExportFile,
   CHAT_EXPORT_TASK,
   registerChatExportTask,
-} from '../../src/workspace/chat-export';
-import type { ChatExportSource } from '../../src/workspace/chat-export';
+} from '../../src/services/chat-export';
+import type { ChatExportSource } from '../../src/services/chat-export';
 import type { Editor } from '../../src/editor';
 import type { TaskHandler } from '../../src/services/task-queue';
 
@@ -159,7 +159,7 @@ describe('chat export', () => {
       },
     } as Pick<Editor['tasks'], 'register'>;
     // Registration requires only the existing scheduler interface.
-    registerChatExportTask(tasks as Editor['tasks']);
+    registerChatExportTask(tasks);
     expect(handler.cache).toMatchObject({ mode: 'fresh' });
     expect(handler.recovery).toBe('safe');
     const abort = new AbortController();
