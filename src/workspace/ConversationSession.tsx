@@ -866,13 +866,18 @@ export default function ConversationSession({
                         </div>
                       )}
                       {proposal.status === 'applied' &&
-                        proposal.result?.kind === 'export' && (
+                        (proposal.result?.kind === 'export' ||
+                          proposal.result?.kind === 'storyboard_export') && (
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => {
                               const result = proposal.result;
-                              if (result?.kind !== 'export') return;
+                              if (
+                                result?.kind !== 'export' &&
+                                result?.kind !== 'storyboard_export'
+                              )
+                                return;
                               const artifact =
                                 assistant.current?.exportArtifact(
                                   result.artifactId,

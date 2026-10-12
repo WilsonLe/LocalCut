@@ -1860,6 +1860,8 @@ describe('headless assistant boundaries', () => {
         elements: [{ id: 'shot', type: 'rectangle' }],
       },
       { type: 'removeStoryboardElements', elementIds: ['shot'] },
+      { type: 'reorderStoryboardElements', elementIds: [] },
+      { type: 'setStoryboardBackground', backgroundColor: '#fafafa' },
       { type: 'renameProject', name: 'Renamed film' },
       { type: 'addTrack', track: { id: 'temporary', kind: 'overlay' } },
       { type: 'reorderTrack', trackId: 'temporary', index: 0 },
@@ -4225,6 +4227,8 @@ describe('complete capability discovery and recovery', () => {
     undo: true,
     redo: true,
     export: true,
+    storyboardExport: true,
+    storyboardStore: true,
     transcriptionStatus: true,
     transcription: true,
     transcriptionPreparation: true,
@@ -4237,6 +4241,8 @@ describe('complete capability discovery and recovery', () => {
     ['undo', 'history', 'undo'],
     ['redo', 'history', 'redo'],
     ['export', 'export', 'export'],
+    ['export_storyboard', 'storyboard', 'storyboardExport'],
+    ['store_storyboard', 'storyboard', 'storyboardStore'],
     ['transcribe', 'transcription', 'transcription'],
     ['prepare_transcription', 'transcription', 'transcriptionPreparation'],
     ['index_asset', 'indexing', 'indexing'],
@@ -4303,6 +4309,8 @@ describe('complete capability discovery and recovery', () => {
       'undo',
       'redo',
       'export',
+      'export_storyboard',
+      'store_storyboard',
       'transcribe',
       'track_mask',
       'prepare_transcription',
@@ -5457,3 +5465,303 @@ it('rejects folder actions containing an unselected asset before publishing or e
   expect(library.apply).not.toHaveBeenCalled();
   await a.dispose();
 });
+
+describe('storyboard export and cross-domain asset workflows', () => {
+  it('exports a local artifact in review mode without exposing its scene bytes', async () => {
+    const f = fixture();
+    const jobs = new Jobs();
+    const file = new File(['Private scene labels'], 'Board.excalidraw', {
+      type: 'application/vnd.excalidraw+json',
+    });
+    const render = vi.fn(() =>
+      jobs.start(async () => ({
+        projectId: f.project().id,
+        revision: 0,
+        format: 'excalidraw' as const,
+        file,
+      })),
+    );
+    f.editor.storyboard = { export: render };
+    const p = provider(
+      [
+        [final('', [call('load_skill', { skillId: 'storyboard' })])],
+        [
+          final('', [
+            call('propose_action', {
+              summary: 'Export editable scene',
+              action: {
+                type: 'export_storyboard',
+                options: { format: 'excalidraw' },
+              },
+            }),
+          ]),
+        ],
+        [final('Export ready for review.')],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test',
+    });
+    const turn = await a.run('Export the whiteboard').completion;
+    expect(render).not.toHaveBeenCalled();
+    const result = await a.approveProposal(turn.proposalIds[0]!);
+    expect(result).toMatchObject({
+      kind: 'storyboard_export',
+      format: 'excalidraw',
+      name: 'Board.excalidraw',
+    });
+    expect(JSON.stringify(result)).not.toContain('Private scene labels');
+    const artifact = a.exportArtifact(turn.proposalIds[0]!);
+    expect(await artifact.file.text()).toBe('Private scene labels');
+    await artifact.dispose();
+    expect(() => a.exportArtifact(turn.proposalIds[0]!)).toThrow();
+    await a.dispose();
+    await jobs.dispose();
+  });
+
+  it('stores a requested PNG, inspects it and places it on the timeline in the same turn', async () => {
+    const f = fixture();
+    const jobs = new Jobs();
+    f.editor.storyboard = {
+      store: vi.fn(() =>
+        jobs.start(async () => ({
+          projectId: f.project().id,
+          revision: 0,
+          assetId: 'diagram',
+          entryId: 'entry',
+          libraryRevision: 1,
+        })),
+      ),
+    };
+    const inspect = f.editor.assets.inspect;
+    f.editor.assets.inspect = vi.fn(async (id) =>
+      id === 'diagram'
+        ? assetSchema.parse({
+            id,
+            name: 'Diagram.png',
+            kind: 'image',
+            size: 32,
+            type: 'image/png',
+            width: 240,
+            height: 120,
+            rotation: 0,
+            durationUs: 0,
+            status: 'ready',
+          })
+        : inspect(id),
+    );
+    const p = provider(
+      [
+        [final('', [call('load_skill', { skillId: 'storyboard' })])],
+        [
+          final('', [
+            call('propose_action', {
+              summary: 'Store board',
+              action: {
+                type: 'store_storyboard',
+                options: { format: 'png', background: false },
+              },
+            }),
+          ]),
+        ],
+        [final('', [call('load_skill', { skillId: 'editing' })])],
+        [final('', [call('inspect_asset', { assetId: 'diagram' })])],
+        [
+          final('', [
+            call('propose_edits', {
+              summary: 'Use board overlay',
+              operations: [
+                {
+                  type: 'insertClip',
+                  trackId: 'overlay',
+                  clip: {
+                    id: 'board-clip',
+                    kind: 'image',
+                    assetId: 'diagram',
+                    startUs: 0,
+                    durationUs: 2e6,
+                  },
+                },
+              ],
+            }),
+          ]),
+        ],
+        [final('Stored and placed.')],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test',
+      execution: 'requested',
+    });
+    const result = await a.run(
+      'Store the board in Media and overlay it for two seconds',
+    ).completion;
+    expect(result.text).toBe('Stored and placed.');
+    expect(
+      f.project().tracks[1]!.clips.find((c) => c.id === 'board-clip')!.assetId,
+    ).toBe('diagram');
+    const toolResults = p.requests
+      .flatMap((r) => r.messages.filter((m) => m.role === 'tool'))
+      .map((m) => m.content)
+      .join('\n');
+    expect(toolResults).toContain('storyboard_asset');
+    expect(toolResults).not.toContain('"file"');
+    // A future turn must reload its domains; generated IDs stay scoped to this session.
+    await a.dispose();
+    await jobs.dispose();
+  });
+
+  it('rejects stale reviewed storyboard actions and undeclared sibling actions after skill loading', async () => {
+    const f = fixture();
+    const jobs = new Jobs();
+    const render = vi.fn(() =>
+      jobs.start(async () => ({
+        projectId: f.project().id,
+        revision: 0,
+        format: 'png' as const,
+        file: new File(['png'], 'Board.png'),
+      })),
+    );
+    f.editor.storyboard = { export: render };
+    const p = provider(
+      [
+        [
+          final('', [
+            call('load_skill', { skillId: 'storyboard' }, 'load'),
+            call(
+              'propose_action',
+              {
+                summary: 'Wrong round',
+                action: {
+                  type: 'export_storyboard',
+                  options: { format: 'png' },
+                },
+              },
+              'early',
+            ),
+          ]),
+        ],
+        [
+          final('', [
+            call('propose_action', {
+              summary: 'Export',
+              action: { type: 'export_storyboard', options: { format: 'png' } },
+            }),
+          ]),
+        ],
+        [final('Ready.')],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test',
+    });
+    const result = await a.run('Export PNG').completion;
+    expect(result.proposalIds).toHaveLength(1);
+    f.changeRevision();
+    await expect(
+      a.approveProposal(result.proposalIds[0]!),
+    ).rejects.toMatchObject({ code: 'REVISION_CONFLICT' });
+    expect(render).not.toHaveBeenCalled();
+    expect(
+      p.requests[1]!.messages.some(
+        (m) => m.role === 'tool' && m.content?.includes('TOOL_NOT_ALLOWED'),
+      ),
+    ).toBe(true);
+    await a.dispose();
+    await jobs.dispose();
+  });
+});
+
+it.each(['export_storyboard', 'store_storyboard'] as const)(
+  'preserves the publication boundary when cancelling %s',
+  async (type) => {
+    const f = fixture();
+    const jobs = new Jobs();
+    const started = deferred<void>();
+    const gate = deferred<void>();
+    f.editor.storyboard = {
+      export: () =>
+        jobs.start(async () => {
+          started.resolve();
+          await gate.promise;
+          return {
+            projectId: f.project().id,
+            revision: 0,
+            format: 'png' as const,
+            file: new File(['local'], 'Board.png'),
+          };
+        }),
+      store: () =>
+        jobs.start(
+          async () => {
+            started.resolve();
+            await gate.promise;
+            return {
+              projectId: f.project().id,
+              revision: 0,
+              assetId: 'stored',
+              entryId: 'entry',
+              libraryRevision: 1,
+            };
+          },
+          { acceptCommittedResult: true },
+        ),
+    };
+    const p = provider(
+      [
+        [final('', [call('load_skill', { skillId: 'storyboard' })])],
+        [
+          final('', [
+            call('propose_action', {
+              summary: 'Board action',
+              action: { type, options: { format: 'png' } },
+            }),
+          ]),
+        ],
+        [final('Ready.')],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test',
+    });
+    const result = await a.run('Export or store this diagram').completion;
+    const id = result.proposalIds[0]!;
+    const completion = a.approveProposal(id);
+    // Attach rejection handling before cancelling to avoid unhandled-rejection noise.
+    const outcome = completion.then(
+      (value) => ({ value }),
+      (error: unknown) => ({ error }),
+    );
+    await started.promise;
+    a.cancelProposal(id);
+    gate.resolve();
+    const settled = await outcome;
+    if (type === 'export_storyboard') {
+      expect(settled).toMatchObject({ error: { code: 'CANCELLED' } });
+      expect(() => a.exportArtifact(id)).toThrow();
+    } else {
+      expect(settled).toMatchObject({
+        value: { kind: 'storyboard_asset', assetId: 'stored' },
+      });
+      expect(a.getProposal(id).status).toBe('applied');
+    }
+    await a.dispose();
+    await jobs.dispose();
+  },
+);

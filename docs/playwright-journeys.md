@@ -47,6 +47,8 @@ The [dialog sizing journey](../tests/browser/workspace-dialog-sizing.spec.ts) ch
 
 Text authoring, timeline/native export, AI proposals, indexing and transfer already have bounded multi-story production journeys. Their assertions and fixture boundaries remain unchanged; combining their incompatible legacy, model, archive or failure variants would require a fresh context rather than arbitrary shared state. The table above combines compatible whole stories without reimplementing the app or suppressing any existing assertions. Original titles remain in the enclosing names and steps for focused grep selection.
 
+The [storyboard export journey](../tests/browser/workspace-storyboard-export.spec.ts) combines native PNG transparency/pixels/selection, inline-font SVG and editable scenes, project-folder storage, fresh-engine cached reuse with local font requests blocked, same-turn assistant storage/timeline insertion, and desktop/mobile export menus at both bases. It uses one isolated synthetic project per journey and reloads the same tab to prove persistence.
+
 ## Reuse secondary tabs and parallelize safely
 
 - Keep the journey's primary tab. When synchronization needs another tab, reuse an existing task-owned secondary page or create one with `context.newPage()` and navigate it to the required app/project. Opening the same URL does not copy the first page's session state. Playwright's journey-owned fixture context closes its secondary pages on success or failure; custom contexts/pages require `finally` cleanup. Leave unrelated manually opened tabs alone.

@@ -90,6 +90,8 @@ Settings are applied through their existing owners after project publication. lo
 
 No application shell caching or offline navigation is installed. Cached inference can run without remote model/runtime hosts after reload as long as the static app itself remains available.
 
+Storyboard export bytes use the existing journaled derivative cache, keyed by the pinned Excalidraw renderer version, selected scene content and rendering options. Cross-tab derivative locks serialize identical renders; cache reads verify stored bytes. Filename and project revision do not affect rendering identity. Cache eviction/recovery rebuilds on the next explicit export. PNG/SVG/scene artifacts are Blob-backed queued results, independent of derivative disposal; Store PNG imports a separate immutable original and named library entry. No new persisted project field, database store or migration is introduced. Project Undo never removes stored Media assets; library Trash/Restore retains editing originals. Failed named placement after committed import retains the original and reports failure rather than automatically duplicating the store action.
+
 ## Timeline metadata compatibility
 
 Version-one clips may now carry optional `groupId`; transitions may carry optional template ID and strength. Existing documents omit these fields and retain their behavior. Membership and generated template keyframes persist through the existing atomic document/history/receipt commits, immutable versions and JSON backups; no database version or new store is needed. Groups use globally distinct IDs, require at least two members, and are validated on open/import. Originals are reused for separated audio.

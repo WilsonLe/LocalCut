@@ -2,6 +2,11 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Storyboard exports and agent workflows — 13 October 2026
+
+- Enable local whiteboard exports and storing reusable renders as project Media assets. Provide comprehensive agent guidance for supported Excalidraw vector/text authoring, layout, grouping, layering, export and combinations with editing, evidence, transcripts, history and document handoff.
+- Keep UI and agent workflows on the same shared editor owners, with local immutable assets and explicit user-owned file downloads.
+
 ## Mobile tab headers and scrolling — 13 October 2026
 
 - Use a shared header pattern in Edit, Chat and Media: title inline with one horizontally scrollable button row, with standalone chevrons over shaded gray theme gradients where more actions exist. Do not wrap header buttons onto a second row.

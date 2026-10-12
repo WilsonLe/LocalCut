@@ -3,7 +3,7 @@ import type { Ref } from 'react';
 import './storyboard-asset-path';
 import { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Redo2, Undo2 } from 'lucide-react';
+import { Download, ImagePlus, Redo2, Undo2 } from 'lucide-react';
 import {
   CaptureUpdateAction,
   Excalidraw,
@@ -18,6 +18,8 @@ import type { Editor, Project, Storyboard as Scene } from '../editor';
 import { StoryboardSession } from './storyboard-session';
 import { Button } from '../components/ui/button';
 import { Tooltip } from '../components/ui/tooltip';
+import { downloadFile } from './helpers';
+import type { StoryboardExportOptions, Job } from '../editor';
 
 const restore = (scene: Scene) =>
   restoreElements(scene.elements as unknown as ExcalidrawElement[], null);
@@ -48,6 +50,19 @@ export function Storyboard({
   const container = useRef<HTMLDivElement>(null);
   const [toolbar, setToolbar] = useState<Element | null>(null);
   const [reset, setReset] = useState<Scene | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportSelection, setExportSelection] = useState(false);
+  const [exportBackground, setExportBackground] = useState(true);
+  const [exportScale, setExportScale] = useState(1);
+  const exportJob = useRef<Job<unknown> | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      exportJob.current?.cancel();
+    };
+  }, []);
   const [session] = useState(
     () =>
       new StoryboardSession(
@@ -90,12 +105,17 @@ export function Storyboard({
     if (!canvas || !api) return;
     // The pinned vendor has no in-toolbar slot. Follow its desktop/mobile
     // toolbar replacements while keeping history controls owned by React.
-    const locateToolbar = () =>
+    const locateToolbar = () => {
+      // The pinned vendor's embedded MainMenu has no trigger-label prop.
+      const menu = canvas.querySelector('[data-testid="main-menu-trigger"]');
+      menu?.setAttribute('aria-label', 'Storyboard menu');
+      menu?.setAttribute('title', 'Storyboard menu');
       setToolbar(
         canvas.querySelector(
           '.App-menu_top .shapes-section .App-toolbar > .Stack_horizontal, .App-top-bar .App-toolbar > .Stack_horizontal',
         ),
       );
+    };
     const observer = new MutationObserver(locateToolbar);
     observer.observe(canvas, { childList: true, subtree: true });
     locateToolbar();
@@ -140,6 +160,55 @@ export function Storyboard({
       onError(error);
     }
   };
+  const exportBoard = async (
+    format: StoryboardExportOptions['format'],
+    store = false,
+  ) => {
+    if (exportJob.current || exporting || readOnly || !active) return;
+    setExporting(true);
+    try {
+      if (!(await session.flush()) || !mounted.current) return;
+      const latest = await editor.projects.snapshot(project.id);
+      const options: StoryboardExportOptions = {
+        format,
+        background: exportBackground,
+        scale: exportScale,
+        ...(exportSelection
+          ? {
+              elementIds: Object.entries(
+                api?.getAppState().selectedElementIds ?? {},
+              )
+                .filter(([, selected]) => selected)
+                .map(([id]) => id),
+            }
+          : {}),
+      };
+      if (store) {
+        const job = editor.storyboard.store(
+          project.id,
+          { ...options, format: 'png' },
+          latest.revision,
+        );
+        exportJob.current = job;
+        await job.completion;
+        if (mounted.current) await onSaved();
+      } else {
+        const job = editor.storyboard.export(
+          project.id,
+          options,
+          latest.revision,
+        );
+        exportJob.current = job;
+        const result = await job.completion;
+        if (mounted.current) downloadFile(result.file, result.file.name);
+      }
+    } catch (error) {
+      if (mounted.current) onError(error);
+    } finally {
+      exportJob.current = null;
+      if (mounted.current) setExporting(false);
+    }
+  };
   return (
     <section
       className="storyboard"
@@ -172,6 +241,11 @@ export function Storyboard({
         }
       }}
     >
+      {exporting && (
+        <span role="status" className="sr-only">
+          Exporting storyboard
+        </span>
+      )}
       {toolbar &&
         active &&
         !readOnly &&
@@ -275,6 +349,56 @@ export function Storyboard({
         >
           <MainMenu>
             <MainMenu.DefaultItems.ChangeCanvasBackground />
+            {!readOnly && (
+              <MainMenu.Group title="Storyboard export">
+                <MainMenu.Item
+                  selected={exportSelection}
+                  disabled={exporting}
+                  onSelect={() => setExportSelection((value) => !value)}
+                >
+                  {exportSelection
+                    ? 'Export selected elements'
+                    : 'Export entire board'}
+                </MainMenu.Item>
+                <MainMenu.Item
+                  selected={exportBackground}
+                  disabled={exporting}
+                  onSelect={() => setExportBackground((value) => !value)}
+                >
+                  {exportBackground
+                    ? 'Include background'
+                    : 'Transparent background'}
+                </MainMenu.Item>
+                <MainMenu.Item
+                  disabled={exporting}
+                  onSelect={() =>
+                    setExportScale((value) => (value === 4 ? 1 : value * 2))
+                  }
+                >
+                  Export scale: {exportScale}×
+                </MainMenu.Item>
+                {(['png', 'svg', 'excalidraw'] as const).map((format) => (
+                  <MainMenu.Item
+                    key={format}
+                    icon={<Download />}
+                    disabled={exporting || !active}
+                    onSelect={() => void exportBoard(format)}
+                  >
+                    Export{' '}
+                    {format === 'excalidraw'
+                      ? 'editable scene'
+                      : format.toUpperCase()}
+                  </MainMenu.Item>
+                ))}
+                <MainMenu.Item
+                  icon={<ImagePlus />}
+                  disabled={exporting || !active}
+                  onSelect={() => void exportBoard('png', true)}
+                >
+                  Store PNG in Media
+                </MainMenu.Item>
+              </MainMenu.Group>
+            )}
           </MainMenu>
         </Excalidraw>
       </div>

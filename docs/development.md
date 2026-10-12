@@ -224,7 +224,7 @@ Run `pnpm test tests/unit/recent-project.test.ts tests/unit/project-route.test.t
 
 ## Storyboard checks
 
-Use `pnpm test tests/unit/storyboard.test.ts tests/unit/assistant.test.ts tests/unit/workspace-backup.test.ts` for schema, partial patches, redaction, serialized canvas writes and assistant coverage. Use `pnpm test:ui --grep 'workspace storyboard'` for real Excalidraw drawing, shared history, approved agent edits, reload, versions/backups and narrow layouts at both bases. Excalidraw remains a lazy UI dependency; core/headless schema and commands do not import it.
+Use `pnpm test tests/unit/storyboard-export.test.ts tests/unit/storyboard.test.ts tests/unit/assistant.test.ts tests/unit/workspace-backup.test.ts` for schema, partial patches, redaction, serialized canvas writes and assistant coverage. Use `pnpm test:ui --grep 'workspace storyboard'` for real Excalidraw drawing, shared history, approved agent edits, reload, versions/backups and narrow layouts at both bases. Excalidraw remains a lazy UI dependency; core/headless schema and commands do not import it. Add `pnpm test:ui --grep 'storyboard exports'` for PNG pixels/transparency/selection, SVG/editable scene output, Media persistence and agent-to-timeline workflows at both bases. `storyboard-workflows.md` owns the user/agent recipes; keep them and the AI inventory synchronized with supported commands/actions.
 
 The same Chrome selection verifies failed drawing fonts stay local and rejects dropped files/library scenes in live and historical views. `node --test tests/tooling/storyboard-assets.test.mjs` checks the pinned development/production fallback adapter; dependency updates must preserve local-only loading or deliberately update that adapter and its evidence.
 

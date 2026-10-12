@@ -4,7 +4,7 @@ import { storyboardContext } from './context';
 import type { AssetIndexRun } from '../core/asset-index';
 import type { CommandBatch, EditReceipt } from '../core/commands';
 import { assetIds, durationUs } from '../core/model';
-import type { ExportOptions, ExportResult } from '../media/export';
+import type { ExportOptions } from '../media/export';
 import type { Job, Progress } from '../services/jobs';
 import { assistantCapabilities } from './actions';
 import type {
@@ -193,7 +193,7 @@ const userOwnedActions = [
   'choose_or_relink_local_files',
   'create_or_open_projects',
   'save_export_artifacts',
-  'project_versions_backups_and_library_administration_except_approved_asset_indexing',
+  'project_versions_and_backups',
   'capture_and_generate_speech',
   'playback_selection_view_and_provider_settings',
 ];
@@ -344,7 +344,7 @@ export function createAssistant(options: AssistantOptions) {
   const failedIndexRequests = new Map<string, string>();
   const artifacts = new Map<
     string,
-    ExportResult & { dispose: () => Promise<void> }
+    { file: File; dispose: () => Promise<void> }
   >();
   const sessionTranscripts = new Map<string, string>();
   if (options.branch)
@@ -1021,21 +1021,9 @@ export function createAssistant(options: AssistantOptions) {
                 'Action requires a loaded skill and a supported local service.',
               );
               const supported =
-                action.type === 'library'
-                  ? capabilities.library
-                  : action.type === 'undo'
-                    ? capabilities.undo
-                    : action.type === 'redo'
-                      ? capabilities.redo
-                      : action.type === 'export'
-                        ? capabilities.export
-                        : action.type === 'track_mask'
-                          ? capabilities.maskTracking
-                          : action.type === 'index_asset'
-                            ? canIndex()
-                            : action.type === 'transcribe'
-                              ? capabilities.transcription
-                              : capabilities.transcriptionPreparation;
+                action.type === 'index_asset'
+                  ? canIndex()
+                  : discovery().actions[action.type].supported;
               aiInvariant(
                 supported,
                 'TOOL_NOT_ALLOWED',
@@ -1815,6 +1803,62 @@ export function createAssistant(options: AssistantOptions) {
                 size: artifact.file.size,
                 durationUs: artifact.durationUs,
               };
+            } else if (action.type === 'export_storyboard') {
+              aiInvariant(
+                editor.storyboard?.export,
+                'TOOL_NOT_ALLOWED',
+                'Storyboard export is unavailable.',
+              );
+              const artifact = await runJob(
+                editor.storyboard.export(
+                  projectId,
+                  action.options,
+                  proposal.batch.expectedRevision,
+                ),
+              );
+              cancelled(controller.signal);
+              aiInvariant(!disposed, 'DISPOSED', 'Assistant disposed.');
+              aiInvariant(
+                artifact.projectId === projectId &&
+                  artifact.revision === proposal.batch.expectedRevision,
+                'REVISION_CONFLICT',
+                'Storyboard export captured a different revision.',
+              );
+              artifacts.set(proposal.id, {
+                file: artifact.file,
+                dispose: async () => {},
+              });
+              result = {
+                kind: 'storyboard_export',
+                artifactId: proposal.id,
+                projectId,
+                revision: artifact.revision,
+                format: artifact.format,
+                name: artifact.file.name,
+                size: artifact.file.size,
+              };
+            } else if (action.type === 'store_storyboard') {
+              aiInvariant(
+                editor.storyboard?.store,
+                'TOOL_NOT_ALLOWED',
+                'Storyboard Media storage is unavailable.',
+              );
+              const stored = await runJob(
+                editor.storyboard.store(
+                  projectId,
+                  action.options,
+                  proposal.batch.expectedRevision,
+                ),
+              );
+              aiInvariant(
+                stored.projectId === projectId &&
+                  stored.revision === proposal.batch.expectedRevision,
+                'REVISION_CONFLICT',
+                'Storyboard asset captured a different revision.',
+              );
+              if (!selectedAssetIds.includes(stored.assetId))
+                selectedAssetIds.push(stored.assetId);
+              result = { kind: 'storyboard_asset', ...stored };
             } else if (action.type === 'track_mask') {
               aiInvariant(
                 editor.masks,

@@ -3,6 +3,23 @@ export type {
   StoryboardElement,
   StoryboardPatch,
 } from '../core/storyboard';
+import { storyboardStoreOptionsSchema } from '../core/storyboard-export';
+import type {
+  StoryboardExportOptions,
+  StoryboardStoreOptions,
+} from '../core/storyboard-export';
+import type {
+  StoryboardExportResult,
+  StoryboardAssetResult,
+} from '../services/storyboard-render';
+export type {
+  StoryboardExportOptions,
+  StoryboardStoreOptions,
+} from '../core/storyboard-export';
+export type {
+  StoryboardExportResult,
+  StoryboardAssetResult,
+} from '../services/storyboard-render';
 import { sourceIdentity } from '../storage/thumbnail-cache';
 import { maskSchema } from '../core/effects';
 import type { Mask } from '../core/effects';
@@ -357,6 +374,102 @@ export async function createEditor(options: EditorOptions = {}) {
   };
   const api = {
     tasks,
+    storyboard: {
+      export(
+        projectId: string,
+        options: StoryboardExportOptions,
+        expectedRevision: number,
+      ) {
+        active();
+        return jobs.start<StoryboardExportResult>(async (signal, progress) => {
+          const project = await store.getProject(projectId);
+          invariant(
+            project.revision === expectedRevision,
+            'REVISION_CONFLICT',
+            'Storyboard changed before export',
+          );
+          checkAbort(signal);
+          progress({ stage: 'Rendering storyboard' });
+          const { renderStoryboard } =
+            await import('../services/storyboard-render');
+          return renderStoryboard(store, project, options, signal);
+        });
+      },
+      store(
+        projectId: string,
+        input: StoryboardStoreOptions,
+        expectedRevision: number,
+      ) {
+        active();
+        return jobs.start<StoryboardAssetResult>(
+          async (signal, progress) => {
+            const options = storyboardStoreOptionsSchema.parse(input);
+            const project = await store.getProject(projectId);
+            invariant(
+              project.revision === expectedRevision,
+              'REVISION_CONFLICT',
+              'Storyboard changed before storing',
+            );
+            const media = boundLibrary(projectId);
+            const snapshot = await media.list();
+            invariant(
+              options.parentId === null ||
+                snapshot.entries.some(
+                  (e) =>
+                    e.id === options.parentId &&
+                    e.kind === 'folder' &&
+                    !e.trashed,
+                ),
+              'INVALID_COMMAND',
+              'Select an active project Media folder',
+            );
+            checkAbort(signal);
+            progress({ stage: 'Rendering storyboard' });
+            const { renderStoryboard } =
+              await import('../services/storyboard-render');
+            const { parentId, ...renderOptions } = options;
+            const rendered = await renderStoryboard(
+              store,
+              project,
+              renderOptions,
+              signal,
+            );
+            invariant(
+              (await store.getProject(projectId)).revision === expectedRevision,
+              'REVISION_CONFLICT',
+              'Storyboard changed while rendering. Retry from the current revision',
+            );
+            checkAbort(signal);
+            progress({ stage: 'Storing in Media' });
+            const imported = run<Asset>(background, 'import', {
+              file: rendered.file,
+              name: rendered.file.name,
+            });
+            const cancel = () => imported.cancel();
+            signal.addEventListener('abort', cancel, { once: true });
+            if (signal.aborted) cancel();
+            let asset: Asset;
+            try {
+              asset = await imported.completion;
+            } finally {
+              signal.removeEventListener('abort', cancel);
+            }
+            // A committed original survives late cancellation. Finish its named
+            // library publication and report the durable asset rather than retrying.
+            const placed = await media.place(asset.id, [], parentId);
+            const entry = placed.entries.find((e) => e.assetId === asset.id)!;
+            return {
+              projectId,
+              revision: expectedRevision,
+              assetId: asset.id,
+              entryId: entry.id,
+              libraryRevision: placed.revision,
+            };
+          },
+          { acceptCommittedResult: true },
+        );
+      },
+    },
     masks: {
       track(
         projectId: string,
@@ -1156,6 +1269,23 @@ export async function createEditor(options: EditorOptions = {}) {
       return tasks.enqueue<R>(kind, args, { label: kind.replaceAll('.', ' ') });
     };
   };
+  api.storyboard.export = queued('storyboard.export', api.storyboard.export, {
+    cache: freshTask(
+      'Each caller requests a new local artifact; the renderer reuses versioned persisted scene bytes.',
+    ),
+    lane: 'export',
+    recovery: 'manual',
+    retryCodes: [],
+  });
+  api.storyboard.store = queued('storyboard.store', api.storyboard.store, {
+    cache: freshTask(
+      'Store publishes a new immutable asset and library entry; the renderer reuses versioned persisted scene bytes.',
+    ),
+    lane: 'export',
+    recovery: 'manual',
+    retryCodes: [],
+    acceptCommittedResult: true,
+  });
   api.masks.track = queued('media.trackMask', api.masks.track, {
     cache: {
       mode: 'reuse',
