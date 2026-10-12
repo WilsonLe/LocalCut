@@ -2,6 +2,11 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Speech phrase timing — 13 October 2026
+
+- Always use the STT route configured in AI settings for generated-speech phrase timing. Remove the separate Phrase timing options section, including its heading, selector and explanatory/metadata text.
+- Keep local model preparation explicit and preserve actionable timing recovery; never silently switch STT services.
+
 ## Single OpenRouter connection — 13 October 2026
 
 - Allow only OpenRouter for remote AI. Remove OpenAI-compatible endpoints, ChatGPT sign-in and multiple provider accounts. The connection is binary: connected to OpenRouter or disconnected.
