@@ -1,3 +1,5 @@
+import { inheritDiagnosticMessage } from './error-diagnostics';
+
 export type ErrorCode =
   | 'INVALID_DOCUMENT'
   | 'INVALID_COMMAND'
@@ -45,6 +47,7 @@ export function asEditorError(error: unknown): EditorError {
   if (error instanceof Error) {
     normalized.stack = error.stack;
     normalized.cause = error;
+    inheritDiagnosticMessage(error, normalized);
   }
   return normalized;
 }

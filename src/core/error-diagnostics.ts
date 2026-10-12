@@ -9,6 +9,23 @@ export interface ErrorDiagnostic {
   errors?: ErrorDiagnostic[];
 }
 
+const safeMessages = new WeakMap<Error, string>();
+
+/** Opt in only static application messages, never provider text or user content. */
+export function retainDiagnosticMessage<T extends Error>(error: T): T {
+  safeMessages.set(error, error.message);
+  return error;
+}
+
+/** Normalization may copy an already trusted message, but cannot grant new trust. */
+export function inheritDiagnosticMessage(source: Error, target: Error): void {
+  if (
+    safeMessages.get(source) === source.message &&
+    target.message === source.message
+  )
+    safeMessages.set(target, source.message);
+}
+
 export function redactDiagnosticText(text: string): string {
   return (
     text
@@ -70,8 +87,13 @@ export function errorDiagnostic(
   seen.add(error);
   const value = error as Record<string, unknown>;
   const name = typeof value.name === 'string' ? value.name : 'Error';
+  const safeMessage =
+    error instanceof Error && safeMessages.get(error) === value.message
+      ? safeMessages.get(error)
+      : undefined;
   const message =
-    includeMessage && typeof value.message === 'string'
+    (includeMessage || safeMessage !== undefined) &&
+    typeof value.message === 'string'
       ? redactDiagnosticText(value.message)
       : 'Error details unavailable';
   let stack =
@@ -79,14 +101,14 @@ export function errorDiagnostic(
       ? value.stack
       : 'Stack trace unavailable: the source did not retain it.';
   if (!includeMessage && typeof value.stack === 'string') {
-    // Unknown/provider messages can echo bodies. Keep every frame, omit the header.
+    // Unknown/provider messages can echo bodies. Rebuild the header from safe text.
     const frames = stack
       .split('\n')
       .filter(
         (line) =>
           /^\s*at\s/.test(line) || /@(?:https?:|file:|blob:|\/)/.test(line),
       );
-    stack = `${name}: [message omitted]${frames.length ? '\n' + frames.join('\n') : '\nStack trace unavailable: no source frames were retained.'}`;
+    stack = `${name}: ${safeMessage ?? '[message omitted]'}${frames.length ? '\n' + frames.join('\n') : '\nStack trace unavailable: no source frames were retained.'}`;
   }
   const details: Record<string, unknown> = {};
   if (value.details && typeof value.details === 'object') {

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { errorDiagnostic } from '../../src/core/error-diagnostics';
+import {
+  errorDiagnostic,
+  retainDiagnosticMessage,
+} from '../../src/core/error-diagnostics';
 import { asEditorError } from '../../src/core/errors';
 
 describe('local error diagnostics', () => {
@@ -67,6 +70,21 @@ describe('local error diagnostics', () => {
     );
     expect(report.errors?.[0]?.stack).toContain('first');
     expect(report.errors?.[1]?.stack).toContain('unavailable');
+  });
+  it('keeps explicitly safe validation messages without trusting modified messages or stack headers', () => {
+    const error = retainDiagnosticMessage(new Error('Invalid timestamps.'));
+    error.stack = 'Error: private provider body\n    at validate (ai.js:1:2)';
+    expect(errorDiagnostic(error, false)).toMatchObject({
+      message: 'Invalid timestamps.',
+      stack: 'Error: Invalid timestamps.\n    at validate (ai.js:1:2)',
+    });
+    error.message = 'private provider body';
+    expect(JSON.stringify(errorDiagnostic(error, false))).not.toContain(
+      'private',
+    );
+    expect(
+      errorDiagnostic(new Error('Invalid timestamps.'), false).message,
+    ).toBe('Error details unavailable');
   });
 });
 

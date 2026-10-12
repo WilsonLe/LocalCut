@@ -14,6 +14,7 @@ export function transcriptionBody(request: {
         /^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(request.language)),
     'INVALID_REQUEST',
     'STT requires a timestamp-capable model, valid language, and at most 25 MB of 16 kHz audio.',
+    true,
   );
   const buffer = new ArrayBuffer(44 + request.audio.length * 2);
   const view = new DataView(buffer);
@@ -40,6 +41,7 @@ export function transcriptionBody(request: {
       Number.isFinite(sample),
       'INVALID_REQUEST',
       'Audio contains invalid samples.',
+      true,
     );
     view.setInt16(
       44 + i * 2,
@@ -66,6 +68,7 @@ export function transcriptionSegments(
     Array.isArray(segments) && segments.length <= 20000,
     'INVALID_RESPONSE',
     'STT returned no bounded timestamp segments.',
+    true,
   );
   let previous = -1;
   return segments.map((item) => {
@@ -85,6 +88,7 @@ export function transcriptionSegments(
         s.end <= duration + 0.1,
       'INVALID_RESPONSE',
       'STT returned invalid or unordered timestamps.',
+      true,
     );
     previous = s.start;
     return {
