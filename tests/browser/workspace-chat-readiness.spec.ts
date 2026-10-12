@@ -489,6 +489,51 @@ for (const base of ['/', '/LocalCut/']) {
     await page.screenshot({
       path: testInfo.outputPath('chat-storage-retry.png'),
     });
+    // Dirty titles, archives and drafts stay recoverable across scope switches.
+    const picker = page.getByRole('button', {
+      name: 'Chat sessions',
+      exact: true,
+    });
+    await picker.click();
+    await page
+      .getByRole('menuitem', { name: 'Rename chat', exact: true })
+      .click();
+    const rename = page.getByRole('dialog', {
+      name: 'Rename chat',
+      exact: true,
+    });
+    await rename
+      .getByLabel('Chat title', { exact: true })
+      .fill('Unstored title');
+    await rename.getByLabel('Chat title', { exact: true }).press('Enter');
+    await picker.click();
+    await page
+      .getByRole('menuitem', { name: 'Archive chat', exact: true })
+      .click();
+    const chooseModel = async (name: string) => {
+      await openAISettings(page);
+      await settings
+        .getByRole('combobox', { name: 'AI model', exact: true })
+        .click();
+      await page.getByRole('option', { name, exact: true }).click();
+      await settings.getByRole('button', { name: 'Done', exact: true }).click();
+      await expect(composer).toBeEnabled();
+    };
+    await chooseModel('Alternative model · test/alternative');
+    await expect(composer).toHaveValue('Alternative model draft');
+    await composer.fill('Failed alternative draft');
+    await chooseModel('Chat model · test/chat');
+    await picker.click();
+    await page
+      .getByRole('button', { name: 'Show archived chats', exact: true })
+      .click();
+    await page
+      .getByRole('menuitem', { name: 'Restore Unstored title', exact: true })
+      .click();
+    await expect(picker).toContainText('Unstored title');
+    await expect(composer).toHaveValue('Draft retained after failed save');
+    await chooseModel('Alternative model · test/alternative');
+    await expect(composer).toHaveValue('Failed alternative draft');
     await page.evaluate(() => {
       (window as unknown as { rejectChatWrites: boolean }).rejectChatWrites =
         false;
@@ -506,8 +551,18 @@ for (const base of ['/', '/LocalCut/']) {
         ),
       )
       .toBe(true);
+    await expect
+      .poll(async () =>
+        (await savedChats(page)).some(
+          (chat) => chat.content.prompt === 'Failed alternative draft',
+        ),
+      )
+      .toBe(true);
+    await chooseModel('Chat model · test/chat');
+    await expect(composer).toHaveValue('Draft retained after failed save');
     await page.reload();
     await expect(composer).toHaveValue('Draft retained after failed save');
+    await expect(picker).toContainText('Unstored title');
 
     // Returning from another project restores this project's context.
     await second.goto(`${base}#/projects`);

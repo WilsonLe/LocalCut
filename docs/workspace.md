@@ -320,7 +320,7 @@ History stays on this device in the version-one `localcut.notifications.v1` loca
 
 This is a user-owned application diagnostic/lifecycle feature, outside assistant editing proposals.
 
-Saved-chat write failures keep the current transcript, draft and local image references usable, with an inline [Retry saving notice](images/chat-storage-retry.png).
+Saved-chat write failures keep transcripts, titles, archives, drafts and local image references usable across scope switches until retry succeeds, with an inline [Retry saving notice](images/chat-storage-retry.png).
 
 ## Managing saved chats
 

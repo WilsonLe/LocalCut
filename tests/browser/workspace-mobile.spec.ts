@@ -249,6 +249,60 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(nav).toHaveCount(0);
     await heading.getByRole('button', { name: 'Chat sessions' }).focus();
     await expect(nav).toBeVisible();
+    await expect(
+      heading.getByRole('button', { name: 'Chat sessions' }),
+    ).toContainText('Editing session title');
+    await composer.fill('Mobile retained draft');
+    await expect
+      .poll(() =>
+        page.evaluate(async () => {
+          const db = await new Promise<IDBDatabase>((resolve) => {
+            const request = indexedDB.open('localcut-chats-v1');
+            request.onsuccess = () => resolve(request.result);
+          });
+          const records = await new Promise<{ content: { prompt: string } }[]>(
+            (resolve) => {
+              const request = db
+                .transaction('sessions')
+                .objectStore('sessions')
+                .getAll();
+              request.onsuccess = () => resolve(request.result);
+            },
+          );
+          db.close();
+          return records.some(
+            (chat) => chat.content.prompt === 'Mobile retained draft',
+          );
+        }),
+      )
+      .toBe(true);
+    await heading
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .click();
+    await page
+      .getByRole('menuitem', { name: 'AI settings', exact: true })
+      .click();
+    await settings
+      .getByRole('combobox', { name: 'AI model', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'Mobile model · test/mobile', exact: true })
+      .click();
+    await settings.getByRole('button', { name: 'Done', exact: true }).click();
+    await expect(composer).toHaveValue('Mobile retained draft');
+    await expect(
+      heading.getByRole('button', { name: 'Chat sessions' }),
+    ).toContainText('Editing session title');
+    await page.reload();
+    await page.getByRole('button', { name: 'Chat', exact: true }).click();
+    await expect(composer).toHaveValue('Mobile retained draft');
+    await expect(
+      heading.getByRole('button', { name: 'Chat sessions' }),
+    ).toContainText('Editing session title');
+    await expect(
+      page.getByRole('article', { name: 'Assistant response' }),
+    ).toContainText('Ready.');
+    expect(completions).toBe(1);
   });
 
   test(`mobile active tabs preserve state and animate the selection ${base}`, async ({

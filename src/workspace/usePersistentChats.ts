@@ -12,6 +12,7 @@ import {
   renameChatSession,
   automaticChatTitle,
   forkChatSession,
+  restoreChatSession,
 } from '../storage/chats';
 import type { ChatContent, SavedChatSession } from '../storage/chats';
 interface ChatState {
@@ -40,6 +41,8 @@ export function usePersistentChats(
   const written = useRef(new Map<string, string>());
   const pending = useRef(Promise.resolve());
   const unsaved = useRef(new Set<string>());
+  // Keep the latest scoped snapshot until every pending/failed write is recovered.
+  const retained = useRef(new Map<string, ChatState>());
   const failureReported = useRef(false);
   const failed = useCallback((error: unknown) => {
     setSaved(false);
@@ -63,12 +66,21 @@ export function usePersistentChats(
       let loaded: Awaited<ReturnType<ChatStore['load']>>;
       try {
         await pending.current;
-        loaded = await store.load(scope);
-        for (const session of loaded.sessions)
-          written.current.set(
-            `${scope}:${session.id}`,
-            JSON.stringify(session),
-          );
+        const snapshot = retained.current.get(scope);
+        loaded = snapshot
+          ? {
+              sessions: snapshot.sessions.map((session) =>
+                restoreChatSession(session)!,
+              ),
+              selected: snapshot.selected,
+            }
+          : await store.load(scope);
+        if (!snapshot)
+          for (const session of loaded.sessions)
+            written.current.set(
+              `${scope}:${session.id}`,
+              JSON.stringify(session),
+            );
       } catch (error) {
         failed(error);
         loaded = { sessions: [], selected: '' };
@@ -100,6 +112,7 @@ export function usePersistentChats(
   const persist = useCallback(
     (value: ChatState, retry = false) => {
       if (!value.loaded || !value.scope) return;
+      retained.current.set(value.scope, value);
       const changed = value.sessions.filter(
         (session) =>
           retry ||
@@ -112,16 +125,23 @@ export function usePersistentChats(
           JSON.stringify(session),
         );
       const batch = `${value.scope}:${crypto.randomUUID()}`;
+      const recovering = retry
+        ? [...unsaved.current].filter((key) =>
+            key.startsWith(`${value.scope}:`),
+          )
+        : [];
       unsaved.current.add(batch);
       const operation = () => store.save(value.scope!, changed, value.selected);
       pending.current = pending.current.then(operation).then(
         () => {
           unsaved.current.delete(batch);
-          if (retry)
-            for (const previous of unsaved.current) {
-              if (previous.startsWith(`${value.scope}:`))
-                unsaved.current.delete(previous);
-            }
+          for (const previous of recovering) unsaved.current.delete(previous);
+          if (
+            ![...unsaved.current].some((key) =>
+              key.startsWith(`${value.scope}:`),
+            )
+          )
+            retained.current.delete(value.scope!);
           if (!unsaved.current.size) {
             failureReported.current = false;
             setSaved(true);
@@ -263,6 +283,11 @@ export function usePersistentChats(
     saveContent,
     select,
     add,
-    retry: () => persist(state, true),
+    retry: () => {
+      const snapshots = [...retained.current.values()];
+      for (const snapshot of snapshots) persist(snapshot, true);
+      if (!snapshots.some((snapshot) => snapshot.scope === state.scope))
+        persist(state, true);
+    },
   };
 }

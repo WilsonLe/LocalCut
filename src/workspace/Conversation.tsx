@@ -897,7 +897,14 @@ export function Conversation(props: ConversationProps) {
     props.project && model
       ? JSON.stringify([
           props.project.id,
-          providerConfiguration.routes.llm,
+          providerConfiguration.routes.llm.map((route) => ({
+            ...route,
+            // The catalog-owning provider uses the selected request model.
+            model:
+              route.providerId === connection?.provider.selectedProvider('llm')
+                ? model
+                : route.model,
+          })),
           providerConfiguration.profiles
             .filter((profile) =>
               providerConfiguration.routes.llm.some(
