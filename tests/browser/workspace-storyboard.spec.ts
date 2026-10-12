@@ -247,6 +247,7 @@ for (const base of ['/', '/LocalCut/']) {
       const heading = page.locator(
         '.workspace-header:visible, .mobile-edit-heading:visible',
       );
+      await expect(heading.locator('.header-actions')).toBeVisible();
       const actions = await heading.locator('.header-actions').boundingBox();
       const views = await tabs.boundingBox();
       const first = await editorTab.boundingBox();
@@ -267,6 +268,40 @@ for (const base of ['/', '/LocalCut/']) {
           .locator('svg'),
       ).toHaveCount(0);
     };
+    const checkHistoryToolbar = async () => {
+      await expect(page.locator('.storyboard-heading')).toHaveCount(0);
+      const toolbar = page.locator('.storyboard .App-toolbar').filter({
+        has: page.getByRole('group', { name: 'Project history' }),
+      });
+      await expect(toolbar).toHaveCount(1);
+      await expect(
+        toolbar.getByRole('radio', { name: /Rectangle/ }),
+      ).toBeVisible();
+      for (const name of ['Undo', 'Redo']) {
+        const button = toolbar.getByRole('button', { name, exact: true });
+        await expect(button).toBeVisible();
+        await expect(button).toHaveText('');
+        await expect(button.locator('svg')).toHaveCount(1);
+        const bar = await toolbar.boundingBox();
+        const control = await button.boundingBox();
+        expect(control!.x).toBeGreaterThanOrEqual(bar!.x);
+        expect(control!.x + control!.width).toBeLessThanOrEqual(
+          bar!.x + bar!.width,
+        );
+        expect(control!.y).toBeGreaterThanOrEqual(bar!.y);
+        expect(control!.y + control!.height).toBeLessThanOrEqual(
+          bar!.y + bar!.height,
+        );
+      }
+      const undo = toolbar.getByRole('button', { name: 'Undo', exact: true });
+      await toolbar.getByRole('button', { name: 'Redo', exact: true }).focus();
+      await page.keyboard.press('Shift+Tab');
+      await expect(undo).toBeFocused();
+      await expect(
+        page.getByRole('tooltip', { name: 'Undo', exact: true }),
+      ).toBeVisible();
+      await canvas.focus();
+    };
     await checkHeader();
     await expect(page.locator('.brand')).toHaveText('LocalCut');
     await expect(
@@ -279,6 +314,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(storyboardTab).toBeFocused();
     const canvas = page.locator('.storyboard canvas.interactive');
     await expect(canvas).toBeVisible();
+    await checkHistoryToolbar();
     const bounds = await canvas.boundingBox();
     expect(bounds).not.toBeNull();
     const x = bounds!.x + 360,
@@ -485,6 +521,9 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByRole('button', { name: 'Undo', exact: true }),
     ).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Redo', exact: true }),
+    ).toHaveCount(0);
     const readOnlyRevision = (await snapshot(page, base, id)).revision;
     await canvas.click({ position: { x: 370, y: 200 } });
     await page.keyboard.press('r');
@@ -504,6 +543,7 @@ for (const base of ['/', '/LocalCut/']) {
         (e) => e.type === 'rectangle',
       )!.x,
     ).toBe(result.expectedX);
+    await checkHistoryToolbar();
     await page.screenshot({
       path: testInfo.outputPath('storyboard-desktop.png'),
     });
@@ -511,6 +551,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(storyboardTab).toBeVisible();
     await checkHeader();
     await expect(canvas).toBeVisible();
+    await checkHistoryToolbar();
     await expect
       .poll(() =>
         page.evaluate(
@@ -521,6 +562,21 @@ for (const base of ['/', '/LocalCut/']) {
     await editorTab.click();
     await expect(canvas).toBeHidden();
     await storyboardTab.click();
+    await checkHistoryToolbar();
+    const beforeMobileHistory = await snapshot(page, base, id);
+    await page
+      .getByRole('button', { name: 'Undo', exact: true })
+      .press('Enter');
+    await expect
+      .poll(async () => (await snapshot(page, base, id)).revision)
+      .toBe(beforeMobileHistory.revision + 1);
+    await page
+      .getByRole('button', { name: 'Redo', exact: true })
+      .press('Space');
+    await expect
+      .poll(async () => (await snapshot(page, base, id)).storyboard)
+      .toEqual(beforeMobileHistory.storyboard);
+    await canvas.focus();
     await page.screenshot({
       path: testInfo.outputPath('storyboard-mobile.png'),
     });

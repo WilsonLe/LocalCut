@@ -2303,14 +2303,34 @@
   min-height: 0;
   min-width: 0;
 }
-.storyboard-heading {
+.storyboard-history {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 4px 12px;
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  font-weight: 600;
+  gap: 4px;
+  margin-left: 4px;
+  padding-left: 8px;
+  border-left: 1px solid var(--default-border-color);
+}
+.storyboard .excalidraw .storyboard-history button {
+  width: var(--default-button-size);
+  height: var(--default-button-size);
+  color: var(--icon-fill-color);
+  border-radius: var(--border-radius-lg);
+}
+.storyboard .excalidraw .storyboard-history button:hover {
+  background: var(--button-hover-bg);
+}
+.storyboard .excalidraw .App-top-bar > section,
+.storyboard .excalidraw .App-top-bar .App-toolbar-container {
+  width: 100%;
+}
+.storyboard .excalidraw .App-top-bar .App-toolbar-container {
+  grid-template-columns: minmax(0, 1fr);
+}
+.storyboard .excalidraw .App-top-bar .App-toolbar > .Stack_horizontal {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 .storyboard-canvas {
   position: relative;
