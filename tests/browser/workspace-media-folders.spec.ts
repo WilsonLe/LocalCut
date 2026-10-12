@@ -23,6 +23,8 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Create project', exact: true })
       .click();
+    // The durable project can appear before the creation action releases its lock.
+    await page.getByRole('button', { name: 'Undo', exact: true }).waitFor();
     const bytes = await page.evaluate(async () => {
       const canvas = new OffscreenCanvas(32, 32);
       canvas.getContext('2d')!.fillRect(0, 0, 32, 32);

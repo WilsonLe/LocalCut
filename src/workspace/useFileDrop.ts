@@ -6,8 +6,8 @@ import { showErrorToast } from './error-toast';
 function hasFiles(transfer: DataTransfer | null) {
   return (
     !!transfer &&
-    (Array.from(transfer.types).includes('Files') ||
-      Array.from(transfer.items).some((item) => item.kind === 'file'))
+    (transfer.types.includes('Files') ||
+      [...transfer.items].some((item) => item.kind === 'file'))
   );
 }
 
@@ -28,7 +28,7 @@ export function useFileDrop(
       enabled &&
       !hasBlockingOverlay() &&
       !(target instanceof Element && target.closest('[data-storyboard]')) &&
-      (projectId ?? 'new-project'),
+      (projectId ?? true),
   );
   const importFiles = useEffectEvent(onDrop);
   useEffect(() => {
@@ -37,17 +37,13 @@ export function useFileDrop(
       depth.current = 0;
       setHovering(false);
     };
-    const enter = (event: DragEvent) => {
+    const hover = (event: DragEvent) => {
       if (!hasFiles(event.dataTransfer)) return;
       event.preventDefault();
-      depth.current++;
-      setHovering(!!accept(event.target));
-    };
-    const over = (event: DragEvent) => {
-      if (!hasFiles(event.dataTransfer)) return;
-      event.preventDefault();
-      event.dataTransfer!.dropEffect = accept(event.target) ? 'copy' : 'none';
-      setHovering(!!accept(event.target));
+      const allowed = accept(event.target);
+      if (event.type === 'dragenter') depth.current++;
+      else event.dataTransfer!.dropEffect = allowed ? 'copy' : 'none';
+      setHovering(!!allowed);
     };
     const leave = () => {
       depth.current = Math.max(0, depth.current - 1);
@@ -59,7 +55,6 @@ export function useFileDrop(
       event.preventDefault();
       event.stopPropagation();
       const allowed = accept(event.target);
-      const read = captureUpload(event.dataTransfer!);
       const folder =
         event.target instanceof Element
           ? event.target.closest<HTMLElement>('[data-library-folder]')?.dataset
@@ -67,7 +62,7 @@ export function useFileDrop(
           : undefined;
       reset();
       if (allowed)
-        void read()
+        void captureUpload(event.dataTransfer!)()
           .then(({ files, directories }) => {
             if (
               mounted &&
@@ -87,21 +82,21 @@ export function useFileDrop(
     const escape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') reset();
     };
-    document.addEventListener('dragenter', enter, true);
-    document.addEventListener('dragover', over, true);
-    document.addEventListener('dragleave', leave, true);
-    document.addEventListener('drop', drop, true);
-    document.addEventListener('dragend', reset, true);
-    document.addEventListener('keydown', escape, true);
+    const listeners = [
+      ['dragenter', hover],
+      ['dragover', hover],
+      ['dragleave', leave],
+      ['drop', drop],
+      ['dragend', reset],
+      ['keydown', escape],
+    ] as const;
+    for (const [type, listener] of listeners)
+      document.addEventListener(type, listener as EventListener, true);
     window.addEventListener('blur', reset);
     return () => {
       mounted = false;
-      document.removeEventListener('dragenter', enter, true);
-      document.removeEventListener('dragover', over, true);
-      document.removeEventListener('dragleave', leave, true);
-      document.removeEventListener('drop', drop, true);
-      document.removeEventListener('dragend', reset, true);
-      document.removeEventListener('keydown', escape, true);
+      for (const [type, listener] of listeners)
+        document.removeEventListener(type, listener as EventListener, true);
       window.removeEventListener('blur', reset);
     };
   }, []);
