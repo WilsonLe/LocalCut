@@ -10,7 +10,6 @@ import {
   FolderPlus,
   FolderUp,
   Trash2,
-  Home,
   Pencil,
   Copy,
   FolderInput,
@@ -170,18 +169,20 @@ export function FolderNavigation({
 }) {
   return (
     <nav className="media-folder-navigation" aria-label="Media folders">
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Media root"
-        data-library-folder="root"
-        onClick={() => {
-          state.setTrash(false);
-          state.setParentId(null);
-        }}
-      >
-        <Home />
-      </Button>
+      {(state.parentId || state.trash) && (
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label="Media root"
+          data-library-folder="root"
+          onClick={() => {
+            state.setTrash(false);
+            state.setParentId(null);
+          }}
+        >
+          Media
+        </Button>
+      )}
       {state.trash ? (
         <span className="text-sm">Trash</span>
       ) : (

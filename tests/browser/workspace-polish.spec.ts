@@ -169,7 +169,7 @@ for (const base of ['/', '/LocalCut/']) {
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(390);
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.getByRole('button', { name: 'Close media' }).click();
+    await navigation.getByRole('button', { name: 'Edit', exact: true }).click();
     await expect(editor).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Expand media' }),

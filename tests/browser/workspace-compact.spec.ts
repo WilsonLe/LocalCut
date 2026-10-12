@@ -19,7 +19,6 @@ for (const base of ['/', '/LocalCut/']) {
     const media = page.getByRole('region', { name: 'Project media' });
     const heading = media.locator('.section-heading');
     const names = [
-      'Media root',
       'New folder',
       'Upload folder',
       'Open media Trash',
@@ -86,24 +85,24 @@ for (const base of ['/', '/LocalCut/']) {
           exact: true,
         }),
       ).toBeVisible();
-      const boxes = [];
-      for (const button of await heading.getByRole('button').all()) {
+      for (const name of [...names, 'Workspace settings']) {
+        const button = heading.getByRole('button', { name, exact: true });
+        await button.focus();
+        await expect(button).toBeInViewport();
         const bounds = (await button.boundingBox())!;
-        expect(bounds.x).toBeGreaterThanOrEqual(0);
-        expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
-        boxes.push(bounds);
+        const title = (await heading
+          .getByRole('heading', { name: 'Media', exact: true })
+          .boundingBox())!;
+        expect(
+          Math.abs(bounds.y + bounds.height / 2 - title.y - title.height / 2),
+        ).toBeLessThan(2);
       }
-      for (let i = 0; i < boxes.length; i++) {
-        for (let j = i + 1; j < boxes.length; j++) {
-          const a = boxes[i]!;
-          const b = boxes[j]!;
-          const overlapWidth =
-            Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
-          const overlapHeight =
-            Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
-          expect(overlapWidth <= 0 || overlapHeight <= 0).toBe(true);
-        }
-      }
+      await expect(
+        heading.getByRole('button', { name: 'Scroll Media actions left' }),
+      ).toBeVisible();
+      await expect(
+        heading.getByRole('button', { name: 'Scroll Media actions right' }),
+      ).toHaveCount(0);
       expect(
         await media.evaluate(
           (element) => element.scrollWidth <= element.clientWidth,
@@ -137,7 +136,7 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await expect(
       heading.getByRole('button', { name: 'Media root', exact: true }),
-    ).toBeVisible();
+    ).toHaveCount(0);
   });
 
   test(`compact workspace imports via card, backs up from settings and connects any chat provider ${base}`, async ({

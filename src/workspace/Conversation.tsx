@@ -1,3 +1,4 @@
+import { PanelHeader } from './PanelHeader';
 import { onDemandDialog } from './on-demand-dialog';
 import ChatSessionTitle from './ChatSessionTitle';
 import {
@@ -99,6 +100,7 @@ export interface IndexConnection extends Connection {
 }
 export interface ConversationProps {
   headerActions?: ReactNode;
+  mobile?: boolean;
   controlsRef?: Ref<ConversationControls>;
   onSpeechAvailability?: (ready: boolean) => void;
   onIndexConnection?: (connection: IndexConnection | null) => void;
@@ -1106,54 +1108,63 @@ export function Conversation(props: ConversationProps) {
         }
       }}
     >
-      <Button
-        className="conversation-toggle"
-        variant="ghost"
-        size="icon-sm"
-        aria-label={props.collapsed ? 'Expand chat' : 'Collapse chat'}
-        aria-expanded={!props.collapsed}
-        aria-controls="workspace-chat"
-        onClick={props.onToggle}
-        title={props.collapsed ? 'Expand chat' : 'Collapse chat'}
-      >
-        {props.collapsed ? <PanelRightOpen /> : <PanelRightClose />}
-      </Button>
+      {!props.mobile && (
+        <Button
+          className="conversation-toggle"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={props.collapsed ? 'Expand chat' : 'Collapse chat'}
+          aria-expanded={!props.collapsed}
+          aria-controls="workspace-chat"
+          onClick={props.onToggle}
+          title={props.collapsed ? 'Expand chat' : 'Collapse chat'}
+        >
+          {props.collapsed ? <PanelRightOpen /> : <PanelRightClose />}
+        </Button>
+      )}
       <div
         id="workspace-chat"
         className="conversation-content"
         inert={props.collapsed}
         aria-hidden={props.collapsed}
       >
-        <header className="conversation-heading">
-          <KlipMark className="size-7 shrink-0" />
-          <span className="sr-only">Klip</span>
-          {pickerLoaded ? (
-            <Suspense fallback={sessionTrigger}>
-              <ChatSessionPicker
-                open={pickerOpen}
-                onOpenChange={setPickerOpen}
-                sessions={chatSessions}
-                selected={conversationNumber}
-                busy={sessionBusy}
-                onSelect={setConversationNumber}
-                onNew={newConversation}
-                managed={chats.loaded}
-                onRename={chats.rename}
-                onFork={chats.fork}
-                onRestore={chats.restore}
-                onArchive={(id) => {
-                  setChatBranches((current) => {
-                    const next = { ...current };
-                    delete next[id];
-                    return next;
-                  });
-                  chats.archive(id);
-                }}
-              />
-            </Suspense>
-          ) : (
-            sessionTrigger
-          )}
+        <PanelHeader
+          className="conversation-heading"
+          label="Chat"
+          title={
+            <>
+              <KlipMark className="size-7 shrink-0" />
+              <span className="sr-only">Klip</span>
+              {pickerLoaded ? (
+                <Suspense fallback={sessionTrigger}>
+                  <ChatSessionPicker
+                    open={pickerOpen}
+                    onOpenChange={setPickerOpen}
+                    sessions={chatSessions}
+                    selected={conversationNumber}
+                    busy={sessionBusy}
+                    onSelect={setConversationNumber}
+                    onNew={newConversation}
+                    managed={chats.loaded}
+                    onRename={chats.rename}
+                    onFork={chats.fork}
+                    onRestore={chats.restore}
+                    onArchive={(id) => {
+                      setChatBranches((current) => {
+                        const next = { ...current };
+                        delete next[id];
+                        return next;
+                      });
+                      chats.archive(id);
+                    }}
+                  />
+                </Suspense>
+              ) : (
+                sessionTrigger
+              )}
+            </>
+          }
+        >
           {ready &&
             chatSessions.some(
               (session) =>
@@ -1173,7 +1184,7 @@ export function Conversation(props: ConversationProps) {
               </Tooltip>
             )}
           {props.headerActions}
-        </header>
+        </PanelHeader>
         {!chats.saved && (
           <p role="status" className="px-3 text-sm text-destructive">
             Chat changes are not saved.{' '}

@@ -1,3 +1,4 @@
+import { PanelHeader } from './PanelHeader';
 import {
   lazy,
   useEffect,
@@ -365,8 +366,11 @@ export default function MediaLibrary({
         );
       }}
     >
-      <div className="section-heading">
-        <h2>Media</h2>
+      <PanelHeader
+        className="section-heading"
+        label="Media"
+        title={<h2>Media</h2>}
+      >
         {editor && !readOnly ? (
           <FolderNavigation
             state={folders}
@@ -379,7 +383,7 @@ export default function MediaLibrary({
           <div className="ml-auto flex items-center gap-1">{mediaActions}</div>
         )}
         {headerActions}
-      </div>
+      </PanelHeader>
       <input
         ref={folderInput}
         type="file"

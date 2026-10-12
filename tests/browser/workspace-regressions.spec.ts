@@ -361,7 +361,11 @@ test('long assistant replies scroll inside the conversation and keep the compose
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page
-    .getByRole('button', { name: 'Collapse chat', exact: true })
+    .getByRole('button', { name: 'Chat sessions', exact: true })
+    .focus();
+  await page
+    .getByRole('navigation', { name: 'Workspace sections' })
+    .getByRole('button', { name: 'Edit', exact: true })
     .click();
   await expect(log).toBeHidden();
   await page

@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 
 /** Keep the active heading at the visible top and fit only chat content above the keyboard. */
 export function useChatViewport(active: boolean, scale: number) {
   const [focused, setFocused] = useState(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = document.documentElement;
     const viewport = window.visualViewport;
     const update = () => {

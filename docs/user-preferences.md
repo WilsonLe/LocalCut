@@ -2,6 +2,13 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Mobile tab headers and scrolling — 13 October 2026
+
+- Use a shared header pattern in Edit, Chat and Media: title inline with one horizontally scrollable button row, with standalone chevrons over shaded gray theme gradients where more actions exist. Do not wrap header buttons onto a second row.
+- Put active tab headers at the top of the screen and keep them reachable while content scrolls. Make each tab easy to scroll from its broad content surface.
+- Do not render mobile Media close or Chat collapse buttons; use the bottom tabs. Remove Media's Home icon; retain textual root navigation inside folders and Trash. This supersedes the earlier mobile Media close action and wrapped unified-header choice.
+- Keep the Chat header still during composer focus and keyboard changes; resize content without changing the workspace positioning mode.
+
 ## Media interaction — 12 October 2026
 
 - Keep the asset drag preview close to the cursor.
