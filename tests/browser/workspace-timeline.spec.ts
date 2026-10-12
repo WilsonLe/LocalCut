@@ -364,15 +364,35 @@ for (const base of ['/', '/LocalCut/']) {
       .poll(async () => (await p()).tracks.flatMap((t) => t.clips).length)
       .toBe(3);
     await dismissNotifications(page);
-    await page
-      .getByRole('button', { name: 'Collapse chat', exact: true })
-      .click();
     await page.getByRole('button', { name: 'Add track', exact: true }).click();
     await page
       .getByRole('button', { name: 'Video track', exact: true })
       .click();
     const lanes = page.locator('.track-lane');
     const ghost = page.locator('.timeline-media-placeholder');
+    const cursorPreview = page.locator('.media-drag-preview');
+    const grab = async (name: string) => {
+      const expand = page.getByRole('button', {
+        name: 'Expand media',
+        exact: true,
+      });
+      if (await expand.isVisible()) await expand.click();
+      const source = page.getByRole('button', {
+        name: `Asset details for ${name}`,
+        exact: true,
+      });
+      await source.scrollIntoViewIfNeeded();
+      const box = (await source.boundingBox())!;
+      const x = box.x + box.width / 2;
+      const y = box.y + 25;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await expect(cursorPreview).toHaveCount(0);
+      await page.mouse.move(x + 12, y, { steps: 3 });
+      await expect(cursorPreview).toBeVisible();
+      await expect(cursorPreview).toContainText(name);
+      return source;
+    };
     const begin = async (name: string, laneIndex: number, fraction = 0.25) => {
       const expand = page.getByRole('button', {
         name: 'Expand media',
@@ -380,9 +400,6 @@ for (const base of ['/', '/LocalCut/']) {
       });
       if (await expand.isVisible()) await expand.click();
       await lanes.nth(laneIndex).scrollIntoViewIfNeeded();
-      const source = (await page
-        .getByRole('button', { name: `Asset details for ${name}`, exact: true })
-        .boundingBox())!;
       const lane = (await lanes.nth(laneIndex).boundingBox())!;
       const viewport = (await page
         .getByLabel('Timeline view', { exact: true })
@@ -391,15 +408,116 @@ for (const base of ['/', '/LocalCut/']) {
         viewport.x + viewport.width - 20,
         Math.max(viewport.x + 90, lane.x + lane.width * fraction),
       );
-      await page.mouse.move(source.x + source.width / 2, source.y + 25);
-      await page.mouse.down();
-      await page.mouse.move(source.x + source.width / 2 + 12, source.y + 25, {
-        steps: 3,
-      });
+      await grab(name);
       await page.mouse.move(targetX, lane.y + lane.height / 2, { steps: 12 });
       await page.mouse.move(targetX + 0.25, lane.y + lane.height / 2);
       return lane;
     };
+    await test.step('cursor preview follows assets across panels at every interface size', async () => {
+      const revision = (await p()).revision;
+      for (const [size, scale] of [
+        ['small', 0.75],
+        ['large', 1.25],
+        ['default', 1],
+      ] as const) {
+        await page.evaluate((interfaceSize) => {
+          localStorage.setItem(
+            'localcut.appearance.v1',
+            JSON.stringify({ version: 1, preferences: { interfaceSize } }),
+          );
+        }, size);
+        await page.reload();
+        await expect(lanes).toHaveCount(3);
+        for (const name of ['drag.png', 'drag.mp4', 'jfk.wav']) {
+          const source = await grab(name);
+          if (name === 'jfk.wav') {
+            await expect(cursorPreview.locator('svg')).toBeVisible();
+            await expect(cursorPreview.locator('img')).toHaveCount(0);
+          } else {
+            await expect(source.locator('img')).toBeVisible();
+            await expect(cursorPreview.locator('img')).toHaveAttribute(
+              'src',
+              (await source.locator('img').getAttribute('src'))!,
+            );
+          }
+          for (const panel of [
+            page.getByRole('region', { name: 'Project media', exact: true }),
+            page.getByRole('region', { name: 'Project preview', exact: true }),
+            page.getByRole('complementary', {
+              name: 'Editing conversation',
+              exact: true,
+            }),
+          ]) {
+            const box = (await panel.boundingBox())!;
+            const x = box.x + box.width / 2;
+            const y = box.y + box.height / 2;
+            await page.mouse.move(x, y, { steps: 4 });
+            await expect(cursorPreview).toBeVisible();
+            await expect(ghost).toHaveCount(0);
+            const preview = (await cursorPreview.boundingBox())!;
+            expect(preview.x).toBeCloseTo(
+              Math.max(8, Math.min(x + 14, 1440 - 184 * scale - 8)),
+              0,
+            );
+            expect(preview.y).toBeCloseTo(
+              Math.max(8, Math.min(y + 14, 1000 - 64 * scale - 8)),
+              0,
+            );
+            expect(preview.width).toBeCloseTo(184 * scale, 0);
+            expect(
+              await page.evaluate(
+                ({ x, y }) =>
+                  !!document
+                    .elementFromPoint(x, y)
+                    ?.closest('.media-drag-preview'),
+                { x: preview.x + 5, y: preview.y + 5 },
+              ),
+            ).toBe(false);
+          }
+          await page.mouse.move(1438, 998);
+          const edge = (await cursorPreview.boundingBox())!;
+          expect(edge.x + edge.width).toBeLessThanOrEqual(1440);
+          expect(edge.y + edge.height).toBeLessThanOrEqual(1000);
+          await page.mouse.up();
+          await expect(cursorPreview).toHaveCount(0);
+          expect((await p()).revision).toBe(revision);
+        }
+      }
+      for (const event of ['pointercancel', 'lostpointercapture']) {
+        const source = await grab('drag.png');
+        await source.dispatchEvent(event);
+        await expect(cursorPreview).toHaveCount(0);
+        await page.mouse.up();
+      }
+      await grab('drag.png');
+      await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+      await expect(cursorPreview).toHaveCount(0);
+      await page.mouse.up();
+      await grab('drag.png');
+      await page.keyboard.press('Escape');
+      await expect(cursorPreview).toHaveCount(0);
+      await page.mouse.up();
+      expect((await p()).revision).toBe(revision);
+    });
+    await page
+      .getByRole('button', { name: 'Collapse chat', exact: true })
+      .click();
+    await test.step('a new project revision retires the active drag', async () => {
+      await begin('drag.png', 2);
+      await expect(ghost).toBeVisible();
+      // Invoke a real history action without releasing the captured pointer first.
+      await page
+        .getByRole('button', { name: 'Undo', exact: true })
+        .evaluate((button: HTMLButtonElement) => button.click());
+      await expect(lanes).toHaveCount(2);
+      await expect(cursorPreview).toHaveCount(0);
+      await expect(ghost).toHaveCount(0);
+      const revision = (await p()).revision;
+      await page.mouse.up();
+      expect((await p()).revision).toBe(revision);
+      await page.getByRole('button', { name: 'Redo', exact: true }).click();
+      await expect(lanes).toHaveCount(3);
+    });
     const before = await p();
     const total = Math.max(
       ...before.tracks.flatMap((t) =>
@@ -408,6 +526,7 @@ for (const base of ['/', '/LocalCut/']) {
     );
     const lane = await begin('drag.png', 2);
     await expect(ghost).toBeVisible();
+    await expect(cursorPreview).toBeVisible();
     expect((await p()).revision).toBe(before.revision);
     expect(Number(await ghost.getAttribute('data-start-us'))).toBeCloseTo(
       total * 0.25,
@@ -430,6 +549,7 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await page.mouse.up();
     await expect(ghost).toHaveCount(0);
+    await expect(cursorPreview).toHaveCount(0);
     await expect.poll(async () => (await p()).tracks[2]!.clips.length).toBe(1);
     const placed = (await p()).tracks[2]!.clips[0]!;
     expect(placed.startUs).toBe(start);

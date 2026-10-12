@@ -1,4 +1,12 @@
-import { lazy, useEffect, useState, useRef, type PointerEvent } from 'react';
+import {
+  lazy,
+  useEffect,
+  useEffectEvent,
+  useState,
+  useRef,
+  type PointerEvent,
+} from 'react';
+import { createPortal } from 'react-dom';
 import {
   Files,
   AudioLines,
@@ -27,6 +35,13 @@ import { Button } from '../components/ui/button';
 import { Empty, EmptyContent } from '../components/ui/empty';
 import { Tooltip } from '../components/ui/tooltip';
 import { MEDIA_DRAG_EVENT, formatTime } from './helpers';
+import { interfaceScale } from './appearance';
+
+interface DragPosition {
+  assetId: string;
+  x: number;
+  y: number;
+}
 
 export default function MediaLibrary({
   editor,
@@ -42,6 +57,7 @@ export default function MediaLibrary({
   onRename,
   onDelete,
   onAssetDrag,
+  draggingAssetId,
 }: {
   editor: Editor | null;
   indexConnection: IndexConnection | null;
@@ -56,7 +72,9 @@ export default function MediaLibrary({
   onRename: (asset: Asset, name: string) => Promise<void>;
   onDelete: (asset: Asset) => Promise<void>;
   onAssetDrag: (id: string | null) => void;
+  draggingAssetId: string | null;
 }) {
+  const [dragPosition, setDragPosition] = useState<DragPosition | null>(null);
   const drag = useRef<{
     pointerId: number;
     assetId: string;
@@ -81,7 +99,25 @@ export default function MediaLibrary({
       onAssetDrag(null);
     }
     drag.current = null;
+    setDragPosition(null);
   };
+  const cancelDrag = useEffectEvent(cancel);
+  useEffect(() => {
+    if (
+      !canEdit ||
+      readOnly ||
+      (drag.current?.moved && drag.current.assetId !== draggingAssetId)
+    )
+      cancelDrag();
+  }, [canEdit, readOnly, draggingAssetId]);
+  useEffect(() => {
+    const blur = () => cancelDrag();
+    window.addEventListener('blur', blur);
+    return () => {
+      window.removeEventListener('blur', blur);
+      cancelDrag();
+    };
+  }, []);
   const dragProps = (asset: Asset) => ({
     draggable: false,
     'data-draggable': canEdit && !readOnly && asset.status === 'ready',
@@ -130,6 +166,11 @@ export default function MediaLibrary({
         event.currentTarget.setPointerCapture(event.pointerId);
         onAssetDrag(asset.id);
       }
+      setDragPosition({
+        assetId: asset.id,
+        x: event.clientX,
+        y: event.clientY,
+      });
       emit('move', asset.id, event.clientX, event.clientY);
     },
     onPointerUp: (event: PointerEvent<HTMLButtonElement>) => {
@@ -137,6 +178,7 @@ export default function MediaLibrary({
       if (drag.current.moved)
         emit('drop', asset.id, event.clientX, event.clientY);
       drag.current = null;
+      setDragPosition(null);
       onAssetDrag(null);
     },
     onPointerCancel: cancel,
@@ -194,6 +236,11 @@ export default function MediaLibrary({
             onRename={onRename}
             onDelete={onDelete}
             previewProps={dragProps(asset)}
+            dragPosition={
+              draggingAssetId === asset.id && dragPosition?.assetId === asset.id
+                ? dragPosition
+                : null
+            }
           />
         ))}
         {canEdit && (
@@ -229,6 +276,7 @@ function MediaAssetCard({
   onRename,
   onDelete,
   previewProps,
+  dragPosition,
 }: {
   editor: Editor | null;
   asset: Asset;
@@ -239,6 +287,7 @@ function MediaAssetCard({
   onRename: (asset: Asset, name: string) => Promise<void>;
   onDelete: (asset: Asset) => Promise<void>;
   previewProps: React.ComponentProps<'button'>;
+  dragPosition: DragPosition | null;
 }) {
   const blocked = readOnly || !canEdit;
   const card = useRef<HTMLDivElement>(null);
@@ -345,7 +394,12 @@ function MediaAssetCard({
           </>
         }
       >
-        <AssetPreview editor={editor} asset={asset} {...previewProps} />
+        <AssetPreview
+          editor={editor}
+          asset={asset}
+          dragPosition={dragPosition}
+          {...previewProps}
+        />
       </AssetIndexControls>
       <Dialog
         open={dialog !== null}
@@ -425,10 +479,12 @@ function MediaAssetCard({
 function AssetPreview({
   editor,
   asset,
+  dragPosition,
   ...props
 }: {
   editor: Editor | null;
   asset: Asset;
+  dragPosition: DragPosition | null;
 } & React.ComponentProps<'button'>) {
   const [preview, setPreview] = useState<{
     editor: Editor;
@@ -461,27 +517,53 @@ function AssetPreview({
     preview?.id === asset.id
       ? preview.url
       : undefined;
+  const symbol = (
+    <span className="media-symbol">
+      {url ? (
+        <img draggable={false} src={url} alt={`Thumbnail for ${asset.name}`} />
+      ) : asset.kind === 'audio' ? (
+        <Music aria-hidden="true" />
+      ) : (
+        <Files aria-hidden="true" />
+      )}
+    </span>
+  );
+  const scale = interfaceScale();
   return (
-    <button
-      type="button"
-      className="media-asset-preview"
-      aria-label={`Asset details for ${asset.name}`}
-      {...props}
-    >
-      <span className="media-symbol">
-        {url ? (
-          <img
-            draggable={false}
-            src={url}
-            alt={`Thumbnail for ${asset.name}`}
-          />
-        ) : asset.kind === 'audio' ? (
-          <Music aria-hidden="true" />
-        ) : (
-          <Files aria-hidden="true" />
+    <>
+      <button
+        type="button"
+        className="media-asset-preview"
+        aria-label={`Asset details for ${asset.name}`}
+        {...props}
+      >
+        {symbol}
+        <span className="media-asset-name">{asset.name}</span>
+      </button>
+      {dragPosition &&
+        createPortal(
+          <div
+            className="media-drag-preview"
+            aria-hidden="true"
+            style={{
+              // Body uses CSS zoom; pointer coordinates are viewport pixels.
+              left:
+                Math.max(
+                  8,
+                  Math.min(dragPosition.x + 14, innerWidth - 184 * scale - 8),
+                ) / scale,
+              top:
+                Math.max(
+                  8,
+                  Math.min(dragPosition.y + 14, innerHeight - 64 * scale - 8),
+                ) / scale,
+            }}
+          >
+            {symbol}
+            <span className="media-asset-name">{asset.name}</span>
+          </div>,
+          document.body,
         )}
-      </span>
-      <span className="media-asset-name">{asset.name}</span>
-    </button>
+    </>
   );
 }
