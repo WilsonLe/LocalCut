@@ -121,7 +121,6 @@ for (const base of ['/', '/LocalCut/']) {
             el.getAnimations().map((animation) => animation.finished),
           ),
         );
-        const height = (await dialog.boundingBox())!.height;
         await prepareOpenRouterKey(page);
         await dialog
           .getByLabel('OpenRouter API key', { exact: true })
@@ -134,10 +133,20 @@ for (const base of ['/', '/LocalCut/']) {
           exact: true,
         });
         await expect(models).toBeEnabled();
-        expect((await dialog.boundingBox())!.height).toBeCloseTo(height, 0);
+        // Connecting adds provider controls; the content-sized dialog may grow.
+        // The model popup must stay separate and leave its settled size intact.
+        const connectedBounds = (await dialog.boundingBox())!;
+        expect(connectedBounds.y).toBeGreaterThanOrEqual(0);
+        expect(connectedBounds.y + connectedBounds.height).toBeLessThanOrEqual(
+          viewport.height,
+        );
         await models.click();
         const list = page.locator('[data-slot="combobox-list"]');
         await expect(list).toBeVisible();
+        expect((await dialog.boundingBox())!.height).toBeCloseTo(
+          connectedBounds.height,
+          0,
+        );
         const dialogBefore = await dialog.evaluate((el) =>
           Array.from(el.querySelectorAll('*')).map((child) => child.scrollTop),
         );
