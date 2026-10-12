@@ -197,10 +197,7 @@ export function TrackMenu({
           if (!open) setForm(null);
         }}
       >
-        <DialogContent
-          finalFocus={trigger}
-          className="h-[min(20rem,calc(var(--app-viewport-height)-2rem))]"
-        >
+        <DialogContent finalFocus={trigger}>
           <DialogHeader>
             <DialogTitle>
               {form?.kind === 'rename'

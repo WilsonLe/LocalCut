@@ -178,6 +178,8 @@ Autosave appends a version one second after the last committed edit. Rapid edits
 
 ## Optional AI
 
+Dialogs fit their content up to a shared 48rem/viewport height cap, including mobile safe areas and the selected interface scale. Short forms, confirmations, empty queues and import/export progress stay compact. Rich text, speech, recording and backup editors use wider desktop layouts; Projects retains a stable 40rem/viewport browsing height. Overflow scrolls within the dialog or its existing content region. See the [compact rename dialog](images/dialog-sizing-rename.png) and [speech editor](images/workspace-voice-presets.png).
+
 AI settings remains a spacious, scrollable dialog: a wider desktop layout and more spacing give provider configuration room, while narrow screens retain a viewport-bounded dialog. The title, close control and footer stay visible while configuration scrolls. Shared shadcn Base UI Accordion and Collapsible disclosures animate height and indicators, preserve form values and keyboard interaction, and respect reduced motion.
 
 Connect AI accepts a user-owned OpenRouter key or starts its PKCE login. Provider connections is collapsible and adds named OpenRouter accounts, OpenAI-compatible endpoints or ChatGPT accounts. Multiple accounts of the same provider keep separate credentials and routes. Connected accounts offer Verify, Disconnect and Remove without key metadata, reconnect or replacement controls. Disconnect clears credentials and keeps configuration; Remove also deletes that account's routes. ChatGPT Connect activates its saved account after reload, and callback instructions are available through its help tooltip.

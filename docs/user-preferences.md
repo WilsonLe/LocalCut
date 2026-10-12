@@ -6,6 +6,10 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Provide chat-session export as an icon in the chat UI header, outside the primary application header. Use the existing task queue for local archive generation and saved downloads.
 
+## Dialog sizing — 12 October 2026
+
+- Size every dialog to its task and content: compact forms and confirmations should not leave large empty areas, and richer editors need enough room. Keep all dialogs bounded by the viewport with internal scrolling; the project browser retains a stable browsing height. This supersedes the earlier blanket fixed-height dialog choice.
+
 ## Product foundation
 
 - LocalCut is a client-only web video editor that builds into thin static assets, including deployment under `/LocalCut/` on GitHub Pages.

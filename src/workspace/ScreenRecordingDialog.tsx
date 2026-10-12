@@ -191,7 +191,7 @@ export default function ScreenRecordingDialog({
       }}
     >
       <DialogContent
-        className="sm:max-w-xl"
+        className="sm:max-w-2xl"
         showCloseButton={phase !== 'adding'}
       >
         <DialogHeader>
