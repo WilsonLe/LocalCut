@@ -8,6 +8,53 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { SettingsSelect } from './SettingsSelect';
 type Patch = Extract<EditOperation, { type: 'updateClip' }>['patch'];
+function NumberField({
+  id,
+  label,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: string;
+  onChange: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState({ text: String(value), value });
+  // Keep incomplete native number input (minus/decimal) local, and reflect explicit resets.
+  if (draft.value !== value) setDraft({ text: String(value), value });
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type="number"
+        required
+        value={draft.text}
+        min={min}
+        max={max}
+        step={step}
+        onChange={(event) => {
+          const text = event.target.value,
+            numeric = Number(text),
+            valid = text !== '' && Number.isFinite(numeric);
+          setDraft({ text, value: valid ? numeric : value });
+          if (valid) onChange(numeric);
+        }}
+        onBlur={() => {
+          if (draft.text === '' || !Number.isFinite(Number(draft.text)))
+            setDraft({ text: String(value), value });
+        }}
+      />
+    </div>
+  );
+}
+
 export function ClipEffectFields({
   clip,
   patch,
@@ -49,19 +96,16 @@ export function ClipEffectFields({
     change: (n: number) => void,
     step = 'any',
   ) => (
-    <div className="grid gap-2" key={name}>
-      <Label htmlFor={'effect-' + name}>{label}</Label>
-      <Input
-        id={'effect-' + name}
-        type="number"
-        required
-        value={current}
-        min={min}
-        max={max}
-        step={step}
-        onChange={(event) => change(Number(event.target.value))}
-      />
-    </div>
+    <NumberField
+      key={name}
+      id={'effect-' + name}
+      label={label}
+      value={current}
+      min={min}
+      max={max}
+      step={step}
+      onChange={change}
+    />
   );
   const choose = (
     label: string,

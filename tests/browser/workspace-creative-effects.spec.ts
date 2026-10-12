@@ -836,6 +836,13 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'Clip properties',
       exact: true,
     });
+    await form.getByText('Audio', { exact: true }).click();
+    const balance = form.getByLabel('Balance (left −1 / right 1)', {
+      exact: true,
+    });
+    await balance.fill('');
+    await balance.pressSequentially('-0.5');
+    await expect(balance).toHaveValue('-0.5');
     await form.getByLabel('Speed', { exact: true }).fill('2');
     await form.getByText('Mask', { exact: true }).click();
     await form.getByLabel('Mask feather (pixels)', { exact: true }).fill('1');
