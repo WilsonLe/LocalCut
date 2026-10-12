@@ -310,6 +310,27 @@ for (const base of ['/', '/LocalCut/']) {
           () => true,
         );
       FileSystemFileHandle.prototype.createWritable = write;
+      // An old-release tab moves the frozen folder before retry/another project
+      // opens. Both projects must recover from retained originals at old names.
+      const moved = await legacy.getDirectoryHandle('Later shots', {
+        create: true,
+      });
+      for (const name of ['A.png', 'Unused.png']) {
+        const writer = await (
+          await moved.getFileHandle(name, { create: true })
+        ).createWritable();
+        await writer.write(await (await shots.getFileHandle(name)).getFile());
+        await writer.close();
+      }
+      await legacy.removeEntry('Shots', { recursive: true });
+      const renamedTrash = await (
+        await trash.getFileHandle('Later B.png', { create: true })
+      ).createWritable();
+      await renamedTrash.write(
+        await (await trash.getFileHandle('B.png')).getFile(),
+      );
+      await renamedTrash.close();
+      await trash.removeEntry('B.png');
       const migratedA = await editor.library.forProject(a.id).list();
       let migratedB = await editor.library.forProject(b.id).list();
       const fallback = [a.id, b.id].sort()[0];
@@ -330,9 +351,9 @@ for (const base of ['/', '/LocalCut/']) {
       const newEmpty =
         (await editor.library.forProject(c.id).list()).entries.length === 0;
       const legacyRetained =
-        (await (await shots.getFileHandle('A.png')).getFile()).size ===
+        (await (await moved.getFileHandle('A.png')).getFile()).size ===
           bytes.size &&
-        (await (await trash.getFileHandle('B.png')).getFile()).size ===
+        (await (await trash.getFileHandle('Later B.png')).getFile()).size ===
           bytes.size;
       const partialRemoved = await legacy.getFileHandle('partial.png').then(
         () => false,

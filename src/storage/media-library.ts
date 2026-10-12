@@ -86,15 +86,7 @@ export class MediaLibraryStore {
             Record<string, LibraryEntry[]> | undefined;
           if (!ownership) {
             const state = await legacy.state();
-            const projects = (await this.store.catalog()).sort((a, b) =>
-              a.project.id.localeCompare(b.project.id),
-            );
-            const references = new Map<string, Set<string>>();
-            for (const { project } of projects)
-              references.set(
-                project.id,
-                await this.store.projectAssetIds(project.id),
-              );
+            const references = await this.store.projectLibraryReferences();
             ownership = assignLegacyLibrary(state.entries, references);
             await db.put('state', ownership, 'project-ownership');
           }
@@ -121,12 +113,25 @@ export class MediaLibraryStore {
       };
       let source: File | undefined;
       if (entry.kind === 'asset') {
-        const parts = to.split('/');
-        const name = parts.pop()!;
-        let directory = this.store.root;
-        for (const part of parts)
-          directory = await directory.getDirectoryHandle(part);
-        source = await (await directory.getFileHandle(name)).getFile();
+        try {
+          const parts = to.split('/');
+          const name = parts.pop()!;
+          let directory = this.store.root;
+          for (const part of parts)
+            directory = await directory.getDirectoryHandle(part);
+          source = await (await directory.getFileHandle(name)).getFile();
+        } catch (error) {
+          // An old-release tab may move the frozen named path. Ownership and
+          // destination names stay frozen; the retained editing source can heal it.
+          if (
+            !(
+              error instanceof DOMException && error.name === 'NotFoundError'
+            ) ||
+            !entry.assetId
+          )
+            throw error;
+          source = await this.store.file(entry.assetId);
+        }
       }
       state = await this.mutate(
         next,
