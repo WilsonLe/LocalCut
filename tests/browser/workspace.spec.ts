@@ -753,6 +753,9 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByRole('tooltip', { name: /tone.wav/ }),
     ).not.toContainText('0 × 0');
+    await page
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .focus();
 
     await page
       .getByRole('button', { name: 'Collapse media', exact: true })

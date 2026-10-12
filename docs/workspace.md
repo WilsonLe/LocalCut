@@ -346,6 +346,8 @@ Track mask computes local video translation from the draft region and stages edi
 
 ## Media folders
 
+Folders appear before files, with natural filename ordering. Import completion order does not rearrange the library. Pending directory traversal is discarded if its initiating project changes or the workspace unmounts.
+
 Media shows the browser-local library independently of timeline clips. The Home control returns to its root; folder buttons and breadcrumbs navigate directories. New folder and Upload folder appear beside navigation. Import media uploads into the current folder. Folder selection preserves relative paths; the browser's HTML folder picker does not expose empty directories. Directory drops preserve empty folders and drain every directory-reader batch. File/folder drops target the hovered folder or current Media directory; drops elsewhere import at the root.
 
 Drag a media thumbnail onto a folder or breadcrumb to move that library entry. Dragging onto the timeline retains its existing insertion behavior. Context menus provide Rename, Move to, Copy to, Delete and Download; folders download as ZIPs. Keyboard users can use the same menus and destination controls. Trash exposes Restore. Deletion preserves current timeline clips, immutable editing originals and saved versions; use Restore to recover organization. Historical version browsing retains its read-only media view.

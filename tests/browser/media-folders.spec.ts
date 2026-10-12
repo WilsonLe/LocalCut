@@ -359,3 +359,104 @@ for (const base of ['/', '/LocalCut/']) {
     });
   });
 }
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`committed library apply and placement survive disposal ${base}`, async ({
+    page,
+  }) => {
+    await page.goto(base);
+    const results = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const results = [];
+      for (const mode of ['apply', 'place'] as const) {
+        const namespace = 'dispose-library-' + crypto.randomUUID();
+        const editor = await createEditor({ namespace });
+        const canvas = new OffscreenCanvas(16, 16);
+        canvas.getContext('2d')!.fillRect(0, 0, 16, 16);
+        const asset = await editor.assets.import(
+          new File([await canvas.convertToBlob()], 'source.png', {
+            type: 'image/png',
+          }),
+        ).completion;
+        const initial = await editor.library.list();
+        const entry = initial.entries.find((e) => e.assetId === asset.id)!;
+        let release!: () => void;
+        let started!: () => void;
+        let closed!: () => void;
+        const gate = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const writing = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const channelClosed = new Promise<void>((resolve) => {
+          closed = resolve;
+        });
+        const write = FileSystemFileHandle.prototype.createWritable;
+        const close = BroadcastChannel.prototype.close;
+        FileSystemFileHandle.prototype.createWritable = async function (
+          options,
+        ) {
+          started();
+          await gate;
+          return write.call(this, options);
+        };
+        BroadcastChannel.prototype.close = function () {
+          close.call(this);
+          if (this.name === namespace + '-media-library') closed();
+        };
+        try {
+          const mutation =
+            mode === 'apply'
+              ? editor.library.apply(
+                  { type: 'rename', entryId: entry.id, name: 'renamed.png' },
+                  initial.revision,
+                )
+              : editor.library.place(asset.id, ['Moved']);
+          await writing;
+          const disposing = editor.dispose();
+          await channelClosed;
+          release();
+          const committed = await mutation;
+          await disposing;
+          const reopened = await createEditor({ namespace });
+          try {
+            const persisted = await reopened.library.list();
+            const file = await reopened.library.file(entry.id);
+            results.push({
+              mode,
+              revision: committed.revision === persisted.revision,
+              name: file.name,
+              size: file.size,
+            });
+          } finally {
+            await reopened.dispose();
+          }
+        } finally {
+          release();
+          FileSystemFileHandle.prototype.createWritable = write;
+          BroadcastChannel.prototype.close = close;
+          await editor.dispose();
+        }
+      }
+      return results;
+    }, base);
+    expect(results).toEqual([
+      {
+        mode: 'apply',
+        revision: true,
+        name: 'renamed.png',
+        size: expect.any(Number),
+      },
+      {
+        mode: 'place',
+        revision: true,
+        name: 'source.png',
+        size: expect.any(Number),
+      },
+    ]);
+    expect(results.every((result) => result.size > 0)).toBe(true);
+  });
+}

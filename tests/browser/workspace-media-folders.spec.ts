@@ -267,3 +267,136 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(page.locator('.timeline-clip.image')).toHaveCount(0);
   });
 }
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`folder drop traversal stays bound to its initiating project ${base}`, async ({
+    page,
+  }) => {
+    await page.goto(base);
+    const ids = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const a = await editor.projects.create('Drop source');
+        const b = await editor.projects.create('Drop destination');
+        return { a: a.id, b: b.id };
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    await page.goto(`${base}#/project/${ids.a}`);
+    await page
+      .getByRole('button', { name: 'Expand media', exact: true })
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'New folder', exact: true }),
+    ).toBeEnabled();
+    await page.evaluate(async () => {
+      const canvas = new OffscreenCanvas(16, 16);
+      canvas.getContext('2d')!.fillRect(0, 0, 16, 16);
+      const file = new File([await canvas.convertToBlob()], 'late.png', {
+        type: 'image/png',
+      });
+      const state = globalThis as unknown as {
+        releaseDrop: () => void;
+        traversalDone: boolean;
+      };
+      let first = true;
+      const directory = {
+        name: 'Late upload',
+        isDirectory: true,
+        isFile: false,
+        createReader: () => ({
+          readEntries: (done: (entries: unknown[]) => void) => {
+            if (first) {
+              first = false;
+              state.releaseDrop = () =>
+                done([
+                  {
+                    name: 'late.png',
+                    isDirectory: false,
+                    isFile: true,
+                    file: (done: (file: File) => void) => done(file),
+                  },
+                ]);
+            } else {
+              state.traversalDone = true;
+              done([]);
+            }
+          },
+        }),
+      };
+      const data = new DataTransfer();
+      data.items.add(file);
+      Object.defineProperty(data, 'items', {
+        value: [{ kind: 'file', webkitGetAsEntry: () => directory }],
+      });
+      document.querySelector('.media-grid')!.dispatchEvent(
+        new DragEvent('drop', {
+          bubbles: true,
+          cancelable: true,
+          dataTransfer: data,
+        }),
+      );
+    });
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            typeof (globalThis as unknown as { releaseDrop?: unknown })
+              .releaseDrop,
+        ),
+      )
+      .toBe('function');
+    await page.evaluate((id) => {
+      location.hash = '/project/' + id;
+    }, ids.b);
+    await expect(
+      page.getByText('Drop destination', { exact: true }),
+    ).toBeVisible();
+    // Hash navigation retains the same document, leaving the old reader pending.
+    await page.evaluate(() =>
+      (globalThis as unknown as { releaseDrop: () => void }).releaseDrop(),
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (globalThis as unknown as { traversalDone: boolean }).traversalDone,
+        ),
+      )
+      .toBe(true);
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    await expect(
+      page.getByRole('dialog', { name: 'Importing media' }),
+    ).toHaveCount(0);
+    const result = await page.evaluate(
+      async ({ base, ids }) => {
+        const { createEditor } = (await import(
+          base + 'editor.js'
+        )) as typeof import('../../src/editor');
+        const editor = await createEditor();
+        try {
+          const a = await editor.projects.snapshot(ids.a);
+          const b = await editor.projects.snapshot(ids.b);
+          const library = await editor.library.list();
+          return {
+            clips: [a, b].map((p) => p.tracks.flatMap((t) => t.clips).length),
+            lateFolder: library.entries.some((e) => e.name === 'Late upload'),
+          };
+        } finally {
+          await editor.dispose();
+        }
+      },
+      { base, ids },
+    );
+    expect(result).toEqual({ clips: [0, 0], lateFolder: false });
+  });
+}

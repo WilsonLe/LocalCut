@@ -130,7 +130,7 @@ for (const base of ['/', '/LocalCut/']) {
       const root = base === '/' ? 'dist-root' : 'dist';
       const manifest = JSON.parse(
         await readFile(`${root}/.vite/manifest.json`, 'utf8'),
-      ) as Record<string, { file: string }>;
+      ) as Record<string, { file: string; name?: string }>;
       await page.goto(base);
       if (surface.project) await createProject(page);
       const firstTrigger = await surface.action(page);
@@ -144,7 +144,12 @@ for (const base of ['/', '/LocalCut/']) {
       if (surface.name === 'Projects')
         files.push(manifest['src/workspace/ProjectManagement.tsx']!.file);
       if (surface.name === 'New project')
-        files.push(manifest['src/workspace/SelectField.tsx']!.file);
+        files.push(
+          (manifest['src/workspace/SelectField.tsx'] ??
+            Object.values(manifest).find(
+              (chunk) => chunk.name === 'SelectField',
+            ))!.file,
+        );
       if (surface.name === 'Commands')
         files.push(manifest['src/workspace/workspace-command-list.ts']!.file);
       await page.evaluate(
@@ -338,7 +343,7 @@ for (const base of ['/', '/LocalCut/']) {
     const root = base === '/' ? 'dist-root' : 'dist';
     const manifest = JSON.parse(
       await readFile(`${root}/.vite/manifest.json`, 'utf8'),
-    ) as Record<string, { file: string }>;
+    ) as Record<string, { file: string; name?: string }>;
     for (const name of ['TextLibrary', 'ClipProperties']) {
       const file = manifest[`src/workspace/${name}.tsx`]!.file;
       expect(requests.some((url) => url.endsWith(file))).toBe(false);

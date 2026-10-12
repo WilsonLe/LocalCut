@@ -1042,6 +1042,7 @@ export function Workspace() {
       if (narrow) selectMobileTab('media');
       void importMedia(files, folderId, directories);
     },
+    project?.id ?? null,
   );
   const relinkMedia = (assetId: string) => {
     const input = document.createElement('input');

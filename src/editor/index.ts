@@ -508,8 +508,10 @@ export async function createEditor(options: EditorOptions = {}) {
         const result = await (
           await library()
         ).apply(operation, expectedRevision);
-        libraryChanged();
-        libraryBroadcast.postMessage('changed');
+        if (!disposed) {
+          libraryChanged();
+          libraryBroadcast.postMessage('changed');
+        }
         return result;
       },
       async place(
@@ -520,8 +522,10 @@ export async function createEditor(options: EditorOptions = {}) {
         const result = await (
           await library()
         ).place(assetId, directories, parentId);
-        libraryChanged();
-        libraryBroadcast.postMessage('changed');
+        if (!disposed) {
+          libraryChanged();
+          libraryBroadcast.postMessage('changed');
+        }
         return result;
       },
       async download(entryId: string) {

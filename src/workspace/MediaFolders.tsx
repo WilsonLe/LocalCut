@@ -95,9 +95,11 @@ export function useMediaFolders(
     );
   const currentParent =
     activeFolder && !isTrashed(activeFolder) ? parentId : null;
-  const visible = snapshot.entries.filter((e) =>
-    trash ? e.trashed : !isTrashed(e) && e.parentId === currentParent,
-  );
+  const visible = snapshot.entries
+    .filter((e) =>
+      trash ? e.trashed : !isTrashed(e) && e.parentId === currentParent,
+    )
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   const folders = snapshot.entries.filter(
     (e) => e.kind === 'folder' && !isTrashed(e),
   );

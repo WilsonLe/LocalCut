@@ -19,6 +19,7 @@ export function useFileDrop(
     directories: string[],
     folderId: string | null,
   ) => void,
+  projectId: string | null,
 ) {
   const [hovering, setHovering] = useState(false);
   const depth = useRef(0);
@@ -26,10 +27,12 @@ export function useFileDrop(
     (target: EventTarget | null) =>
       enabled &&
       !hasBlockingOverlay() &&
-      !(target instanceof Element && target.closest('[data-storyboard]')),
+      !(target instanceof Element && target.closest('[data-storyboard]')) &&
+      (projectId ?? 'new-project'),
   );
   const importFiles = useEffectEvent(onDrop);
   useEffect(() => {
+    let mounted = true;
     const reset = () => {
       depth.current = 0;
       setHovering(false);
@@ -38,13 +41,13 @@ export function useFileDrop(
       if (!hasFiles(event.dataTransfer)) return;
       event.preventDefault();
       depth.current++;
-      setHovering(accept(event.target));
+      setHovering(!!accept(event.target));
     };
     const over = (event: DragEvent) => {
       if (!hasFiles(event.dataTransfer)) return;
       event.preventDefault();
       event.dataTransfer!.dropEffect = accept(event.target) ? 'copy' : 'none';
-      setHovering(accept(event.target));
+      setHovering(!!accept(event.target));
     };
     const leave = () => {
       depth.current = Math.max(0, depth.current - 1);
@@ -66,16 +69,20 @@ export function useFileDrop(
       if (allowed)
         void read()
           .then(({ files, directories }) => {
-            if (accept(event.target) && (files.length || directories.length))
+            if (
+              mounted &&
+              accept(event.target) === allowed &&
+              (files.length || directories.length)
+            )
               importFiles(
                 files,
                 directories,
                 folder && folder !== 'root' ? folder : null,
               );
           })
-          .catch((error: unknown) =>
-            showErrorToast(error, 'Could not update Media.'),
-          );
+          .catch((error: unknown) => {
+            if (mounted) showErrorToast(error, 'Could not update Media.');
+          });
     };
     const escape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') reset();
@@ -88,6 +95,7 @@ export function useFileDrop(
     document.addEventListener('keydown', escape, true);
     window.addEventListener('blur', reset);
     return () => {
+      mounted = false;
       document.removeEventListener('dragenter', enter, true);
       document.removeEventListener('dragover', over, true);
       document.removeEventListener('dragleave', leave, true);

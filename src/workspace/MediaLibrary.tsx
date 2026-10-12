@@ -347,7 +347,13 @@ export default function MediaLibrary({
             ))}
         {fileEntries.map(({ asset, entry }) => (
           <MediaAssetCard
-            key={entry?.id ?? asset.id}
+            key={
+              entry &&
+              folders.snapshot.entries.find((e) => e.assetId === asset.id)
+                ?.id !== entry.id
+                ? entry.id
+                : asset.id
+            }
             editor={editor}
             asset={asset}
             connection={indexConnection}
