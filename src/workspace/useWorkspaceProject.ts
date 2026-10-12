@@ -9,26 +9,8 @@ interface ProjectState {
 const emptyState: ProjectState = { project: null, assets: [] };
 
 export async function readWorkspaceProject(engine: Editor, id: string) {
-  const project = await engine.projects.snapshot(id);
-  const ids = [
-    ...new Set(
-      project.tracks.flatMap((track) =>
-        track.clips.flatMap((clip) => (clip.assetId ? [clip.assetId] : [])),
-      ),
-    ),
-  ];
-  // A quota/missing-file problem in organization must not prevent opening edits.
-  const library = await engine.library.list().catch(() => ({ entries: [] }));
-  // Trash also needs source metadata when no timeline references remain.
-  const libraryIds = library.entries.flatMap((entry) =>
-    entry.assetId ? [entry.assetId] : [],
-  );
-  const assets = await Promise.all(
-    [...new Set([...ids, ...libraryIds])].map((id) =>
-      engine.assets.inspect(id),
-    ),
-  );
-  return { project, assets };
+  const module = await import('./read-workspace-project');
+  return module.readWorkspaceProject(engine, id);
 }
 
 /** A snapshot of the engine document and its assets publishes atomically. */

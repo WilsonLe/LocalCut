@@ -134,11 +134,11 @@ export async function createEditor(options: EditorOptions = {}) {
     jobs = new Jobs(),
     tasks = new TaskQueue(namespace);
   let disposed = false;
-  let libraryStore: Promise<MediaLibraryStore> | undefined;
+  const libraryStores = new Map<string, Promise<MediaLibraryStore>>();
   const libraryBroadcast = new BroadcastChannel(`${namespace}-media-library`);
-  const libraryListeners = new Set<() => void>();
-  const libraryChanged = () => {
-    for (const listener of libraryListeners) {
+  const libraryListeners = new Map<string, Set<() => void>>();
+  const libraryChanged = (projectId: string) => {
+    for (const listener of libraryListeners.get(projectId) ?? []) {
       try {
         listener();
       } catch {
@@ -146,13 +146,67 @@ export async function createEditor(options: EditorOptions = {}) {
       }
     }
   };
-  libraryBroadcast.onmessage = libraryChanged;
-  const library = () => {
+  libraryBroadcast.onmessage = (event: MessageEvent<unknown>) => {
+    if (typeof event.data === 'string') libraryChanged(event.data);
+  };
+  const library = (projectId: string) => {
     active();
-    return (libraryStore ??= MediaLibraryStore.open(store).catch((error) => {
-      libraryStore = undefined;
-      throw error;
-    }));
+    let pending = libraryStores.get(projectId);
+    if (!pending) {
+      pending = MediaLibraryStore.open(store, projectId).catch((error) => {
+        libraryStores.delete(projectId);
+        throw error;
+      });
+      libraryStores.set(projectId, pending);
+    }
+    return pending;
+  };
+  const boundLibrary = (projectId: string) => {
+    const changed = () => {
+      if (!disposed) {
+        libraryChanged(projectId);
+        libraryBroadcast.postMessage(projectId);
+      }
+    };
+    return {
+      async list() {
+        return (await library(projectId)).list();
+      },
+      async apply(operation: LibraryOperation, expectedRevision: number) {
+        const result = await (
+          await library(projectId)
+        ).apply(operation, expectedRevision);
+        changed();
+        return result;
+      },
+      async place(
+        assetId: string | null,
+        directories: string[],
+        parentId: string | null = null,
+      ) {
+        const result = await (
+          await library(projectId)
+        ).place(assetId, directories, parentId);
+        changed();
+        return result;
+      },
+      async download(entryId: string) {
+        return (await library(projectId)).download(entryId);
+      },
+      async file(entryId: string) {
+        return (await library(projectId)).file(entryId);
+      },
+      subscribe(listener: () => void) {
+        active();
+        let listeners = libraryListeners.get(projectId);
+        if (!listeners)
+          libraryListeners.set(projectId, (listeners = new Set()));
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      },
+    };
   };
   const sessions = new Set<PreviewSession>();
   const projectListeners = new Set<(event: ProjectEvent) => void>();
@@ -500,48 +554,7 @@ export async function createEditor(options: EditorOptions = {}) {
         return p;
       },
     },
-    library: {
-      async list() {
-        return (await library()).list();
-      },
-      async apply(operation: LibraryOperation, expectedRevision: number) {
-        const result = await (
-          await library()
-        ).apply(operation, expectedRevision);
-        if (!disposed) {
-          libraryChanged();
-          libraryBroadcast.postMessage('changed');
-        }
-        return result;
-      },
-      async place(
-        assetId: string | null,
-        directories: string[],
-        parentId: string | null = null,
-      ) {
-        const result = await (
-          await library()
-        ).place(assetId, directories, parentId);
-        if (!disposed) {
-          libraryChanged();
-          libraryBroadcast.postMessage('changed');
-        }
-        return result;
-      },
-      async download(entryId: string) {
-        return (await library()).download(entryId);
-      },
-      async file(entryId: string) {
-        return (await library()).file(entryId);
-      },
-      subscribe(listener: () => void) {
-        active();
-        libraryListeners.add(listener);
-        return () => {
-          libraryListeners.delete(listener);
-        };
-      },
-    },
+    library: { forProject: boundLibrary },
     assets: {
       analyze(assetId: string, indexRunId?: string) {
         return run<AssetIndexRun>(indexing, 'analyzeAsset', {
@@ -617,16 +630,7 @@ export async function createEditor(options: EditorOptions = {}) {
         },
       },
       import(file: Blob, name = file instanceof File ? file.name : 'media') {
-        const job = run<Asset>(background, 'import', { file, name });
-        void job.completion
-          .then(() => {
-            if (!disposed) {
-              libraryChanged();
-              libraryBroadcast.postMessage('changed');
-            }
-          })
-          .catch(() => {});
-        return job;
+        return run<Asset>(background, 'import', { file, name });
       },
       async inspect(id: string) {
         active();
@@ -1120,8 +1124,12 @@ export async function createEditor(options: EditorOptions = {}) {
       versionListeners.clear();
       libraryBroadcast.close();
       libraryListeners.clear();
-      if (libraryStore)
-        await (await libraryStore.catch(() => undefined))?.close();
+      await Promise.all(
+        [...libraryStores.values()].map(async (pending) =>
+          (await pending.catch(() => undefined))?.close(),
+        ),
+      );
+      libraryStores.clear();
       store.close();
       if (saveError) throw saveError;
     },

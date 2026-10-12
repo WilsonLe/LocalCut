@@ -923,7 +923,9 @@ export function Workspace() {
       targetProjectId = getProjectId() ?? undefined;
       if (!targetProjectId) throw new Error('Open a project to import media.');
       for (const directory of directories)
-        await engine.library.place(null, directory.split('/'), targetFolderId);
+        await engine.library
+          .forProject(targetProjectId)
+          .place(null, directory.split('/'), targetFolderId);
       if (directories.length && !files.length) await refresh();
       // Enqueue the entire selection before waiting. The engine owns scheduling,
       // persistence and cancellation; closing this dialog changes only view state.
@@ -985,11 +987,13 @@ export function Workspace() {
         const placement = importPlacement.current.then(async () => {
           if (!alive.current) return;
           const relative = files[index]!.webkitRelativePath;
-          await engine!.library.place(
-            result.asset.id,
-            relative ? relative.split('/').slice(0, -1) : [],
-            targetFolderId,
-          );
+          await engine!.library
+            .forProject(targetProjectId!)
+            .place(
+              result.asset.id,
+              relative ? relative.split('/').slice(0, -1) : [],
+              targetFolderId,
+            );
           const snapshot = await engine!.projects.snapshot(targetProjectId!);
           const operations = appendAsset(snapshot, result.asset);
           if (!alive.current) return;
@@ -1954,6 +1958,8 @@ export function Workspace() {
             }
           >
             <MediaLibrary
+              key={project?.id}
+              projectId={project?.id}
               editor={editor}
               indexConnection={indexConnection}
               readOnly={!!browsed || navigation.blocked}

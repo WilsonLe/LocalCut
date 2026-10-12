@@ -10,24 +10,38 @@ for (const base of ['/', '/LocalCut/']) {
       )) as typeof import('../../src/editor');
       const namespace = 'folders-' + crypto.randomUUID();
       let editor = await createEditor({ namespace });
+      const project = await editor.projects.create('Retained native source', {
+        width: 32,
+        height: 32,
+      });
+
       const canvas = new OffscreenCanvas(32, 32);
       canvas.getContext('2d')!.fillRect(0, 0, 32, 32);
       const original = await canvas.convertToBlob();
       const asset = await editor.assets.import(
         new File([original], 'shot.png', { type: 'image/png' }),
       ).completion;
-      let state = await editor.library.list();
+      let state = await editor.library
+        .forProject(project.id)
+        .place(asset.id, []);
       const file = state.entries.find((entry) => entry.assetId === asset.id)!;
-      state = await editor.library.apply(
-        { type: 'create', parentId: null, name: 'Footage' },
-        state.revision,
-      );
+      state = await editor.library
+        .forProject(project.id)
+        .apply(
+          { type: 'create', parentId: null, name: 'Footage' },
+          state.revision,
+        );
       const folder = state.entries.find((entry) => entry.name === 'Footage')!;
-      state = await editor.library.place(asset.id, ['Day 1'], folder.id);
+      state = await editor.library
+        .forProject(project.id)
+        .place(asset.id, ['Day 1'], folder.id);
       const day = state.entries.find((entry) => entry.name === 'Day 1')!;
-      const root = await (
+      const namespaceRoot = await (
         await navigator.storage.getDirectory()
       ).getDirectoryHandle(namespace);
+      const root = await (
+        await namespaceRoot.getDirectoryHandle('project-media')
+      ).getDirectoryHandle(project.id);
       const read = async (path: string[]) => {
         let dir = root;
         for (const name of path.slice(0, -1))
@@ -40,10 +54,12 @@ for (const base of ['/', '/LocalCut/']) {
       const nested = await same(
         await read(['media-library', 'Footage', 'Day 1', 'shot.png']),
       );
-      state = await editor.library.apply(
-        { type: 'rename', entryId: folder.id, name: 'Clips' },
-        state.revision,
-      );
+      state = await editor.library
+        .forProject(project.id)
+        .apply(
+          { type: 'rename', entryId: folder.id, name: 'Clips' },
+          state.revision,
+        );
       const renamed = await same(
         await read(['media-library', 'Clips', 'Day 1', 'shot.png']),
       );
@@ -60,29 +76,28 @@ for (const base of ['/', '/LocalCut/']) {
         [{ type: 'trash', entryId: file.id }, state.revision - 1],
       ] as const) {
         try {
-          await editor.library.apply(operation, revision);
+          await editor.library
+            .forProject(project.id)
+            .apply(operation, revision);
         } catch (e) {
           failures.push((e as { code: string }).code);
         }
       }
-      state = await editor.library.apply(
-        { type: 'copy', entryId: folder.id, parentId: null },
-        state.revision,
-      );
+      state = await editor.library
+        .forProject(project.id)
+        .apply(
+          { type: 'copy', entryId: folder.id, parentId: null },
+          state.revision,
+        );
       const copied = await same(
         await read(['media-library', 'Clips (2)', 'Day 1', 'shot.png']),
       );
-      await editor.library.apply(
-        { type: 'trash', entryId: folder.id },
-        state.revision,
-      );
+      await editor.library
+        .forProject(project.id)
+        .apply({ type: 'trash', entryId: folder.id }, state.revision);
       const trashed = await same(
         await read(['media-trash', folder.id, 'Clips', 'Day 1', 'shot.png']),
       );
-      const project = await editor.projects.create('Retained native source', {
-        width: 32,
-        height: 32,
-      });
       await editor.commands.apply({
         projectId: project.id,
         expectedRevision: 0,
@@ -110,20 +125,22 @@ for (const base of ['/', '/LocalCut/']) {
       await exported.dispose();
       await editor.dispose();
       editor = await createEditor({ namespace });
-      state = await editor.library.list();
+      state = await editor.library.forProject(project.id).list();
       const retainedTrash = state.entries.find(
         (entry) => entry.id === folder.id,
       )?.trashed;
-      state = await editor.library.apply(
-        { type: 'restore', entryId: folder.id },
-        state.revision,
-      );
+      state = await editor.library
+        .forProject(project.id)
+        .apply({ type: 'restore', entryId: folder.id }, state.revision);
       const restored = await same(
         await read(['media-library', 'Clips', 'Day 1', 'shot.png']),
       );
       // Interrupted pre-publication copy must roll back, retaining source and state.
       const db = await new Promise<IDBDatabase>((resolve, reject) => {
-        const request = indexedDB.open(`${namespace}-media-library-v1`, 1);
+        const request = indexedDB.open(
+          `${namespace}-media-library-${project.id}-v1`,
+          1,
+        );
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
       });
@@ -151,7 +168,7 @@ for (const base of ['/', '/LocalCut/']) {
       db.close();
       await editor.dispose();
       editor = await createEditor({ namespace });
-      const recovered = await editor.library.list();
+      const recovered = await editor.library.forProject(project.id).list();
       let partialRemoved = false;
       try {
         await read(['media-library', 'partial.png']);
@@ -171,10 +188,12 @@ for (const base of ['/', '/LocalCut/']) {
       };
       let quotaError = '';
       try {
-        await editor.library.apply(
-          { type: 'rename', entryId: folder.id, name: 'QuotaTarget' },
-          recovered.revision,
-        );
+        await editor.library
+          .forProject(project.id)
+          .apply(
+            { type: 'rename', entryId: folder.id, name: 'QuotaTarget' },
+            recovered.revision,
+          );
       } catch (error) {
         quotaError = (error as { code: string }).code;
       } finally {
@@ -191,20 +210,26 @@ for (const base of ['/', '/LocalCut/']) {
       } catch {
         quotaTargetRemoved = true;
       }
-      const download = await editor.library.download(folder.id);
+      const download = await editor.library
+        .forProject(project.id)
+        .download(folder.id);
       const zipMagic = Array.from(
         new Uint8Array(await download.slice(0, 4).arrayBuffer()),
       );
       const concurrent = await createEditor({ namespace });
       const changes = await Promise.allSettled([
-        editor.library.apply(
-          { type: 'create', parentId: null, name: 'A' },
-          recovered.revision,
-        ),
-        concurrent.library.apply(
-          { type: 'create', parentId: null, name: 'B' },
-          recovered.revision,
-        ),
+        editor.library
+          .forProject(project.id)
+          .apply(
+            { type: 'create', parentId: null, name: 'A' },
+            recovered.revision,
+          ),
+        concurrent.library
+          .forProject(project.id)
+          .apply(
+            { type: 'create', parentId: null, name: 'B' },
+            recovered.revision,
+          ),
       ]);
       await concurrent.dispose();
       await editor.dispose();
@@ -269,11 +294,13 @@ for (const base of ['/', '/LocalCut/']) {
       const namespace = 'folder-agent-' + crypto.randomUUID();
       const editor = await createEditor({ namespace });
       const project = await editor.projects.create('Private project');
-      let state = await editor.library.list();
-      state = await editor.library.apply(
-        { type: 'create', parentId: null, name: 'Private folder' },
-        state.revision,
-      );
+      let state = await editor.library.forProject(project.id).list();
+      state = await editor.library
+        .forProject(project.id)
+        .apply(
+          { type: 'create', parentId: null, name: 'Private folder' },
+          state.revision,
+        );
       const folder = state.entries[0]!;
       let round = 0;
       const shared: string[] = [];
@@ -338,13 +365,15 @@ for (const base of ['/', '/LocalCut/']) {
       await assistant.dispose();
       await editor.dispose();
       const fresh = await createEditor({ namespace });
-      const saved = await fresh.library.list();
+      const saved = await fresh.library.forProject(project.id).list();
       const root = await (
         await (
           await navigator.storage.getDirectory()
         ).getDirectoryHandle(namespace)
-      ).getDirectoryHandle('media-library');
-      const directory = await root.getDirectoryHandle('Shots');
+      ).getDirectoryHandle('project-media');
+      const projectRoot = await root.getDirectoryHandle(project.id);
+      const mediaRoot = await projectRoot.getDirectoryHandle('media-library');
+      const directory = await mediaRoot.getDirectoryHandle('Shots');
       await fresh.dispose();
       return {
         folder: saved.entries[0]!.name,
@@ -373,6 +402,7 @@ for (const base of ['/', '/LocalCut/']) {
       for (const mode of ['apply', 'place'] as const) {
         const namespace = 'dispose-library-' + crypto.randomUUID();
         const editor = await createEditor({ namespace });
+        const project = await editor.projects.create('Disposal project');
         const canvas = new OffscreenCanvas(16, 16);
         canvas.getContext('2d')!.fillRect(0, 0, 16, 16);
         const asset = await editor.assets.import(
@@ -380,7 +410,9 @@ for (const base of ['/', '/LocalCut/']) {
             type: 'image/png',
           }),
         ).completion;
-        const initial = await editor.library.list();
+        const initial = await editor.library
+          .forProject(project.id)
+          .place(asset.id, []);
         const entry = initial.entries.find((e) => e.assetId === asset.id)!;
         let release!: () => void;
         let started!: () => void;
@@ -410,11 +442,15 @@ for (const base of ['/', '/LocalCut/']) {
         try {
           const mutation =
             mode === 'apply'
-              ? editor.library.apply(
-                  { type: 'rename', entryId: entry.id, name: 'renamed.png' },
-                  initial.revision,
-                )
-              : editor.library.place(asset.id, ['Moved']);
+              ? editor.library
+                  .forProject(project.id)
+                  .apply(
+                    { type: 'rename', entryId: entry.id, name: 'renamed.png' },
+                    initial.revision,
+                  )
+              : editor.library
+                  .forProject(project.id)
+                  .place(asset.id, ['Moved']);
           await writing;
           const disposing = editor.dispose();
           await channelClosed;
@@ -423,8 +459,12 @@ for (const base of ['/', '/LocalCut/']) {
           await disposing;
           const reopened = await createEditor({ namespace });
           try {
-            const persisted = await reopened.library.list();
-            const file = await reopened.library.file(entry.id);
+            const persisted = await reopened.library
+              .forProject(project.id)
+              .list();
+            const file = await reopened.library
+              .forProject(project.id)
+              .file(entry.id);
             results.push({
               mode,
               revision: committed.revision === persisted.revision,
