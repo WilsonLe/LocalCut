@@ -1936,6 +1936,7 @@ export function Workspace() {
               readOnly={!!browsed || navigation.blocked}
               assets={browsed ? versionAssets : assets}
               canEdit={!busy && !browsed}
+              draggingAssetId={draggingAsset?.id ?? null}
               onImport={() => fileInput.current?.click()}
               onSpeech={
                 speechAvailable

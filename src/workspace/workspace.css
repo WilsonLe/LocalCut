@@ -864,6 +864,29 @@
   cursor: grab;
   touch-action: pan-y;
 }
+.media-drag-preview {
+  position: fixed;
+  z-index: 100;
+  pointer-events: none;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 184px;
+  height: 64px;
+  padding: 8px;
+  border: 1px solid var(--ring);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: 0 4px 16px color-mix(in oklch, var(--foreground) 18%, transparent);
+}
+.media-drag-preview .media-symbol {
+  flex: 0 0 64px;
+}
+.media-drag-preview .media-asset-name {
+  min-width: 0;
+}
 @media (prefers-reduced-motion: reduce) {
   .timeline-tracks[data-reordering='true'] .timeline-track,
   .timeline-track-placeholder {
