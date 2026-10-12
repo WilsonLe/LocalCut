@@ -10,6 +10,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 ## Storyboard toolbar — 12 October 2026
 
+- Replace the plain whiteboard loading message with a theme-aware canvas/toolbar skeleton, retaining an accessible status and reduced-motion support.
 - Remove the separate Storyboard heading row. Place icon-only Undo and Redo in Excalidraw's main drawing toolbar, with accessible labels and tooltips; retain shared project history.
 
 ## Chat agent capability discovery — 12 October 2026
