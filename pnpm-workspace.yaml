@@ -1,4 +1,5 @@
 allowBuilds:
+  exifreader: false
   onnxruntime-node: false
   protobufjs: false
 minimumReleaseAgeExclude:

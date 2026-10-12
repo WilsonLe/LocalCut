@@ -139,6 +139,7 @@ export default function AssetIndexControls({
       provider: connection.provider,
       model: connection.model,
       consent: getIndexConsent,
+      includeCaptureMetadata: connection.includeCaptureMetadata,
     });
     const job = indexer.run(asset.id, runId);
     current.current = { job, indexer };

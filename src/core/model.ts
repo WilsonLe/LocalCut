@@ -1,3 +1,4 @@
+import { captureMetadataSchema } from './capture-metadata';
 import { storyboardSchema, validateStoryboard } from './storyboard';
 import { z } from 'zod';
 import { averageSpeed, nominalSourceBounds } from './speed';
@@ -273,6 +274,7 @@ export const assetSchema = z
     sampleRate: finite.positive().optional(),
     channels: z.number().int().positive().optional(),
     status: z.enum(['ready', 'missing']),
+    capture: captureMetadataSchema.optional(),
   })
   .strict();
 export const transcriptSchema = z

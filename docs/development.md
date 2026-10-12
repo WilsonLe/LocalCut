@@ -231,3 +231,7 @@ Run `pnpm test tests/unit/chat-title.test.ts tests/unit/providers.test.ts`, then
 ## Notification history checks
 
 For error diagnostics and notification history, run `pnpm test tests/unit/error-diagnostics.test.ts tests/unit/notification-history.test.ts tests/unit/services.test.ts tests/unit/task-queue.test.ts tests/unit/worker-publication.test.ts`, then `pnpm test:ui --grep 'notification history|concurrent notification reports'`. The Chrome scenario covers both static bases, original stack/session capture, clipboard success/check/reset and denial, dismissal, persisted reopening, informational notifications, unread dots, clear history, narrow layouts and simultaneous reports under a shared write lock. Notification history is user-owned lifecycle UI; it grants no assistant edit operation.
+
+## Capture metadata checks
+
+Run `pnpm test tests/unit/capture-metadata.test.ts tests/unit/asset-index.test.ts tests/unit/asset-index-provider.test.ts tests/unit/assistant.test.ts tests/unit/workspace-backup.test.ts`, then both builds and `pnpm test:browser tests/browser/capture-metadata.spec.ts tests/browser/asset-index.spec.ts`. These cover real EXIF/container extraction, independent remote redaction, capture-informed label revocation, native imports, index prompt manifests, local reload and backup preservation at both static bases. Use `pnpm test:ui --grep 'workspace indexing|chat indexing'` for the shared indexing controls. Extraction bounds and supported tags are documented in [the API contract](api.md#embedded-asset-capture-metadata).

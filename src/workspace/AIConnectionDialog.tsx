@@ -147,8 +147,10 @@ export default function AIConnectionDialog({
             </div>
             <p className="text-xs leading-relaxed text-muted-foreground">
               Index sends locally generated images, audio excerpts and video
-              excerpts with sound to OpenRouter. Saved labels can be shared with
-              Klip in chat. Remembered on this device; revoke here anytime.
+              excerpts with sound to OpenRouter. Capture dates and GPS are
+              shared only when separately enabled below. Saved labels can be
+              shared with Klip in chat. Remembered on this device; revoke here
+              anytime.
             </p>
           </div>
         </div>
@@ -185,6 +187,10 @@ export default function AIConnectionDialog({
                     ['includeText', 'Share overlay and caption text'],
                     ['includeAssetNames', 'Share project and media names'],
                     ['includeTranscripts', 'Share source transcripts'],
+                    [
+                      'includeCaptureMetadata',
+                      'Share capture dates and GPS with chat and indexing',
+                    ],
                   ] as const
                 ).map(([key, label]) => (
                   <div className="flex items-center gap-2" key={key}>

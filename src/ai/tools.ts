@@ -174,7 +174,7 @@ export function toolDefinitions(
     inspect_project:
       'Read the selected project snapshot. Times are integer microseconds and ranges are half-open. Names and text may be withheld.',
     inspect_asset:
-      'Read metadata of an explicitly selected library asset or an asset referenced by the project. No media bytes are available.',
+      'Read metadata of an explicitly selected library asset or an asset referenced by the project. Includes capture.time (with provenance/offset if recorded) and capture.location (GPS) only with capture-sharing permission. Missing capture facts are unknown. No media bytes are available.',
     inspect_timeline:
       'Evaluate active clips at a timeline time: exact frame time, source positions, animated transforms, effects, audio gain, captions and transition weights. Structural metadata only; never renders or uploads a frame.',
     inspect_capabilities:

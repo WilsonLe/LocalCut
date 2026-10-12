@@ -77,6 +77,7 @@ export interface ConversationControls {
 export interface IndexConnection extends Connection {
   model: string;
   inputModalities: string[];
+  includeCaptureMetadata: boolean;
 }
 export interface ConversationProps {
   headerActions?: ReactNode;
@@ -129,6 +130,7 @@ export function Conversation(props: ConversationProps) {
     includeAssetNames: false,
     includeTranscripts: false,
     includeAssetIndexes: false,
+    includeCaptureMetadata: false,
   });
   const indexingAllowed = useIndexConsent();
   const settingsReturnFocus = useRef<HTMLButtonElement | null>(null);
@@ -536,6 +538,7 @@ export function Conversation(props: ConversationProps) {
         includeAssetNames: false,
         includeTranscripts: false,
         includeAssetIndexes: false,
+        includeCaptureMetadata: false,
       });
       setConnectedProviders(
         [...providers.current.values()]
@@ -871,14 +874,22 @@ export function Conversation(props: ConversationProps) {
             ...connection,
             model,
             inputModalities: selectedModel.inputModalities ?? [],
+            includeCaptureMetadata: privacy.includeCaptureMetadata,
           }
         : null,
-    [connection, selectedModel, indexingAllowed, providerConfiguration, model],
+    [
+      connection,
+      selectedModel,
+      indexingAllowed,
+      providerConfiguration,
+      model,
+      privacy.includeCaptureMetadata,
+    ],
   );
   useEffect(() => {
     onIndexConnection?.(indexConnection);
   }, [indexConnection, onIndexConnection]);
-  const sessionKey = `${connection?.id}:${props.project?.id}:${model}:${privacy.includeText}:${privacy.includeAssetNames}:${privacy.includeTranscripts}:${indexingAllowed}`;
+  const sessionKey = `${connection?.id}:${props.project?.id}:${model}:${privacy.includeText}:${privacy.includeAssetNames}:${privacy.includeTranscripts}:${privacy.includeCaptureMetadata}:${indexingAllowed}`;
 
   const [sessionScope, setSessionScope] = useState(sessionKey);
   if (sessionScope !== sessionKey) {

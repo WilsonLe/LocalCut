@@ -11,6 +11,7 @@ export interface ContextPolicy {
   includeAssetNames?: boolean;
   includeTranscripts?: boolean;
   includeAssetIndexes?: boolean;
+  includeCaptureMetadata?: boolean;
 }
 
 export function byteLength(value: unknown): number {
@@ -53,9 +54,10 @@ export function projectContext(project: Project, policy: ContextPolicy = {}) {
 }
 
 export function assetContext(asset: Asset, policy: ContextPolicy = {}) {
-  const { name, ...metadata } = asset;
+  const { name, capture, ...metadata } = asset;
   return {
     ...metadata,
+    ...(policy.includeCaptureMetadata && capture ? { capture } : {}),
     ...(policy.includeAssetNames ? { name } : {}),
   };
 }
