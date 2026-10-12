@@ -5,6 +5,7 @@ import {
   removeStoryboard,
 } from './storyboard';
 import type { Storyboard, StoryboardPatch } from './storyboard';
+import { maskPosition } from './effects';
 import { z } from 'zod';
 import {
   clipSchema,
@@ -384,6 +385,15 @@ function retimeClip(clip: Clip, duration: number) {
       (key, i) => key.timeUs !== scaled[i + 1]?.timeUs,
     );
   }
+  if (clip.mask?.points) {
+    const scaled = clip.mask.points.map((point) => ({
+      ...point,
+      timeUs: Math.min(duration, Math.round(point.timeUs * ratio)),
+    }));
+    clip.mask.points = scaled.filter(
+      (point, i) => point.timeUs !== scaled[i + 1]?.timeUs,
+    );
+  }
   clip.cues = clip.cues
     .map((cue) => ({
       ...cue,
@@ -603,6 +613,16 @@ export function applyOperations(
         if (op.durationUs < c.durationUs)
           [c.keyframes] = splitKeys(c, op.durationUs, c.id);
         // Duration edits retain the selected source and clip-local authored timing.
+        if (c.mask?.points?.length && op.durationUs < c.durationUs) {
+          const boundary = {
+            ...maskPosition(c.mask, op.durationUs),
+            timeUs: op.durationUs,
+          };
+          c.mask.points = [
+            ...c.mask.points.filter((p) => p.timeUs < op.durationUs),
+            boundary,
+          ];
+        }
         c.durationUs = op.durationUs;
         c.cues = c.cues
           .filter((cue) => cue.timeUs < op.durationUs)
@@ -626,7 +646,18 @@ export function applyOperations(
         delete c.loop;
         c.sourceInUs = op.sourceInUs;
         c.sourceOutUs = op.sourceOutUs;
-        c.durationUs = sourceDurationUs(c, op.sourceOutUs - op.sourceInUs);
+        const duration = sourceDurationUs(c, op.sourceOutUs - op.sourceInUs);
+        if (c.mask?.points?.length && duration < c.durationUs) {
+          const boundary = {
+            ...maskPosition(c.mask, duration),
+            timeUs: duration,
+          };
+          c.mask.points = [
+            ...c.mask.points.filter((p) => p.timeUs < duration),
+            boundary,
+          ];
+        }
+        c.durationUs = duration;
         break;
       }
       case 'splitClip': {
@@ -659,6 +690,19 @@ export function applyOperations(
           const split = offset / c.durationUs;
           right.speedRamp = sliceRamp(c.speedRamp, split, 1);
           c.speedRamp = sliceRamp(c.speedRamp, 0, split);
+        }
+        if (c.mask?.points?.length) {
+          const boundary = { ...maskPosition(c.mask, offset), timeUs: offset };
+          right.mask!.points = [
+            { ...boundary, timeUs: 0 },
+            ...c.mask.points
+              .filter((p) => p.timeUs > offset)
+              .map((p) => ({ ...p, timeUs: p.timeUs - offset })),
+          ];
+          c.mask.points = [
+            ...c.mask.points.filter((p) => p.timeUs < offset),
+            boundary,
+          ];
         }
         c.durationUs = offset;
         if (!c.loop && (c.kind === 'video' || c.kind === 'audio')) {
@@ -800,6 +844,10 @@ export function applyOperations(
           pitchMode: c.pitchMode,
           loop: c.loop,
           gain: c.gain,
+          balance: c.balance,
+          equalizer: c.equalizer,
+          noiseReduction: c.noiseReduction,
+          noiseFloorDb: c.noiseFloorDb,
           muted: c.muted || t.muted,
           fadeInUs: c.fadeInUs,
           fadeOutUs: c.fadeOutUs,

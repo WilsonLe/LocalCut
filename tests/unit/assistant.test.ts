@@ -3871,6 +3871,7 @@ describe('complete capability discovery and recovery', () => {
     transcription: true,
     transcriptionPreparation: true,
     indexingSupported: true,
+    maskTracking: true,
     indexing: true,
   };
   it.each([
@@ -3880,6 +3881,7 @@ describe('complete capability discovery and recovery', () => {
     ['transcribe', 'transcription', 'transcription'],
     ['prepare_transcription', 'transcription', 'transcriptionPreparation'],
     ['index_asset', 'indexing', 'indexing'],
+    ['track_mask', 'editing', 'maskTracking'],
   ] as const)(
     'distinguishes support, loading and declaration for %s',
     (type, skill, flag) => {
@@ -3940,6 +3942,7 @@ describe('complete capability discovery and recovery', () => {
       'redo',
       'export',
       'transcribe',
+      'track_mask',
       'prepare_transcription',
       'index_asset',
     ]);
@@ -4234,4 +4237,108 @@ describe('complete capability discovery and recovery', () => {
       await a.dispose();
     }
   });
+});
+
+it('discovers creative catalogs, validates and approves all effect settings through canonical tools', async () => {
+  const f = fixture();
+  const patch = {
+    colorPreset: 'warm',
+    colorStrength: 0.75,
+    blendMode: 'multiply',
+    balance: -0.5,
+    equalizer: { lowDb: 3, midDb: 0, highDb: -2 },
+    noiseReduction: 0.5,
+    noiseFloorDb: -55,
+    chromaKey: { color: '#00ff00', tolerance: 0.1, softness: 0.1, spill: 0.5 },
+    mask: {
+      shape: 'ellipse',
+      x: 0.1,
+      y: 0.1,
+      width: 0.5,
+      height: 0.5,
+      invert: false,
+      feather: 4,
+    },
+  };
+  const operations = [{ type: 'updateClip', clipId: 'video', patch }];
+  const p = provider([
+    [
+      final('', [
+        call('inspect_capabilities', {}, 'caps'),
+        call('validate_edits', { operations }, 'validate'),
+        call('propose_edits', {
+          summary: 'Apply creative effects',
+          operations,
+        }),
+      ]),
+    ],
+    [final()],
+  ]);
+  const a = createAssistant({
+    editor: f.editor,
+    provider: p,
+    projectId: f.project().id,
+    model: 'test/model',
+  });
+  const result = await a.run('Grade, blend, mask, key and improve audio')
+    .completion;
+  expect(f.project().revision).toBe(0);
+  expect(
+    p.requests
+      .flatMap((r) => r.messages)
+      .filter((m) => m.role === 'tool')
+      .map((m) => m.content)
+      .join(''),
+  ).toContain('Monochrome');
+  await a.approveProposal(result.proposalIds[0]!);
+  expect(f.project().tracks[0]!.clips[0]).toMatchObject(patch);
+});
+
+it('loads tracking access, runs only after approval and commits the motion against its revision', async () => {
+  const f = fixture();
+  const mask = {
+    shape: 'rectangle' as const,
+    x: 0.1,
+    y: 0.1,
+    width: 0.3,
+    height: 0.3,
+    invert: false,
+    feather: 0,
+    points: [
+      { timeUs: 0, x: 0.1, y: 0.1 },
+      { timeUs: 1e6, x: 0.2, y: 0.2 },
+    ],
+  };
+  f.project().tracks[0]!.clips[0]!.mask = { ...mask, points: undefined };
+  f.editor.masks = {
+    track: vi.fn(() =>
+      new Jobs().start(async () => ({ mask, confidence: 1, revision: 0 })),
+    ),
+  };
+  const p = provider(
+    [
+      [final('', [call('load_skill', { skillId: 'editing' })])],
+      [
+        final('', [
+          call('propose_action', {
+            summary: 'Track the video mask',
+            action: { type: 'track_mask', clipId: 'video' },
+          }),
+        ]),
+      ],
+      [final()],
+    ],
+    false,
+  );
+  const a = createAssistant({
+    editor: f.editor,
+    provider: p,
+    projectId: f.project().id,
+    model: 'test/model',
+  });
+  const result = await a.run('Track my mask').completion;
+  expect(f.editor.masks.track).not.toHaveBeenCalled();
+  await a.approveProposal(result.proposalIds[0]!);
+  expect(f.editor.masks.track).toHaveBeenCalledWith(f.project().id, 'video', 0);
+  expect(f.project().tracks[0]!.clips[0]!.mask).toEqual(mask);
 });

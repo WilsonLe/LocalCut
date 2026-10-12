@@ -12,7 +12,8 @@ export type AssistantAction =
       options?: { language?: string; startUs?: number; endUs?: number };
     }
   | { type: 'index_asset'; assetId: string }
-  | { type: 'prepare_transcription' };
+  | { type: 'prepare_transcription' }
+  | { type: 'track_mask'; clipId: string };
 
 export type AssistantActionResult =
   | { kind: 'edit' | 'history'; receipt: EditReceipt }
@@ -38,6 +39,7 @@ export type AssistantActionResult =
 /** An assistant may be embedded with just document editing, or the full engine. */
 export interface AssistantEditor {
   tasks?: Editor['tasks'];
+  masks?: Editor['masks'];
   projects: Pick<Editor['projects'], 'snapshot'>;
   assets: Pick<Editor['assets'], 'inspect'> & {
     indexes?: Pick<Editor['assets']['indexes'], 'list'>;
@@ -53,6 +55,7 @@ export interface AssistantCapabilities {
   /** Host support is discoverable even while permission blocks proposals. */
   indexingSupported?: boolean;
   indexing?: boolean;
+  maskTracking?: boolean;
   undo: boolean;
   redo: boolean;
   export: boolean;
@@ -65,6 +68,7 @@ export function assistantCapabilities(
   editor: AssistantEditor,
 ): AssistantCapabilities {
   return {
+    maskTracking: !!editor.masks,
     undo: !!editor.commands.undo,
     redo: !!editor.commands.redo,
     export: !!editor.exports,

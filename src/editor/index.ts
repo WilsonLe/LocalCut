@@ -3,6 +3,9 @@ export type {
   StoryboardElement,
   StoryboardPatch,
 } from '../core/storyboard';
+import { sourceIdentity } from '../storage/thumbnail-cache';
+import { maskSchema } from '../core/effects';
+import type { Mask } from '../core/effects';
 import { Store } from '../storage/store';
 import { mediaTaskCache } from '../storage/media-cache';
 import { freshTask, pureTaskCache, taskCacheKey } from '../services/task-cache';
@@ -59,6 +62,7 @@ export * from '../core/model';
 export { rampPreset, averageSpeed, sourceDurationUs } from '../core/speed';
 export type { SpeedPoint, SpeedRamp } from '../core/speed';
 export { TEXT_FONTS, TEXT_TEMPLATES } from '../core/text-library';
+export { COLOR_PRESETS, BLEND_MODES, parseCube } from '../core/effects';
 export type {
   FontId,
   TextTemplate,
@@ -272,6 +276,39 @@ export async function createEditor(options: EditorOptions = {}) {
   };
   const api = {
     tasks,
+    masks: {
+      track(
+        projectId: string,
+        clipId: string,
+        expectedRevision: number,
+        mask?: Mask,
+      ) {
+        active();
+        return jobs.start(async (signal, progress, id) => {
+          const project = await store.getProject(projectId);
+          invariant(
+            project.revision === expectedRevision,
+            'REVISION_CONFLICT',
+            'Project changed before mask tracking',
+          );
+          if (mask) {
+            const clip = project.tracks
+              .flatMap((t) => t.clips)
+              .find((c) => c.id === clipId);
+            invariant(clip, 'INVALID_DOCUMENT', 'Unknown tracking clip');
+            clip.mask = maskSchema.parse(mask);
+          }
+          return background.run<
+            import('../media/mask-tracking').MaskTrackingResult
+          >(
+            'trackMask',
+            { namespace, jobId: id, project, clipId },
+            signal,
+            progress,
+          );
+        });
+      },
+    },
     workspace: {
       async snapshot(
         projectIds: string[],
@@ -1029,6 +1066,44 @@ export async function createEditor(options: EditorOptions = {}) {
       return tasks.enqueue<R>(kind, args, { label: kind.replaceAll('.', ' ') });
     };
   };
+  api.masks.track = queued('media.trackMask', api.masks.track, {
+    cache: {
+      mode: 'reuse',
+      version: 'mask-translation-v1',
+      reuseCompleted: true,
+      key: async (input) => {
+        const [projectId, clipId, revision, mask] = input as [
+          string,
+          string,
+          number,
+          Mask?,
+        ];
+        const project = await store.getProject(projectId);
+        invariant(
+          project.revision === revision,
+          'REVISION_CONFLICT',
+          'Project changed before mask tracking',
+        );
+        const clip = project.tracks
+          .flatMap((t) => t.clips)
+          .find((c) => c.id === clipId);
+        invariant(
+          clip?.assetId,
+          'INVALID_DOCUMENT',
+          'Tracking clip has no source',
+        );
+        return taskCacheKey([
+          project,
+          clipId,
+          mask,
+          sourceIdentity(
+            await store.getAsset(clip.assetId),
+            await store.file(clip.assetId),
+          ),
+        ]);
+      },
+    },
+  });
   api.assets.import = queued('media.import', api.assets.import, {
     cache: freshTask('Import publishes a new original and asset identity.'),
     recovery: 'manual',

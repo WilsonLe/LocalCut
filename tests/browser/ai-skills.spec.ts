@@ -186,7 +186,8 @@ for (const base of ['/', '/LocalCut/']) {
       'Transition templates are editable recipes',
     );
     expect(result[1]!.tools).toContain('propose_edits');
-    expect(result[1]!.tools).not.toContain('propose_action');
+    expect(result[1]!.tools).toContain('propose_action');
+    expect(result[1]!.payload).toContain('track_mask');
     expect(result[1]!.payload).toContain(
       'Transition templates are editable recipes',
     );

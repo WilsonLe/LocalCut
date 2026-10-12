@@ -1,3 +1,6 @@
+import type { Mask } from '../core/effects';
+import type { Job } from '../editor';
+import type { MaskTrackingResult } from '../media/mask-tracking';
 import type { TextStyleInput } from '../core/text-library';
 import { Download, LoaderCircle } from 'lucide-react';
 import { NewProjectForm } from './NewProjectForm';
@@ -60,6 +63,7 @@ interface Props {
   onCancelWork: () => void;
   onCreateProject: (name: string, settings: ProjectFormat) => void;
   onInsertText: (style: TextStyleInput) => void;
+  onTrackMask: (mask: Mask) => Job<MaskTrackingResult>;
   onSaveProperties: (operations: EditOperation[]) => void;
 }
 export default function WorkspaceDialogs({
@@ -81,6 +85,7 @@ export default function WorkspaceDialogs({
   onFormatChange,
   onCancelWork,
   onCreateProject,
+  onTrackMask,
   onSaveProperties,
   onInsertText,
 }: Props) {
@@ -150,6 +155,7 @@ export default function WorkspaceDialogs({
               playheadUs={timeUs}
               busy={busy}
               onSave={onSaveProperties}
+              onTrackMask={onTrackMask}
             />
           )}
         </DialogContent>

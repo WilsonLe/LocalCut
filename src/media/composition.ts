@@ -1,3 +1,6 @@
+import { colorPixels, chromaPixels, processAudio } from './effects';
+import { suppressNoise } from './denoise';
+import { maskPosition } from '../core/effects';
 import { VideoSampleSink } from 'mediabunny';
 import { paintText } from './text';
 import { ensureTextFont } from './fonts';
@@ -219,6 +222,13 @@ export class Renderer {
         );
       }
     }
+    if (clip.chromaKey) {
+      ctx.resetTransform();
+      const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      chromaPixels(pixels.data, clip);
+      ctx.putImageData(pixels, 0, 0);
+    }
+    let result = canvas;
     const effectValues = [
       'brightness',
       'contrast',
@@ -236,9 +246,61 @@ export class Renderer {
       const { canvas: filtered, ctx } = this.layer('effects-' + clip.id);
       ctx.filter = `brightness(${valueAt(clip, 'brightness', timeUs)}) contrast(${valueAt(clip, 'contrast', timeUs)}) saturate(${valueAt(clip, 'saturation', timeUs)}) grayscale(${valueAt(clip, 'grayscale', timeUs)}) blur(${(valueAt(clip, 'blur', timeUs) * this.canvas.width) / this.project.width}px)`;
       ctx.drawImage(canvas, 0, 0);
-      return filtered;
+      result = filtered;
     }
-    return canvas;
+    if (
+      ((clip.colorPreset && clip.colorPreset !== 'none') || clip.colorLut) &&
+      clip.colorStrength !== 0
+    ) {
+      const context = result.getContext('2d')!;
+      const pixels = context.getImageData(0, 0, result.width, result.height);
+      colorPixels(pixels.data, clip);
+      context.putImageData(pixels, 0, 0);
+    }
+    if (clip.mask) {
+      const mask = clip.mask,
+        position = maskPosition(mask, timeUs - clip.startUs);
+      const { canvas: matte, ctx: m } = this.layer('mask-' + clip.id);
+      m.scale(
+        this.canvas.width / this.project.width,
+        this.canvas.height / this.project.height,
+      );
+      m.translate(x + width / 2, y + height / 2);
+      m.rotate((valueAt(clip, 'rotation', timeUs) * Math.PI) / 180);
+      m.translate(-width / 2, -height / 2);
+      m.fillStyle = 'white';
+      m.beginPath();
+      if (mask.shape === 'ellipse')
+        m.ellipse(
+          (position.x + mask.width / 2) * width,
+          (position.y + mask.height / 2) * height,
+          (mask.width * width) / 2,
+          (mask.height * height) / 2,
+          0,
+          0,
+          Math.PI * 2,
+        );
+      else
+        m.rect(
+          position.x * width,
+          position.y * height,
+          mask.width * width,
+          mask.height * height,
+        );
+      m.fill();
+      const { canvas: soft, ctx: f } = this.layer('mask-soft-' + clip.id);
+      f.filter = `blur(${(mask.feather * this.canvas.width) / this.project.width}px)`;
+      f.drawImage(matte, 0, 0);
+      const context = result.getContext('2d')!;
+      context.resetTransform();
+      context.filter = 'none';
+      context.globalCompositeOperation = mask.invert
+        ? 'destination-out'
+        : 'destination-in';
+      context.drawImage(soft, 0, 0);
+      context.globalCompositeOperation = 'source-over';
+    }
+    return result;
   }
   async frame(timeUs: number, signal: AbortSignal) {
     checkAbort(signal);
@@ -316,11 +378,21 @@ export class Renderer {
             'transition-' + transition.id,
           );
           if (transition.kind === 'crossfade') {
-            g.globalCompositeOperation = 'lighter';
-            g.globalAlpha = (1 - amount) * valueAt(a, 'opacity', timeUs);
-            g.drawImage(await this.drawClip(a, timeUs), 0, 0);
-            g.globalAlpha = amount * valueAt(b, 'opacity', timeUs);
-            g.drawImage(await this.drawClip(b, timeUs), 0, 0);
+            for (const [endpoint, weight] of [
+              [a, 1 - amount],
+              [b, amount],
+            ] as const) {
+              const { canvas: side, ctx: s } = this.layer(
+                'blend-' + endpoint.id,
+              );
+              s.drawImage(this.canvas, 0, 0);
+              s.globalCompositeOperation = endpoint.blendMode ?? 'source-over';
+              s.globalAlpha = valueAt(endpoint, 'opacity', timeUs);
+              s.drawImage(await this.drawClip(endpoint, timeUs), 0, 0);
+              g.globalCompositeOperation = 'lighter';
+              g.globalAlpha = weight;
+              g.drawImage(side, 0, 0);
+            }
           } else {
             g.fillStyle = 'black';
             g.fillRect(0, 0, group.width, group.height);
@@ -335,10 +407,12 @@ export class Renderer {
             );
           }
           ctx.globalAlpha = 1;
+          ctx.globalCompositeOperation = 'source-over';
           ctx.drawImage(group, 0, 0);
           consumed.add(a.id);
           consumed.add(b.id);
         } else {
+          ctx.globalCompositeOperation = clip.blendMode ?? 'source-over';
           ctx.globalAlpha = valueAt(clip, 'opacity', timeUs);
           ctx.drawImage(await this.drawClip(clip, timeUs), 0, 0);
           consumed.add(clip.id);
@@ -346,6 +420,7 @@ export class Renderer {
       }
     }
     ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
     for (const [id, surface] of this.layers)
       if (!this.touchedLayers.has(id)) {
         surface.width = 1;
@@ -483,6 +558,15 @@ export class Renderer {
                   channel[i] = 0;
             return channels;
           };
+          const processed = !!(original.equalizer || original.noiseReduction);
+          const halo = processed ? 2048 : 0;
+          const origin = Math.ceil((clip.startUs * 48000) / 1e6);
+          const begin = Math.max(origin, startFrame + first - halo);
+          const finish = Math.min(
+            Math.ceil(((clip.startUs + clip.durationUs) * 48000) / 1e6),
+            startFrame + last + (original.noiseReduction ? 512 : 0),
+          );
+          let samples: Float32Array[];
           if (
             clip.pitchMode === 'preserve' &&
             (clip.speedRamp || clip.speed !== 1)
@@ -492,35 +576,40 @@ export class Renderer {
               stretcher = new PitchStretcher();
               this.stretchers.set(clip.id, stretcher);
             }
-            // Use absolute integer output indices, including sub-sample clip placements.
-            const origin = Math.ceil((clip.startUs * 48000) / 1e6);
-            const stretched = await stretcher.render(
-              startFrame + first - origin,
-              last - first,
+            samples = await stretcher.render(
+              begin - origin,
+              finish - begin,
               (frame) => position(localFrame(origin + frame)),
               read,
             );
-            for (let i = first; i < last; i++) {
-              const gain = gainAt(original, ((startFrame + i) * 1e6) / 48000);
-              for (let c = 0; c < 2; c++)
-                mixed[c]![i] = mixed[c]![i]! + stretched[c]![i - first]! * gain;
-            }
           } else {
-            const windowStart =
-              Math.floor(position(localFrame(startFrame + first))) - 32;
-            const windowEnd =
-              Math.ceil(position(localFrame(startFrame + last))) + 34;
+            const windowStart = Math.floor(position(localFrame(begin))) - 32;
+            const windowEnd = Math.ceil(position(localFrame(finish))) + 34;
             const channels = await read(windowStart, windowEnd - windowStart);
-            for (let i = first; i < last; i++) {
-              const timeUs = ((startFrame + i) * 1e6) / 48000,
-                source = position(localFrame(startFrame + i)) - windowStart,
-                gain = gainAt(original, timeUs),
-                speed = speedAt(clip, timeUs - clip.startUs);
-              for (let channel = 0; channel < 2; channel++)
-                mixed[channel]![i] =
-                  mixed[channel]![i]! +
-                  resampleAt(channels[channel]!, source, speed) * gain;
+            samples = [
+              new Float32Array(finish - begin),
+              new Float32Array(finish - begin),
+            ];
+            for (let i = 0; i < finish - begin; i++) {
+              const timeUs = ((begin + i) * 1e6) / 48000;
+              const source = position(localFrame(begin + i)) - windowStart;
+              const speed = speedAt(clip, timeUs - clip.startUs);
+              for (let c = 0; c < 2; c++)
+                samples[c]![i] = resampleAt(channels[c]!, source, speed);
             }
+          }
+          suppressNoise(
+            samples,
+            begin,
+            original.noiseReduction ?? 0,
+            original.noiseFloorDb ?? -50,
+          );
+          processAudio(samples, original);
+          for (let i = first; i < last; i++) {
+            const gain = gainAt(original, ((startFrame + i) * 1e6) / 48000);
+            for (let c = 0; c < 2; c++)
+              mixed[c]![i] =
+                mixed[c]![i]! + samples[c]![startFrame + i - begin]! * gain;
           }
         }
       }

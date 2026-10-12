@@ -8,3 +8,5 @@
 - Keep consumer-owned canvas/audio contexts separate from engine-owned sessions, listeners, workers, and artifacts. Make disposal idempotent and await active cleanup.
 - For facade changes, run `pnpm test:browser tests/browser/editor.spec.ts tests/browser/lifecycle.spec.ts` against current production builds; add history/recovery specs when those contracts change.
 - Run `pnpm typecheck` for public declaration changes. Follow the [development guide](../../docs/development.md) for build freshness and final checks.
+
+`masks.track` computes a revision-bound draft result through the media worker and versioned durable queue cache; it never commits automatically. UI/assistant consumers apply motion with the ordinary `updateClip` receipt contract. Source identity and optional draft geometry belong in cache admission. Keep [creative effect checks](../../docs/development.md#creative-effect-checks) alongside worker/lifecycle checks when changing this path.

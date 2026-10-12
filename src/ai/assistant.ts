@@ -836,16 +836,33 @@ export function createAssistant(options: AssistantOptions) {
                     ? capabilities.redo
                     : action.type === 'export'
                       ? capabilities.export
-                      : action.type === 'index_asset'
-                        ? canIndex()
-                        : action.type === 'transcribe'
-                          ? capabilities.transcription
-                          : capabilities.transcriptionPreparation;
+                      : action.type === 'track_mask'
+                        ? capabilities.maskTracking
+                        : action.type === 'index_asset'
+                          ? canIndex()
+                          : action.type === 'transcribe'
+                            ? capabilities.transcription
+                            : capabilities.transcriptionPreparation;
               aiInvariant(
                 supported,
                 'TOOL_NOT_ALLOWED',
                 'This local service is unavailable.',
               );
+              if (action.type === 'track_mask') {
+                const clip = snapshot.tracks
+                  .flatMap((track) => track.clips)
+                  .find((clip) => clip.id === action.clipId);
+                aiInvariant(
+                  clip?.kind === 'video' && !!clip.mask,
+                  'EDIT_REJECTED',
+                  'Tracking requires a video clip with a saved mask. Propose its mask first.',
+                );
+                aiInvariant(
+                  !clip.crop,
+                  'EDIT_REJECTED',
+                  'Remove source crop before mask tracking.',
+                );
+              }
               if (action.type === 'index_asset') {
                 aiInvariant(
                   availableAssets.has(action.assetId),
@@ -1457,6 +1474,32 @@ export function createAssistant(options: AssistantOptions) {
                 size: artifact.file.size,
                 durationUs: artifact.durationUs,
               };
+            } else if (action.type === 'track_mask') {
+              aiInvariant(
+                editor.masks,
+                'TOOL_NOT_ALLOWED',
+                'Mask tracking is unavailable.',
+              );
+              const tracked = await runJob(
+                editor.masks.track(
+                  projectId,
+                  action.clipId,
+                  proposal.batch.expectedRevision,
+                ),
+              );
+              cancelled(controller.signal);
+              const receipt = await editor.commands.apply({
+                ...proposal.batch,
+                operations: [
+                  {
+                    type: 'updateClip',
+                    clipId: action.clipId,
+                    patch: { mask: tracked.mask },
+                  },
+                ],
+              });
+              proposal.receipt = structuredClone(receipt);
+              result = { kind: 'edit', receipt };
             } else if (action.type === 'index_asset') {
               aiInvariant(
                 indexing && canIndex(),
