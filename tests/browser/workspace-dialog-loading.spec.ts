@@ -253,6 +253,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByRole('status').filter({ hasText: 'Opening notifications…' }),
     ).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel', exact: true }).focus();
     await page.keyboard.press('Escape');
     await expect(
       page.getByRole('status').filter({ hasText: 'Opening notifications…' }),

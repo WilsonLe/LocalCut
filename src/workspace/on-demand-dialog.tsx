@@ -1,4 +1,10 @@
-import { useContext, useEffect, useState, type ComponentType } from 'react';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ComponentType,
+} from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { DialogFocusContext } from '../components/ui/dialog-focus';
@@ -14,29 +20,33 @@ function OpeningDialog({
   finalFocus,
 }: LoadingDialogProps) {
   const inheritedFocus = useContext(DialogFocusContext);
-  const close = () => {
-    onClose();
-    const target = finalFocus ?? inheritedFocus;
-    const element =
-      typeof target === 'function'
-        ? target('mouse')
-        : typeof target === 'object'
-          ? target.current
-          : undefined;
-    if (element instanceof HTMLElement && element.isConnected) element.focus();
-  };
+  const close = useCallback(
+    (type: 'mouse' | 'keyboard') => {
+      onClose();
+      const target = finalFocus ?? inheritedFocus;
+      const element =
+        typeof target === 'function'
+          ? target(type)
+          : typeof target === 'object'
+            ? target.current
+            : undefined;
+      if (element instanceof HTMLElement && element.isConnected)
+        element.focus();
+    },
+    [onClose, finalFocus, inheritedFocus],
+  );
   useEffect(() => {
     if (!open) return;
     const dismiss = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !event.isComposing) {
         event.preventDefault();
         event.stopPropagation();
-        onClose();
+        close('keyboard');
       }
     };
     window.addEventListener('keydown', dismiss, true);
     return () => window.removeEventListener('keydown', dismiss, true);
-  }, [onClose, open]);
+  }, [close, open]);
   return open ? (
     <div className="fixed right-4 top-16 z-50 flex items-center gap-3 rounded-xl border bg-popover p-4 text-sm text-popover-foreground shadow-sm">
       <span role="status" className="flex items-center gap-2">
@@ -44,7 +54,7 @@ function OpeningDialog({
         Opening {title.toLowerCase()}…
       </span>
       {showCloseButton && (
-        <Button variant="ghost" size="sm" onClick={close}>
+        <Button variant="ghost" size="sm" onClick={() => close('mouse')}>
           Cancel
         </Button>
       )}
