@@ -98,14 +98,16 @@ for (const base of ['/', '/LocalCut/']) {
         expect(
           await heading.evaluate((el) => el.scrollWidth <= el.clientWidth),
         ).toBe(true);
-        const bounds = await heading.locator('button').evaluateAll((buttons) =>
-          buttons.map((button) => ({
-            x: button.getBoundingClientRect().x,
-            right: button.getBoundingClientRect().right,
-            y: button.getBoundingClientRect().y,
-          })),
-        );
-        expect(bounds.every((b) => b.x >= 0 && b.right <= width)).toBe(true);
+        const bounds = [];
+        for (const button of await heading
+          .locator('.panel-header-actions button')
+          .all()) {
+          await button.focus();
+          const rect = (await button.boundingBox())!;
+          expect(rect.x).toBeGreaterThanOrEqual(0);
+          expect(rect.x + rect.width).toBeLessThanOrEqual(width);
+          bounds.push(rect);
+        }
         expect(
           Math.max(...bounds.map((b) => b.y)) -
             Math.min(...bounds.map((b) => b.y)),

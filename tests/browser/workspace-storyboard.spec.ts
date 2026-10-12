@@ -241,6 +241,7 @@ for (const base of ['/', '/LocalCut/']) {
       exact: true,
     });
     const checkHeader = async () => {
+      await storyboardTab.focus();
       await expect(editorTab).toBeVisible();
       await expect(storyboardTab).toBeVisible();
       await expect

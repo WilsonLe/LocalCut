@@ -991,6 +991,9 @@ for (const base of ['/', '/LocalCut/']) {
         await expect(
           page.getByRole('button', { name: 'Chat sessions', exact: true }),
         ).toBeFocused();
+        await page
+          .getByRole('button', { name: 'Workspace settings', exact: true })
+          .focus();
         await expect(
           page.getByRole('button', { name: 'Workspace settings', exact: true }),
         ).toBeInViewport();

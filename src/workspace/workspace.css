@@ -2548,7 +2548,7 @@
     z-index: 10;
   }
   .media-grid {
-    padding: 12px;
+    padding: 12px 16px;
   }
   .media-library .section-heading > div {
     flex-wrap: nowrap;
