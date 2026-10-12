@@ -7,7 +7,8 @@ export async function openAISettings(page: Page) {
     page.getByRole('region', { name: 'Project navigation', exact: true }),
   ).toBeHidden();
   await page.evaluate(
-    () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+    () =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
   );
   await page
     .getByRole('button', { name: 'Workspace settings', exact: true })
