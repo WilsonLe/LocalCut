@@ -137,7 +137,7 @@ describe('capture sharing on index retries', () => {
         await expect(
           h.indexer.run('asset', 'existing').completion,
         ).rejects.toMatchObject({
-            code: 'INVALID_COMMAND',
+          code: 'INVALID_COMMAND',
           message: expect.stringContaining('start a new index'),
         });
         expect(h.label).not.toHaveBeenCalled();
