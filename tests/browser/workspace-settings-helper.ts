@@ -1,6 +1,14 @@
 import { expect, type Page } from '@playwright/test';
 
 export async function openAISettings(page: Page) {
+  // Restoration closes stale menus and focuses the editor on its next frame.
+  // Wait for that navigation handoff before starting a settings interaction.
+  await expect(
+    page.getByRole('region', { name: 'Project navigation', exact: true }),
+  ).toBeHidden();
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+  );
   await page
     .getByRole('button', { name: 'Workspace settings', exact: true })
     .click();
