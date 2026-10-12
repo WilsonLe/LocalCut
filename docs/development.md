@@ -259,3 +259,7 @@ Run affected existing consumer journeys as well, including `project switcher dia
 ## Requested chat execution checks
 
 Run `pnpm test tests/unit/assistant.test.ts`, then `pnpm test:ui --grep 'chat indexing requested execution|text clarification|conversation cancellation|rate-limit errors|chat executes atomic edits|conversation proposes and applies'`. Requested mode covers sequential receipts/fresh revisions, scoped indexing and explicit retry after failure, response/service cancellation and plain text clarification. Existing headless approval/privacy regressions remain in the same assistant suite. Native media processing is unchanged; these deterministic providers establish execution and transport, without paid inference.
+
+## Creative effect checks
+
+Use `pnpm test tests/unit/audio-effects-window.test.ts tests/unit/creative-effects.test.ts tests/unit/assistant.test.ts tests/unit/core.test.ts tests/unit/timeline-features.test.ts` for keep-pitch effect continuity, LUT validation/interpolation, spectral/EQ/balance processing, chroma, mask path split/timing, discovery and approved effects/tracking. Then `pnpm test:ui --grep 'creative effects|creative clip|local mask tracking|black transitions keep'` covers both production bases, responsive controls, local import failure, persisted settings/history/backup, actual MP4/WebM pixels/PCM and native video tracking with cached replay/approved assistant persistence. Shared composition changes also require the serial `pnpm test:performance` gate. Transcription preparation/model paths are unchanged.

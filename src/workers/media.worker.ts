@@ -13,6 +13,7 @@ interface Payload {
   name: string;
   jobId: string;
   assetId: string;
+  clipId: string;
   project: Project;
   timeUs: number;
   width?: number;
@@ -63,6 +64,17 @@ self.onmessage = ({ data }: MessageEvent<Request>) => {
       store = await Store.open(p.namespace, false);
       let transfer: Transferable[] = [];
       switch (data.operation) {
+        case 'trackMask': {
+          const { trackMask } = await import('../media/mask-tracking');
+          result = await trackMask(
+            store,
+            p.project,
+            p.clipId,
+            controller.signal,
+            progress,
+          );
+          break;
+        }
         case 'analyzeAsset': {
           const { analyzeAsset } = await import('../media/asset-index');
           result = await analyzeAsset(

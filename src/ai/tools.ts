@@ -1,3 +1,11 @@
+import {
+  COLOR_PRESETS,
+  BLEND_MODES,
+  colorLutSchema,
+  maskSchema,
+  eqSchema,
+  chromaKeySchema,
+} from '../core/effects';
 import { z } from 'zod';
 import { applyOperations, batchSchema } from '../core/commands';
 import type { CommandBatch } from '../core/commands';
@@ -71,6 +79,12 @@ const actionSchema = z.discriminatedUnion('type', [
       ),
   }),
   z.object({ type: z.literal('prepare_transcription') }).strict(),
+  z
+    .object({
+      type: z.literal('track_mask'),
+      clipId: z.string().min(1).max(200),
+    })
+    .strict(),
 ]);
 const schemas = {
   load_skill: z
@@ -134,6 +148,14 @@ export const supportedEditOperations =
   );
 
 export const editingProperties = {
+  effects: {
+    presets: COLOR_PRESETS,
+    blendModes: BLEND_MODES,
+    lut: z.toJSONSchema(colorLutSchema),
+    mask: z.toJSONSchema(maskSchema),
+    equalizer: z.toJSONSchema(eqSchema),
+    chromaKey: z.toJSONSchema(chromaKeySchema),
+  },
   clip: Object.keys(clipPatchSchema.shape),
   track: Object.keys(trackPatchSchema.shape),
   textStyle: Object.keys(textStyleSchema.shape),
@@ -242,6 +264,13 @@ export function capabilityDiscovery(
       support: [
         capabilities.transcription,
         'This session has no transcription executor. Use the workspace transcription control or a host with transcription support.',
+      ],
+    }),
+    track_mask: access({
+      skills: ['editing'],
+      support: [
+        !!capabilities.maskTracking,
+        'This host has no mask tracker. Use the workspace Track mask control or connect an engine with masks.track support.',
       ],
     }),
     prepare_transcription: access({

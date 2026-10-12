@@ -1,3 +1,7 @@
+import { ClipEffectFields } from './ClipEffectFields';
+import type { Mask } from '../core/effects';
+import type { Job } from '../editor';
+import type { MaskTrackingResult } from '../media/mask-tracking';
 import { useState } from 'react';
 import { averageSpeed, sourceDurationUs } from '../core/speed';
 import type { SpeedRamp } from '../core/speed';
@@ -20,13 +24,19 @@ export default function ClipProperties({
   readOnly,
   onSave,
   playheadUs,
+  onTrackMask,
 }: {
   clip: Clip;
   busy: boolean;
   readOnly?: boolean;
   onSave: (operations: EditOperation[]) => void;
   playheadUs: number;
+  onTrackMask?: (mask: Mask) => Job<MaskTrackingResult>;
 }) {
+  const [effects, setEffects] = useState<
+    Extract<EditOperation, { type: 'updateClip' }>['patch']
+  >({});
+  const [tracking, setTracking] = useState(false);
   const [keyframes, setKeyframes] = useState<Clip['keyframes']>(() =>
     structuredClone(clip.keyframes),
   );
@@ -47,7 +57,8 @@ export default function ClipProperties({
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        if (readOnly || busy || duplicateTimes || !animationValid) return;
+        if (readOnly || busy || tracking || duplicateTimes || !animationValid)
+          return;
         const form = new FormData(event.currentTarget);
         const startUs = Math.round(Number(form.get('start')) * 1e6),
           enteredDurationUs = Math.round(Number(form.get('duration')) * 1e6),
@@ -82,18 +93,19 @@ export default function ClipProperties({
         const operations: EditOperation[] = [];
         // Publish drafted curves before timing commands so the shared engine owns
         // rescaling and clipping both edited and untouched parameter curves.
+        const drafted = { ...effects };
         if (JSON.stringify(keyframes) !== JSON.stringify(clip.keyframes))
+          drafted.keyframes = Object.fromEntries(
+            Object.entries(keyframes).map(([parameter, keys]) => [
+              parameter,
+              [...keys].sort((a, b) => a.timeUs - b.timeUs),
+            ]),
+          );
+        if (Object.keys(drafted).length)
           operations.push({
             type: 'updateClip',
             clipId: clip.id,
-            patch: {
-              keyframes: Object.fromEntries(
-                Object.entries(keyframes).map(([parameter, keys]) => [
-                  parameter,
-                  [...keys].sort((a, b) => a.timeUs - b.timeUs),
-                ]),
-              ),
-            },
+            patch: drafted,
           });
         if (clip.groupId && startUs !== clip.startUs) {
           operations.push({
@@ -184,6 +196,17 @@ export default function ClipProperties({
               </div>
             ))}
         </div>
+        <ClipEffectFields
+          clip={clip}
+          patch={effects}
+          onChange={(patch) =>
+            setEffects((current) => ({ ...current, ...patch }))
+          }
+          disabled={readOnly || busy}
+          onTrackMask={onTrackMask}
+          onTracking={setTracking}
+          playheadUs={playheadUs}
+        />
         <KeyframeEditor
           clip={{ ...clip, ...baseChanges }}
           keyframes={keyframes}
@@ -250,7 +273,7 @@ export default function ClipProperties({
         {!readOnly && (
           <Button
             type="submit"
-            disabled={busy || duplicateTimes || !animationValid}
+            disabled={busy || tracking || duplicateTimes || !animationValid}
           >
             Apply properties
           </Button>

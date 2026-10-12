@@ -2494,6 +2494,14 @@ export function Workspace() {
               })
             }
             onInsertText={insertText}
+            onTrackMask={(mask) =>
+              editorRef.current!.masks.track(
+                viewProject!.id,
+                selectedClip!.id,
+                viewProject!.revision,
+                mask,
+              )
+            }
             onSaveProperties={(operations) =>
               void action(async () => {
                 await apply(operations);

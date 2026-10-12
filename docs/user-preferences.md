@@ -463,3 +463,8 @@ This is the project record of the user's durable product and workflow choices. U
 - Remove the separate Allow asset indexing permission. Connecting OpenRouter acknowledges the indexing disclosure and authorizes generated evidence and saved labels in chat. This supersedes the remembered/revocable indexing permission recorded above.
 - Keep indexing explicit through Index or an approved chat proposal; connection, import and reload never start paid indexing. Text, names, transcripts and capture dates/GPS keep their separate sharing choices.
 - Indexing authorization must not split or hide saved chats. Recover conversations from both legacy indexing-permission scopes, preserving drafts, titles, archives and selection while retaining the other project/model/sharing boundaries.
+
+## Creative editing features — 12 October 2026
+
+- Add LUTs/color presets, audio editing, video blending and masking, with UI and assistant access through the shared engine.
+- Include advanced tools in this release: automatic local mask tracking with editable motion points, chroma key/spill controls and local audio noise reduction, alongside .cube import, EQ, balance, fades and geometric masks.

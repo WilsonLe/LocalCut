@@ -22,3 +22,5 @@ pnpm test tests/unit/openrouter-credentials.test.ts tests/unit/openrouter-auth.t
 ```
 
 Use `pnpm test:browser tests/browser/ai.spec.ts` for production-entry integration after current builds. [AI contracts/privacy](../../docs/ai.md) own live-provider prerequisites; [development](../../docs/development.md) owns the wider validation loop.
+
+Creative catalogs/schemas remain in `inspect_capabilities.properties.effects`, derived from `core/effects.ts`. `track_mask` is an editing-domain action with independent host-support/loading rules; it requires a saved video mask and commits at its captured revision through the current host execution policy (default headless review or requested workspace execution). Keep the exhaustive action matrix and real persisted tracking journey current. LUT file selection stays user-owned; never invent an imported table. See [creative effect checks](../../docs/development.md#creative-effect-checks).

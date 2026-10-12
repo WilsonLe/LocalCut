@@ -6,6 +6,14 @@ import { speedRampSchema } from './speed-schema';
 import { EditorError, invariant } from './errors';
 import { transitionPairs, TRANSITION_TEMPLATES } from './timeline';
 import { FONT_IDS, LEGACY_FONT_IDS } from './text-library';
+import {
+  colorLutSchema,
+  maskSchema,
+  eqSchema,
+  chromaKeySchema,
+  COLOR_PRESETS,
+  BLEND_MODES,
+} from './effects';
 const knownFonts = new Set<string>(FONT_IDS);
 const id = z.string().min(1).max(200);
 const time = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -133,6 +141,16 @@ const clipInputSchema = z
     opacity: finite.min(0).max(1).default(1),
     gain: finite.min(0).max(16).default(1),
     muted: z.boolean().default(false),
+    colorPreset: z.enum(COLOR_PRESETS.map((p) => p.id)).optional(),
+    colorStrength: finite.min(0).max(1).optional(),
+    colorLut: colorLutSchema.nullable().optional(),
+    blendMode: z.enum(BLEND_MODES.map((p) => p.id)).optional(),
+    mask: maskSchema.nullable().optional(),
+    balance: finite.min(-1).max(1).optional(),
+    equalizer: eqSchema.nullable().optional(),
+    chromaKey: chromaKeySchema.nullable().optional(),
+    noiseReduction: finite.min(0).max(1).optional(),
+    noiseFloorDb: finite.min(-80).max(-10).optional(),
     crop: z
       .object({
         x: finite.min(0).max(1),
@@ -493,6 +511,11 @@ export function validateProject(value: unknown): Project {
         !clip.speedRamp || ['video', 'audio'].includes(clip.kind),
         'INVALID_DOCUMENT',
         'Speed ramps require timed media',
+      );
+      invariant(
+        !clip.mask?.points?.some((p) => p.timeUs > clip.durationUs),
+        'INVALID_DOCUMENT',
+        'Mask motion points exceed clip duration',
       );
       if (clip.kind === 'text')
         invariant(clip.text, 'INVALID_DOCUMENT', 'Text style required');

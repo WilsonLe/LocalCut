@@ -24,3 +24,5 @@ pnpm test:browser tests/browser/media-acceptance.spec.ts tests/browser/editor.sp
 
 Use current production builds and real Chrome per [development recipes](../../docs/development.md).
 Export/resource changes also need the explicit performance gate in [validation](../../docs/validation.md).
+
+Creative effects keep their persisted contracts/catalogs in `core/effects.ts`; apply chroma before grading, masks after effects, and clip blend modes against the shared backdrop. `denoise.ts` and the bounded crossover EQ consume haloed audio windows, never full-project PCM. `mask-tracking.ts` owns cancellable local translation; keep its revision/source cache identity and confidence failures explicit. See [creative contracts](../../docs/api.md#creative-effects-and-local-mask-tracking) and [focused checks](../../docs/development.md#creative-effect-checks).

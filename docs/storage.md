@@ -169,3 +169,9 @@ Records whitelist titles and additive `titleLocked`/`archived` flags (defaulting
 Quota/access failures retain the latest dirty snapshots in memory across scope switches and display an unsaved notice with Retry saving. Retry saves every retained dirty scope; successful saves in one scope cannot erase failures in another. Reselecting the same effective model preserves scope identity even when a redundant saved route model is filled in. Browser eviction/site-data clearing can remove chats; portable project backups do not contain them. Reverting the application leaves the sidecar inert without changing original project compatibility.
 
 Archiving retains a record, with active selection repaired after hydration. Forks receive new UUIDs and a cloned display snapshot with stopped unfinished work and retained history provenance; they never copy live assistant checkpoints. Renames lock automatic title replacement.
+
+## Creative effect state and tracking cache
+
+Clip JSON owns LUT numeric tables, preset strength, blend mode, mask geometry/motion points, chroma key, EQ, balance and spectral suppression settings. Optional fields leave old documents neutral; null clears replacement objects. History and portable project/workspace backups retain them with the clip. Imported LUT titles/file names are not retained. Older releases with strict schemas may reject these new fields; retain the current release and backup when reverting.
+
+The existing durable task result cache retains `media.trackMask` translation results under `mask-translation-v2`. Keys include the captured project/revision, clip, optional draft mask and current source identity. Fresh facade instances can reuse completed results; source relink/revision/settings changes invalidate admission. Results contain only bounded numeric motion/confidence, no frames or originals. The ordinary queue/store eviction and recovery rules apply. Applying a result remains an explicit revision-bound command.
