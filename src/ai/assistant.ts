@@ -300,7 +300,7 @@ export function createAssistant(options: AssistantOptions) {
       'TOOL_NOT_ALLOWED',
       'Media library is unavailable.',
     );
-    const library = await editor.library.list();
+    const library = await editor.library.forProject(projectId).list();
     aiInvariant(
       library.revision === expectedRevision,
       'REVISION_CONFLICT',
@@ -928,7 +928,7 @@ export function createAssistant(options: AssistantOptions) {
                 'Media library is unavailable.',
               );
               const library = await interruptible(
-                editor.library.list(),
+                editor.library.forProject(projectId).list(),
                 signal,
               );
               check();
@@ -1761,10 +1761,9 @@ export function createAssistant(options: AssistantOptions) {
                 new Set([...assetIds(current), ...selectedAssetIds]),
               );
               cancelled(controller.signal);
-              const library = await editor.library!.apply(
-                action.operation,
-                action.expectedRevision,
-              );
+              const library = await editor
+                .library!.forProject(projectId)
+                .apply(action.operation, action.expectedRevision);
               result = { kind: 'library', revision: library.revision };
             } else if (action.type === 'undo' || action.type === 'redo') {
               const history = editor.commands[action.type];

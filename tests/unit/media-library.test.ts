@@ -2,6 +2,7 @@ import { captureUpload } from '../../src/workspace/folder-upload';
 import { describe, it, expect } from 'vitest';
 import {
   libraryNameSchema,
+  assignLegacyLibrary,
   availableLibraryName,
   libraryPath,
   libraryDescendants,
@@ -83,4 +84,46 @@ it('captures a dropped hierarchy synchronously and drains repeated reader batche
   expect(result.files[0]!.webkitRelativePath).toBe('Upload/image.png');
   expect(await result.files[0]!.text()).toBe('bytes');
   expect(batch).toBe(3);
+});
+
+it('assigns legacy sources, their ancestry and Trash restore parents to existing project owners', () => {
+  const entries: LibraryEntry[] = [
+    { id: 'folder', parentId: null, name: 'Shots', kind: 'folder' },
+    { id: 'a', parentId: 'folder', name: 'A.png', kind: 'asset', assetId: 'a' },
+    {
+      id: 'b',
+      parentId: null,
+      previousParentId: 'folder',
+      name: 'B.png',
+      kind: 'asset',
+      assetId: 'b',
+      trashed: true,
+    },
+    {
+      id: 'unused',
+      parentId: 'folder',
+      name: 'Unused.png',
+      kind: 'asset',
+      assetId: 'unused',
+    },
+    { id: 'empty', parentId: null, name: 'Empty', kind: 'folder' },
+  ];
+  const owners = assignLegacyLibrary(
+    entries,
+    new Map([
+      ['project-b', new Set(['b'])],
+      ['project-a', new Set(['a'])],
+    ]),
+  );
+  expect(owners['project-a']!.map((e) => e.id)).toEqual([
+    'folder',
+    'a',
+    'unused',
+    'empty',
+  ]);
+  expect(owners['project-b']!.map((e) => e.id)).toEqual(['folder', 'b']);
+  expect(owners['project-b']![1]).toMatchObject({
+    trashed: true,
+    previousParentId: 'folder',
+  });
 });

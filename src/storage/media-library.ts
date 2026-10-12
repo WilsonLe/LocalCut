@@ -6,6 +6,7 @@ import {
   libraryPath,
   libraryDescendants,
   availableLibraryName,
+  assignLegacyLibrary,
 } from '../core/media-library';
 import type {
   LibraryEntry,
@@ -32,26 +33,115 @@ export class MediaLibraryStore {
   private constructor(
     private store: Store,
     private db: IDBPDatabase,
+    private root: FileSystemDirectoryHandle,
+    private projectId?: string,
   ) {}
-  static async open(store: Store) {
-    const db = await openDB(`${store.namespace}-media-library-v1`, 1, {
-      upgrade(db) {
-        db.createObjectStore('state');
-        db.createObjectStore('journal');
-      },
+  static async open(store: Store, projectId: string) {
+    await store.getProject(projectId);
+    const projects = await store.root.getDirectoryHandle('project-media', {
+      create: true,
     });
-    const library = new MediaLibraryStore(store, db);
+    const root = await projects.getDirectoryHandle(projectId, { create: true });
+    const db = await openDB(
+      `${store.namespace}-media-library-${projectId}-v1`,
+      1,
+      {
+        upgrade(db) {
+          db.createObjectStore('state');
+          db.createObjectStore('journal');
+        },
+      },
+    );
+    const library = new MediaLibraryStore(store, db, root, projectId);
     try {
       await library.lock(async () => {
-        await store.root.getDirectoryHandle('media-library', { create: true });
-        await store.root.getDirectoryHandle('media-trash', { create: true });
+        await root.getDirectoryHandle('media-library', { create: true });
+        await root.getDirectoryHandle('media-trash', { create: true });
         await library.recover();
+        await library.migrateLegacy();
       });
     } catch (error) {
       db.close();
       throw error;
     }
     return library;
+  }
+  private async migrateLegacy() {
+    if (await this.db.get('state', 'legacy-migrated')) return;
+    const owned = await this.store.lock(
+      'media-library',
+      'exclusive',
+      async () => {
+        const db = await openDB(`${this.store.namespace}-media-library-v1`, 1, {
+          upgrade(db) {
+            db.createObjectStore('state');
+            db.createObjectStore('journal');
+          },
+        });
+        try {
+          // Retain the old root for rollback, but settle its pending journal first.
+          const legacy = new MediaLibraryStore(this.store, db, this.store.root);
+          await legacy.recover();
+          let ownership = (await db.get('state', 'project-ownership')) as
+            Record<string, LibraryEntry[]> | undefined;
+          if (!ownership) {
+            const state = await legacy.state();
+            const projects = (await this.store.catalog()).sort((a, b) =>
+              a.project.id.localeCompare(b.project.id),
+            );
+            const references = new Map<string, Set<string>>();
+            for (const { project } of projects)
+              references.set(
+                project.id,
+                await this.store.projectAssetIds(project.id),
+              );
+            ownership = assignLegacyLibrary(state.entries, references);
+            await db.put('state', ownership, 'project-ownership');
+          }
+          return ownership[this.projectId!] ?? [];
+        } finally {
+          db.close();
+        }
+      },
+    );
+    // Publish each copy with the ordinary journal. A restart skips durable entries
+    // and retries unpublished files; legacy originals are never removed.
+    const sorted = [...owned].sort(
+      (a, b) =>
+        libraryPath(owned, a.id).split('/').length -
+        libraryPath(owned, b.id).split('/').length,
+    );
+    let state = await this.state();
+    for (const entry of sorted) {
+      if (state.entries.some((existing) => existing.id === entry.id)) continue;
+      const to = libraryPath(owned, entry.id);
+      const next = {
+        revision: state.revision + 1,
+        entries: [...state.entries, entry],
+      };
+      let source: File | undefined;
+      if (entry.kind === 'asset') {
+        const parts = to.split('/');
+        const name = parts.pop()!;
+        let directory = this.store.root;
+        for (const part of parts)
+          directory = await directory.getDirectoryHandle(part);
+        source = await (await directory.getFileHandle(name)).getFile();
+      }
+      state = await this.mutate(
+        next,
+        { to, kind: entry.kind, published: false, removeSource: false },
+        async () => {
+          if (source) await this.copyFile(source, to);
+          else {
+            const { directory, name } = await this.parent(to, true);
+            await directory.getDirectoryHandle(name, { create: true });
+          }
+        },
+        source?.size ?? 0,
+      );
+    }
+    await this.db.put('state', true, 'legacy-migrated');
   }
   async close() {
     this.closing = true;
@@ -60,7 +150,11 @@ export class MediaLibraryStore {
   }
   private lock<T>(work: () => Promise<T>) {
     invariant(!this.closing, 'DISPOSED', 'Media library disposed.');
-    const operation = this.store.lock('media-library', 'exclusive', work);
+    const operation = this.store.lock(
+      this.projectId ? `media-library:${this.projectId}` : 'media-library',
+      'exclusive',
+      work,
+    );
     this.operations.add(operation);
     void operation
       .finally(() => this.operations.delete(operation))
@@ -76,7 +170,7 @@ export class MediaLibraryStore {
   private async parent(path: string, create = false) {
     const parts = path.split('/');
     const name = parts.pop()!;
-    let directory = this.store.root;
+    let directory = this.root;
     for (const part of parts)
       directory = await directory.getDirectoryHandle(part, { create });
     return { directory, name };
@@ -246,9 +340,15 @@ export class MediaLibraryStore {
   }
   async list(): Promise<LibrarySnapshot> {
     return this.lock(async () => {
+      if (this.projectId) await this.store.getProject(this.projectId);
       await this.recover();
       let state = await this.state();
-      const assets = (await this.store.db.getAll('assets')) as Asset[];
+      const ids = await this.store.projectAssetIds(this.projectId!);
+      for (const entry of state.entries)
+        if (entry.assetId) ids.add(entry.assetId);
+      const assets = await Promise.all(
+        [...ids].map((id) => this.store.getAsset(id)),
+      );
       for (const asset of assets) {
         if (asset.status !== 'ready') continue;
         await this.store.lock(`asset:${asset.id}`, 'shared', async () => {
@@ -304,7 +404,10 @@ export class MediaLibraryStore {
       'Invalid library operation or filename.',
     );
     operation = parsed.data;
-    return this.lock(() => this.applyUnlocked(operation, expectedRevision));
+    return this.lock(async () => {
+      await this.store.getProject(this.projectId!);
+      return this.applyUnlocked(operation, expectedRevision);
+    });
   }
   private async applyUnlocked(
     operation: LibraryOperation,
@@ -454,6 +557,7 @@ export class MediaLibraryStore {
         'Invalid upload folder path.',
       );
     return this.lock(async () => {
+      if (this.projectId) await this.store.getProject(this.projectId);
       await this.recover();
       let state = await this.state();
       this.folder(state, parentId);
@@ -506,6 +610,7 @@ export class MediaLibraryStore {
   }
   async file(entryId: string) {
     return this.lock(async () => {
+      if (this.projectId) await this.store.getProject(this.projectId);
       await this.recover();
       const state = await this.state(),
         entry = state.entries.find((e) => e.id === entryId);
@@ -518,6 +623,7 @@ export class MediaLibraryStore {
   }
   async download(entryId: string): Promise<File> {
     return this.lock(async () => {
+      if (this.projectId) await this.store.getProject(this.projectId);
       await this.recover();
       const state = await this.state(),
         entry = state.entries.find((e) => e.id === entryId);

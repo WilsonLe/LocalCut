@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { libraryDescendants } from './media-library-path';
 
 export const libraryNameSchema = z
   .string()
@@ -75,4 +76,41 @@ export function availableLibraryName(
     const candidate = `${stem.slice(0, 220 - extension.length)} (${i})${extension}`;
     if (!taken(candidate)) return candidate;
   }
+}
+
+/** Freeze the released shared library into existing project owners without loss. */
+export function assignLegacyLibrary(
+  entries: LibraryEntry[],
+  references: ReadonlyMap<string, ReadonlySet<string>>,
+) {
+  const owners = [...references.keys()].sort();
+  const referenced = new Set(
+    [...references.values()].flatMap((ids) => [...ids]),
+  );
+  const result: Record<string, LibraryEntry[]> = {};
+  for (const projectId of owners) {
+    const fallback = projectId === owners[0];
+    const selected = new Set<string>();
+    const include = (id: string | null | undefined) => {
+      const entry = entries.find((entry) => entry.id === id);
+      if (!entry || selected.has(entry.id)) return;
+      selected.add(entry.id);
+      include(entry.parentId);
+      include(entry.previousParentId);
+    };
+    for (const entry of entries) {
+      if (
+        entry.assetId
+          ? references.get(projectId)!.has(entry.assetId) ||
+            (fallback && !referenced.has(entry.assetId))
+          : fallback &&
+            !libraryDescendants(entries, entry.id).some(
+              (child) => child.assetId,
+            )
+      )
+        include(entry.id);
+    }
+    result[projectId] = entries.filter((entry) => selected.has(entry.id));
+  }
+  return result;
 }

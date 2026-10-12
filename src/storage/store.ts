@@ -220,6 +220,19 @@ export class Store {
       return state.project;
     });
   }
+  /** Original references retained by current edits, undo/redo and saved versions. */
+  async projectAssetIds(projectId: string) {
+    await this.getProject(projectId);
+    const record = (await this.db.get('projects', projectId)) as RecordState;
+    return new Set(
+      [
+        record.project,
+        ...record.undo,
+        ...record.redo,
+        ...(record.versions ?? []).map((version) => version.project),
+      ].flatMap(assetIds),
+    );
+  }
   async create(project: Project) {
     const value = validateProject(project);
     const tx = this.db.transaction(
