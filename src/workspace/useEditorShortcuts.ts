@@ -18,20 +18,21 @@ export function useEditorShortcuts({
       if (event.defaultPrevented) return;
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest('[data-storyboard]')) return;
-      const action = resolveShortcut(event, {
+      const command = resolveShortcut(event, {
         inEditor: !!target?.closest('[data-editor-shortcuts]'),
         editable: !!target?.closest(
-          'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]',
+          'input,textarea,select,[contenteditable]:not([contenteditable=false]),[role=textbox]',
         ),
         dialogOpen: hasBlockingOverlay(),
         timelineClip: !!target?.closest('.timeline-clip'),
         activationControl: !!target?.closest(
-          'button, a[href], summary, [role="button"]',
+          'button,a[href],summary,[role=button]',
         ),
       });
-      if (!action || !actions[action]) return;
+      const action = command && actions[command];
+      if (!action) return;
       event.preventDefault();
-      actions[action](event);
+      action(event);
     };
     window.addEventListener('keydown', handle);
     return () => window.removeEventListener('keydown', handle);

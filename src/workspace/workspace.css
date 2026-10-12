@@ -1129,6 +1129,11 @@
   flex-direction: column;
   gap: 4px;
 }
+.media-item[data-selected='true'] {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 1px var(--ring);
+  background: var(--accent);
+}
 .media-index-status {
   display: flex;
   align-items: center;

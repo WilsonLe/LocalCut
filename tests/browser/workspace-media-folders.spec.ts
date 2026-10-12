@@ -5,6 +5,150 @@ import { join } from 'node:path';
 import { closeMediaImport } from './workspace-import-helper';
 
 for (const base of ['/', '/LocalCut/']) {
+  test(`media select-all stays scoped to visible assets and preserves native inputs ${base}`, async ({
+    page,
+  }, info) => {
+    page.setDefaultTimeout(15000);
+    await page.goto(base);
+    const workspace = page.getByRole('main', {
+      name: 'Video editor',
+      exact: true,
+    });
+    await workspace.focus();
+    await page.keyboard.press('n');
+    const create = page.getByRole('dialog', {
+      name: 'New project',
+      exact: true,
+    });
+    await create
+      .getByLabel('Project name', { exact: true })
+      .fill('Media selection');
+    await create
+      .getByRole('button', { name: 'Create project', exact: true })
+      .click();
+    await expect(create).toBeHidden();
+    const bytes = await page.evaluate(async () => {
+      const canvas = new OffscreenCanvas(32, 32);
+      canvas.getContext('2d')!.fillRect(0, 0, 32, 32);
+      return [
+        ...new Uint8Array(await (await canvas.convertToBlob()).arrayBuffer()),
+      ];
+    });
+    await page.getByLabel('Import media', { exact: true }).setInputFiles(
+      ['first.png', 'second.png'].map((name) => ({
+        name,
+        mimeType: 'image/png',
+        buffer: Buffer.from(bytes),
+      })),
+    );
+    await closeMediaImport(page);
+    const media = page.getByRole('region', {
+      name: 'Project media',
+      exact: true,
+    });
+    const first = media.getByRole('button', {
+      name: 'Asset details for first.png',
+      exact: true,
+    });
+    const second = media.getByRole('button', {
+      name: 'Asset details for second.png',
+      exact: true,
+    });
+    const selected = page.locator(
+      '.media-library .media-item[data-selected="true"]',
+    );
+    await first.click();
+    await expect(first).toHaveAttribute('aria-pressed', 'true');
+    await expect(second).toHaveAttribute('aria-pressed', 'false');
+    for (const mod of ['Meta', 'Control']) {
+      await first.focus();
+      await page.keyboard.press(`${mod}+a`);
+      await expect(selected).toHaveCount(2);
+      await expect(first).toHaveAttribute('aria-pressed', 'true');
+      await expect(second).toHaveAttribute('aria-pressed', 'true');
+      await page.keyboard.press('Escape');
+      await expect(selected).toHaveCount(0);
+      await first.click();
+      // macOS reserves Ctrl-click for context menus; dispatch the Windows click
+      // modifier while retaining native Cmd-click and both native key chords.
+      if (mod === 'Control')
+        await second.dispatchEvent('click', { ctrlKey: true, detail: 1 });
+      else await second.click({ modifiers: ['Meta'] });
+      await expect(selected).toHaveCount(2);
+      if (mod === 'Control')
+        await first.dispatchEvent('click', { ctrlKey: true, detail: 1 });
+      else await first.click({ modifiers: ['Meta'] });
+      await expect(selected).toHaveCount(1);
+      await expect(second).toHaveAttribute('aria-pressed', 'true');
+    }
+    await media.focus();
+    await page.keyboard.press('Control+a');
+    await expect(selected).toHaveCount(2);
+    await page.screenshot({ path: info.outputPath('media-selection.png') });
+    // Select-all on the timeline still selects clips rather than media cards.
+    await workspace.focus();
+    await page.keyboard.press('ControlOrMeta+a');
+    await expect(
+      page.locator('.timeline-clip[aria-pressed="true"]'),
+    ).toHaveCount(2);
+    await expect(selected).toHaveCount(2);
+    await page.getByRole('button', { name: 'New folder', exact: true }).click();
+    const folderDialog = page.getByRole('dialog', {
+      name: 'New folder',
+      exact: true,
+    });
+    const input = folderDialog.getByLabel('Name', { exact: true });
+    await input.fill('Empty folder');
+    await input.press('ControlOrMeta+a');
+    expect(
+      await input.evaluate((node: HTMLInputElement) => [
+        node.selectionStart,
+        node.selectionEnd,
+      ]),
+    ).toEqual([0, 12]);
+    await expect(selected).toHaveCount(2);
+    await folderDialog
+      .getByRole('button', { name: 'New folder', exact: true })
+      .click();
+    await expect(folderDialog).toBeHidden();
+    await page
+      .getByRole('button', { name: 'Open folder Empty folder', exact: true })
+      .click();
+    await expect(selected).toHaveCount(0);
+    await media.focus();
+    await page.keyboard.press('Meta+a');
+    await expect(selected).toHaveCount(0);
+    await page.getByRole('button', { name: 'Media root', exact: true }).click();
+    await expect(first).toHaveAttribute('aria-pressed', 'false');
+    await expect(second).toHaveAttribute('aria-pressed', 'false');
+    // A cancelled drag must not suppress the next pointer selection in Trash.
+    await first.focus();
+    await page
+      .getByRole('button', { name: 'Actions for first.png', exact: true })
+      .click();
+    await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
+    const remove = page.getByRole('dialog', { name: 'Delete', exact: true });
+    await remove.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(remove).toBeHidden();
+    await expect(first).toHaveCount(0);
+    const box = (await second.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + 20);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 20, box.y + 20);
+    await expect(page.locator('.media-drag-preview')).toBeVisible();
+    await second.dispatchEvent('pointercancel');
+    await expect(page.locator('.media-drag-preview')).toHaveCount(0);
+    await page.mouse.up();
+    await page
+      .getByRole('button', { name: 'Open media Trash', exact: true })
+      .click();
+    await first.click();
+    await expect(first).toHaveAttribute('aria-pressed', 'true');
+    await first.click({ modifiers: ['Meta'] });
+    await expect(first).toHaveAttribute('aria-pressed', 'false');
+    await first.click({ modifiers: ['Meta'] });
+    await expect(first).toHaveAttribute('aria-pressed', 'true');
+  });
   test(`workspace media folders upload, dragging, menus and reload ${base}`, async ({
     page,
   }, info) => {
@@ -450,6 +594,16 @@ for (const base of ['/', '/LocalCut/']) {
         exact: true,
       }),
     ).toBeVisible();
+    await page
+      .getByRole('region', { name: 'Project media', exact: true })
+      .focus();
+    await page.keyboard.press('ControlOrMeta+a');
+    await expect(
+      page.getByRole('button', {
+        name: 'Asset details for A.png',
+        exact: true,
+      }),
+    ).toHaveAttribute('aria-pressed', 'true');
     await page.evaluate((id) => {
       location.hash = `/project/${id}`;
     }, ids.b);
@@ -471,6 +625,12 @@ for (const base of ['/', '/LocalCut/']) {
         exact: true,
       }),
     ).toBeVisible();
+    await expect(
+      page.getByRole('button', {
+        name: 'Asset details for B.png',
+        exact: true,
+      }),
+    ).toHaveAttribute('aria-pressed', 'false');
     await page.reload();
     await expect(
       page.getByRole('button', { name: 'Open folder Shots', exact: true }),
