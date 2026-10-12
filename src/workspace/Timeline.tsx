@@ -546,6 +546,30 @@ export function Timeline(props: Props) {
             </Button>
           )}
           <span className="toolbar-divider" />
+          {!!total && (
+            <div className="touch-clip-picker">
+              <SettingsSelect
+                label="Select timeline clip"
+                value={null}
+                placeholder={
+                  selected.length > 1
+                    ? `${selected.length} clips selected`
+                    : selectedClip
+                      ? clipName(selectedClip, assets)
+                      : 'Select a clip'
+                }
+                options={
+                  project?.tracks.flatMap((track, index) =>
+                    track.clips.map((clip) => ({
+                      value: clip.id,
+                      label: `${clipName(clip, assets)} · ${trackName(track, index)} · ${formatTime(clip.startUs)}`,
+                    })),
+                  ) ?? []
+                }
+                onChange={(id) => props.onSelect(id, multiSelect)}
+              />
+            </div>
+          )}
           {!(
             selected.length !== 1 ||
             !selectedClip ||
@@ -710,30 +734,6 @@ export function Timeline(props: Props) {
           )}
         </div>
       </div>
-      {!!total && (
-        <div className="touch-clip-picker">
-          <SettingsSelect
-            label="Select timeline clip"
-            value={null}
-            placeholder={
-              selected.length > 1
-                ? `${selected.length} clips selected`
-                : selectedClip
-                  ? clipName(selectedClip, assets)
-                  : 'Select a clip'
-            }
-            options={
-              project?.tracks.flatMap((track, index) =>
-                track.clips.map((clip) => ({
-                  value: clip.id,
-                  label: `${clipName(clip, assets)} · ${trackName(track, index)} · ${formatTime(clip.startUs)}`,
-                })),
-              ) ?? []
-            }
-            onChange={(id) => props.onSelect(id, multiSelect)}
-          />
-        </div>
-      )}
       {hasTracks ? (
         <>
           <div

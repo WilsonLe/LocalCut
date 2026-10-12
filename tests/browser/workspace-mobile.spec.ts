@@ -1010,13 +1010,17 @@ test('touch tablet controls fit with media and multi-selection open', async ({
   const editor = (await page
     .getByRole('main', { name: 'Video editor' })
     .boundingBox())!;
-  const buttons = await page
-    .locator('.timeline-toolbar button')
-    .evaluateAll((nodes) =>
-      nodes.map((node) => node.getBoundingClientRect().right),
+  // Contextual tools share one row; each remains reachable inside the scroller.
+  for (const button of await page.locator('.timeline-toolbar button').all()) {
+    await button.scrollIntoViewIfNeeded();
+    const bounds = (await button.boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(editor.x);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(
+      editor.x + editor.width,
     );
-  for (const right of buttons)
-    expect(right).toBeLessThanOrEqual(editor.x + editor.width);
+    await expect(button).toBeInViewport();
+  }
+  await fits(page);
   await page
     .getByRole('button', { name: 'Workspace settings', exact: true })
     .click();
