@@ -89,7 +89,10 @@ for (const base of ['/', '/LocalCut/']) {
       await expect(
         dialog.getByRole('button', { name: 'Data & analytics' }),
       ).toHaveCount(0);
-      const tooltip = page.getByRole('tooltip');
+      const tooltip = page.getByRole('dialog', {
+        name: 'OpenRouter connection terms',
+        exact: true,
+      });
       const tooltipBounds = (await tooltip.boundingBox())!;
       expect(tooltipBounds.y).toBeGreaterThanOrEqual(0);
       expect(tooltipBounds.y + tooltipBounds.height).toBeLessThanOrEqual(844);
@@ -825,7 +828,10 @@ test.describe('AI settings touch disclosure', () => {
         exact: true,
       });
       await trigger.tap();
-      const tooltip = page.getByRole('tooltip');
+      const tooltip = page.getByRole('dialog', {
+        name: 'OpenRouter connection terms',
+        exact: true,
+      });
       await expect(tooltip).toBeVisible();
       const bounds = (await tooltip.boundingBox())!;
       expect(bounds.y).toBeGreaterThanOrEqual(0);
@@ -844,3 +850,56 @@ test.describe('AI settings touch disclosure', () => {
     });
   }
 });
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`OpenRouter terms policy links are reachable by keyboard ${base}`, async ({
+    page,
+    context,
+  }) => {
+    await context.route('https://openrouter.ai/**', (route) =>
+      route.fulfill({
+        contentType: 'text/html',
+        body: 'Synthetic policy page',
+      }),
+    );
+    await page.setViewportSize({ width: 430, height: 873 });
+    await page.goto(base);
+    await openAISettings(page);
+    await prepareOpenRouterKey(page);
+    const trigger = page.getByRole('button', {
+      name: 'OpenRouter connection terms',
+      exact: true,
+    });
+    await trigger.focus();
+    await trigger.press('Enter');
+    const disclosure = page.getByRole('dialog', {
+      name: 'OpenRouter connection terms',
+      exact: true,
+    });
+    await expect(disclosure).toBeFocused();
+    await page.keyboard.press('Tab');
+    const terms = disclosure.getByRole('link', {
+      name: 'OpenRouter Terms of Service',
+      exact: true,
+    });
+    await expect(terms).toBeFocused();
+    await expect(terms).toBeInViewport();
+    const opened = context.waitForEvent('page');
+    await terms.press('Enter');
+    const policy = await opened;
+    await expect(policy).toHaveURL('https://openrouter.ai/terms');
+    await policy.close();
+    await page.bringToFront();
+    await expect(terms).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(
+      disclosure.getByRole('link', { name: 'Privacy Policy', exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(disclosure).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await expect(
+      page.getByRole('dialog', { name: 'AI connection', exact: true }),
+    ).toBeVisible();
+  });
+}

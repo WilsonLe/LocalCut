@@ -14,7 +14,11 @@ import {
 } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Tooltip } from '../components/ui/tooltip';
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from '../components/ui/popover';
 import SelectField from './SelectField';
 import { ProviderSettings } from './ProviderSettings';
 import type { ProviderSettingsProps } from './ProviderSettings';
@@ -243,6 +247,7 @@ function OpenRouterConnection({
 }) {
   const [apiKey, setApiKey] = useState('');
   const [method, setMethod] = useState<'choice' | 'key'>('choice');
+  const termsContent = useRef<HTMLDivElement | null>(null);
   return (
     <div
       role="group"
@@ -252,9 +257,31 @@ function OpenRouterConnection({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-1">
           <p className="min-w-0 truncate text-sm font-medium">{profile.name}</p>
-          <Tooltip
-            toggleOnClick
-            content={
+          <Popover>
+            <PopoverTrigger
+              openOnHover
+              delay={200}
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`${profile.name} connection terms`}
+                />
+              }
+            >
+              <Info aria-hidden="true" />
+            </PopoverTrigger>
+            <PopoverContent
+              ref={termsContent}
+              aria-label={`${profile.name} connection terms`}
+              initialFocus={(type) =>
+                type === 'keyboard' || type === 'touch'
+                  ? termsContent.current
+                  : false
+              }
+              className="max-h-[min(32rem,var(--available-height))] w-64 border-0 bg-foreground px-3 py-2 text-xs text-background shadow-md"
+            >
               <section
                 aria-label="OpenRouter connection terms"
                 className="space-y-2 text-xs leading-relaxed select-text"
@@ -304,17 +331,8 @@ function OpenRouterConnection({
                   , along with your selected model providers’ policies.
                 </p>
               </section>
-            }
-          >
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`${profile.name} connection terms`}
-            >
-              <Info aria-hidden="true" />
-            </Button>
-          </Tooltip>
+            </PopoverContent>
+          </Popover>
         </div>
         <div className="flex items-center gap-2">
           {management}

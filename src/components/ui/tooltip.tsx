@@ -33,7 +33,7 @@ export function Tooltip({
             id={id}
             role="tooltip"
             data-slot="tooltip-content"
-            className="max-h-[min(32rem,var(--available-height))] max-w-64 overflow-y-auto rounded-md bg-foreground px-3 py-2 text-xs leading-relaxed text-background shadow-md"
+            className="max-w-64 rounded-md bg-foreground px-3 py-2 text-xs leading-relaxed text-background shadow-md"
           >
             {content}
           </TooltipPrimitive.Popup>
