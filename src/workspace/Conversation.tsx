@@ -576,7 +576,10 @@ export function Conversation(props: ConversationProps) {
       const callback = takePendingCallback();
       void (async () => {
         try {
-          retireRemovedProviderCredentials(configuration.current.profiles[0]);
+          await retireRemovedProviderCredentials(
+            configuration.current.profiles[0],
+          );
+          if (!active) return;
           if (getWorkspacePreferences().preferences.aiProviders)
             saveWorkspacePreferences({
               aiProviders: JSON.stringify(configuration.current),

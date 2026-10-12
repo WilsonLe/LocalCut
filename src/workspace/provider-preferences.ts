@@ -73,7 +73,8 @@ export function parseProviderConfiguration(raw: string): ProviderConfiguration {
     if (!account) return empty;
     const profile: ProviderProfile = {
       id: account.id,
-      name: 'OpenRouter',
+      // Speech checkpoints include this legacy name in their immutable route identity.
+      name: account.name,
       kind: 'openrouter',
     };
     const routes: ServiceRoutes = {

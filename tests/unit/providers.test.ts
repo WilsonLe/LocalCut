@@ -228,7 +228,7 @@ describe('portable single-provider migration', () => {
   it('retains one selected OpenRouter namespace and choices, strips all backups and unsupported credentials', () => {
     const result = parseProviderConfiguration(JSON.stringify(legacy));
     expect(result).toEqual({
-      profiles: [{ id: 'two', name: 'OpenRouter', kind: 'openrouter' }],
+      profiles: [{ id: 'two', name: 'Personal', kind: 'openrouter' }],
       routes: {
         llm: [{ providerId: 'two', model: 'selected' }],
         tts: [{ providerId: 'two', model: 'speech', voice: 'Kore' }],
@@ -242,6 +242,28 @@ describe('portable single-provider migration', () => {
     expect(accountCredentialKey(result.profiles[0]!)).toBe(
       'localcut.openrouter-credential.v1:two',
     );
+  });
+  it('preserves the exact historical speech route identity for a named single OpenRouter account', () => {
+    const original = {
+      profiles: [{ id: 'studio', name: 'Studio', kind: 'openrouter' }],
+      routes: {
+        llm: [{ providerId: 'studio', model: 'chat' }],
+        tts: [{ providerId: 'studio', model: 'speech', voice: 'Kore' }],
+        stt: [{ providerId: 'local', model: 'whisper' }],
+      },
+    };
+    const migrated = parseProviderConfiguration(JSON.stringify(original));
+    // Conversation's existing speech checkpoint identity includes this whole profile.
+    const originalIdentity = JSON.stringify({
+      routes: [{ providerId: 'studio' }],
+      profiles: original.profiles,
+    });
+    const migratedIdentity = JSON.stringify({
+      routes: migrated.routes.tts.map(({ providerId }) => ({ providerId })),
+      profiles: migrated.profiles,
+    });
+    expect(migratedIdentity).toBe(originalIdentity);
+    expect(migrated.routes).toEqual(original.routes);
   });
   it('never promotes removed remote STT backup and defaults unsupported-only imports to local', () => {
     const value = structuredClone(legacy);

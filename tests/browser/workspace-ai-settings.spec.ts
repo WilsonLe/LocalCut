@@ -75,6 +75,125 @@ for (const base of ['/', '/LocalCut/']) {
       await page.reload();
     }
   });
+  test(`single OpenRouter retires pending-only ChatGPT sign-ins from other tabs ${base}`, async ({
+    page,
+    context,
+  }) => {
+    const remote: string[] = [];
+    await context.route('https://**/*', (route) => {
+      remote.push(route.request().url());
+      return route.abort();
+    });
+    await page.goto(base);
+    await openAISettings(page);
+    await page.evaluate(() => {
+      for (const suffix of ['', ':fresh-account']) {
+        // Old begin() persisted its host before an async first-time exchange.
+        localStorage.setItem(
+          `localcut.chatgpt-host.v1${suffix}`,
+          'urn:uuid:00000000-0000-0000-0000-000000000000',
+        );
+        localStorage.removeItem(`localcut.chatgpt-authority.v1${suffix}`);
+        sessionStorage.setItem(
+          `localcut.chatgpt-pkce.v1${suffix}`,
+          JSON.stringify({ authority: null, credentialSession: null }),
+        );
+      }
+    });
+    await page.evaluate(async () => {
+      let release!: () => void;
+      let acquired!: () => void;
+      const started = new Promise<void>((resolve) => {
+        acquired = resolve;
+      });
+      const completed = navigator.locks.request(
+        'localcut-chatgpt-credentials-v1',
+        async () => {
+          acquired();
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          // Simulate an old exchange already inside its guarded final token save.
+          localStorage.setItem(
+            'localcut.chatgpt-authority.v1:fresh-account',
+            'old-committed-session',
+          );
+          localStorage.setItem(
+            'localcut.chatgpt-credentials.v1:fresh-account',
+            JSON.stringify({
+              sessionId: 'old-committed-session',
+              accessToken: 'synthetic-old-token',
+            }),
+          );
+        },
+      );
+      Object.assign(window, {
+        finishLegacyChatGPT: async () => {
+          release();
+          await completed;
+        },
+      });
+      await started;
+    });
+    const current = await context.newPage();
+    await current.goto(base);
+    await openAISettings(current);
+    expect(
+      await current.evaluate(() =>
+        localStorage.getItem('localcut.chatgpt-authority.v1:fresh-account'),
+      ),
+    ).toBeNull();
+    await page.evaluate(() =>
+      (
+        window as unknown as { finishLegacyChatGPT(): Promise<void> }
+      ).finishLegacyChatGPT(),
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          ['', ':fresh-account'].every(
+            (suffix) =>
+              /^[a-f0-9-]{36}$/.test(
+                localStorage.getItem(
+                  `localcut.chatgpt-authority.v1${suffix}`,
+                ) ?? '',
+              ) &&
+              localStorage.getItem(
+                `localcut.chatgpt-credentials.v1${suffix}`,
+              ) === null &&
+              localStorage.getItem(`localcut.chatgpt-host.v1${suffix}`) ===
+                null,
+          ),
+        ),
+      )
+      .toBe(true);
+    const retired = await page.evaluate(() =>
+      ['', ':fresh-account'].map((suffix) => ({
+        pending: JSON.parse(
+          sessionStorage.getItem(`localcut.chatgpt-pkce.v1${suffix}`)!,
+        ),
+        authority: localStorage.getItem(
+          `localcut.chatgpt-authority.v1${suffix}`,
+        ),
+        credential: localStorage.getItem(
+          `localcut.chatgpt-credentials.v1${suffix}`,
+        ),
+        host: localStorage.getItem(`localcut.chatgpt-host.v1${suffix}`),
+      })),
+    );
+    for (const state of retired) {
+      expect(state.pending).toEqual({
+        authority: null,
+        credentialSession: null,
+      });
+      expect(state.authority).toMatch(/^[a-f0-9-]{36}$/);
+      expect(state.authority).not.toBe(state.pending.authority);
+      expect(state.credential).toBeNull();
+      expect(state.host).toBeNull();
+    }
+    expect(remote).toEqual([]);
+    await current.close();
+  });
   test(`single OpenRouter migrates accounts and backup services, restores one key and disconnects across tabs ${base}`, async ({
     page,
     context,
@@ -180,7 +299,7 @@ for (const base of ['/', '/LocalCut/']) {
       unrelated: localStorage.getItem('unrelated-user-record'),
     }));
     expect(state.config.profiles).toEqual([
-      { id: 'two', name: 'OpenRouter', kind: 'openrouter' },
+      { id: 'two', name: 'Personal', kind: 'openrouter' },
     ]);
     expect(state.config.routes.llm).toEqual([
       { providerId: 'two', model: 'test/model' },

@@ -22,7 +22,12 @@ function tone() {
     );
   return bytes;
 }
-async function connect(page: Page, context: BrowserContext, base: string) {
+async function connect(
+  page: Page,
+  context: BrowserContext,
+  base: string,
+  profileName = 'OpenRouter',
+) {
   await context.route('https://openrouter.ai/api/v1/models**', (route) =>
     route.request().url().endsWith('/endpoints')
       ? route.fulfill({
@@ -51,7 +56,7 @@ async function connect(page: Page, context: BrowserContext, base: string) {
         }),
   );
   // Controlled remote alignment; production UI/native audio/storage remain real Chrome.
-  await context.addInitScript(() => {
+  await context.addInitScript((profileName) => {
     if (!localStorage.getItem('localcut.workspace-preferences.v1'))
       localStorage.setItem(
         'localcut.workspace-preferences.v1',
@@ -60,7 +65,7 @@ async function connect(page: Page, context: BrowserContext, base: string) {
           preferences: {
             aiProviders: JSON.stringify({
               profiles: [
-                { id: 'openrouter', name: 'OpenRouter', kind: 'openrouter' },
+                { id: 'openrouter', name: profileName, kind: 'openrouter' },
               ],
               routes: {
                 llm: [{ providerId: 'openrouter', model: '' }],
@@ -76,7 +81,7 @@ async function connect(page: Page, context: BrowserContext, base: string) {
           },
         }),
       );
-  });
+  }, profileName);
   await context.route(
     'https://openrouter.ai/api/v1/audio/transcriptions',
     (route) =>
@@ -917,7 +922,18 @@ for (const base of ['/', '/LocalCut/']) {
           .catch(() => {});
       },
     );
-    let dialog = await connect(page, context, base);
+    let dialog = await connect(page, context, base, 'Studio');
+    expect(
+      await page.evaluate(
+        () =>
+          JSON.parse(
+            JSON.parse(
+              localStorage.getItem('localcut.workspace-preferences.v1')!,
+            ).preferences.aiProviders,
+          ).profiles[0].name,
+      ),
+    ).toBe('Studio');
+
     await dialog
       .getByRole('button', { name: 'Generate speech', exact: true })
       .click();
@@ -1271,7 +1287,18 @@ for (const base of ['/', '/LocalCut/']) {
         });
       },
     );
-    let dialog = await connect(page, context, base);
+    let dialog = await connect(page, context, base, 'Studio');
+    expect(
+      await page.evaluate(
+        () =>
+          JSON.parse(
+            JSON.parse(
+              localStorage.getItem('localcut.workspace-preferences.v1')!,
+            ).preferences.aiProviders,
+          ).profiles[0].name,
+      ),
+    ).toBe('Studio');
+
     await dialog
       .getByRole('combobox', { name: 'Speech timing', exact: true })
       .click();

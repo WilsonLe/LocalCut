@@ -42,22 +42,53 @@ export function forgetAccount(profile: ProviderProfile) {
 }
 
 /** Retire removed account authority without restoring clients or sending requests. */
-export function retireRemovedProviderCredentials(profile?: ProviderProfile) {
+export async function retireRemovedProviderCredentials(
+  profile?: ProviderProfile,
+) {
+  const hasLegacyChatGPT = [
+    ...Object.keys(window.localStorage),
+    ...Object.keys(window.sessionStorage),
+  ].some((key) => key.startsWith('localcut.chatgpt-'));
+  // Serialize retirement with the old adapter's final authority check and token save.
+  if (hasLegacyChatGPT && navigator.locks)
+    await navigator.locks.request('localcut-chatgpt-credentials-v1', () =>
+      retireAccounts(profile),
+    );
+  else retireAccounts(profile);
+}
+
+function retireAccounts(profile?: ProviderProfile) {
   const keep = accountCredentialKey(
     profile ?? { id: 'openrouter', kind: 'openrouter' },
   );
+  const chatgptAuthority = 'localcut.chatgpt-authority.v1';
+  const chatgptCredential = 'localcut.chatgpt-credentials.v1';
+  const chatgptHost = 'localcut.chatgpt-host.v1';
+  const chatgptPending = 'localcut.chatgpt-pkce.v1';
+  const namespaces = new Set<string>();
+  for (const key of [
+    ...Object.keys(window.localStorage),
+    ...Object.keys(window.sessionStorage),
+  ]) {
+    const prefix = [
+      chatgptAuthority,
+      chatgptCredential,
+      chatgptHost,
+      chatgptPending,
+    ].find((candidate) => key === candidate || key.startsWith(`${candidate}:`));
+    if (prefix) namespaces.add(key.slice(prefix.length));
+  }
+  // Old first-time exchanges captured null authority before they had a token.
+  // Persistent host records also reveal pending flows owned by another tab.
+  for (const suffix of namespaces) {
+    window.localStorage.setItem(
+      `${chatgptAuthority}${suffix}`,
+      crypto.randomUUID(),
+    );
+    window.localStorage.removeItem(`${chatgptCredential}${suffix}`);
+    window.localStorage.removeItem(`${chatgptHost}${suffix}`);
+  }
   for (const key of Object.keys(window.localStorage)) {
-    if (
-      key === 'localcut.chatgpt-credentials.v1' ||
-      key.startsWith('localcut.chatgpt-credentials.v1:')
-    ) {
-      const suffix = key.slice('localcut.chatgpt-credentials.v1'.length);
-      window.localStorage.setItem(
-        `localcut.chatgpt-authority.v1${suffix}`,
-        crypto.randomUUID(),
-      );
-      window.localStorage.removeItem(key);
-    }
     if (
       (key === CREDENTIAL_STORAGE_KEY ||
         key.startsWith(`${CREDENTIAL_STORAGE_KEY}:`)) &&

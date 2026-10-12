@@ -38,10 +38,10 @@ export interface ProviderSettingsProps {
 }
 export function ProviderSettings(props: ProviderSettingsProps) {
   const config = props.providerConfiguration;
-  const profile: ProviderProfile = config.profiles[0] ?? {
-    id: 'openrouter',
+  // Legacy names remain in saved task identities; this UI has one fixed provider label.
+  const profile: ProviderProfile = {
+    ...(config.profiles[0] ?? { id: 'openrouter', kind: 'openrouter' }),
     name: 'OpenRouter',
-    kind: 'openrouter',
   };
   const patch = (fn: (next: ProviderConfiguration) => void) => {
     const next = structuredClone(config);

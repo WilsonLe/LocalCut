@@ -191,7 +191,7 @@ export default function AIConnectionDialog({
           }}
         >
           <DialogHeader>
-            <DialogTitle>Disconnect {account?.name}?</DialogTitle>
+            <DialogTitle>Disconnect OpenRouter?</DialogTitle>
             <DialogDescription>
               Remove the saved OpenRouter key from this browser? You can connect
               again later.
