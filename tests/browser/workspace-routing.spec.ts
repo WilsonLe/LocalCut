@@ -1,4 +1,5 @@
 import { fulfillChatTitle } from './chat-title-fixture';
+import { openWorkspaceGroup } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -276,7 +277,10 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByRole('button', { name: 'Saved routed title', exact: true }),
     ).toBeVisible();
-    await page.getByRole('button', { name: 'LocalCut home' }).click();
+    const projectMenu = await openWorkspaceGroup(page, 'Project');
+    await projectMenu
+      .getByRole('menuitem', { name: 'Open project', exact: true })
+      .click();
     await expect(page).toHaveURL(
       new RegExp(`/projects\\?project=${ids.first}$`),
     );
