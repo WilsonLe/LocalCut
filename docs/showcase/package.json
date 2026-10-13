@@ -1,0 +1,13 @@
+{
+  "name": "localcut-brand-showcase",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "hyperframes check",
+    "render": "python3 render.py"
+  },
+  "dependencies": {
+    "hyperframes": "0.8.145",
+    "gsap": "3.14.2"
+  }
+}
