@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { newProject, validateProject } from '../../src/core/model';
+import { assetIds, newProject, validateProject } from '../../src/core/model';
 import { applyOperations, parseBatch } from '../../src/core/commands';
-import { storyboardSchema } from '../../src/core/storyboard';
+import {
+  remapStoryboardAssets,
+  storyboardSchema,
+} from '../../src/core/storyboard';
 import { projectContext, storyboardContext } from '../../src/ai/context';
 import { toolDefinitions } from '../../src/ai/tools';
 import { assistantCapabilities } from '../../src/ai/actions';
@@ -262,4 +265,64 @@ describe('project storyboard', () => {
     expect(apply).toHaveBeenCalledOnce();
     session.close();
   });
+});
+
+it('persists image geometry and remaps only local image references', () => {
+  const original = applyOperations(newProject('Images'), [
+    {
+      type: 'upsertStoryboardElements',
+      elements: [
+        {
+          id: 'picture',
+          type: 'image',
+          fileId: 'local-image',
+          status: 'saved',
+          scale: [1, -1],
+          crop: null,
+        },
+      ],
+    },
+  ]).project;
+  expect(assetIds(original)).toEqual(['local-image']);
+  const moved = applyOperations(original, [
+    { type: 'upsertStoryboardElements', elements: [{ id: 'picture', x: 123 }] },
+  ]).project;
+  expect(moved.storyboard!.elements[0]).toMatchObject({
+    fileId: 'local-image',
+    x: 123,
+    scale: [1, -1],
+  });
+  expect(
+    remapStoryboardAssets(
+      moved.storyboard,
+      new Map([['local-image', 'copied-image']]),
+    )!.elements[0]!.fileId,
+  ).toBe('copied-image');
+  expect(() =>
+    applyOperations(original, [
+      {
+        type: 'upsertStoryboardElements',
+        elements: [
+          {
+            id: 'picture',
+            crop: {
+              x: 90,
+              y: 0,
+              width: 20,
+              height: 10,
+              naturalWidth: 100,
+              naturalHeight: 100,
+            },
+          },
+        ],
+      },
+    ]),
+  ).toThrow('crop');
+  expect(
+    storyboardSchema.safeParse({
+      elements: [
+        { id: 'x', type: 'image', dataURL: 'data:image/png;base64,AA==' },
+      ],
+    }).success,
+  ).toBe(false);
 });

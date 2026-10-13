@@ -31,6 +31,7 @@ import {
   toolDefinitions,
   editingProperties,
   parseTool,
+  proposalBatch,
   searchTextLibrary,
 } from '../../src/ai/tools';
 import { assistantCapabilities } from '../../src/ai/actions';
@@ -4553,6 +4554,7 @@ describe('complete capability discovery and recovery', () => {
     export: true,
     storyboardExport: true,
     storyboardStore: true,
+    storyboardInsertImage: true,
     transcriptionStatus: true,
     transcription: true,
     transcriptionPreparation: true,
@@ -4567,6 +4569,7 @@ describe('complete capability discovery and recovery', () => {
     ['export', 'export', 'export'],
     ['export_storyboard', 'storyboard', 'storyboardExport'],
     ['store_storyboard', 'storyboard', 'storyboardStore'],
+    ['insert_storyboard_image', 'storyboard', 'storyboardInsertImage'],
     ['transcribe', 'transcription', 'transcription'],
     ['prepare_transcription', 'transcription', 'transcriptionPreparation'],
     ['index_asset', 'indexing', 'indexing'],
@@ -4635,6 +4638,7 @@ describe('complete capability discovery and recovery', () => {
       'redo',
       'export',
       'export_storyboard',
+      'insert_storyboard_image',
       'store_storyboard',
       'transcribe',
       'track_mask',
@@ -6581,4 +6585,257 @@ it('uses resolved library-only media for canonical timeline edits without retain
     result: { kind: 'edit' },
   });
   await a.dispose();
+});
+
+describe('local storyboard image actions', () => {
+  it.each(['review', 'requested'] as const)(
+    'inserts authorized sources with %s execution and metadata-only receipts',
+    async (execution) => {
+      const f = fixture();
+      const insert = vi.fn(
+        (
+          projectId: string,
+          options: import('../../src/editor').StoryboardImageOptions,
+          revision: number,
+          requestId?: string,
+        ) =>
+          new Jobs().start(async () => {
+            const receipt = await f.editor.commands.apply({
+              projectId,
+              expectedRevision: revision,
+              requestId: requestId!,
+              operations: [
+                {
+                  type: 'upsertStoryboardElements',
+                  elements: [
+                    {
+                      id: options.elementId,
+                      type: 'image',
+                      fileId: 'local-png',
+                      status: 'saved',
+                      scale: [1, 1],
+                      crop: null,
+                    },
+                  ],
+                },
+              ],
+            });
+            return {
+              projectId,
+              revision: receipt.appliedRevision,
+              assetId: 'local-png',
+              elementId: options.elementId,
+              receipt,
+            };
+          }),
+      );
+      f.editor.storyboard = { insertImage: insert };
+      const p = provider(
+        [
+          [final('', [call('load_skill', { skillId: 'storyboard' })])],
+          [
+            final('', [
+              call('inspect_storyboard', {}, 'board'),
+              call('inspect_capabilities', {}, 'capabilities'),
+            ]),
+          ],
+          [
+            final('', [
+              call('propose_action', {
+                summary: 'Insert the shot picture',
+                action: {
+                  type: 'insert_storyboard_image',
+                  options: {
+                    assetId: 'asset',
+                    elementId: 'picture',
+                    timeUs: 1000000,
+                  },
+                },
+              }),
+            ]),
+          ],
+          [final('Picture inserted.')],
+        ],
+        false,
+      );
+      const a = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test',
+        execution,
+      });
+      const turn = await a.run('Insert a picture from the video into the board')
+        .completion;
+      if (execution === 'review') {
+        expect(insert).not.toHaveBeenCalled();
+        await a.approveProposal(turn.proposalIds[0]!);
+      }
+      expect(insert).toHaveBeenCalledTimes(1);
+      expect(f.project().storyboard?.elements[0]).toMatchObject({
+        type: 'image',
+        fileId: 'local-png',
+      });
+      expect(a.snapshot().proposals[0]?.result).toMatchObject({
+        kind: 'storyboard_image',
+        assetId: 'local-png',
+        revision: 1,
+      });
+      const sent = JSON.stringify(p.requests);
+      expect(sent).not.toContain('data:image');
+      await a.dispose();
+    },
+  );
+  it('rejects a source outside the authorized scope before local work', async () => {
+    const f = fixture();
+    const insert = vi.fn();
+    f.editor.storyboard = { insertImage: insert };
+    const p = provider(
+      [
+        [final('', [call('load_skill', { skillId: 'storyboard' })])],
+        [
+          final('', [
+            call('propose_action', {
+              summary: 'Insert',
+              action: {
+                type: 'insert_storyboard_image',
+                options: { assetId: 'foreign', elementId: 'picture' },
+              },
+            }),
+          ]),
+        ],
+        [final('Attach or resolve this source first.')],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test',
+      execution: 'requested',
+    });
+    await a.run('Insert the image').completion;
+    expect(insert).not.toHaveBeenCalled();
+    expect(f.project().storyboard).toBeUndefined();
+    expect(JSON.stringify(p.requests)).toContain(
+      'authorized project Media scope',
+    );
+    await a.dispose();
+  });
+});
+
+describe('canonical storyboard image scope', () => {
+  const image = {
+    id: 'picture',
+    type: 'image' as const,
+    fileId: 'foreign-image',
+    status: 'saved' as const,
+    scale: [1, 1] as [1, 1],
+  };
+  it.each(['upsertStoryboardElements', 'setStoryboard', 'patch'] as const)(
+    'rejects foreign image references through %s',
+    (type) => {
+      let project = newProject('Scope');
+      if (type === 'patch')
+        project = applyOperations(project, [
+          {
+            type: 'upsertStoryboardElements',
+            elements: [{ ...image, fileId: 'authorized-image' }],
+          },
+        ]).project;
+      const operations: EditOperation[] =
+        type === 'setStoryboard'
+          ? [
+              {
+                type,
+                storyboard: {
+                  elements: [
+                    applyOperations(newProject('Image'), [
+                      { type: 'upsertStoryboardElements', elements: [image] },
+                    ]).project.storyboard!.elements[0]!,
+                  ],
+                  backgroundColor: '#fff',
+                },
+              },
+            ]
+          : [
+              {
+                type: 'upsertStoryboardElements',
+                elements: [
+                  type === 'patch'
+                    ? { id: 'picture', fileId: 'foreign-image' }
+                    : image,
+                ],
+              },
+            ];
+      expect(() =>
+        proposalBatch(project, operations, 'request', Infinity, []),
+      ).toThrow('selected library assets');
+      expect(
+        proposalBatch(project, operations, 'request', Infinity, [
+          'foreign-image',
+        ]).operations,
+      ).toHaveLength(1);
+    },
+  );
+  it.each(['validate_edits', 'propose_edits'] as const)(
+    'rejects stale resolved image scope before %s validates or reads its source',
+    async (tool) => {
+      const f = libraryScopeFixture();
+      const p = provider(
+        [
+          [final('', [call('load_skill', { skillId: 'editing' })])],
+          [
+            final('', [
+              call('resolve_library_assets', {
+                folderId: 'folder',
+                expectedRevision: 7,
+              }),
+            ]),
+          ],
+          [final('', [call('load_skill', { skillId: 'storyboard' })])],
+          [
+            final('', [
+              call(tool, {
+                ...(tool === 'propose_edits'
+                  ? { summary: 'Insert source' }
+                  : {}),
+                operations: [
+                  {
+                    type: 'upsertStoryboardElements',
+                    elements: [{ ...image, fileId: 'library-clip' }],
+                  },
+                ],
+              }),
+            ]),
+          ],
+          [final('Resolve Media again.')],
+        ],
+        false,
+      );
+      const stream = p.stream.getMockImplementation()!;
+      let round = 0;
+      p.stream.mockImplementation(async function* (...args) {
+        if (round++ === 3) f.library.revision++;
+        yield* stream(...args);
+      });
+      const a = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test',
+        libraryAccess: 'project',
+        execution: 'requested',
+      });
+      await a.run('Insert an image from Sydney').completion;
+      expect(f.editor.commands.validate).not.toHaveBeenCalled();
+      expect(f.editor.commands.apply).not.toHaveBeenCalled();
+      expect(f.editor.assets.inspect).not.toHaveBeenCalled();
+      expect(JSON.stringify(p.requests)).toContain(
+        'Media changed after scope resolution',
+      );
+      await a.dispose();
+    },
+  );
 });

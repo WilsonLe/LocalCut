@@ -1,6 +1,6 @@
 # Storyboard authoring, export and reuse
 
-Storyboard is the project's local Excalidraw vector/text whiteboard. Open the **Storyboard** tab or ask Klip to build or revise a diagram. The [API contract](api.md#storyboard-export-and-media-reuse) defines shared export/storage options; [AI contracts](ai.md#workspace-requested-execution) define requested workspace execution and headless review.
+Storyboard is the project's local Excalidraw whiteboard for drawings, text and images. Open the **Storyboard** tab or ask Klip to build or revise a diagram. The [API contract](api.md#storyboard-export-and-media-reuse) defines shared export/storage options; [AI contracts](ai.md#workspace-requested-execution) define requested workspace execution and headless review.
 
 ## Supported authoring workflows
 
@@ -16,6 +16,12 @@ Storyboard is the project's local Excalidraw vector/text whiteboard. Open the **
 
 The runtime storyboard skill includes detailed recipes and canonical schema discovery. Klip loads only domains needed for the current request. [The contributor AI guide](../src/ai/AGENTS.md) explains how those prompts and discovery rules are maintained.
 
+## Insert pictures
+
+Choose **Upload image** or **Insert image from Media** in the Storyboard menu. Media accepts ready images and videos; select the source-relative video time for a still. Each insertion saves a PNG snapshot in Media and places it on the board. Moving, cropping, flipping, resizing, grouping and layering use ordinary Excalidraw controls. Undo removes the placement while retaining its Media asset.
+
+Klip loads `storyboard` and calls `propose_action` with `insert_storyboard_image` and `options: { assetId, elementId, timeUs?, x?, y?, width?, height?, frameId? }`. Resolve nested project Media with the editing skill or attach the source. Use saved index evidence to choose representative frames; uncertain coverage stays unknown. The receipt returns the new local image asset ID and authored revision. The agent receives IDs and geometry, never pixels. All three export formats include the actual pictures, and original-inclusive backups retain them.
+
 ## Export formats
 
 The canvas menu offers **Export PNG**, **Export SVG**, **Export editable scene**, and **Store PNG in Media**. Toggle entire board/selected elements, background/transparency and output scale before exporting. The UI flushes unfinished drawing writes before taking a saved revision. Klip can additionally set padding, a plain filename and a project Media folder ID.
@@ -30,7 +36,7 @@ See the production Chrome [desktop export menu](images/storyboard-export-menu.pn
 
 Exports can cover the whole board or selected IDs. Selected frames include descendants, groups include members, and shapes include bound labels. Arrow bindings to excluded shapes are detached. Choose a frame for a shot-sized image or group for an overlay. Selected contents determine the image bounds, including export padding; frame selection does not impose an arbitrary video output resolution. Empty images fail; an empty editable scene can be exported. Oversized PNG requests explain how to reduce scale/select a region or use SVG.
 
-Local exports include authored text even if text sharing with a chat provider is disabled. The agent receives artifact metadata rather than file bytes. A requested agent export creates a local artifact with a **Save** action; the user downloads it separately. No cloud account, publishing or provider upload is involved. Original images, web embeds and live collaboration remain outside the supported vector/text diagram.
+Local exports include authored text even if text sharing with a chat provider is disabled. The agent receives artifact metadata rather than file bytes. A requested agent export creates a local artifact with a **Save** action; the user downloads it separately. No cloud account, publishing or provider upload is involved. Images remain local; web embeds and live collaboration are unavailable.
 
 ## Diagram to reusable Media and timeline
 

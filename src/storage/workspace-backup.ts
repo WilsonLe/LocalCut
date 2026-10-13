@@ -1,3 +1,4 @@
+import { remapStoryboardAssets } from '../core/storyboard';
 import { z } from 'zod';
 import {
   assetIds,
@@ -250,6 +251,7 @@ export function remapWorkspaceBackup(b: WorkspaceBackup, ready: Set<string>) {
     const project = (p: Project, revision = p.revision) =>
       validateProject({
         ...p,
+        storyboard: remapStoryboardAssets(p.storyboard, assets),
         id,
         revision,
         tracks: p.tracks.map((t) => ({

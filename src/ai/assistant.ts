@@ -1,3 +1,5 @@
+import { applyOperations } from '../core/commands';
+import type { EditOperation } from '../core/commands';
 import { libraryContext, resolveLibraryAssets } from './library-context';
 import { libraryDescendants } from '../core/media-library';
 import type { LibraryOperation } from '../core/media-library';
@@ -726,18 +728,17 @@ export function createAssistant(options: AssistantOptions) {
           }
         };
         const validate = async (operations: unknown[]) => {
-          // These canonical operations are the only ways to introduce a source asset.
-          if (
-            operations.some((operation) => {
-              const op = operation as {
-                type?: string;
-                clip?: { assetId?: string };
-                patch?: { assetId?: string };
-              };
-              return needsResolvedAsset(op.clip?.assetId ?? op.patch?.assetId);
-            })
-          )
-            await checkLibraryScope();
+          // Derive source dependencies from the canonical resulting document so
+          // timeline and storyboard references use the same scope/revision gate.
+          let dependsOnLibrary = false;
+          try {
+            dependsOnLibrary = assetIds(
+              applyOperations(snapshot, operations as EditOperation[]).project,
+            ).some(needsResolvedAsset);
+          } catch {
+            // proposalBatch below owns the existing semantic edit error contract.
+          }
+          if (dependsOnLibrary) await checkLibraryScope();
           const batch = proposalBatch(
             snapshot,
             operations,
@@ -1184,10 +1185,22 @@ export function createAssistant(options: AssistantOptions) {
               }
               if (
                 (action.type === 'index_asset' ||
-                  action.type === 'transcribe') &&
-                needsResolvedAsset(action.assetId)
+                  action.type === 'transcribe' ||
+                  action.type === 'insert_storyboard_image') &&
+                needsResolvedAsset(
+                  action.type === 'insert_storyboard_image'
+                    ? action.options.assetId
+                    : action.assetId,
+                )
               )
                 await checkLibraryScope();
+              if (action.type === 'insert_storyboard_image') {
+                aiInvariant(
+                  availableAssets.has(action.options.assetId),
+                  'TOOL_NOT_ALLOWED',
+                  'Image source is outside the authorized project Media scope. Resolve or attach it first.',
+                );
+              }
               if (action.type === 'track_mask') {
                 const clip = snapshot.tracks
                   .flatMap((track) => track.clips)
@@ -1276,8 +1289,13 @@ export function createAssistant(options: AssistantOptions) {
                 proposal,
                 libraryDependent ||
                   ((action.type === 'index_asset' ||
-                    action.type === 'transcribe') &&
-                    needsResolvedAsset(action.assetId)),
+                    action.type === 'transcribe' ||
+                    action.type === 'insert_storyboard_image') &&
+                    needsResolvedAsset(
+                      action.type === 'insert_storyboard_image'
+                        ? action.options.assetId
+                        : action.assetId,
+                    )),
               );
               staged.push(proposal);
               return {
@@ -2083,6 +2101,37 @@ export function createAssistant(options: AssistantOptions) {
                 name: artifact.file.name,
                 size: artifact.file.size,
               };
+            } else if (action.type === 'insert_storyboard_image') {
+              aiInvariant(
+                editor.storyboard?.insertImage,
+                'TOOL_NOT_ALLOWED',
+                'Storyboard image insertion is unavailable.',
+              );
+              aiInvariant(
+                new Set([...assetIds(current), ...proposalAssetIds]).has(
+                  action.options.assetId,
+                ),
+                'TOOL_NOT_ALLOWED',
+                'Image source is outside the captured asset scope.',
+              );
+              const inserted = await runJob(
+                editor.storyboard.insertImage(
+                  projectId,
+                  action.options,
+                  proposal.batch.expectedRevision,
+                  proposal.batch.requestId,
+                ),
+              );
+              aiInvariant(
+                inserted.projectId === projectId &&
+                  inserted.revision === proposal.batch.expectedRevision + 1,
+                'REVISION_CONFLICT',
+                'Storyboard image receipt captured a different revision.',
+              );
+              if (!selectedAssetIds.includes(inserted.assetId))
+                selectedAssetIds.push(inserted.assetId);
+              proposal.receipt = structuredClone(inserted.receipt);
+              result = { kind: 'storyboard_image', ...inserted };
             } else if (action.type === 'store_storyboard') {
               aiInvariant(
                 editor.storyboard?.store,
