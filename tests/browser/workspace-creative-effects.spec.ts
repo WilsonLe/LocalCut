@@ -858,6 +858,7 @@ for (const base of ['/', '/LocalCut/']) {
     await balance.fill('');
     await balance.pressSequentially('-0.5');
     await expect(balance).toHaveValue('-0.5');
+    await form.getByRole('tab', { name: 'General', exact: true }).click();
     await form.getByLabel('Speed', { exact: true }).fill('2');
     await form.getByText('Mask', { exact: true }).click();
     await form.getByLabel('Mask feather (pixels)', { exact: true }).fill('1');
