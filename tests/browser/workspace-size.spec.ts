@@ -226,6 +226,10 @@ for (const base of ['/', '/LocalCut/']) {
               exact: true,
             });
             await expect(connection).toBeVisible();
+            // Measure the real settings body after its loading shell is replaced.
+            await expect(
+              connection.getByRole('button', { name: 'Done', exact: true }),
+            ).toBeVisible();
             // The connection disclosure replaces the sharing popover.
             await expect(
               connection.getByRole('button', { name: 'Data & analytics' }),
