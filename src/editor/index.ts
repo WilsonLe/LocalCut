@@ -1,3 +1,6 @@
+import { storyboardImageOptionsSchema } from '../core/storyboard-image';
+import type { StoryboardImageOptions } from '../core/storyboard-image';
+export type { StoryboardImageOptions } from '../core/storyboard-image';
 export type {
   Storyboard,
   StoryboardElement,
@@ -375,6 +378,153 @@ export async function createEditor(options: EditorOptions = {}) {
   const api = {
     tasks,
     storyboard: {
+      async files(project: Project, signal = new AbortController().signal) {
+        active();
+        const { storyboardFiles } =
+          await import('../services/storyboard-images');
+        return storyboardFiles(
+          store,
+          project.storyboard ?? { elements: [], backgroundColor: '#ffffff' },
+          signal,
+        );
+      },
+      insertImage(
+        projectId: string,
+        input: StoryboardImageOptions,
+        expectedRevision: number,
+        requestId: string = crypto.randomUUID(),
+      ) {
+        active();
+        return jobs.start(
+          async (signal, progress) => {
+            const options = storyboardImageOptionsSchema.parse(input);
+            const project = await store.getProject(projectId);
+            invariant(
+              project.revision === expectedRevision,
+              'REVISION_CONFLICT',
+              'Storyboard changed before image insertion',
+            );
+            invariant(
+              !project.storyboard?.elements.some(
+                (e) => e.id === options.elementId,
+              ),
+              'INVALID_COMMAND',
+              'Choose a new image element ID',
+            );
+            invariant(
+              options.frameId === null ||
+                project.storyboard?.elements.some(
+                  (e) =>
+                    e.id === options.frameId &&
+                    e.type === 'frame' &&
+                    !e.isDeleted,
+                ),
+              'INVALID_COMMAND',
+              'Select an existing storyboard frame',
+            );
+            const asset = await store.getAsset(options.assetId);
+            invariant(
+              asset.status === 'ready' &&
+                ['image', 'video'].includes(asset.kind),
+              'INVALID_COMMAND',
+              'Select a ready image or video',
+            );
+            invariant(
+              asset.kind === 'image'
+                ? options.timeUs === 0
+                : options.timeUs < asset.durationUs,
+              'INVALID_COMMAND',
+              'Choose a source timestamp inside the video',
+            );
+            checkAbort(signal);
+            const wait = async <T>(job: import('../services/jobs').Job<T>) => {
+              const cancel = () => job.cancel();
+              signal.addEventListener('abort', cancel, { once: true });
+              if (signal.aborted) cancel();
+              try {
+                return await job.completion;
+              } finally {
+                signal.removeEventListener('abort', cancel);
+              }
+            };
+            progress({ stage: 'Preparing storyboard image' });
+            const pixels =
+              asset.kind === 'image'
+                ? await store.lock(
+                    `asset:${asset.id}`,
+                    'shared',
+                    async () =>
+                      new Blob(
+                        [await (await store.file(asset.id)).arrayBuffer()],
+                        { type: asset.type },
+                      ),
+                    signal,
+                  )
+                : (
+                    await wait(
+                      api.assets.thumbnails(
+                        asset.id,
+                        [options.timeUs],
+                        Math.ceil(options.width),
+                      ),
+                    )
+                  )[0]!.blob;
+            checkAbort(signal);
+            const bitmap = await createImageBitmap(pixels);
+            const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+            let png: Blob;
+            try {
+              canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
+              png = await canvas.convertToBlob({ type: 'image/png' });
+            } finally {
+              bitmap.close();
+              canvas.width = canvas.height = 0;
+            }
+            checkAbort(signal);
+            const image = await wait(
+              api.assets.import(png, 'Storyboard image.png'),
+            );
+            // Imports are durable, even when a later board commit conflicts or is cancelled.
+            await boundLibrary(projectId).place(image.id, [], null);
+            checkAbort(signal);
+            const receipt = await api.commands.apply({
+              projectId,
+              requestId,
+              expectedRevision,
+              operations: [
+                {
+                  type: 'upsertStoryboardElements',
+                  elements: [
+                    {
+                      id: options.elementId,
+                      type: 'image',
+                      fileId: image.id,
+                      status: 'saved',
+                      scale: [1, 1],
+                      crop: null,
+                      x: options.x,
+                      y: options.y,
+                      width: options.width,
+                      height:
+                        options.height ??
+                        (options.width * image.height!) / image.width!,
+                      frameId: options.frameId,
+                    },
+                  ],
+                },
+              ],
+            });
+            return {
+              projectId,
+              revision: receipt.appliedRevision,
+              assetId: image.id,
+              elementId: options.elementId,
+              receipt,
+            };
+          },
+          { acceptCommittedResult: true },
+        );
+      },
       export(
         projectId: string,
         options: StoryboardExportOptions,

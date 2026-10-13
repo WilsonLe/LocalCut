@@ -3,7 +3,7 @@ export const skillCatalog = [
   {
     id: 'storyboard',
     description:
-      'Author and inspect whiteboards, shot plans and diagrams; layout, style, group and layer Excalidraw shapes/text/arrows/frames/freehand; export PNG/SVG/editable scenes, store renders in Media and combine with timeline/evidence/document workflows.',
+      'Author and inspect whiteboards, shot plans and diagrams; layout, style, group and layer Excalidraw shapes/text/arrows/frames/freehand and actual images/video stills; export PNG/SVG/editable scenes, store renders in Media and combine with timeline/evidence/document workflows.',
   },
   {
     id: 'editing',

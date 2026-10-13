@@ -385,6 +385,13 @@ export function validateBackup(value: unknown): ProjectBackup {
       'INVALID_DOCUMENT',
       'Backup lacks asset metadata',
     );
+  for (const e of backup.project.storyboard?.elements ?? [])
+    if (e.type === 'image')
+      invariant(
+        assets.get(e.fileId!)?.kind === 'image',
+        'INVALID_DOCUMENT',
+        'Storyboard requires image metadata',
+      );
   for (const clip of backup.project.tracks.flatMap((t) => t.clips)) {
     if (clip.assetId) {
       const asset = assets.get(clip.assetId)!;
@@ -651,10 +658,13 @@ export function durationUs(project: Project): number {
 }
 export function assetIds(project: Project): string[] {
   return [
-    ...new Set(
-      project.tracks.flatMap((t) =>
+    ...new Set([
+      ...project.tracks.flatMap((t) =>
         t.clips.flatMap((c) => (c.assetId ? [c.assetId] : [])),
       ),
-    ),
+      ...(project.storyboard?.elements.flatMap((e) =>
+        e.type === 'image' && e.fileId ? [e.fileId] : [],
+      ) ?? []),
+    ]),
   ];
 }
