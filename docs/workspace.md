@@ -388,3 +388,7 @@ Right-click a timeline clip, press and hold for 500 ms, or focus it and press Sh
 Chat goals and to-dos persist per session and render as Markdown in the completion disclosure and two icon-only header popovers. Each submitted request updates the current goal before execution; task-list updates follow each iteration and completion requires both goal fulfillment and a cleared checklist. Reload and full-session forks retain current state; response branches retain the selected response's snapshot. Fresh chats start empty. See [the goal lifecycle](ai.md#request-completion-review).
 
 Chat action rows keep sharing and diagnostic metadata under Details. Active work uses icon-only loading with playful tooltip and accessible status wording; cancellation, failures and user-owned Save actions remain available.
+
+## Chat thinking and live drafts
+
+Running chat, review and editing actions show varied stage-relevant text with a subtle left-to-right glow. Reduced-motion and forced-color modes keep readable static text. Goal definition, to-do updates and completion assessments show provisional text directly in the chat as it arrives, without opening a disclosure. The main reply remains separate. Accepted auxiliary text remains available in the completion details and goal/to-do header popovers; failed attempts and cancelled drafts clear without becoming saved session state. Existing scroll-follow controls retain reading position when the user scrolls away.

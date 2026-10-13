@@ -288,4 +288,6 @@ Media inspection rejects unknown container formats with `UNSUPPORTED_CODEC`, pre
 
 ## Assistant session goals
 
+`review_progress` subscription events carry `{ turnId, callId, name, text }` for `request_contract`, `session_todos` and `completion_check`. Text is a cumulative provisional display draft; an empty string resets the attempt. Keep it separate from main `text` events and canonical history/goals. Terminal `tool` completion supplies the accepted result; failure/cancellation retires its draft. Progress grants no tool or editing authority and does not expose opaque reasoning. No storage schema change is required.
+
 `createAssistant({ restoredGoal?, restoredTurns? })` accepts matching-scope advisory Markdown state `{ goal, todos }`. `RestoredChatTurn.sessionGoal` carries a response-time snapshot; opaque `branch(turnId)` restores that response's state. `snapshot().sessionGoal` returns a copy of current state, and `session_goal` events publish updates with their turn ID. Hosts persist both current and response snapshots with their existing scoped chat owner. Neither restored state nor history grants tools, approvals or sharing. `clearHistory()` resets goal/checklist as well as exchanges; restoration alone never starts inference. See [the completion lifecycle](ai.md#request-completion-review).

@@ -208,6 +208,14 @@ export type AssistantEvent =
   | { type: 'state'; state: 'idle' | 'running' | 'disposed'; turnId?: string }
   | { type: 'text'; turnId: string; text: string }
   | { type: 'session_goal'; turnId: string; goal: SessionGoal }
+  | {
+      type: 'review_progress';
+      turnId: string;
+      callId: string;
+      name: 'request_contract' | 'session_todos' | 'completion_check';
+      /** Cumulative provisional text; an empty string resets a failed attempt. */
+      text: string;
+    }
   | (AssistantToolCall & {
       type: 'tool';
       turnId: string;
@@ -731,6 +739,19 @@ export function createAssistant(options: AssistantOptions) {
               request,
               signal,
               check,
+              onProgress: (text) => {
+                check();
+                emit(
+                  {
+                    type: 'review_progress',
+                    turnId: id,
+                    callId: activity.callId,
+                    name,
+                    text,
+                  },
+                  local,
+                );
+              },
               interrupt: (promise) => interruptible(promise, signal),
               accountUsage: addUsage,
               checkRequest: (value) =>

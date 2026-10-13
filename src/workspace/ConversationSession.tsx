@@ -59,6 +59,7 @@ import { fulfilledGoal } from '../ai/goal-review';
 import { z } from 'zod';
 
 import DictationButton from './DictationButton';
+import ThinkingIndicator from './ThinkingIndicator';
 import type { Asset } from '../editor';
 import type { AssistantBranch } from '../ai';
 import type { ChatContent, SavedChatMessage } from '../storage/chats';
@@ -141,14 +142,7 @@ function CompletionDetails({
         summary={
           <span className="flex items-center gap-2">
             {last.phase === 'started' && streaming ? (
-              <Tooltip content={label}>
-                <span aria-label={label}>
-                  <LoaderCircle
-                    className="size-3.5 motion-safe:animate-spin"
-                    aria-hidden="true"
-                  />
-                </span>
-              </Tooltip>
+              <ThinkingIndicator key={last.callId} activity={label} />
             ) : (
               <>
                 <CheckCheck className="size-3.5" />
@@ -226,11 +220,7 @@ function CompletionDetails({
                 <span
                   aria-label={streaming ? 'Pondering…' : 'Check interrupted.'}
                 >
-                  {streaming ? (
-                    <LoaderCircle className="size-3.5 motion-safe:animate-spin" />
-                  ) : (
-                    'Check interrupted.'
-                  )}
+                  {streaming ? <ThinkingIndicator /> : 'Check interrupted.'}
                 </span>
               )}
             </div>
@@ -403,6 +393,7 @@ export default function ConversationSession({
   const [running, setRunning] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [activity, setActivity] = useState('Pondering…');
+  const [reviewDrafts, setReviewDrafts] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string | null>(() => {
     const latest = (initialBranch?.messages ?? initialContent.messages).at(-1);
     return latest?.status === 'failed' && latest.failure
@@ -553,7 +544,7 @@ export default function ConversationSession({
   useLayoutEffect(() => {
     if (nearBottom.current && list.current)
       list.current.scrollTop = list.current.scrollHeight;
-  }, [messages, proposals, activity]);
+  }, [messages, proposals, activity, reviewDrafts]);
   const ensureAssistant = () => {
     if (!assistant.current) {
       const indexRuns = new Map<string, string>();
@@ -649,6 +640,7 @@ export default function ConversationSession({
     runningRef.current = true;
     setFailure(null);
     setActivity('Pondering…');
+    setReviewDrafts({});
     setCancelling(false);
     setRunning(true);
     onBusy(true);
@@ -791,7 +783,18 @@ ${resuming.prompt}`
             ),
           );
         }
+        if (event.type === 'review_progress')
+          setReviewDrafts((current) => ({
+            ...current,
+            [event.callId]: event.text,
+          }));
         if (event.type === 'tool') {
+          if (event.phase !== 'started')
+            setReviewDrafts((current) => {
+              const next = { ...current };
+              delete next[event.callId];
+              return next;
+            });
           setMessages((current) =>
             current.map((message) =>
               message.id === event.turnId
@@ -811,16 +814,18 @@ ${resuming.prompt}`
             ),
           );
           setActivity(
-            isGoalReview(event)
-              ? event.name === 'request_contract'
-                ? 'Plotting the course…'
-                : event.name === 'session_todos'
-                  ? 'Tending the list…'
-                  : 'Checking the landing…'
-              : event.name === 'propose_edits' ||
-                  event.name === 'propose_action'
-                ? 'Making it happen…'
-                : 'Peeking around…',
+            event.phase !== 'started'
+              ? 'Pondering…'
+              : isGoalReview(event)
+                ? event.name === 'request_contract'
+                  ? 'Plotting the course…'
+                  : event.name === 'session_todos'
+                    ? 'Tending the list…'
+                    : 'Checking the landing…'
+                : event.name === 'propose_edits' ||
+                    event.name === 'propose_action'
+                  ? 'Making it happen…'
+                  : 'Peeking around…',
           );
         }
       });
@@ -882,6 +887,7 @@ ${resuming.prompt}`
       if (turn.current === activeTurn) turn.current = null;
       runningRef.current = false;
       if (mounted.current) {
+        setReviewDrafts({});
         setRunning(false);
         setBranchable(assistant.current?.snapshot().historyTurnIds ?? []);
         onBusy(false);
@@ -1102,20 +1108,10 @@ ${resuming.prompt}`
                       </AccordionDisclosure>
                       {proposal.status === 'applying' && (
                         <div className="flex items-center justify-between gap-2 text-xs">
-                          <Tooltip
-                            content={
-                              proposal.progress?.progress !== undefined
-                                ? `Making it happen… ${Math.round(proposal.progress.progress * 100)}%`
-                                : 'Making it happen…'
-                            }
-                          >
-                            <span role="status" aria-label="Making it happen…">
-                              <LoaderCircle
-                                className="size-3.5 motion-safe:animate-spin"
-                                aria-hidden="true"
-                              />
-                            </span>
-                          </Tooltip>
+                          <ThinkingIndicator
+                            activity="Making it happen…"
+                            progress={proposal.progress?.progress}
+                          />
                           {proposal.action &&
                             proposal.action.type !== 'undo' &&
                             proposal.action.type !== 'redo' && (
@@ -1173,18 +1169,49 @@ ${resuming.prompt}`
                 </Suspense>
               )}
               {message.status === 'streaming' && (
-                <Tooltip content={activity}>
-                  <span
-                    role="status"
-                    aria-label={activity}
-                    className="inline-flex text-muted-foreground"
-                  >
-                    <LoaderCircle
-                      className="size-3 motion-safe:animate-spin"
-                      aria-hidden="true"
+                <>
+                  {(message.tools ?? [])
+                    .filter(
+                      (tool) =>
+                        isGoalReview(tool) &&
+                        tool.phase === 'started' &&
+                        reviewDrafts[tool.callId],
+                    )
+                    .map((tool) => (
+                      <section
+                        key={tool.callId}
+                        data-chat-review-draft={tool.name}
+                        aria-label={`${tool.name === 'request_contract' ? 'Session goal' : tool.name === 'session_todos' ? 'To-dos' : 'Completion check'} draft`}
+                        className="space-y-1"
+                      >
+                        <p className="text-xs text-muted-foreground">
+                          {tool.name === 'request_contract'
+                            ? 'Session goal'
+                            : tool.name === 'session_todos'
+                              ? 'To-dos'
+                              : 'Completion check'}{' '}
+                          · Draft
+                        </p>
+                        <Suspense
+                          fallback={
+                            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                              {reviewDrafts[tool.callId]}
+                            </p>
+                          }
+                        >
+                          <ChatMarkdown text={reviewDrafts[tool.callId]!} />
+                        </Suspense>
+                      </section>
+                    ))}
+                  {!(message.tools ?? []).some(
+                    (tool) => isGoalReview(tool) && tool.phase === 'started',
+                  ) && (
+                    <ThinkingIndicator
+                      key={`${message.id}:${activity}`}
+                      activity={activity}
                     />
-                  </span>
-                </Tooltip>
+                  )}
+                </>
               )}
               {(message.status === 'interrupted' ||
                 message.status === 'paused' ||

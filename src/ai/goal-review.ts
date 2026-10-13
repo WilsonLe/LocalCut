@@ -50,6 +50,7 @@ async function readGoalResponse({
   check,
   accountBytes,
   accountUsage,
+  onProgress,
 }: {
   provider: Pick<OpenRouterClient, 'stream'>;
   request: ChatRequest;
@@ -59,11 +60,15 @@ async function readGoalResponse({
   accountBytes: (value: unknown) => void;
   accountUsage: (usage?: Usage) => void;
   checkRequest?: (request: ChatRequest) => void;
+  /** Provisional display text only; terminal validation still owns acceptance. */
+  onProgress?: (text: string) => void;
 }): Promise<string> {
   check();
   const stream = provider.stream(structuredClone(request), signal);
   const iterator = stream[Symbol.asyncIterator]();
   let complete: Extract<ProviderEvent, { type: 'complete' }> | undefined;
+  let draft = '';
+  onProgress?.(draft);
   try {
     while (true) {
       const event = await interrupt(iterator.next());
@@ -77,6 +82,10 @@ async function readGoalResponse({
       accountBytes(
         event.value.type === 'text' ? event.value.text : event.value.message,
       );
+      if (event.value.type === 'text') {
+        draft += event.value.text;
+        onProgress?.(draft);
+      }
       if (event.value.type === 'complete') complete = event.value;
     }
   } finally {
@@ -107,8 +116,8 @@ async function readGoalResponse({
   return content;
 }
 
-/** Reviewer output is private, so transient inference retries reuse the same
- * frozen request without replaying execution or exposing partial review text. */
+/** Retry the frozen request without replaying execution. Provisional display
+ * drafts reset on failure; only a validated response becomes canonical state. */
 export async function goalResponse(
   options: Parameters<typeof readGoalResponse>[0],
 ) {
@@ -119,6 +128,7 @@ export async function goalResponse(
       return await readGoalResponse({ ...options, request });
     } catch (error) {
       options.check();
+      options.onProgress?.('');
       if (
         error instanceof AiError &&
         error.details.reason === 'reviewer_protocol' &&

@@ -49,6 +49,81 @@ function options(responses: (string | AiError | ProviderEvent)[]) {
 }
 
 describe('tool-free reviewer boundary', () => {
+  it('publishes provisional cumulative text before terminal acceptance', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const progress = vi.fn();
+    const o = options([]);
+    o.provider.stream = async function* () {
+      yield { type: 'text', text: 'A partial ' };
+      await gate;
+      yield { type: 'text', text: 'goal.' };
+      yield {
+        type: 'complete',
+        message: { role: 'assistant', content: 'A partial goal.' },
+      };
+    };
+    const result = goalResponse({ ...o, onProgress: progress });
+    await vi.waitFor(() =>
+      expect(progress).toHaveBeenLastCalledWith('A partial '),
+    );
+    expect(o.accountUsage).not.toHaveBeenCalled();
+    release();
+    expect(await result).toBe('A partial goal.');
+    expect(progress.mock.calls.map(([text]) => text)).toEqual([
+      '',
+      'A partial ',
+      'A partial goal.',
+    ]);
+  });
+
+  it('clears rejected drafts before repair and preserves only accepted text', async () => {
+    const o = options([]);
+    let calls = 0;
+    const progress = vi.fn();
+    o.provider.stream = async function* () {
+      const content =
+        ++calls === 1 ? '<tool_call>bad</tool_call>' : 'Accepted goal';
+      yield { type: 'text', text: content };
+      yield { type: 'complete', message: { role: 'assistant', content } };
+    };
+    expect(await goalResponse({ ...o, onProgress: progress })).toBe(
+      'Accepted goal',
+    );
+    expect(progress.mock.calls.map(([text]) => text)).toEqual([
+      '',
+      '<tool_call>bad</tool_call>',
+      '',
+      '',
+      'Accepted goal',
+    ]);
+    expect(o.accountUsage).toHaveBeenCalledTimes(2);
+  });
+
+  it('never publishes late provider text after cancellation', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const o = options([]);
+    const progress = vi.fn();
+    o.provider.stream = async function* () {
+      yield { type: 'text', text: 'Visible draft' };
+      await gate;
+      yield { type: 'text', text: 'STALE' };
+    };
+    const result = goalResponse({ ...o, onProgress: progress });
+    await vi.waitFor(() =>
+      expect(progress).toHaveBeenLastCalledWith('Visible draft'),
+    );
+    o.controller.abort();
+    release();
+    await expect(result).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(progress).not.toHaveBeenCalledWith('Visible draftSTALE');
+  });
+
   it.each([
     '<｜DSML｜ calls>\n<｜DSML｜ invoke name="inspect_capabilities">\n</｜DSML｜ calls>',
     '<|tool_calls_section_begin|><|tool_call_begin|>functions.inspect_project',
