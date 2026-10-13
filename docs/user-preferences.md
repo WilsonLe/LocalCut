@@ -8,6 +8,11 @@ This is the project record of the user's durable product and workflow choices. U
 - Put a single searchable previous-generation picker in the dialog header, using persistent local generations. Offer Save to assets separately from Add to timeline.
 - Show minimum/maximum length guidance from the script word count and a reasonable narration pace; distinguish estimates from the measured take's exact timing limits.
 
+## Storyboard exports and agent workflows — 13 October 2026
+
+- Enable local whiteboard exports and storing reusable renders as project Media assets. Provide comprehensive agent guidance for supported Excalidraw vector/text authoring, layout, grouping, layering, export and combinations with editing, evidence, transcripts, history and document handoff.
+- Keep UI and agent workflows on the same shared editor owners, with local immutable assets and explicit user-owned file downloads.
+
 ## Timeline overlaps — 13 October 2026
 
 - Indicate overlapping assets visually at the actual overlap span, without inline overlap/template text. Keep useful names and duration accessible on demand.
