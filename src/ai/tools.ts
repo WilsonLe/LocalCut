@@ -1,4 +1,9 @@
+import { storyboardElementSchema } from '../core/storyboard';
 import { libraryOperationSchema } from '../core/media-library';
+import {
+  storyboardExportOptionsSchema,
+  storyboardStoreOptionsSchema,
+} from '../core/storyboard-export';
 import {
   COLOR_PRESETS,
   BLEND_MODES,
@@ -66,6 +71,18 @@ const actionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('redo') }).strict(),
   z
     .object({ type: z.literal('export'), options: exportOptionsSchema })
+    .strict(),
+  z
+    .object({
+      type: z.literal('export_storyboard'),
+      options: storyboardExportOptionsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('store_storyboard'),
+      options: storyboardStoreOptionsSchema,
+    })
     .strict(),
   z
     .object({
@@ -161,6 +178,11 @@ export const supportedEditOperations =
   );
 
 export const editingProperties = {
+  storyboard: {
+    element: z.toJSONSchema(storyboardElementSchema, { io: 'input' }),
+    export: z.toJSONSchema(storyboardExportOptionsSchema, { io: 'input' }),
+    store: z.toJSONSchema(storyboardStoreOptionsSchema, { io: 'input' }),
+  },
   effects: {
     presets: COLOR_PRESETS,
     blendModes: BLEND_MODES,
@@ -277,6 +299,20 @@ export function capabilityDiscovery(
       support: [
         capabilities.export,
         'This session has no export executor. Use the workspace Export control or a host with export support.',
+      ],
+    }),
+    export_storyboard: access({
+      skills: ['storyboard'],
+      support: [
+        !!capabilities.storyboardExport,
+        'Use the Storyboard export menu or connect a host with storyboard.export support. Timeline export is separate.',
+      ],
+    }),
+    store_storyboard: access({
+      skills: ['storyboard'],
+      support: [
+        !!capabilities.storyboardStore,
+        'Use Store PNG in Media or connect a host with storyboard.store support.',
       ],
     }),
     transcribe: access({

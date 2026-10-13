@@ -7,6 +7,11 @@ This is the project record of the user's durable product and workflow choices. U
 - Always use the STT route configured in AI settings for generated-speech phrase timing. Remove the separate Phrase timing options section, including its heading, selector and explanatory/metadata text.
 - Keep local model preparation explicit and preserve actionable timing recovery; never silently switch STT services.
 
+## Storyboard exports and agent workflows — 13 October 2026
+
+- Enable local whiteboard exports and storing reusable renders as project Media assets. Provide comprehensive agent guidance for supported Excalidraw vector/text authoring, layout, grouping, layering, export and combinations with editing, evidence, transcripts, history and document handoff.
+- Keep UI and agent workflows on the same shared editor owners, with local immutable assets and explicit user-owned file downloads.
+
 ## Timeline overlaps — 13 October 2026
 
 - Indicate overlapping assets visually at the actual overlap span, without inline overlap/template text. Keep useful names and duration accessible on demand.

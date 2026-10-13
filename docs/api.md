@@ -230,9 +230,19 @@ All storyboard mutations use `commands.validate/apply`, request IDs and expected
 
 - `upsertStoryboardElements { elements: [{ id, type?, x?, y?, width?, height?, text?, ... }] }` creates or patches elements. New elements need a type; omitted fields in existing elements are preserved. Types are rectangle, diamond, ellipse, text, line, arrow, freedraw and frame. Text requires `text`; linear/freehand drawings require local `points`. Existing types cannot change. Common style defaults are applied only to new elements.
 - `removeStoryboardElements { elementIds }` removes elements and clears references to them from frames, text containers and arrow bindings.
+- `reorderStoryboardElements { elementIds }` sets back-to-front stacking with every live element ID exactly once, retaining geometry and labels and resetting fractional indices for Excalidraw restoration.
+- `setStoryboardBackground { backgroundColor }` changes only the canvas color without reading/replacing labels.
 - `setStoryboard { storyboard: { elements, backgroundColor } }` replaces the complete scene, as used by direct Excalidraw drawing. It never changes timeline clips or media.
 
 Scenes are bounded to 5,000 unique elements, 20,000 points per drawing and 100,000 characters per text element. Only defined fields are accepted; files, media bytes, web embeds, links and arbitrary custom metadata are excluded. Undo/Redo, autosaved versions and backups reuse the canonical project owners.
+
+### Storyboard export and Media reuse
+
+`editor.storyboard.export(projectId, options, expectedRevision)` returns a queued `Job<StoryboardExportResult>` with a local `File`, project ID, exact revision and format. Options are `{ format: 'png' | 'svg' | 'excalidraw', elementIds?, background?, scale?, padding?, name? }`. Omitted selection exports the whole live scene; selected frames include descendants, groups include members, shapes include bound labels, and foreign references are detached. Defaults: background included, scale 1, padding 20 pixels. Scale is 0.1–4, padding 0–1000, and PNG allocation is limited to 16,384 pixels per side and 32 million pixels. Empty raster/vector images fail; an empty editable scene is valid. Names are validated plain filenames. PNG/SVG omit hidden editable-scene metadata; `.excalidraw` preserves editable local vector/text data. SVG inlines its drawing fonts. Rendering uses the pinned package and same-origin assets on demand, including when the canvas UI is closed.
+
+`editor.storyboard.store(projectId, { ...options, format: 'png', parentId?: folderId | null }, expectedRevision)` returns a queued `Job<StoryboardAssetResult>` with `assetId`, `entryId`, `libraryRevision`, project ID and captured storyboard revision. It renders a PNG through the same cache, imports the immutable original and places it in that project's Media root or active folder. Invalid folders/stale revisions reject before import. Once original publication commits, late cancellation retains the asset and completes its named library placement. File and library publication use the existing owners and remain separate from project history. A concurrent folder deletion or storage failure may prevent library placement after original import; the original remains retained and the failed store request is not automatically retried.
+
+Store does not create a timeline placement or live diagram link. Use the returned asset ID with ordinary `insertClip` and per-instance `updateClip`. Explicit repeated stores publish new assets while identical render content/options reuse versioned derivative bytes across reload. Exports return caller-owned Blob-backed files, not filesystem handles; downloading remains a user UI action. Diagram rendering has no video-codec requirement. Neither API sends original pixels or file bytes to providers.
 
 ## Error diagnostic propagation
 
