@@ -140,7 +140,22 @@ const schemas = {
     limit: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
   }),
   inspect_project: emptySchema,
-  inspect_library: emptySchema,
+  inspect_library: z
+    .object({
+      folderId: z.string().min(1).max(200).nullable().optional(),
+      recursive: z.boolean().default(true),
+      includeTrashed: z.boolean().default(false),
+      offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).default(0),
+      limit: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
+    })
+    .strict(),
+  resolve_library_assets: z
+    .object({
+      folderId: z.string().min(1).max(200).nullable(),
+      recursive: z.boolean().default(true),
+      expectedRevision: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+    })
+    .strict(),
   inspect_storyboard: z
     .object({
       offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).default(0),
@@ -366,7 +381,14 @@ export function capabilityDiscovery(
     load_skill: { skills: [] },
     inspect_project: { skills: [] },
     inspect_library: {
-      skills: ['editing'],
+      skills: ['editing', 'indexing'],
+      support: [
+        !!capabilities.library,
+        'Connect an editor with media library storage.',
+      ],
+    },
+    resolve_library_assets: {
+      skills: ['editing', 'indexing'],
       support: [
         !!capabilities.library,
         'Connect an editor with media library storage.',
@@ -452,11 +474,13 @@ export function toolDefinitions(
     inspect_storyboard:
       'Read paginated project storyboard geometry and styles. Text and frame names require text-sharing consent; no files or embedded content.',
     inspect_library:
-      'Inspect local folder IDs, parent IDs, library revision and authorized asset entries. File and folder names require asset-name sharing. No source files or bytes.',
+      'Inspect registered project Media, optionally by folderId/recursive/offset/limit. Excludes Trash ancestry by default. Reports registered/authorized counts and childrenResolved; withheld assets are not empty folders. Names require sharing; no source files or bytes.',
+    resolve_library_assets:
+      'Resolve a requested project folder (folderId null means all project Media) to a deduplicated asset-ID manifest at expectedRevision, excluding Trash ancestry. No service runs. Trusted project-library access allows turn-local scope; otherwise the caller allowlist still filters assets. Report count/IDs before indexing; then use existing per-asset tools/actions.',
     inspect_project:
       'Read the selected project snapshot. Times are integer microseconds and ranges are half-open. Names and text may be withheld.',
     inspect_asset:
-      'Read metadata of an explicitly selected library asset or an asset referenced by the project. Includes capture.time (with provenance/offset if recorded) and capture.location (GPS) only with capture-sharing permission. Missing capture facts are unknown. No media bytes are available.',
+      'Read metadata of an attached, project-referenced or currently resolved project-library asset. Includes capture.time (with provenance/offset if recorded) and capture.location (GPS) only with capture-sharing permission. Missing capture facts are unknown. No media bytes are available.',
     inspect_timeline:
       'Evaluate active clips at a timeline time: exact frame time, source positions, animated transforms, effects, audio gain, captions and transition weights. Structural metadata only; never renders or uploads a frame.',
     inspect_capabilities:

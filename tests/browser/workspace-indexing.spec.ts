@@ -1093,3 +1093,271 @@ for (const base of ['/', '/LocalCut/']) {
     });
   }
 }
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`chat resolves named nested Media without attachments before evidence storyboard ${base}`, async ({
+    page,
+    context,
+  }) => {
+    await catalog(context);
+    let step = 0;
+    let evidenceRequests = 0;
+    let assetId = '';
+    let folderId = '';
+    let libraryRevision = -1;
+    const manifests: Record<string, unknown>[] = [];
+    await context.route(
+      'https://openrouter.ai/api/v1/chat/completions',
+      async (route) => {
+        if (route.request().method() === 'OPTIONS') {
+          await route.fulfill({ headers: cors });
+          return;
+        }
+        if (await fulfillChatTitle(route)) return;
+        const body = route.request().postDataJSON();
+        let reply: string | null = null;
+        let tool_calls: object[] | undefined;
+        if (body.tools) {
+          const scope = JSON.parse(body.messages[1].content);
+          const loaded = scope.capabilityMap.loadedSkills as string[];
+          const invoke = (name: string, args: unknown) => {
+            expect(
+              body.tools.map(
+                (tool: { function: { name: string } }) => tool.function.name,
+              ),
+            ).toContain(name);
+            tool_calls = [
+              {
+                index: 0,
+                id: crypto.randomUUID(),
+                type: 'function',
+                function: { name, arguments: JSON.stringify(args) },
+              },
+            ];
+          };
+          if (step < 5 && !loaded.includes('indexing'))
+            invoke('load_skill', { skillId: 'indexing' });
+          else if (step === 0) {
+            expect(scope.availableAssetIds).toEqual([]);
+            invoke('inspect_library', {});
+            step++;
+          } else if (step === 1) {
+            const tree = JSON.parse(body.messages.at(-1).content);
+            expect(tree).toMatchObject({
+              status: 'assets_withheld',
+              childrenResolved: false,
+              registeredAssetCount: 1,
+              authorizedAssetCount: 0,
+            });
+            expect(
+              tree.entries.find(
+                (entry: { id: string }) => entry.id === folderId,
+              ),
+            ).toMatchObject({
+              name: 'Sydney',
+              assetCount: 1,
+              childrenResolved: false,
+            });
+            invoke('resolve_library_assets', {
+              folderId,
+              expectedRevision: libraryRevision,
+              recursive: true,
+            });
+            step++;
+          } else if (step === 2) {
+            const manifest = JSON.parse(body.messages.at(-1).content);
+            manifests.push(manifest);
+            expect(manifest).toMatchObject({
+              assetIds: [assetId],
+              assetCount: 1,
+              status: 'resolved',
+              indexingSubmitted: false,
+            });
+            expect(evidenceRequests).toBe(0);
+            expect(scope.availableAssetIds).toEqual([assetId]);
+            invoke('inspect_asset', { assetId });
+            step++;
+          } else if (step === 3) {
+            reply = `Resolved 1 Sydney asset: ${assetId}.`;
+            invoke('propose_action', {
+              summary: 'Index the resolved Sydney image',
+              action: { type: 'index_asset', assetId },
+            });
+            step++;
+          } else if (step === 4) {
+            expect(scope.assetIndex.assets[0]).toMatchObject({
+              assetId,
+              summary: label.summary,
+            });
+            invoke('read_asset_index', { assetId });
+            step++;
+          } else if (step === 5) {
+            expect(JSON.stringify(body.messages)).toContain(label.summary);
+            invoke('load_skill', { skillId: 'storyboard' });
+            step++;
+          } else if (step === 6) {
+            invoke('propose_edits', {
+              summary: 'Build a shot note from saved evidence',
+              operations: [
+                {
+                  type: 'upsertStoryboardElements',
+                  elements: [
+                    {
+                      id: 'observed-note',
+                      type: 'text',
+                      x: 0,
+                      y: 0,
+                      text: `${label.summary} · ${assetId}`,
+                    },
+                  ],
+                },
+              ],
+            });
+            step++;
+          } else
+            reply =
+              'Indexed the Sydney image and saved an evidence-based shot note.';
+        } else {
+          evidenceRequests++;
+          const part = body.messages.at(-1).content;
+          const sceneId =
+            Array.isArray(part) && part.length > 1
+              ? /"sceneId":"(scene-\d+)"/.exec(String(part[0].text))?.[1]
+              : undefined;
+          reply = JSON.stringify(sceneId ? { sceneId, label } : label);
+        }
+        await route.fulfill({
+          headers: cors,
+          contentType: 'text/event-stream',
+          body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { ...(reply ? { content: reply } : {}), ...(tool_calls ? { tool_calls } : {}) }, finish_reason: tool_calls ? 'tool_calls' : 'stop' }], model })}\n\ndata: [DONE]\n\n`,
+        });
+      },
+    );
+    await page.goto(base);
+    await page
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .click();
+    await page.getByRole('menuitem', { name: 'Project', exact: true }).click();
+    await page
+      .getByRole('menuitem', { name: 'New project', exact: true })
+      .click();
+    await page
+      .getByLabel('Project name', { exact: true })
+      .fill('Container evidence');
+    await page
+      .getByRole('button', { name: 'Create project', exact: true })
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'Import media', exact: true }).first(),
+    ).toBeEnabled();
+    await image(page);
+    const state = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const project = (await editor.projects.list()).find(
+          (item) => item.name === 'Container evidence',
+        )!;
+        const owner = editor.library.forProject(project.id);
+        let library = await owner.list();
+        const entry = library.entries.find((entry) => entry.assetId)!;
+        library = await owner.apply(
+          { type: 'create', parentId: null, name: 'Sydney' },
+          library.revision,
+        );
+        const folderId = library.entries.find(
+          (entry) => entry.name === 'Sydney',
+        )!.id;
+        library = await owner.apply(
+          { type: 'create', parentId: folderId, name: 'Day 1' },
+          library.revision,
+        );
+        const nested = library.entries.find(
+          (entry) => entry.name === 'Day 1',
+        )!.id;
+        library = await owner.apply(
+          { type: 'move', entryId: entry.id, parentId: nested },
+          library.revision,
+        );
+        library = await owner.apply(
+          { type: 'copy', entryId: folderId, parentId: null },
+          library.revision,
+        );
+        const copy = library.entries.find(
+          (item) =>
+            item.parentId === null &&
+            item.id !== folderId &&
+            item.kind === 'folder',
+        )!;
+        library = await owner.apply(
+          { type: 'trash', entryId: copy.id },
+          library.revision,
+        );
+        return {
+          clips: (await editor.projects.snapshot(project.id)).tracks.flatMap(
+            (track) => track.clips,
+          ),
+          folderId,
+          assetId: entry.assetId!,
+          revision: library.revision,
+        };
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    expect(state.clips).toEqual([]);
+    assetId = state.assetId;
+    folderId = state.folderId;
+    libraryRevision = state.revision;
+    await page.reload();
+    const dialog = await connect(page);
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await page
+      .getByRole('textbox', { name: 'Describe your edit' })
+      .fill(
+        'Index all media in Sydney and build a storyboard from the observed footage.',
+      );
+    await page
+      .getByRole('button', { name: 'Send edit request', exact: true })
+      .click();
+    await expect(
+      page
+        .getByRole('article', { name: 'Assistant response', exact: true })
+        .last(),
+    ).toContainText('saved an evidence-based shot note');
+    expect(manifests).toHaveLength(1);
+    expect(evidenceRequests).toBe(2);
+    expect(step).toBe(7);
+    await page.reload();
+    const persisted = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const project = (await editor.projects.list()).find(
+          (item) => item.name === 'Container evidence',
+        )!;
+        const saved = await editor.projects.snapshot(project.id);
+        return {
+          text: saved.storyboard?.elements.find(
+            (element) => element.id === 'observed-note',
+          )?.text,
+          clips: saved.tracks.flatMap((track) => track.clips),
+          indexes: (await editor.assets.indexes.list())
+            .filter((run) => run.status === 'complete')
+            .map((run) => run.assetId),
+        };
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    expect(persisted).toEqual({
+      text: `${label.summary} · ${assetId}`,
+      clips: [],
+      indexes: [assetId],
+    });
+  });
+}

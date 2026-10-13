@@ -293,8 +293,11 @@ function OpenRouterConnection({
                   generated images, audio excerpts and video excerpts with sound
                   to your selected OpenRouter model. Saved index labels are
                   available in chat. AI requests may incur provider charges.
-                  Connecting, importing and reloading do not start chat or
-                  indexing requests. Original media files stay local; a
+                  Chat can resolve a folder you name, or all active Media in the
+                  current project, without attaching each file or adding
+                  timeline clips. Other projects and Trash are excluded from
+                  resolution. Connecting, importing and reloading do not start
+                  chat or indexing requests. Original media files stay local; a
                   requested remote transcription job may send selected audio to
                   its disclosed recipients.
                 </p>

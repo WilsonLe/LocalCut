@@ -354,6 +354,7 @@ export default function ConversationSession({
         projectId: project.id,
         model,
         execution: 'requested',
+        libraryAccess: 'project',
         context: privacy,
         transcription: connection.transcription,
         indexing:
