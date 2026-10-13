@@ -1,4 +1,4 @@
-/** Local diagnostics only. Never traverse project data, provider bodies or credentials. */
+/** Local error snapshots only. Never traverse unrelated project/provider data or credentials. */
 export interface ErrorDiagnostic {
   name: string;
   message: string;
@@ -50,15 +50,12 @@ const metadataKeys = new Set([
 
 export function errorDiagnostic(
   error: unknown,
-  includeMessage = true,
   seen = new Set<object>(),
 ): ErrorDiagnostic {
   if (!error || typeof error !== 'object')
     return {
       name: 'Error',
-      message: includeMessage
-        ? redactDiagnosticText(String(error))
-        : 'Task failed',
+      message: redactDiagnosticText(String(error)),
       stack: 'Stack trace unavailable: no Error object was supplied.',
     };
   if (seen.has(error))
@@ -71,32 +68,16 @@ export function errorDiagnostic(
   const value = error as Record<string, unknown>;
   const name = typeof value.name === 'string' ? value.name : 'Error';
   const message =
-    includeMessage && typeof value.message === 'string'
+    typeof value.message === 'string'
       ? redactDiagnosticText(value.message)
       : 'Error details unavailable';
-  let stack =
+  const stack =
     typeof value.stack === 'string'
       ? value.stack
       : 'Stack trace unavailable: the source did not retain it.';
-  if (!includeMessage && typeof value.stack === 'string') {
-    // Unknown/provider messages can echo bodies. Keep every frame, omit the header.
-    const frames = stack
-      .split('\n')
-      .filter(
-        (line) =>
-          /^\s*at\s/.test(line) || /@(?:https?:|file:|blob:|\/)/.test(line),
-      );
-    stack = `${name}: [message omitted]${frames.length ? '\n' + frames.join('\n') : '\nStack trace unavailable: no source frames were retained.'}`;
-  }
   const details: Record<string, unknown> = {};
   if (value.details && typeof value.details === 'object') {
     for (const [key, entry] of Object.entries(value.details)) {
-      if (
-        !includeMessage &&
-        !(key === 'status' && typeof entry === 'number') &&
-        !(key === 'reason' && entry === 'output_limit')
-      )
-        continue;
       if (
         metadataKeys.has(key) &&
         (typeof entry === 'string' ||
@@ -116,13 +97,11 @@ export function errorDiagnostic(
     stack: redactDiagnosticText(stack),
     ...(Object.keys(details).length ? { details } : {}),
     ...(value.cause !== undefined
-      ? { cause: errorDiagnostic(value.cause, includeMessage, seen) }
+      ? { cause: errorDiagnostic(value.cause, seen) }
       : {}),
     ...(Array.isArray(value.errors)
       ? {
-          errors: value.errors.map((item) =>
-            errorDiagnostic(item, includeMessage, seen),
-          ),
+          errors: value.errors.map((item) => errorDiagnostic(item, seen)),
         }
       : {}),
   };
