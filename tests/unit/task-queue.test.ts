@@ -3,6 +3,9 @@ import { TaskQueue } from '../../src/services/task-queue';
 import type { TaskRecord } from '../../src/services/task-queue';
 import type { TaskStorage } from '../../src/storage/tasks';
 import { pureTaskCache } from '../../src/services/task-cache';
+import { transcriptionSegments } from '../../src/ai/transcription';
+import { asEditorError } from '../../src/core/errors';
+import { errorDiagnostic } from '../../src/core/error-diagnostics';
 
 class MemoryStore implements TaskStorage {
   tasks = new Map<string, TaskRecord>();
@@ -108,6 +111,90 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 describe('durable task queue', () => {
+  it('retains original error messages, causes and every frame through nested measurement/generation queues and reopening', async () => {
+    const storage = new MemoryStore(),
+      q = queue(storage);
+    q.register('measurement-diagnostic', {
+      cache: pureTaskCache('measurement-v1'),
+      lane: 'transcription',
+      recovery: 'manual',
+      execute: async () => {
+        try {
+          transcriptionSegments(
+            { segments: [{ text: 'private transcript', start: 2, end: 1 }] },
+            3,
+          );
+        } catch (error) {
+          (error as Error).cause = new Error(
+            'Provider rejected segment 17\nBearer test-credential',
+          );
+          (error as Error).stack =
+            'AiError: STT returned invalid or unordered timestamps.\n' +
+            Array.from(
+              { length: 200 },
+              (_, i) => `    at frame${i} (ai.js:${i}:1)`,
+            ).join('\n');
+          throw asEditorError(error);
+        }
+      },
+    });
+    q.register('speech-diagnostic', {
+      cache: pureTaskCache('speech-v1'),
+      lane: 'speech',
+      recovery: 'manual',
+      execute: async () =>
+        q.enqueue('measurement-diagnostic', {}, { label: 'Measure speech' })
+          .completion,
+    });
+    const job = q.enqueue(
+      'speech-diagnostic',
+      {},
+      { label: 'Generating speech' },
+    );
+    await expect(job.completion).rejects.toMatchObject({
+      code: 'WORKER_FAILED',
+      message: 'STT returned invalid or unordered timestamps.',
+    });
+    const saved = await q.get(job.id);
+    let validation = saved?.error?.diagnostic;
+    while (validation && validation.code !== 'INVALID_RESPONSE')
+      validation = validation.cause;
+    expect(validation?.message).toBe(
+      'STT returned invalid or unordered timestamps.',
+    );
+    expect(JSON.stringify(saved?.error?.diagnostic)).toContain(
+      'STT returned invalid or unordered timestamps.',
+    );
+    expect(JSON.stringify(saved?.error?.diagnostic)).toContain(
+      'INVALID_RESPONSE',
+    );
+    expect(JSON.stringify(saved?.error?.diagnostic)).toContain('frame199');
+    expect(JSON.stringify(saved)).toContain('Provider rejected segment 17');
+    expect(JSON.stringify(saved)).not.toMatch(
+      /private transcript|test-credential/,
+    );
+    const restored = await queue(storage).get(job.id);
+    expect(restored?.error?.diagnostic?.stack).toContain(
+      'STT returned invalid or unordered timestamps.',
+    );
+    const reserialized = errorDiagnostic(restored?.error?.diagnostic);
+    expect(JSON.stringify(reserialized)).toContain(
+      'STT returned invalid or unordered timestamps.',
+    );
+    expect(JSON.stringify(reserialized)).toContain('frame199');
+    expect(JSON.stringify(reserialized)).toContain(
+      'Provider rejected segment 17',
+    );
+    expect(JSON.stringify(reserialized)).not.toContain('test-credential');
+    const failure = await job.completion.catch((error: unknown) => error);
+    const report = errorDiagnostic(failure);
+    expect(JSON.stringify(report)).toContain(
+      'STT returned invalid or unordered timestamps.',
+    );
+    expect(JSON.stringify(report)).toContain('frame199');
+    expect(JSON.stringify(report)).toContain('Provider rejected segment 17');
+    expect(JSON.stringify(report)).not.toContain('test-credential');
+  });
   it('isolates reusable cache values from public result reads, retry completion and retained handler objects', async () => {
     const storage = new MemoryStore(),
       q = queue(storage);
@@ -608,7 +695,7 @@ describe('durable task queue', () => {
     expect(peak).toBe(1);
     expect(await second.result(b.id)).toEqual({ value: 2 });
   });
-  it('retries safe transient errors with bounded attempts, then escalates without leaking error bodies', async () => {
+  it('retries safe transient errors with bounded attempts, then retains the original failure while redacting credentials', async () => {
     const q = queue();
     let calls = 0;
     q.register('download', {
@@ -618,9 +705,12 @@ describe('durable task queue', () => {
       retryCodes: ['MODEL_DOWNLOAD_FAILED'],
       execute: async () => {
         calls++;
-        throw Object.assign(new Error('secret echoed body'), {
-          code: 'MODEL_DOWNLOAD_FAILED',
-        });
+        throw Object.assign(
+          new Error('Download rejected: Bearer test-credential'),
+          {
+            code: 'MODEL_DOWNLOAD_FAILED',
+          },
+        );
       },
     });
     const job = q.enqueue('download', {}, { label: 'Prepare' });
@@ -630,7 +720,10 @@ describe('durable task queue', () => {
     const task = await q.get(job.id);
     expect(calls).toBe(3);
     expect(task).toMatchObject({ state: 'failed', attempts: 3 });
-    expect(JSON.stringify(task)).not.toContain('secret');
+    expect(task?.error?.diagnostic?.message).toBe(
+      'Download rejected: [REDACTED]',
+    );
+    expect(JSON.stringify(task)).not.toContain('test-credential');
     expect(task?.error?.action).toContain('retry');
   });
   it('requires explicit retry for uncertain remote outcomes and reuses saved checkpoints', async () => {
@@ -816,9 +909,8 @@ it('retains safe HTTP metadata for actionable endpoint errors and removes privat
   });
   const task = await q.get(job.id);
   expect(task?.error?.details).toEqual({ status: 404 });
-  expect(JSON.stringify(task)).not.toMatch(
-    /secret-token|private provider echo/,
-  );
+  expect(task?.error?.diagnostic?.message).toBe('private provider echo');
+  expect(JSON.stringify(task)).not.toContain('secret-token');
 });
 
 it.each([
@@ -836,7 +928,7 @@ it.each([
       execute: async () => {
         throw Object.assign(new Error('private provider echo'), {
           code,
-          details: { reason, body: 'secret-token' },
+          details: { reason, body: 'private-body-marker' },
         });
       },
     });
@@ -848,8 +940,7 @@ it.each([
     const task = await q.get(job.id);
     expect(task?.error?.details).toEqual(expected);
     expect(task?.attempts).toBe(1);
-    expect(JSON.stringify(task)).not.toMatch(
-      /secret-token|private provider echo/,
-    );
+    expect(task?.error?.diagnostic?.message).toBe('private provider echo');
+    expect(JSON.stringify(task)).not.toContain('private-body-marker');
   },
 );

@@ -170,10 +170,10 @@ const taskError = (error: unknown): TaskQueueError => {
     (metadata.reason === 'output_limit' || metadata.reason === 'empty_response')
   )
     details.reason = metadata.reason;
-  // Retain only bounded HTTP metadata and the local enum; discard provider bodies.
+  // Recovery metadata stays bounded; diagnostics retain the source error separately.
   return {
     ...(Object.keys(details).length ? { details } : {}),
-    diagnostic: errorDiagnostic(error, false),
+    diagnostic: errorDiagnostic(error),
     code,
     message:
       code === 'INTERRUPTED'
@@ -422,10 +422,15 @@ export class TaskQueue {
         error: (error) => {
           if (error instanceof EditorError) return error;
           const safe = taskError(error);
-          return Object.assign(new Error(safe.message), {
-            code: safe.code,
-            details: safe.details,
-          });
+          return Object.assign(
+            new Error(safe.diagnostic?.message ?? safe.message),
+            {
+              code: safe.code,
+              details: safe.details,
+              stack: safe.diagnostic?.stack,
+              cause: safe.diagnostic,
+            },
+          );
         },
       },
     );
@@ -536,7 +541,11 @@ export class TaskQueue {
       else
         reject(
           Object.assign(
-            new Error(task.error?.message ?? 'Operation cancelled'),
+            new Error(
+              task.error?.diagnostic?.message ??
+                task.error?.message ??
+                'Operation cancelled',
+            ),
             {
               code: task.error?.code ?? 'CANCELLED',
               details: task.error?.details,

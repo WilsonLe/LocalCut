@@ -111,9 +111,14 @@ for (const base of ['/', '/LocalCut/']) {
           lane: 'remote',
           recovery: 'manual',
           execute: async () => {
-            throw Object.assign(new Error('secret-key'), {
-              code: 'AUTH_REQUIRED',
-            });
+            throw Object.assign(
+              new Error(
+                'Unexpected authentication response: Bearer test-token',
+              ),
+              {
+                code: 'AUTH_REQUIRED',
+              },
+            );
           },
         });
         const failed = queue.enqueue(
@@ -216,7 +221,13 @@ for (const base of ['/', '/LocalCut/']) {
         action: expect.stringContaining('Reconnect'),
       },
     });
-    expect(JSON.stringify(state.failed)).not.toContain('secret-key');
+    expect(state.failed.error?.diagnostic).toMatchObject({
+      message: 'Unexpected authentication response: [REDACTED]',
+      stack: expect.stringContaining(
+        'Error: Unexpected authentication response: [REDACTED]',
+      ),
+    });
+    expect(JSON.stringify(state.failed)).not.toContain('test-token');
     expect(state.interrupted).toMatchObject({
       state: 'interrupted',
       error: { code: 'INTERRUPTED' },

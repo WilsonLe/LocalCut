@@ -4,7 +4,6 @@ import { Button } from '../components/ui/button';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog';
@@ -63,14 +62,8 @@ export default function ErrorDetailsDialog({
         }
         className="flex flex-col gap-4 sm:max-w-3xl"
       >
-        <DialogHeader className="pr-8">
+        <DialogHeader className="flex-row items-center justify-between pr-8">
           <DialogTitle>Error details</DialogTitle>
-          <DialogDescription>{report.summary}</DialogDescription>
-        </DialogHeader>
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground">
-            Stack trace and session data
-          </p>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -83,7 +76,7 @@ export default function ErrorDetailsDialog({
           <span role="status" className="sr-only">
             {copied ? 'Error details copied' : ''}
           </span>
-        </div>
+        </DialogHeader>
         {failure && (
           <p role="alert" className="text-sm text-destructive">
             {failure}
@@ -92,9 +85,9 @@ export default function ErrorDetailsDialog({
         <pre
           tabIndex={0}
           aria-label="Full error report"
-          className="min-h-0 flex-1 overflow-auto rounded-md border bg-muted/40 p-3 font-mono text-xs whitespace-pre-wrap wrap-anywhere select-text"
+          className="min-h-0 max-w-full flex-1 overflow-auto rounded-md border bg-muted/40 p-3 font-mono text-xs whitespace-pre select-text"
         >
-          {report.text}
+          <code>{report.text}</code>
         </pre>
       </DialogContent>
     </Dialog>
