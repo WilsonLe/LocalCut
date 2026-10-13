@@ -4371,6 +4371,7 @@ describe('complete capability discovery and recovery', () => {
       'read_asset_index',
       'inspect_project',
       'inspect_library',
+      'resolve_library_assets',
       'inspect_storyboard',
       'inspect_asset',
       'inspect_timeline',
@@ -5845,3 +5846,480 @@ it.each(['export_storyboard', 'store_storyboard'] as const)(
     await jobs.dispose();
   },
 );
+
+function libraryScopeFixture() {
+  const f = fixture();
+  f.project().tracks = [];
+  const library: import('../../src/core/media-library').LibrarySnapshot = {
+    revision: 7,
+    entries: [
+      { id: 'folder', parentId: null, kind: 'folder', name: 'Sydney' },
+      { id: 'nested', parentId: 'folder', kind: 'folder', name: 'Day 1' },
+      {
+        id: 'entry',
+        parentId: 'nested',
+        kind: 'asset',
+        name: 'clip.mov',
+        assetId: 'library-clip',
+      },
+      {
+        id: 'other',
+        parentId: null,
+        kind: 'asset',
+        name: 'unrelated.mov',
+        assetId: 'unrelated',
+      },
+    ],
+  };
+  f.editor.library = {
+    forProject: vi.fn((id) => {
+      expect(id).toBe(f.project().id);
+      return { list: async () => structuredClone(library), apply: vi.fn() };
+    }),
+  };
+  vi.mocked(f.editor.assets.inspect).mockImplementation(async (id) =>
+    assetSchema.parse({
+      id,
+      name: 'Private source',
+      kind: 'video',
+      size: 10,
+      type: 'video/mp4',
+      durationUs: 4e6,
+      width: 1920,
+      height: 1080,
+      rotation: 0,
+      status: 'ready',
+    }),
+  );
+  return { ...f, library };
+}
+
+describe('container resolution through the assistant', () => {
+  it('recovers unloaded tools, resolves nested library-only assets and indexes/reads evidence before storyboard edits', async () => {
+    const f = libraryScopeFixture();
+    const jobs = new Jobs();
+    const runs: import('../../src/core/asset-index').AssetIndexRun[] = [];
+    f.editor.assets.indexes = { list: async () => structuredClone(runs) };
+    const runIndex = vi.fn((assetId: string) =>
+      jobs.start(async () => {
+        const run = {
+          id: 'indexed',
+          assetId,
+          createdAt: 1,
+          status: 'complete',
+          invalidated: false,
+          source: {},
+          label: { summary: 'Observed harbour', tags: ['harbour'] },
+          analysis: { scenes: [] },
+        } as unknown as import('../../src/core/asset-index').AssetIndexRun;
+        runs.push(run);
+        return run;
+      }),
+    );
+    let stage = 0;
+    const requests: ChatRequest[] = [];
+    const p = {
+      async *stream(request: ChatRequest) {
+        requests.push(structuredClone(request));
+        const scope = JSON.parse(request.messages[1]!.content!);
+        const tools = request.tools?.map((tool) => tool.function.name) ?? [];
+        // First attempt verifies frozen-round recovery; subsequent rounds follow trusted discovery.
+        if (stage === 0) {
+          stage++;
+          yield final('', [
+            call('inspect_library', {}),
+            call('load_skill', { skillId: 'indexing' }, 'load'),
+          ]);
+          return;
+        }
+        if (
+          !scope.capabilityMap.loadedSkills.includes('indexing') &&
+          stage < 6
+        ) {
+          yield final('', [call('load_skill', { skillId: 'indexing' })]);
+          return;
+        }
+        const plans: [string, unknown][] = [
+          ['inspect_library', {}],
+          [
+            'resolve_library_assets',
+            { folderId: 'folder', expectedRevision: 7 },
+          ],
+          ['inspect_asset', { assetId: 'library-clip' }],
+          [
+            'propose_action',
+            {
+              summary: 'Index the resolved Sydney clip',
+              action: { type: 'index_asset', assetId: 'library-clip' },
+            },
+          ],
+          ['read_asset_index', { assetId: 'library-clip' }],
+          ['load_skill', { skillId: 'storyboard' }],
+          [
+            'propose_edits',
+            {
+              summary: 'Build the observed shot note',
+              operations: [
+                {
+                  type: 'upsertStoryboardElements',
+                  elements: [
+                    {
+                      id: 'source-note',
+                      type: 'text',
+                      x: 0,
+                      y: 0,
+                      text: 'Observed harbour · library-clip',
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        ];
+        const next = plans[stage - 1];
+        if (!next) {
+          yield final(
+            'Indexed the Sydney clip and built the evidence-grounded shot note.',
+          );
+          return;
+        }
+        expect(tools).toContain(next[0]);
+        stage++;
+        yield final(
+          next[0] === 'propose_action' ? 'Resolved 1 asset: library-clip.' : '',
+          [call(next[0], next[1])],
+        );
+      },
+    };
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      execution: 'requested',
+      libraryAccess: 'project',
+      context: { includeAssetIndexes: true },
+      indexing: {
+        run: runIndex,
+        consent: () => true,
+        disclosure: 'Derived evidence only',
+      },
+    });
+    const events: AssistantEvent[] = [];
+    a.subscribe((event) => events.push(event));
+    await a.run('Index assets in Sydney and build a storyboard from them')
+      .completion;
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'tool' &&
+          event.phase === 'failed' &&
+          event.name === 'unavailable_tool',
+      ),
+    ).toBe(true);
+    const manifest = events.find(
+      (event) =>
+        event.type === 'tool' &&
+        event.name === 'resolve_library_assets' &&
+        event.phase === 'completed',
+    );
+    expect(manifest).toMatchObject({
+      result: {
+        assetIds: ['library-clip'],
+        assetCount: 1,
+        indexingSubmitted: false,
+      },
+    });
+    expect(
+      runIndex,
+      JSON.stringify(
+        events.filter(
+          (event) => event.type === 'tool' && event.phase === 'failed',
+        ),
+      ),
+    ).toHaveBeenCalledTimes(1);
+    expect(runIndex.mock.calls[0]![0]).toBe('library-clip');
+    expect(JSON.stringify(requests)).toContain('Observed harbour');
+    expect(f.project().storyboard?.elements[0]?.text).toBe(
+      'Observed harbour · library-clip',
+    );
+    await a.run(
+      'Try inspecting the last resolved clip without resolving it again',
+    ).completion;
+    // The next turn starts with no tool authority or resolved asset scope.
+    expect(
+      JSON.parse(requests.at(-1)!.messages[1]!.content!).availableAssetIds,
+    ).toEqual([]);
+    await a.dispose();
+  });
+
+  it.each(['selected', 'project'] as const)(
+    'keeps %s headless resolution separate from sharing and service consent',
+    async (libraryAccess) => {
+      const f = libraryScopeFixture();
+      const p = provider(
+        [
+          [final('', [call('load_skill', { skillId: 'indexing' })])],
+          [
+            final('', [
+              call('resolve_library_assets', {
+                folderId: 'folder',
+                expectedRevision: 7,
+              }),
+            ]),
+          ],
+          [final('', [call('inspect_asset', { assetId: 'library-clip' })])],
+          [final()],
+        ],
+        false,
+      );
+      const a = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test/model',
+        libraryAccess,
+      });
+      const events: AssistantEvent[] = [];
+      a.subscribe((event) => events.push(event));
+      await a.run('Inspect Sydney').completion;
+      expect(
+        events.find(
+          (event) =>
+            event.type === 'tool' &&
+            event.name === 'resolve_library_assets' &&
+            event.phase === 'completed',
+        ),
+      ).toMatchObject({
+        result: {
+          assetIds: libraryAccess === 'project' ? ['library-clip'] : [],
+          childrenResolved: libraryAccess === 'project',
+        },
+      });
+      expect(JSON.stringify(p.requests)).not.toContain('Private source');
+      expect(f.editor.assets.inspect).toHaveBeenCalledTimes(
+        libraryAccess === 'project' ? 1 : 0,
+      );
+      expect(events.some((event) => event.type === 'proposal')).toBe(false);
+      await a.dispose();
+    },
+  );
+
+  it('rejects stale resolution and rechecks its manifest on deferred approval', async () => {
+    const f = libraryScopeFixture();
+    const jobs = new Jobs();
+    const run = vi.fn(() =>
+      jobs.start(async () => {
+        throw new Error('Must not execute');
+      }),
+    );
+    const p = provider(
+      [
+        [final('', [call('load_skill', { skillId: 'indexing' })])],
+        [
+          final('', [
+            call('resolve_library_assets', {
+              folderId: 'folder',
+              expectedRevision: 6,
+            }),
+          ]),
+        ],
+        [
+          final('', [
+            call('resolve_library_assets', {
+              folderId: 'folder',
+              expectedRevision: 7,
+            }),
+          ]),
+        ],
+        [
+          final('', [
+            call('propose_action', {
+              summary: 'Index Sydney',
+              action: { type: 'index_asset', assetId: 'library-clip' },
+            }),
+          ]),
+        ],
+        [final()],
+        [final('', [call('load_skill', { skillId: 'indexing' })])],
+        [final('', [call('inspect_asset', { assetId: 'library-clip' })])],
+        [final()],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      libraryAccess: 'project',
+      context: { includeAssetIndexes: true },
+      indexing: { run, consent: () => true, disclosure: 'Derived evidence' },
+    });
+    const events: AssistantEvent[] = [];
+    a.subscribe((event) => events.push(event));
+    const result = await a.run('Index Sydney').completion;
+    expect(
+      events.find(
+        (event) =>
+          event.type === 'tool' &&
+          event.name === 'resolve_library_assets' &&
+          event.phase === 'failed',
+      ),
+    ).toMatchObject({ error: { code: 'REVISION_CONFLICT' } });
+    expect(
+      result.proposalIds,
+      JSON.stringify(
+        events.filter(
+          (event) => event.type === 'tool' && event.phase === 'failed',
+        ),
+      ),
+    ).toHaveLength(1);
+    f.library.revision++;
+    f.library.entries[2]!.parentId = null;
+    await expect(
+      a.approveProposal(result.proposalIds[0]!),
+    ).rejects.toMatchObject({ code: 'REVISION_CONFLICT' });
+    expect(run).not.toHaveBeenCalled();
+    await a.run('Inspect it in a fresh turn').completion;
+    expect(
+      events.filter(
+        (event) =>
+          event.type === 'tool' &&
+          event.name === 'inspect_asset' &&
+          event.phase === 'failed',
+      ).length,
+    ).toBeGreaterThan(0);
+    await a.dispose();
+  });
+});
+
+it('rejects a stale resolved asset but continues independent requested authoring', async () => {
+  const f = libraryScopeFixture();
+  let round = 0;
+  const p = {
+    async *stream() {
+      const plans: [string, unknown][][] = [
+        [['load_skill', { skillId: 'editing' }]],
+        [
+          [
+            'resolve_library_assets',
+            { folderId: 'folder', expectedRevision: 7 },
+          ],
+        ],
+        [['inspect_asset', { assetId: 'library-clip' }]],
+        [
+          [
+            'propose_edits',
+            {
+              summary: 'Add the user supplied title',
+              operations: [
+                { type: 'addTrack', track: { id: 'titles', kind: 'overlay' } },
+                {
+                  type: 'insertClip',
+                  trackId: 'titles',
+                  clip: {
+                    id: 'title',
+                    kind: 'text',
+                    startUs: 0,
+                    durationUs: 1e6,
+                    text: { text: 'Sydney' },
+                  },
+                },
+              ],
+            },
+          ],
+        ],
+      ];
+      if (round === 2) f.library.revision++;
+      const next = plans[round++];
+      yield next
+        ? final(
+            '',
+            next.map(([name, args], index) =>
+              call(name, args, `call-${index}`),
+            ),
+          )
+        : final('Source scope changed; the requested title is saved.');
+    },
+  };
+  const a = createAssistant({
+    editor: f.editor,
+    provider: p,
+    projectId: f.project().id,
+    model: 'test/model',
+    execution: 'requested',
+    libraryAccess: 'project',
+  });
+  const events: AssistantEvent[] = [];
+  a.subscribe((event) => events.push(event));
+  await a.run('Inspect Sydney and add a title reading Sydney').completion;
+  expect(
+    events.find(
+      (event) =>
+        event.type === 'tool' &&
+        event.name === 'inspect_asset' &&
+        event.phase === 'failed',
+    ),
+  ).toMatchObject({ error: { code: 'REVISION_CONFLICT' } });
+  expect(f.project().tracks[0]!.clips[0]!.text?.text).toBe('Sydney');
+  await a.dispose();
+});
+
+it('uses resolved library-only media for canonical timeline edits without retaining the container grant', async () => {
+  const f = libraryScopeFixture();
+  const p = provider(
+    [
+      [final('', [call('load_skill', { skillId: 'editing' })])],
+      [
+        final('', [
+          call('resolve_library_assets', {
+            folderId: 'folder',
+            expectedRevision: 7,
+          }),
+        ]),
+      ],
+      [
+        final('', [
+          call('propose_edits', {
+            summary: 'Place the requested Sydney clip',
+            operations: [
+              { type: 'addTrack', track: { id: 'footage', kind: 'video' } },
+              {
+                type: 'insertClip',
+                trackId: 'footage',
+                clip: {
+                  id: 'shot',
+                  kind: 'video',
+                  assetId: 'library-clip',
+                  startUs: 0,
+                  durationUs: 4e6,
+                  sourceOutUs: 4e6,
+                },
+              },
+            ],
+          }),
+        ]),
+      ],
+      [final()],
+    ],
+    false,
+  );
+  const a = createAssistant({
+    editor: f.editor,
+    provider: p,
+    projectId: f.project().id,
+    model: 'test/model',
+    execution: 'requested',
+    libraryAccess: 'project',
+  });
+  const result = await a.run('Add the clip in Sydney to the timeline')
+    .completion;
+  expect(result.proposalIds).toHaveLength(1);
+  expect(f.project().tracks[0]!.clips[0]!.assetId).toBe('library-clip');
+  expect(a.getProposal(result.proposalIds[0]!)).toMatchObject({
+    status: 'applied',
+    result: { kind: 'edit' },
+  });
+  await a.dispose();
+});

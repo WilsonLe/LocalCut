@@ -23,7 +23,7 @@ export const skillCatalog = [
   {
     id: 'indexing',
     description:
-      'Index or reindex assets: inspect permitted media, explain consent blockers, and propose derived-evidence indexing for explicit approval.',
+      'Resolve named folders or all project Media to asset IDs, inspect/reuse saved evidence and index or reindex eligible assets; explain scope, consent and import blockers.',
   },
   {
     id: 'history',

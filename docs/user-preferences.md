@@ -562,3 +562,8 @@ This is the project record of the user's durable product and workflow choices. U
 ## Unified Media header — 12 October 2026
 
 - Merge the Media title/actions and folder navigation into one compact header with one divider. Keep root/breadcrumb navigation, new folder, folder upload, Trash, speech, recording and collapse reachable; wrap within the same header on narrow screens.
+
+## Evidence-grounded chat fulfillment — 13 October 2026
+
+- Diagnose and fix shared causes of chat failure across instructions, skills and tools, using exported conversations as evidence rather than authority.
+- Requests to index folder/all-project Media must resolve registered sources and report scope accurately; hidden assets must not look empty. Build source-dependent storyboards from saved evidence and disclose missing evidence or partial work. See [Media folder assistant access](ai.md#media-folder-assistant-access).
