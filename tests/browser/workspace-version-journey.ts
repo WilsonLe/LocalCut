@@ -18,7 +18,10 @@ export async function versionJourney(page: Page, base: string) {
     await page
       .getByRole('button', { name: 'Insert Plain text', exact: true })
       .click();
-    await page.getByLabel('Text', { exact: true }).fill('First state');
+    await page.getByRole('tab', { name: 'Text', exact: true }).click();
+    await page
+      .getByRole('textbox', { name: 'Text', exact: true })
+      .fill('First state');
     await page.getByRole('button', { name: 'Apply properties' }).click();
     await expect(page.getByRole('dialog')).not.toBeVisible();
     // Explicit browsing flushes the pending debounce before listing versions.
@@ -65,10 +68,10 @@ export async function versionJourney(page: Page, base: string) {
     await timeline
       .getByRole('button', { name: 'Clip properties', exact: true })
       .click();
-    await expect(page.getByLabel('Text', { exact: true })).toHaveAttribute(
-      'readonly',
-      '',
-    );
+    await page.getByRole('tab', { name: 'Text', exact: true }).click();
+    await expect(
+      page.getByRole('textbox', { name: 'Text', exact: true }),
+    ).toHaveAttribute('readonly', '');
     await expect(
       page.getByRole('button', { name: 'Apply properties' }),
     ).not.toBeVisible();
@@ -133,7 +136,10 @@ export async function versionJourney(page: Page, base: string) {
     await timeline
       .getByRole('button', { name: 'Clip properties', exact: true })
       .click();
-    await page.getByLabel('Text', { exact: true }).fill('Second state');
+    await page.getByRole('tab', { name: 'Text', exact: true }).click();
+    await page
+      .getByRole('textbox', { name: 'Text', exact: true })
+      .fill('Second state');
     await page.getByRole('button', { name: 'Apply properties' }).click();
     await expect(page.getByRole('dialog')).not.toBeVisible();
     await page

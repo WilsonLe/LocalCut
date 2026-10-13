@@ -421,6 +421,7 @@ for (const base of ['/', '/LocalCut/']) {
         .getByRole('button', { name: 'Add at end', exact: true })
         .click();
       await form.getByLabel('Point 2 value', { exact: true }).fill('0.25');
+      await form.getByRole('tab', { name: 'General', exact: true }).click();
       await form
         .getByRole('combobox', { name: 'Speed profile', exact: true })
         .click();

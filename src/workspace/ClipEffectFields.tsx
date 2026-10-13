@@ -6,6 +6,7 @@ import type { MaskTrackingResult } from '../media/mask-tracking';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { TabsContent } from '../components/ui/tabs';
 import { SettingsSelect } from './SettingsSelect';
 type Patch = Extract<EditOperation, { type: 'updateClip' }>['patch'];
 function NumberField({
@@ -128,11 +129,8 @@ export function ClipEffectFields({
     <>
       <fieldset disabled={disabled || tracking} className="grid gap-3">
         {visual && (
-          <details>
-            <summary className="cursor-pointer text-sm font-medium">
-              Color
-            </summary>
-            <div className="grid gap-3 pt-3">
+          <TabsContent value="color" data-properties-tab="color" keepMounted>
+            <div className="grid gap-3">
               {choose(
                 'Color preset',
                 value.colorPreset ?? 'none',
@@ -186,14 +184,11 @@ export function ClipEffectFields({
                 (colorStrength) => onChange({ colorStrength }),
               )}
             </div>
-          </details>
+          </TabsContent>
         )}
         {audio && (
-          <details>
-            <summary className="cursor-pointer text-sm font-medium">
-              Audio
-            </summary>
-            <div className="grid grid-cols-1 gap-3 pt-3 min-[400px]:grid-cols-2">
+          <TabsContent value="audio" data-properties-tab="audio" keepMounted>
+            <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2">
               <Label className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -279,15 +274,16 @@ export function ClipEffectFields({
                 Reset audio effects
               </Button>
             </div>
-          </details>
+          </TabsContent>
         )}
         {visual && (
           <>
-            <details>
-              <summary className="cursor-pointer text-sm font-medium">
-                Blending
-              </summary>
-              <div className="grid gap-3 pt-3">
+            <TabsContent
+              value="blending"
+              data-properties-tab="blending"
+              keepMounted
+            >
+              <div className="grid gap-3">
                 {choose(
                   'Blend mode',
                   value.blendMode ?? 'source-over',
@@ -296,12 +292,9 @@ export function ClipEffectFields({
                     onChange({ blendMode: blendMode as Clip['blendMode'] }),
                 )}
               </div>
-            </details>
-            <details>
-              <summary className="cursor-pointer text-sm font-medium">
-                Mask
-              </summary>
-              <div className="grid gap-3 pt-3">
+            </TabsContent>
+            <TabsContent value="mask" data-properties-tab="mask" keepMounted>
+              <div className="grid gap-3">
                 {choose(
                   'Mask shape',
                   value.mask?.shape ?? 'none',
@@ -387,11 +380,9 @@ export function ClipEffectFields({
                         </Button>
                       </>
                     )}
-                    <details>
-                      <summary className="cursor-pointer text-sm">
-                        Motion points
-                      </summary>
-                      <div className="grid gap-3 pt-3">
+                    <div>
+                      <Label>Motion points</Label>
+                      <div className="grid gap-3">
                         {(value.mask.points ?? []).map((point, index) => (
                           <div key={index} className="grid grid-cols-3 gap-2">
                             {number(
@@ -488,7 +479,7 @@ export function ClipEffectFields({
                           Add motion point at playhead
                         </Button>
                       </div>
-                    </details>
+                    </div>
                     {clip.kind === 'video' && onTrackMask && (
                       <Button
                         type="button"
@@ -543,12 +534,13 @@ export function ClipEffectFields({
                   </>
                 )}
               </div>
-            </details>
-            <details>
-              <summary className="cursor-pointer text-sm font-medium">
-                Chroma key
-              </summary>
-              <div className="grid gap-3 pt-3">
+            </TabsContent>
+            <TabsContent
+              value="chroma"
+              data-properties-tab="chroma"
+              keepMounted
+            >
+              <div className="grid gap-3">
                 <Label className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -600,7 +592,7 @@ export function ClipEffectFields({
                   </>
                 )}
               </div>
-            </details>
+            </TabsContent>
           </>
         )}
         {error && (
