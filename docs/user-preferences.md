@@ -2,6 +2,12 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Speech generation form — 13 October 2026
+
+- Default the voice preset picker to New voice preset and show its name field immediately beneath it. Keep Script as the last form input, align Speech model and Voice, and show descriptive voice labels alongside their names.
+- Put a single searchable previous-generation picker in the dialog header, using persistent local generations. Offer Save to assets separately from Add to timeline.
+- Show minimum/maximum length guidance from the script word count and a reasonable narration pace; distinguish estimates from the measured take's exact timing limits.
+
 ## Media folder breadcrumbs — 13 October 2026
 
 - Keep Media's title and actions in the main header. When browsing subfolders, show the path in a separate breadcrumb subheader below it, with clickable ancestors and the current folder marked. Hide the breadcrumb row at the root.
