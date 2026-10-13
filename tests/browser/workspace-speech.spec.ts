@@ -325,6 +325,63 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Save preset changes', exact: true })
       .click();
     await dialog.getByText('Manage voice presets', { exact: false }).click();
+    // Keyboard actions retain a useful successor after a row leaves the list.
+    await dialog
+      .getByRole('button', { name: 'Archive Warm narrator', exact: true })
+      .focus();
+    await page.keyboard.press('Enter');
+    await expect(
+      dialog.getByRole('button', {
+        name: 'Archive Short narrator',
+        exact: true,
+      }),
+    ).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(
+      dialog.getByRole('button', { name: 'Show archived', exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press('Enter');
+    await dialog
+      .getByRole('button', { name: 'Restore Warm narrator', exact: true })
+      .focus();
+    await page.keyboard.press('Enter');
+    await expect(
+      dialog.getByRole('button', {
+        name: 'Restore Short narrator',
+        exact: true,
+      }),
+    ).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(
+      dialog.getByRole('button', { name: 'Show active', exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press('Enter');
+    await dialog.getByLabel('Search managed voices').fill('Warm');
+    await dialog
+      .getByRole('button', { name: 'Edit name for Warm narrator', exact: true })
+      .click();
+    await dialog
+      .getByLabel('Rename Warm narrator', { exact: true })
+      .fill('Calm narrator');
+    await dialog
+      .getByLabel('Rename Warm narrator', { exact: true })
+      .press('Enter');
+    await expect(
+      dialog.getByRole('button', { name: 'Show archived', exact: true }),
+    ).toBeFocused();
+    await dialog.getByLabel('Search managed voices').fill('Calm');
+    await dialog
+      .getByRole('button', { name: 'Edit name for Calm narrator', exact: true })
+      .click();
+    await dialog
+      .getByLabel('Rename Calm narrator', { exact: true })
+      .fill('Warm narrator');
+    await dialog
+      .getByLabel('Rename Calm narrator', { exact: true })
+      .press('Enter');
+    await expect(
+      dialog.getByRole('button', { name: 'Show archived', exact: true }),
+    ).toBeFocused();
     await dialog.getByLabel('Search managed voices').fill('Warm');
     await expect(
       dialog.getByRole('button', { name: 'Use Short narrator', exact: true }),

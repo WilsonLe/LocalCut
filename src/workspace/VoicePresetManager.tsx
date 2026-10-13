@@ -21,19 +21,31 @@ export function VoicePresetManager({
   models: SpeechModel[];
   onSelect: (id: string) => void;
   onRename: (id: string, name: string) => boolean;
-  onArchive: (preset: VoicePreset) => void;
+  onArchive: (preset: VoicePreset) => boolean;
 }) {
   const [query, setQuery] = useState('');
   const [archived, setArchived] = useState(false);
   const [editing, setEditing] = useState('');
   const [name, setName] = useState('');
   const renameButtons = useRef(new Map<string, HTMLButtonElement>());
+  const archiveButtons = useRef(new Map<string, HTMLButtonElement>());
+  const listToggle = useRef<HTMLButtonElement>(null);
+  const pendingArchiveFocus = useRef<{ id?: string } | null>(null);
   const previousEditing = useRef('');
   useEffect(() => {
-    if (!editing && previousEditing.current)
-      renameButtons.current.get(previousEditing.current)?.focus();
+    const pending = pendingArchiveFocus.current;
+    if (pending) {
+      pendingArchiveFocus.current = null;
+      (
+        archiveButtons.current.get(pending.id ?? '') ?? listToggle.current
+      )?.focus();
+    } else if (!editing && previousEditing.current) {
+      (
+        renameButtons.current.get(previousEditing.current) ?? listToggle.current
+      )?.focus();
+    }
     previousEditing.current = editing;
-  }, [editing]);
+  }, [editing, presets]);
   const visible = presets.filter(
     (item) =>
       item.archived === archived &&
@@ -64,6 +76,7 @@ export function VoicePresetManager({
           <Button
             size="sm"
             variant={archived ? 'secondary' : 'ghost'}
+            ref={listToggle}
             aria-pressed={archived}
             onClick={() => {
               setArchived(!archived);
@@ -191,7 +204,21 @@ export function VoicePresetManager({
                       variant="ghost"
                       size="icon-sm"
                       aria-label={`${item.archived ? 'Restore' : 'Archive'} ${item.name}`}
-                      onClick={() => onArchive(item)}
+                      ref={(element) => {
+                        if (element)
+                          archiveButtons.current.set(item.id, element);
+                        else archiveButtons.current.delete(item.id);
+                      }}
+                      onClick={() => {
+                        const index = visible.findIndex(
+                          (preset) => preset.id === item.id,
+                        );
+                        pendingArchiveFocus.current = {
+                          id: visible[index + 1]?.id ?? visible[index - 1]?.id,
+                        };
+                        if (!onArchive(item))
+                          pendingArchiveFocus.current = null;
+                      }}
                     >
                       {item.archived ? <RotateCcw /> : <Archive />}
                     </Button>
