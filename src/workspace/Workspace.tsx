@@ -2360,7 +2360,10 @@ export function Workspace() {
                       onRedo={redo}
                       onSplit={split}
                       onDelete={deleteClip}
-                      onProperties={() => setDialog('properties')}
+                      onProperties={(clipId) => {
+                        if (clipId) selectClip(clipId);
+                        setDialog('properties');
+                      }}
                       onText={addText}
                       onAddTrack={addTrack}
                       onReorderTrack={reorderTrack}

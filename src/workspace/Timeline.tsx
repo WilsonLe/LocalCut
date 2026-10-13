@@ -10,6 +10,7 @@ import { loopDurationUs } from '../core/speed';
 import { frameTimeUs } from '../core/frame-time';
 import { TrackMenu } from './TrackMenu';
 import { TimelineOverlap } from './TimelineOverlap';
+import { TimelineClipMenu } from './TimelineClipMenu';
 import type { TrackOperationScope } from './TrackMenu';
 import type { EditOperation } from '../editor';
 import { trackName } from '../core/timeline';
@@ -84,7 +85,7 @@ interface Props {
   onRedo: () => void;
   onSplit: () => void;
   onDelete: () => void;
-  onProperties: () => void;
+  onProperties: (clipId?: string) => void;
   onText: () => void;
   onAddTrack: (kind: 'video' | 'audio') => void;
   onReorderTrack: (trackId: string, index: number) => void;
@@ -728,7 +729,7 @@ export function Timeline(props: Props) {
               variant="ghost"
               size="icon-sm"
               aria-label="Clip properties"
-              onClick={props.onProperties}
+              onClick={() => props.onProperties()}
             >
               <SlidersHorizontal />
             </Button>
@@ -1078,15 +1079,26 @@ export function Timeline(props: Props) {
                               width: `${(durationUs / timelineDuration) * 100}%`,
                             }}
                           >
-                            <button
+                            <TimelineClipMenu
                               key={clip.id}
+                              project={project}
+                              clip={clip}
+                              timeUs={timeUs}
+                              disabled={!!busy || !!track.locked}
+                              busy={props.busy}
+                              onProperties={props.onProperties}
+                              onSelect={() => props.onSelect(clip.id)}
+                              onOperation={props.onMoveClips}
+                              onMenuOpen={() => {
+                                cancelClipDrag();
+                                suppressClipClick.current = true;
+                              }}
                               data-clip-id={clip.id}
-                              type="button"
                               className={`timeline-clip ${clip.kind}`}
                               aria-label={clipName(clip, assets)}
                               aria-pressed={selected.includes(clip.id)}
                               data-grouped={!!clip.groupId}
-                              onDoubleClick={props.onProperties}
+                              onDoubleClick={() => props.onProperties(clip.id)}
                               onPointerDown={(event) => {
                                 suppressClipClick.current = false;
                                 if (busy || track.locked || event.button !== 0)
@@ -1229,7 +1241,7 @@ export function Timeline(props: Props) {
                               <span className="timeline-clip-name">
                                 {clipName(clip, assets)}
                               </span>
-                            </button>
+                            </TimelineClipMenu>
                             {!busy && !track.locked && (
                               <button
                                 type="button"

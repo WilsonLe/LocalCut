@@ -146,7 +146,7 @@ Focus the preview or timeline to use single-key shortcuts. `Space` toggles playb
 | Nudge selection one / ten frames                | Alt+left/right / Alt+Shift+left/right                         |
 | Trim start / end to playhead                    | Q / W                                                         |
 | Delete / safe ripple delete                     | Delete or Backspace / Shift+Delete                            |
-| Properties                                      | Enter on focused clip or double-click clip                    |
+| Properties                                      | Enter or double-click clip; clip action menu → Properties     |
 | Open text library                               | T                                                             |
 | Zoom pointed timeline or preview                | Ctrl/Command+wheel or trackpad pinch                          |
 | Zoom focused view / fit                         | + or = / − / 0 or backslash                                   |
@@ -378,3 +378,9 @@ Uploaded files and folders stay in the project Media library without adding time
 Visible dialog headers have a horizontal divider below them; action footers have one above them. Dialogs remain sized to their contents and bounded by the viewport. Browsing/loading/read-only dialogs with no action footer do not add an empty footer.
 
 AI connection selects Providers, LLM - Chat, TTS - Speech or STT - Transcription from the dropdown inline with its heading. The trigger shows the active section; switching retains connection drafts. OpenRouter’s information icon beside the account name reveals the full terms on hover, keyboard activation or touch. The scrolling popover lets keyboard users reach the policy links. Disconnect asks for confirmation, and Cancel or Escape preserves the connection.
+
+## Clip properties tabs and instance actions
+
+Clip properties opens on General for start, duration, speed, gain and timed-source pitch/speed profiles. Color, Blending, Mask, Chroma key, Audio, Animation and Text appear as appropriate tabs for the clip. Switching tabs retains unsaved fields, curves and effect drafts; Apply properties saves them together through the existing revision-aware commands. Invalid native fields reveal their tab and receive focus. Cancel discards drafts. See [the tabbed properties dialog](images/clip-properties-tabs.png). Locked tracks and historical versions remain read-only.
+
+Right-click a timeline clip, press and hold for 500 ms, or focus it and press Shift+F10/the Context Menu key to open Clip actions. Properties opens the clicked instance, Select clip uses the existing selection behavior, and Split at playhead/Delete clip act on that instance alone, regardless of another selection. Split is available only inside the clip's interval. Opening a menu does not select or edit. Mutation actions respect busy, locked, historical and stale revisions; reopen after another edit. Moving/cancelling a touch cancels the hold, and releasing a hold does not move the clip or activate a menu item. Escape/outside interaction dismisses the menu and returns focus to its clip. See [the touch clip action menu](images/timeline-clip-menu-touch.png).

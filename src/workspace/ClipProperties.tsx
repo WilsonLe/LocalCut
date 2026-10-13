@@ -2,7 +2,7 @@ import { ClipEffectFields } from './ClipEffectFields';
 import type { Mask } from '../core/effects';
 import type { Job } from '../editor';
 import type { MaskTrackingResult } from '../media/mask-tracking';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { averageSpeed, sourceDurationUs } from '../core/speed';
 import type { SpeedRamp } from '../core/speed';
 import type { Parameter } from '../core/model';
@@ -16,6 +16,12 @@ import { Button } from '../components/ui/button';
 import { DialogFooter } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from '../components/ui/tabs';
 import { SettingsSelect } from './SettingsSelect';
 
 export default function ClipProperties({
@@ -36,6 +42,8 @@ export default function ClipProperties({
   const [effects, setEffects] = useState<
     Extract<EditOperation, { type: 'updateClip' }>['patch']
   >({});
+  const invalidFocus = useRef(false);
+  const [tab, setTab] = useState('general');
   const [tracking, setTracking] = useState(false);
   const [keyframes, setKeyframes] = useState<Clip['keyframes']>(() =>
     structuredClone(clip.keyframes),
@@ -55,6 +63,22 @@ export default function ClipProperties({
   const [style, setStyle] = useState<TextStyleInput | undefined>(clip.text);
   return (
     <form
+      onInvalidCapture={(event) => {
+        // Mounted hidden panels retain FormData and native validity. Reveal the
+        // first invalid field before focusing it, so hidden drafts stay editable.
+        const field = event.target as HTMLInputElement;
+        const panel = field.closest<HTMLElement>('[data-properties-tab]');
+        if (!panel || panel.dataset.propertiesTab === tab) return;
+        event.preventDefault();
+        if (invalidFocus.current) return;
+        invalidFocus.current = true;
+        setTab(panel.dataset.propertiesTab!);
+        requestAnimationFrame(() => {
+          invalidFocus.current = false;
+          field.focus();
+          field.reportValidity();
+        });
+      }}
       onSubmit={(event) => {
         event.preventDefault();
         if (readOnly || busy || tracking || duplicateTimes || !animationValid)
@@ -143,133 +167,201 @@ export default function ClipProperties({
       }}
       className="flex min-h-0 flex-col gap-4 overflow-hidden"
     >
-      <div className="grid min-h-0 gap-4 overflow-y-auto px-1 -mx-1">
-        <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2">
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setTab(String(value))}
+        className="min-h-0"
+      >
+        <TabsList
+          aria-label="Clip property sections"
+          className="flex shrink-0 flex-wrap gap-1"
+        >
           {[
-            {
-              name: 'start',
-              label: 'Start (seconds)',
-              value: clip.startUs / 1e6,
-              min: 0,
-              max: undefined,
-            },
-            {
-              name: 'duration',
-              label: 'Duration (seconds)',
-              value: clip.durationUs / 1e6,
-              min: 0.000001,
-              max: undefined,
-            },
-            {
-              name: 'speed',
-              label: 'Speed',
-              value: clip.speed,
-              min: 0.25,
-              max: 4,
-            },
-            { name: 'gain', label: 'Gain', value: clip.gain, min: 0, max: 16 },
-          ]
-            .filter((field) => field.name !== 'speed' || !ramp)
-            .map((field) => (
-              <div className="grid gap-2" key={field.name}>
-                <Label htmlFor={`clip-${field.name}`}>{field.label}</Label>
-                <Input
-                  id={`clip-${field.name}`}
-                  name={field.name}
-                  type="number"
-                  required
-                  min={field.min}
-                  max={field.max}
-                  step="any"
+            ['general', 'General'],
+            ...(clip.kind !== 'audio'
+              ? [
+                  ['color', 'Color'],
+                  ['blending', 'Blending'],
+                  ['mask', 'Mask'],
+                  ['chroma', 'Chroma key'],
+                ]
+              : []),
+            ...(isTimedSource ? [['audio', 'Audio']] : []),
+            ['animation', 'Animation'],
+            ...(clip.text ? [['text', 'Text']] : []),
+          ].map(([value, label]) => (
+            <TabsTrigger key={value} value={value}>
+              {label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <div className="grid min-h-0 gap-4 overflow-y-auto px-1 -mx-1">
+          <TabsContent
+            value="general"
+            data-properties-tab="general"
+            keepMounted
+            className="grid gap-4"
+          >
+            <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2">
+              {[
+                {
+                  name: 'start',
+                  label: 'Start (seconds)',
+                  value: clip.startUs / 1e6,
+                  min: 0,
+                  max: undefined,
+                },
+                {
+                  name: 'duration',
+                  label: 'Duration (seconds)',
+                  value: clip.durationUs / 1e6,
+                  min: 0.000001,
+                  max: undefined,
+                },
+                {
+                  name: 'speed',
+                  label: 'Speed',
+                  value: clip.speed,
+                  min: 0.25,
+                  max: 4,
+                },
+                {
+                  name: 'gain',
+                  label: 'Gain',
+                  value: clip.gain,
+                  min: 0,
+                  max: 16,
+                },
+              ]
+                .filter((field) => field.name !== 'speed' || !ramp)
+                .map((field) => (
+                  <div className="grid gap-2" key={field.name}>
+                    <Label htmlFor={`clip-${field.name}`}>{field.label}</Label>
+                    <Input
+                      id={`clip-${field.name}`}
+                      name={field.name}
+                      type="number"
+                      required
+                      min={field.min}
+                      max={field.max}
+                      step="any"
+                      readOnly={readOnly}
+                      defaultValue={field.value}
+                      onChange={
+                        field.name === 'gain'
+                          ? (event) =>
+                              setBaseChanges((values) => ({
+                                ...values,
+                                gain: Number(event.target.value),
+                              }))
+                          : undefined
+                      }
+                    />
+                  </div>
+                ))}
+            </div>
+            {isTimedSource && (
+              <>
+                <Label htmlFor="audio-pitch">Audio pitch</Label>
+                <SettingsSelect
+                  id="audio-pitch"
+                  selectedLabel={
+                    pitchMode === 'preserve' ? 'Keep pitch' : 'Change pitch'
+                  }
+                  label="Audio pitch"
+                  value={pitchMode}
+                  disabled={readOnly}
+                  onChange={(value) =>
+                    setPitchMode(value as 'change' | 'preserve')
+                  }
+                  options={[
+                    { value: 'change', label: 'Change pitch' },
+                    { value: 'preserve', label: 'Keep pitch' },
+                  ]}
+                />
+                <SpeedRampEditor
+                  points={ramp}
+                  onChange={setRamp}
                   readOnly={readOnly}
-                  defaultValue={field.value}
-                  onChange={
-                    field.name === 'gain'
-                      ? (event) =>
-                          setBaseChanges((values) => ({
-                            ...values,
-                            gain: Number(event.target.value),
-                          }))
-                      : undefined
+                />
+              </>
+            )}
+          </TabsContent>
+          <ClipEffectFields
+            clip={clip}
+            patch={effects}
+            onChange={(patch) =>
+              setEffects((current) => ({ ...current, ...patch }))
+            }
+            disabled={readOnly || busy}
+            onTrackMask={onTrackMask}
+            onTracking={setTracking}
+            playheadUs={playheadUs}
+          />
+          <TabsContent
+            value="animation"
+            data-properties-tab="animation"
+            keepMounted
+          >
+            <KeyframeEditor
+              clip={{ ...clip, ...baseChanges }}
+              keyframes={keyframes}
+              onChange={setKeyframes}
+              onValidityChange={setAnimationValid}
+              onBaseChange={(parameter, value) =>
+                setBaseChanges((values) => ({ ...values, [parameter]: value }))
+              }
+              playheadUs={playheadUs}
+              readOnly={readOnly || busy}
+            />
+            {duplicateTimes && (
+              <p role="alert" className="text-sm text-destructive">
+                Each point in a property needs a distinct time.
+              </p>
+            )}
+          </TabsContent>
+          <TabsContent
+            value="text"
+            data-properties-tab="text"
+            keepMounted
+            className="grid gap-4"
+          >
+            {clip.text && (
+              <div className="grid gap-2">
+                <Label htmlFor="clip-text">Text</Label>
+                <Textarea
+                  id="clip-text"
+                  name="text"
+                  readOnly={readOnly}
+                  defaultValue={clip.text.text}
+                  onChange={(event) =>
+                    setStyle({ ...style!, text: event.target.value })
                   }
                 />
               </div>
-            ))}
+            )}
+            {style && (
+              <TextStyleFields
+                style={style}
+                onChange={setStyle}
+                readOnly={readOnly}
+              />
+            )}
+          </TabsContent>
         </div>
-        <ClipEffectFields
-          clip={clip}
-          patch={effects}
-          onChange={(patch) =>
-            setEffects((current) => ({ ...current, ...patch }))
-          }
-          disabled={readOnly || busy}
-          onTrackMask={onTrackMask}
-          onTracking={setTracking}
-          playheadUs={playheadUs}
-        />
-        <KeyframeEditor
-          clip={{ ...clip, ...baseChanges }}
-          keyframes={keyframes}
-          onChange={setKeyframes}
-          onValidityChange={setAnimationValid}
-          onBaseChange={(parameter, value) =>
-            setBaseChanges((values) => ({ ...values, [parameter]: value }))
-          }
-          playheadUs={playheadUs}
-          readOnly={readOnly || busy}
-        />
-        {duplicateTimes && (
-          <p role="alert" className="text-sm text-destructive">
-            Each point in a property needs a distinct time.
-          </p>
-        )}
-        {isTimedSource && (
-          <>
-            <Label htmlFor="audio-pitch">Audio pitch</Label>
-            <SettingsSelect
-              id="audio-pitch"
-              selectedLabel={
-                pitchMode === 'preserve' ? 'Keep pitch' : 'Change pitch'
-              }
-              label="Audio pitch"
-              value={pitchMode}
-              disabled={readOnly}
-              onChange={(value) => setPitchMode(value as 'change' | 'preserve')}
-              options={[
-                { value: 'change', label: 'Change pitch' },
-                { value: 'preserve', label: 'Keep pitch' },
-              ]}
-            />
-            <SpeedRampEditor
-              points={ramp}
-              onChange={setRamp}
-              readOnly={readOnly}
-            />
-          </>
-        )}
-        {clip.text && (
-          <div className="grid gap-2">
-            <Label htmlFor="clip-text">Text</Label>
-            <Textarea
-              id="clip-text"
-              name="text"
-              readOnly={readOnly}
-              defaultValue={clip.text.text}
-              onChange={(event) =>
-                setStyle({ ...style!, text: event.target.value })
-              }
-            />
-          </div>
-        )}
-        {style && (
-          <TextStyleFields
-            style={style}
-            onChange={setStyle}
-            readOnly={readOnly}
-          />
-        )}
-      </div>
+      </Tabs>
       <DialogFooter className="shrink-0">
+        {!readOnly &&
+          (duplicateTimes || !animationValid) &&
+          tab !== 'animation' && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setTab('animation')}
+            >
+              Review animation errors
+            </Button>
+          )}
         {!readOnly && (
           <Button
             type="submit"
