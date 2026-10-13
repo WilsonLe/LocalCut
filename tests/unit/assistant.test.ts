@@ -7768,4 +7768,138 @@ describe('request completion review sessions', () => {
     expect(f.project().tracks[0]!.clips[0]!.startUs).toBe(1e6);
     await f.assistant.dispose();
   });
+  it.each([false, true])(
+    'rechecks a concurrent empty-folder rename with names sharing %s',
+    async (includeAssetNames) => {
+      const f = fixture();
+      const state: import('../../src/core/media-library').LibrarySnapshot = {
+        revision: 3,
+        entries: [
+          {
+            id: 'folder',
+            parentId: null,
+            kind: 'folder',
+            name: 'Private folder',
+          },
+          {
+            id: 'withheld',
+            parentId: null,
+            kind: 'asset',
+            assetId: 'unshared',
+            name: 'Unshared original.mp4',
+            sourceSignature: 'private signature',
+          },
+        ],
+      };
+      const library = {
+        list: vi.fn(async () => structuredClone(state)),
+        apply: vi.fn(
+          async (
+            operation: import('../../src/core/media-library').LibraryOperation,
+            expectedRevision: number,
+          ) => {
+            expect(expectedRevision).toBe(state.revision);
+            if (operation.type === 'rename')
+              state.entries[0]!.name = operation.name;
+            state.revision++;
+            return structuredClone(state);
+          },
+        ),
+      };
+      f.editor.library = { forProject: vi.fn(() => library) };
+      const rename = (expectedRevision: number) =>
+        final('', [
+          call('propose_action', {
+            summary: 'Rename empty folder Shots',
+            action: {
+              type: 'library',
+              expectedRevision,
+              operation: { type: 'rename', entryId: 'folder', name: 'Shots' },
+            },
+          }),
+        ]);
+      const folderContract = {
+        goal: 'Rename the empty folder Shots',
+        successConditions: ['The folder is named Shots'],
+        stopConditions: [],
+      };
+      const p = reviewedProvider([
+        [final('', [call('load_skill', { skillId: 'editing' })])],
+        [final('', [call('inspect_library', {})])],
+        [rename(3)],
+        [final('Renamed')],
+        [final('', [call('inspect_library', {})])],
+        [rename(5)],
+        [final('Current folder renamed')],
+      ]);
+      const original = p.stream;
+      let checks = 0;
+      p.stream = async function* (request) {
+        const instruction = request.messages[0]?.content ?? '';
+        if (instruction.startsWith('LocalCut request contract:')) {
+          p.requests.push(structuredClone(request));
+          yield json(folderContract);
+        } else if (instruction.startsWith('LocalCut completion review:')) {
+          p.requests.push(structuredClone(request));
+          if (checks++ === 0) {
+            // Another tab changes library-only state while the old verdict is in flight.
+            state.entries[0]!.name = 'Changed in another tab';
+            state.revision++;
+          }
+          yield json({
+            conditions: [
+              {
+                conditionIndex: 0,
+                status: 'met',
+                evidence: 'Folder matches reviewed state',
+              },
+            ],
+            stopReason: null,
+          });
+        } else yield* original(request);
+      };
+      const assistant = createRealAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test/model',
+        execution: 'requested',
+        context: { includeAssetNames },
+      });
+      const events: AssistantEvent[] = [];
+      assistant.subscribe((e) => events.push(e));
+      const result = await assistant.run('Rename the empty folder Shots')
+        .completion;
+      expect(result.completion).toMatchObject({
+        status: 'fulfilled',
+        checks: 2,
+      });
+      expect(state.entries[0]!.name).toBe('Shots');
+      expect(f.project().revision).toBe(0);
+      expect(library.apply).toHaveBeenCalledTimes(2);
+      const reviews = kind(p, 'LocalCut completion review:');
+      const firstContext = JSON.parse(reviews[0]!.messages[1]!.content!)
+        .currentContext.mediaLibrary;
+      const secondContext = JSON.parse(reviews[1]!.messages[1]!.content!)
+        .currentContext.mediaLibrary;
+      expect(firstContext.revision).toBe(4);
+      expect(secondContext.revision).toBe(6);
+      expect(firstContext.entries).toHaveLength(1);
+      expect(firstContext.entries[0].name).toBe(
+        includeAssetNames ? 'Shots' : undefined,
+      );
+      const completedChecks = events.filter(
+        (e) =>
+          e.type === 'tool' &&
+          e.name === 'completion_check' &&
+          e.phase === 'completed',
+      );
+      expect(completedChecks[0]).toMatchObject({
+        result: { conditions: [{ status: 'unknown' }] },
+      });
+      expect(JSON.stringify(reviews)).not.toContain('Unshared original');
+      expect(JSON.stringify(reviews)).not.toContain('private signature');
+      await assistant.dispose();
+    },
+  );
 });

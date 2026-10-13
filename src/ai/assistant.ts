@@ -13,7 +13,7 @@ import {
 import type { GoalCompletion, GoalVerdict } from './goal-review';
 import { libraryContext, resolveLibraryAssets } from './library-context';
 import { libraryDescendants } from '../core/media-library';
-import type { LibraryOperation } from '../core/media-library';
+import type { LibraryOperation, LibrarySnapshot } from '../core/media-library';
 import { storyboardContext } from './context';
 import type { AssetIndexRun } from '../core/asset-index';
 import type { CommandBatch, EditReceipt } from '../core/commands';
@@ -643,6 +643,8 @@ export function createAssistant(options: AssistantOptions) {
           ],
           userActions: userOwnedActions,
           privacy,
+          mediaLibrary: undefined as
+            ReturnType<typeof libraryContext> | undefined,
         };
         const reviewSessionId = crypto.randomUUID();
         let completionReview: GoalVerdict | undefined;
@@ -740,6 +742,8 @@ export function createAssistant(options: AssistantOptions) {
         const resolvedAssets = new Set<string>();
         let resolvedLibraryRevision: number | undefined;
         let resolutionCurrent = true;
+        let libraryObserved = false;
+        let observedLibraryRevision: number | undefined;
         const turnAssetIds = () => [
           ...new Set([
             ...selectedAssetIds,
@@ -804,13 +808,20 @@ export function createAssistant(options: AssistantOptions) {
             'The project changed outside this response. Inspect the updated project in the next round.',
           );
           snapshot = current;
-          if (resolvedLibraryRevision !== undefined && resolvedAssets.size) {
-            const library = await interruptible(
+          let currentLibrary: LibrarySnapshot | undefined;
+          if (
+            libraryObserved ||
+            (resolvedLibraryRevision !== undefined && resolvedAssets.size)
+          ) {
+            currentLibrary = await interruptible(
               editor.library!.forProject(projectId).list(),
               signal,
             );
             check();
-            resolutionCurrent = library.revision === resolvedLibraryRevision;
+            observedLibraryRevision = currentLibrary.revision;
+            resolutionCurrent =
+              resolvedLibraryRevision === undefined ||
+              currentLibrary.revision === resolvedLibraryRevision;
           }
           referencedAssets.clear();
           availableAssets.clear();
@@ -819,6 +830,13 @@ export function createAssistant(options: AssistantOptions) {
             availableAssets.add(assetId);
           }
           for (const assetId of turnAssetIds()) availableAssets.add(assetId);
+          if (currentLibrary)
+            context.mediaLibrary = libraryContext(
+              currentLibrary,
+              {},
+              availableAssets,
+              policy,
+            );
           referencedTranscripts.clear();
           for (const track of snapshot.tracks)
             for (const clip of track.clips)
@@ -1161,6 +1179,7 @@ export function createAssistant(options: AssistantOptions) {
                 'TOOL_NOT_ALLOWED',
                 'Media library is unavailable.',
               );
+              libraryObserved = true;
               const library = await interruptible(
                 editor.library.forProject(projectId).list(),
                 signal,
@@ -1174,6 +1193,7 @@ export function createAssistant(options: AssistantOptions) {
                 'TOOL_NOT_ALLOWED',
                 'Media library is unavailable.',
               );
+              libraryObserved = true;
               const library = await interruptible(
                 editor.library.forProject(projectId).list(),
                 signal,
@@ -1302,6 +1322,7 @@ export function createAssistant(options: AssistantOptions) {
               );
               let libraryDependent = false;
               if (action.type === 'library') {
+                libraryObserved = true;
                 const library = await validateLibraryScope(
                   action.operation,
                   action.expectedRevision,
@@ -1637,6 +1658,7 @@ export function createAssistant(options: AssistantOptions) {
                 snapshot.revision,
                 indexScope,
                 resolutionCurrent,
+                observedLibraryRevision,
                 context.availableAssetIds,
               ]);
             const reviewedContext = reviewContextIdentity();

@@ -1,7 +1,13 @@
+import { installGoalReviewFixture } from './goal-review-fixture';
 import { openVersions } from './workspace-settings-helper';
 import { test, expect } from '@playwright/test';
+
 import type { Page } from '@playwright/test';
 import type { Project } from '../../src/editor';
+
+test.beforeEach(async ({ page }) => {
+  await installGoalReviewFixture(page);
+});
 
 async function snapshot(
   page: Page,
@@ -434,6 +440,14 @@ for (const base of ['/', '/LocalCut/']) {
           model: 'test/storyboard',
           provider: {
             async *stream(request) {
+              const reviewReply = await window.localcutGoalReviewReply({
+                messages: request.messages,
+                tools: request.tools,
+              });
+              if (reviewReply) {
+                yield { type: 'complete' as const, message: reviewReply };
+                return;
+              }
               requests.push(structuredClone(request));
               const calls = [
                 { name: 'load_skill', args: { skillId: 'storyboard' } },
