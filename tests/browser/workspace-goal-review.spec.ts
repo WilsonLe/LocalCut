@@ -128,6 +128,7 @@ for (const base of ['/', '/LocalCut/']) {
           );
           return;
         }
+        const context = JSON.parse(request.messages[1].content);
         expect(
           request.messages.some(
             (message: { role: string; content: string }) =>
@@ -136,7 +137,7 @@ for (const base of ['/', '/LocalCut/']) {
                 'Continue the original request in this same turn.',
               ),
           ),
-        ).toBe(true);
+        ).toBe(context.completionReview !== undefined);
         if (
           !request.tools?.some(
             (tool: { function: { name: string } }) =>
@@ -148,7 +149,6 @@ for (const base of ['/', '/LocalCut/']) {
           ]);
           return;
         }
-        const context = JSON.parse(request.messages[1].content);
         if (
           !context.selectedProject.tracks.some(
             (track: { id: string }) => track.id === 'checked-overlay',
@@ -481,7 +481,7 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await expect(
       page.getByRole('article', { name: 'Assistant response' }).last(),
-    ).toContainText('The overlay track is now added.');
+    ).toContainText('The overlay track and closing title are now added.');
     await expect(
       page
         .getByRole('article', { name: 'Assistant response' })
@@ -489,5 +489,6 @@ for (const base of ['/', '/LocalCut/']) {
         .getByRole('button', { name: 'Completion verified · 1', exact: true }),
     ).toBeVisible();
     expect(editCalls).toBe(1);
+    expect(titleCalls).toBe(1);
   });
 }
