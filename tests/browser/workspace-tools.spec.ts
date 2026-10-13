@@ -230,6 +230,18 @@ for (const base of ['/', '/LocalCut/']) {
       page.getByRole('button', { name: 'Apply proposal', exact: true }),
     ).toHaveCount(0);
     await expect(response).not.toContainText('synthetic-tool-detail-key');
+    expect(
+      await response.evaluate((node) => {
+        const text = node.querySelector('[data-chat-response-text]')!;
+        return [...node.querySelectorAll('[data-tool-call]')].every(
+          (tool) =>
+            !!(
+              tool.compareDocumentPosition(text) &
+              Node.DOCUMENT_POSITION_FOLLOWING
+            ),
+        );
+      }),
+    ).toBe(true);
     expect(rounds).toBe(2);
     expect(errors).toEqual([]);
     await testInfo.attach('expanded tool results and validation error', {

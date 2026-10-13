@@ -5116,6 +5116,332 @@ describe('requested chat execution', () => {
     ]);
     await a.dispose();
   });
+  it('overlaps independent reads, keeps protocol replies ordered and respects mutation barriers', async () => {
+    const f = fixture();
+    const gates = [deferred<void>(), deferred<void>()];
+    const started = deferred<void>();
+    const readOrder: number[] = [];
+    const inspect = f.editor.assets.inspect;
+    let reading = false;
+    let read = 0;
+    f.editor.assets.inspect = vi.fn(async (id) => {
+      if (reading) {
+        const index = read++;
+        if (read === 2) started.resolve();
+        await gates[index]!.promise;
+        readOrder.push(index);
+      }
+      return { ...(await inspect(id)), id };
+    });
+    const requests: ChatRequest[] = [];
+    let round = 0;
+    const p = {
+      stream: async function* (request: ChatRequest) {
+        requests.push(structuredClone(request));
+        if (round++ === 0)
+          yield final('', [call('load_skill', { skillId: 'editing' })]);
+        else if (round === 2) {
+          reading = true;
+          yield final('', [
+            call('inspect_asset', { assetId: 'asset' }, 'first'),
+            call('inspect_asset', { assetId: 'other' }, 'second'),
+            call(
+              'propose_edits',
+              {
+                summary: 'Move',
+                operations: [
+                  {
+                    type: 'moveClip',
+                    clipId: 'video',
+                    trackId: 'main',
+                    startUs: 1e6,
+                  },
+                ],
+              },
+              'move',
+            ),
+            call('inspect_project', {}, 'after'),
+          ]);
+        } else yield final('Done.');
+      },
+    };
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      execution: 'requested',
+      assetIds: ['other'],
+    });
+    try {
+      const turn = a.run('Inspect both assets then move the clip');
+      await started.promise;
+      expect(f.editor.commands.apply).not.toHaveBeenCalled();
+      gates[1]!.resolve();
+      await vi.waitFor(() => expect(readOrder).toEqual([1]));
+      expect(requests).toHaveLength(2);
+      reading = false;
+      gates[0]!.resolve();
+      await turn.completion;
+      const replies = requests
+        .at(-1)!
+        .messages.filter((m) => m.role === 'tool');
+      expect(replies.slice(-4).map((m) => m.tool_call_id)).toEqual([
+        'first',
+        'second',
+        'move',
+        'after',
+      ]);
+      expect(JSON.parse(replies.at(-1)!.content)).toMatchObject({
+        revision: 1,
+      });
+      expect(readOrder).toEqual([1, 0]);
+    } finally {
+      await a.dispose();
+    }
+  });
+
+  function indexingBatch(ids: string[], fail = false, cancel = false) {
+    const f = fixture();
+    const inspect = f.editor.assets.inspect;
+    f.editor.assets.inspect = async (id) => ({ ...(await inspect(id)), id });
+    const jobs = new Jobs();
+    const gates = ids.map(() => deferred<void>());
+    const started: string[] = [];
+    const aborted: string[] = [];
+    const requests: ChatRequest[] = [];
+    let round = 0;
+    const p = {
+      stream: async function* (request: ChatRequest) {
+        requests.push(structuredClone(request));
+        if (round++ === 0)
+          yield final('', [call('load_skill', { skillId: 'indexing' })]);
+        else if (round === 2)
+          yield final(
+            '',
+            ids.map((assetId, index) =>
+              call(
+                'propose_action',
+                {
+                  summary: `Index ${assetId}`,
+                  action: { type: 'index_asset', assetId },
+                },
+                `index-${index}`,
+              ),
+            ),
+          );
+        else yield final('Index results received.');
+      },
+    };
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      execution: 'requested',
+      context: { includeAssetIndexes: true },
+      assetIds: [...new Set(ids)],
+      indexing: {
+        consent: () => true,
+        disclosure: 'Generated evidence.',
+        run: (assetId) =>
+          jobs.start(async (signal) => {
+            const index = started.length;
+            started.push(assetId);
+            if (cancel)
+              await new Promise<void>((resolve) => {
+                void gates[index]!.promise.then(resolve);
+                signal.addEventListener(
+                  'abort',
+                  () => {
+                    aborted.push(assetId);
+                    resolve();
+                  },
+                  { once: true },
+                );
+              });
+            else await gates[index]!.promise;
+            if (signal.aborted) throw new AiError('CANCELLED', 'Stopped');
+            if (fail && index === 0)
+              throw new AiError('NETWORK_ERROR', 'Failed indexing');
+            return {
+              id: `run-${assetId}`,
+              assetId,
+              analysis: { scenes: [] },
+            } as unknown as import('../../src/core/asset-index').AssetIndexRun;
+          }),
+      },
+    });
+    return { a, jobs, gates, started, aborted, requests };
+  }
+  it('overlaps distinct indexing assets and binds out-of-order receipts to their own calls', async () => {
+    const h = indexingBatch(['asset', 'other']);
+    try {
+      const turn = h.a.run('Index both');
+      await vi.waitFor(() => expect(h.started).toEqual(['asset', 'other']));
+      h.gates[1]!.resolve();
+      await vi.waitFor(() =>
+        expect(
+          h.a
+            .snapshot()
+            .proposals.some(
+              (p) =>
+                p.result?.kind === 'indexing' && p.result.assetId === 'other',
+            ),
+        ).toBe(true),
+      );
+      expect(h.requests).toHaveLength(2);
+      h.gates[0]!.resolve();
+      const result = await turn.completion;
+      const replies = h.requests
+        .at(-1)!
+        .messages.filter((m) => m.role === 'tool')
+        .slice(-2);
+      expect(
+        replies.map((m) => [
+          m.tool_call_id,
+          JSON.parse(m.content).result.assetId,
+        ]),
+      ).toEqual([
+        ['index-0', 'asset'],
+        ['index-1', 'other'],
+      ]);
+      expect(
+        result.proposalIds.map((id) => h.a.getProposal(id).result),
+      ).toMatchObject([{ assetId: 'asset' }, { assetId: 'other' }]);
+    } finally {
+      await h.a.dispose();
+      await h.jobs.dispose();
+    }
+  });
+  it('serializes repeated indexing assets even within one model batch', async () => {
+    const h = indexingBatch(['asset', 'asset']);
+    try {
+      const turn = h.a.run('Index twice');
+      await vi.waitFor(() => expect(h.started).toEqual(['asset']));
+      expect(h.a.snapshot().proposals).toHaveLength(1);
+      h.gates[0]!.resolve();
+      await vi.waitFor(() => expect(h.started).toEqual(['asset', 'asset']));
+      h.gates[1]!.resolve();
+      await turn.completion;
+    } finally {
+      await h.a.dispose();
+      await h.jobs.dispose();
+    }
+  });
+  it.each([false, true])(
+    'bounds in-flight indexing and prevents later paid submissions after failure: %s',
+    async (fail) => {
+      const h = indexingBatch(
+        ['asset', 'two', 'three', 'four', 'five', 'six'],
+        fail,
+      );
+      try {
+        const turn = h.a.run('Index all');
+        await vi.waitFor(() => expect(h.started).toHaveLength(4));
+        h.gates[0]!.resolve();
+        await vi.waitFor(() =>
+          expect(h.a.snapshot().proposals[0]!.status).toBe(
+            fail ? 'pending' : 'applied',
+          ),
+        );
+        expect(h.started).toHaveLength(4);
+        h.gates.slice(1).forEach((gate) => gate.resolve());
+        await turn.completion;
+        expect(h.started).toHaveLength(fail ? 4 : 6);
+        expect(h.a.snapshot().proposals.filter((p) => p.result)).toHaveLength(
+          fail ? 3 : 6,
+        );
+        if (fail)
+          expect(JSON.stringify(h.requests.at(-1))).toContain('explicit retry');
+      } finally {
+        await h.a.dispose();
+        await h.jobs.dispose();
+      }
+    },
+  );
+  it('cancels and drains every active parallel indexing sibling', async () => {
+    const h = indexingBatch(['asset', 'other'], false, true);
+    try {
+      const turn = h.a.run('Index both');
+      await vi.waitFor(() => expect(h.started).toHaveLength(2));
+      const completion = expect(turn.completion).rejects.toMatchObject({
+        code: 'CANCELLED',
+      });
+      turn.cancel();
+      await completion;
+      expect(h.aborted).toEqual(['asset', 'other']);
+      expect(h.a.snapshot().proposals.every((p) => !p.result)).toBe(true);
+      expect(h.requests).toHaveLength(2);
+    } finally {
+      await h.a.dispose();
+      await h.jobs.dispose();
+    }
+  });
+  it('retains a completed parallel receipt when the remaining sibling is cancelled', async () => {
+    const h = indexingBatch(['asset', 'other'], false, true);
+    try {
+      const turn = h.a.run('Index both');
+      await vi.waitFor(() => expect(h.started).toHaveLength(2));
+      h.gates[0]!.resolve();
+      await vi.waitFor(() =>
+        expect(h.a.snapshot().proposals[0]!.result).toMatchObject({
+          kind: 'indexing',
+          assetId: 'asset',
+        }),
+      );
+      const completion = expect(turn.completion).rejects.toMatchObject({
+        code: 'CANCELLED',
+      });
+      turn.cancel();
+      await completion;
+      expect(h.aborted).toEqual(['other']);
+      expect(
+        h.a
+          .snapshot()
+          .proposals.filter((proposal) => proposal.result)
+          .map((proposal) => proposal.result),
+      ).toMatchObject([{ kind: 'indexing', assetId: 'asset' }]);
+    } finally {
+      await h.a.dispose();
+      await h.jobs.dispose();
+    }
+  });
+  it('rejects duplicate batch call IDs before any mutation can commit', async () => {
+    const f = fixture();
+    const p = provider([
+      [
+        final('', [
+          call(
+            'propose_edits',
+            {
+              summary: 'Move',
+              operations: [
+                {
+                  type: 'moveClip',
+                  clipId: 'video',
+                  trackId: 'main',
+                  startUs: 1e6,
+                },
+              ],
+            },
+            'duplicate',
+          ),
+          call('inspect_project', {}, 'duplicate'),
+        ]),
+      ],
+    ]);
+    const a = requested(f, p);
+    try {
+      await expect(a.run('Move').completion).rejects.toMatchObject({
+        code: 'INVALID_RESPONSE',
+      });
+      expect(f.editor.commands.apply).not.toHaveBeenCalled();
+      expect(f.project().revision).toBe(0);
+    } finally {
+      await a.dispose();
+    }
+  });
   it('rejects a stale model plan when another edit commits during provider latency', async () => {
     const f = fixture();
     const requests: ChatRequest[] = [];
@@ -6641,17 +6967,41 @@ describe('local storyboard image actions', () => {
           ],
           [
             final('', [
-              call('propose_action', {
-                summary: 'Insert the shot picture',
-                action: {
-                  type: 'insert_storyboard_image',
-                  options: {
-                    assetId: 'asset',
-                    elementId: 'picture',
-                    timeUs: 1000000,
+              call(
+                'propose_action',
+                {
+                  summary: 'Insert the shot picture',
+                  action: {
+                    type: 'insert_storyboard_image',
+                    options: {
+                      assetId: 'asset',
+                      elementId: 'picture',
+                      timeUs: 1000000,
+                    },
                   },
                 },
-              }),
+                'insert',
+              ),
+              ...(execution === 'requested'
+                ? [
+                    call('inspect_project', {}, 'after-image'),
+                    call(
+                      'propose_edits',
+                      {
+                        summary: 'Move after inserting the image',
+                        operations: [
+                          {
+                            type: 'moveClip',
+                            clipId: 'video',
+                            trackId: 'main',
+                            startUs: 1000000,
+                          },
+                        ],
+                      },
+                      'move-after-image',
+                    ),
+                  ]
+                : []),
             ]),
           ],
           [final('Picture inserted.')],
@@ -6681,6 +7031,23 @@ describe('local storyboard image actions', () => {
         assetId: 'local-png',
         revision: 1,
       });
+      if (execution === 'requested') {
+        const replies = p.requests
+          .at(-1)!
+          .messages.filter((message) => message.role === 'tool');
+        expect(
+          JSON.parse(
+            replies.find((reply) => reply.tool_call_id === 'after-image')!
+              .content,
+          ),
+        ).toMatchObject({ revision: 1 });
+        expect(f.project().revision).toBe(2);
+        expect(f.project().tracks[0]!.clips[0]!.startUs).toBe(1000000);
+        expect(a.getProposal(turn.proposalIds[1]!).result).toMatchObject({
+          kind: 'edit',
+          receipt: { appliedRevision: 2 },
+        });
+      }
       const sent = JSON.stringify(p.requests);
       expect(sent).not.toContain('data:image');
       await a.dispose();
