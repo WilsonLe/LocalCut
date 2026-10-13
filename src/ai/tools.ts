@@ -647,13 +647,14 @@ export function proposalBatch(
       operations: input,
     });
     const next = applyOperations(project, batch.operations).project;
+    for (const assetId of assetIds(next))
+      aiInvariant(
+        allowedAssets.has(assetId),
+        'TOOL_NOT_ALLOWED',
+        'Proposals may only reference selected library assets or assets in the project.',
+      );
     for (const track of next.tracks)
       for (const clip of track.clips) {
-        aiInvariant(
-          !clip.assetId || allowedAssets.has(clip.assetId),
-          'TOOL_NOT_ALLOWED',
-          'Proposals may only reference selected library assets or assets in the project.',
-        );
         aiInvariant(
           !clip.transcriptId || allowedTranscripts.has(clip.transcriptId),
           'TOOL_NOT_ALLOWED',

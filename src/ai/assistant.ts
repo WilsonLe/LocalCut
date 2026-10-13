@@ -1,3 +1,5 @@
+import { applyOperations } from '../core/commands';
+import type { EditOperation } from '../core/commands';
 import { libraryContext, resolveLibraryAssets } from './library-context';
 import { libraryDescendants } from '../core/media-library';
 import type { LibraryOperation } from '../core/media-library';
@@ -726,18 +728,17 @@ export function createAssistant(options: AssistantOptions) {
           }
         };
         const validate = async (operations: unknown[]) => {
-          // These canonical operations are the only ways to introduce a source asset.
-          if (
-            operations.some((operation) => {
-              const op = operation as {
-                type?: string;
-                clip?: { assetId?: string };
-                patch?: { assetId?: string };
-              };
-              return needsResolvedAsset(op.clip?.assetId ?? op.patch?.assetId);
-            })
-          )
-            await checkLibraryScope();
+          // Derive source dependencies from the canonical resulting document so
+          // timeline and storyboard references use the same scope/revision gate.
+          let dependsOnLibrary = false;
+          try {
+            dependsOnLibrary = assetIds(
+              applyOperations(snapshot, operations as EditOperation[]).project,
+            ).some(needsResolvedAsset);
+          } catch {
+            // proposalBatch below owns the existing semantic edit error contract.
+          }
+          if (dependsOnLibrary) await checkLibraryScope();
           const batch = proposalBatch(
             snapshot,
             operations,

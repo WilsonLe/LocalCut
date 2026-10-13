@@ -31,6 +31,7 @@ import {
   toolDefinitions,
   editingProperties,
   parseTool,
+  proposalBatch,
   searchTextLibrary,
 } from '../../src/ai/tools';
 import { assistantCapabilities } from '../../src/ai/actions';
@@ -6722,4 +6723,119 @@ describe('local storyboard image actions', () => {
     );
     await a.dispose();
   });
+});
+
+describe('canonical storyboard image scope', () => {
+  const image = {
+    id: 'picture',
+    type: 'image' as const,
+    fileId: 'foreign-image',
+    status: 'saved' as const,
+    scale: [1, 1] as [1, 1],
+  };
+  it.each(['upsertStoryboardElements', 'setStoryboard', 'patch'] as const)(
+    'rejects foreign image references through %s',
+    (type) => {
+      let project = newProject('Scope');
+      if (type === 'patch')
+        project = applyOperations(project, [
+          {
+            type: 'upsertStoryboardElements',
+            elements: [{ ...image, fileId: 'authorized-image' }],
+          },
+        ]).project;
+      const operations: EditOperation[] =
+        type === 'setStoryboard'
+          ? [
+              {
+                type,
+                storyboard: {
+                  elements: [
+                    applyOperations(newProject('Image'), [
+                      { type: 'upsertStoryboardElements', elements: [image] },
+                    ]).project.storyboard!.elements[0]!,
+                  ],
+                  backgroundColor: '#fff',
+                },
+              },
+            ]
+          : [
+              {
+                type: 'upsertStoryboardElements',
+                elements: [
+                  type === 'patch'
+                    ? { id: 'picture', fileId: 'foreign-image' }
+                    : image,
+                ],
+              },
+            ];
+      expect(() =>
+        proposalBatch(project, operations, 'request', Infinity, []),
+      ).toThrow('selected library assets');
+      expect(
+        proposalBatch(project, operations, 'request', Infinity, [
+          'foreign-image',
+        ]).operations,
+      ).toHaveLength(1);
+    },
+  );
+  it.each(['validate_edits', 'propose_edits'] as const)(
+    'rejects stale resolved image scope before %s validates or reads its source',
+    async (tool) => {
+      const f = libraryScopeFixture();
+      const p = provider(
+        [
+          [final('', [call('load_skill', { skillId: 'editing' })])],
+          [
+            final('', [
+              call('resolve_library_assets', {
+                folderId: 'folder',
+                expectedRevision: 7,
+              }),
+            ]),
+          ],
+          [final('', [call('load_skill', { skillId: 'storyboard' })])],
+          [
+            final('', [
+              call(tool, {
+                ...(tool === 'propose_edits'
+                  ? { summary: 'Insert source' }
+                  : {}),
+                operations: [
+                  {
+                    type: 'upsertStoryboardElements',
+                    elements: [{ ...image, fileId: 'library-clip' }],
+                  },
+                ],
+              }),
+            ]),
+          ],
+          [final('Resolve Media again.')],
+        ],
+        false,
+      );
+      const stream = p.stream.getMockImplementation()!;
+      let round = 0;
+      p.stream.mockImplementation(async function* (...args) {
+        if (round++ === 3) f.library.revision++;
+        yield* stream(...args);
+      });
+      const a = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test',
+        libraryAccess: 'project',
+        execution: 'requested',
+      });
+      await a.run('Insert an image from Sydney').completion;
+      expect(f.editor.commands.validate).not.toHaveBeenCalled();
+      expect(f.editor.commands.apply).not.toHaveBeenCalled();
+      expect(f.editor.assets.inspect).not.toHaveBeenCalled();
+      expect(JSON.stringify(p.requests)).toContain(
+        'Media changed after scope resolution',
+      );
+      await a.dispose();
+    },
+  );
 });
