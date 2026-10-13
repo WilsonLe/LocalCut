@@ -2,6 +2,11 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Speech phrase timing — 13 October 2026
+
+- Always use the STT route configured in AI settings for generated-speech phrase timing. Remove the separate Phrase timing options section, including its heading, selector and explanatory/metadata text.
+- Keep local model preparation explicit and preserve actionable timing recovery; never silently switch STT services.
+
 ## Speech generation form — 13 October 2026
 
 - Default the voice preset picker to New voice preset and show its name field immediately beneath it. Keep Script as the last form input, align Speech model and Voice, and show descriptive voice labels alongside their names.

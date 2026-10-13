@@ -183,9 +183,6 @@ export default function SpeechDialog({
         'script' | 'model' | 'voice' | 'languages' | 'instructions'
       >
     >();
-  const [timingProvider, setTimingProvider] = useState<'local' | 'configured'>(
-    'local',
-  );
   const [timingReady, setTimingReady] = useState(false);
   const [draftReference, setDraftReference] = useState<SpeechReference>();
   const [rendered, setRendered] = useState<RenderedSpeech | null>(null);
@@ -466,7 +463,6 @@ export default function SpeechDialog({
   const restoreRequest = useCallback((input: SpeechTaskInput, id: string) => {
     if (generated.current?.id !== id) setPresetId('');
     setScript(input.request.script);
-    setTimingProvider(input.timingProvider ?? 'local');
     setSourceMetadata({
       script: input.request.script,
       model: input.request.model,
@@ -722,15 +718,12 @@ export default function SpeechDialog({
       try {
         connection.api.validateSpeechTiming(timing());
         if (
-          (timingProvider === 'local' ||
-            connection.provider.transcriptionDisclosure.includes(
-              'runs locally',
-            )) &&
+          connection.provider.transcriptionDisclosure.includes(
+            'runs locally',
+          ) &&
           !(await editor.transcription.status()).ready
         )
-          throw new Error(
-            'Prepare phrase timing before generating speech, or choose a configured remote STT route.',
-          );
+          throw new Error('Prepare transcription before generating speech.');
         if (!script.trim() || !selected?.voices.includes(voice))
           throw new Error('Choose a script, model and voice.');
         let reference = draftReference;
@@ -767,10 +760,8 @@ export default function SpeechDialog({
           timing: timing(),
           projectId: project.id,
           route: speechRoute(connection),
-          timingProvider,
-          ...(timingProvider === 'configured'
-            ? { timingRoute: speechTimingRoute(connection) }
-            : {}),
+          timingProvider: 'configured',
+          timingRoute: speechTimingRoute(connection),
         };
         const job = editor.tasks.enqueue<SpeechTaskResult>(
           speechTaskKind(connection),
@@ -1324,113 +1315,6 @@ export default function SpeechDialog({
               </p>
             )}
             <div className="space-y-2">
-              <Label htmlFor="speech-phrase-timing">Phrase timing</Label>
-              <SettingsSelect
-                id="speech-phrase-timing"
-                selectedLabel={
-                  timingProvider === 'local'
-                    ? 'Local Whisper'
-                    : 'Configured STT route'
-                }
-                label="Phrase timing"
-                disabled={!!busy}
-                value={timingProvider}
-                onChange={(value) =>
-                  setTimingProvider(value as 'local' | 'configured')
-                }
-                options={[
-                  { value: 'local', label: 'Local Whisper' },
-                  { value: 'configured', label: 'Configured STT route' },
-                ]}
-              />
-              <p className="text-xs text-muted-foreground">
-                {timingProvider === 'local'
-                  ? 'Measure phrases locally for later edits.'
-                  : connection.provider.transcriptionDisclosure.replace(
-                      'Approving may send the selected source audio',
-                      'Generate may send this new audio',
-                    )}
-              </p>
-              {!timingReady &&
-                (timingProvider === 'local' ||
-                  connection.provider.transcriptionDisclosure.includes(
-                    'runs locally',
-                  )) && (
-                  <Button
-                    variant="outline"
-                    disabled={!!busy}
-                    onClick={() =>
-                      run('Preparing phrase timing…', async (signal) => {
-                        const job = editor.transcription.prepare();
-                        const abort = () => job.cancel();
-                        signal.addEventListener('abort', abort, { once: true });
-                        try {
-                          const result = await job.completion;
-                          if (active.current && !signal.aborted)
-                            setTimingReady(result.ready);
-                        } finally {
-                          signal.removeEventListener('abort', abort);
-                        }
-                      })
-                    }
-                  >
-                    Prepare local phrase timing (68 MB)
-                  </Button>
-                )}
-              {transcript && (
-                <p className="text-xs text-muted-foreground">
-                  {transcript.cues.length} timed phrases saved · up to 80 ms
-                  editing padding, without overlaps.
-                </p>
-              )}
-              {audio && !transcript && !busy && (
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    run('Measuring phrase timing…', async (signal) => {
-                      const job = editor.transcription.measure(
-                        audio.samples,
-                        audio.sampleRate,
-                        timingProvider === 'configured'
-                          ? { provider: connection.provider.transcribe }
-                          : {},
-                      );
-                      const abort = () => job.cancel();
-                      signal.addEventListener('abort', abort, { once: true });
-                      try {
-                        const result = await job.completion;
-                        if (active.current && !signal.aborted) {
-                          if (generation) {
-                            const task = await editor.tasks.get(generation);
-                            // Checkpoints share the result store. Preserve a legacy
-                            // completed take's WAV/result shape while adding timing.
-                            const saved =
-                              task?.state === 'completed'
-                                ? {
-                                    ...(await editor.tasks.result<SpeechTaskResult>(
-                                      generation,
-                                    )),
-                                    transcript: result,
-                                  }
-                                : { ...audio, transcript: result };
-                            await editor.tasks.saveCheckpoint(
-                              generation,
-                              saved,
-                            );
-                          }
-                          setTranscript(result);
-                        }
-                      } finally {
-                        signal.removeEventListener('abort', abort);
-                      }
-                    })
-                  }
-                >
-                  Measure phrase timing
-                </Button>
-              )}
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="speech-script">Script</Label>
               <Textarea
                 id="speech-script"
@@ -1472,6 +1356,93 @@ export default function SpeechDialog({
           )}
         </div>
         <DialogFooter className="flex-wrap">
+          {!timingReady &&
+            connection.provider.transcriptionDisclosure.includes(
+              'runs locally',
+            ) && (
+              <Button
+                variant="outline"
+                disabled={!!busy}
+                onClick={() =>
+                  run('Preparing transcription…', async (signal) => {
+                    const job = editor.transcription.prepare();
+                    const abort = () => job.cancel();
+                    signal.addEventListener('abort', abort, { once: true });
+                    try {
+                      const result = await job.completion;
+                      if (active.current && !signal.aborted)
+                        setTimingReady(result.ready);
+                    } finally {
+                      signal.removeEventListener('abort', abort);
+                    }
+                  })
+                }
+              >
+                Prepare transcription (68 MB)
+              </Button>
+            )}
+          {audio && !transcript && !busy && (
+            <Button
+              variant="outline"
+              onClick={() =>
+                run('Measuring phrase timing…', async (signal) => {
+                  const savedTask = generation
+                    ? await editor.tasks.get(generation)
+                    : undefined;
+                  if (signal.aborted || !active.current) return;
+                  // Retrying an unfinished request keeps its frozen recipients.
+                  // A completed legacy take instead starts a new measurement.
+                  if (savedTask && savedTask.state !== 'completed') {
+                    const job = await editor.tasks.retry(savedTask.id);
+                    const abort = () => job.cancel();
+                    signal.addEventListener('abort', abort, { once: true });
+                    try {
+                      if (signal.aborted) abort();
+                      await job.completion;
+                      if (active.current && !signal.aborted)
+                        await loadResult(savedTask.id);
+                    } finally {
+                      signal.removeEventListener('abort', abort);
+                    }
+                    return;
+                  }
+                  const job = editor.transcription.measure(
+                    audio.samples,
+                    audio.sampleRate,
+                    { provider: connection.provider.transcribe },
+                  );
+                  const abort = () => job.cancel();
+                  signal.addEventListener('abort', abort, { once: true });
+                  try {
+                    const result = await job.completion;
+                    if (active.current && !signal.aborted) {
+                      if (generation) {
+                        const task = await editor.tasks.get(generation);
+                        // Checkpoints share the result store. Preserve a legacy
+                        // completed take's WAV/result shape while adding timing.
+                        const saved =
+                          task?.state === 'completed'
+                            ? {
+                                ...(await editor.tasks.result<SpeechTaskResult>(
+                                  generation,
+                                )),
+                                transcript: result,
+                              }
+                            : { ...audio, transcript: result };
+                        await editor.tasks.saveCheckpoint(generation, saved);
+                      }
+                      setTranscript(result);
+                    }
+                  } finally {
+                    signal.removeEventListener('abort', abort);
+                  }
+                })
+              }
+            >
+              Retry timing
+            </Button>
+          )}
+
           {busy ? (
             <Button
               variant="outline"

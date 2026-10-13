@@ -27,6 +27,7 @@ async function connect(
   context: BrowserContext,
   base: string,
   profileName = 'OpenRouter',
+  sttProvider: 'local' | 'openrouter' = 'openrouter',
 ) {
   await context.route('https://openrouter.ai/api/v1/models**', (route) =>
     route.request().url().endsWith('/endpoints')
@@ -56,32 +57,38 @@ async function connect(
         }),
   );
   // Controlled remote alignment; production UI/native audio/storage remain real Chrome.
-  await context.addInitScript((profileName) => {
-    if (!localStorage.getItem('localcut.workspace-preferences.v1'))
-      localStorage.setItem(
-        'localcut.workspace-preferences.v1',
-        JSON.stringify({
-          version: 1,
-          preferences: {
-            aiProviders: JSON.stringify({
-              profiles: [
-                { id: 'openrouter', name: profileName, kind: 'openrouter' },
-              ],
-              routes: {
-                llm: [{ providerId: 'openrouter', model: '' }],
-                tts: [{ providerId: 'openrouter', model: '' }],
-                stt: [
-                  {
-                    providerId: 'openrouter',
-                    model: 'openai/whisper-large-v3',
-                  },
+  await context.addInitScript(
+    ({ profileName, sttProvider }) => {
+      if (!localStorage.getItem('localcut.workspace-preferences.v1'))
+        localStorage.setItem(
+          'localcut.workspace-preferences.v1',
+          JSON.stringify({
+            version: 1,
+            preferences: {
+              aiProviders: JSON.stringify({
+                profiles: [
+                  { id: 'openrouter', name: profileName, kind: 'openrouter' },
                 ],
-              },
-            }),
-          },
-        }),
-      );
-  }, profileName);
+                routes: {
+                  llm: [{ providerId: 'openrouter', model: '' }],
+                  tts: [{ providerId: 'openrouter', model: '' }],
+                  stt: [
+                    {
+                      providerId: sttProvider,
+                      model:
+                        sttProvider === 'local'
+                          ? 'whisper'
+                          : 'openai/whisper-large-v3',
+                    },
+                  ],
+                },
+              }),
+            },
+          }),
+        );
+    },
+    { profileName, sttProvider },
+  );
   await context.route(
     'https://openrouter.ai/api/v1/audio/transcriptions',
     (route) =>
@@ -182,12 +189,16 @@ async function configureSpeech(
   page: Page,
   dialog: ReturnType<Page['getByRole']>,
 ) {
-  await dialog
-    .getByRole('combobox', { name: 'Phrase timing', exact: true })
-    .click();
-  await page
-    .getByRole('option', { name: 'Configured STT route', exact: true })
-    .click();
+  await expect(
+    dialog.getByRole('combobox', { name: 'Phrase timing', exact: true }),
+  ).toHaveCount(0);
+  await expect(dialog).not.toContainText('Configured STT route');
+  await expect(dialog).not.toContainText(
+    'Approving sends the selected source audio',
+  );
+  await expect(dialog).not.toContainText(
+    'Measure phrases locally for later edits.',
+  );
   await dialog.getByLabel('Script', { exact: true }).fill('Hello! Xin chào!');
   await dialog.getByLabel('Speed (×)').fill('1');
   await dialog
@@ -657,12 +668,6 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await page
       .getByRole('option', { name: 'Updated in another tab', exact: true })
-      .click();
-    await dialog
-      .getByRole('combobox', { name: 'Phrase timing', exact: true })
-      .click();
-    await page
-      .getByRole('option', { name: 'Configured STT route', exact: true })
       .click();
     await dialog
       .getByLabel('Script', { exact: true })
@@ -1237,6 +1242,224 @@ async function reopenSpeech(page: Page) {
   return page.getByRole('dialog', { name: 'Text to speech', exact: true });
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`speech uses configured STT without phrase timing options and blocks unprepared local generation ${base}`, async ({
+    page,
+    context,
+  }, info) => {
+    let synthesis = 0;
+    const alignmentModels: string[] = [];
+    await context.route(
+      'https://openrouter.ai/api/v1/audio/speech',
+      (route) => {
+        synthesis++;
+        return route.fulfill({
+          headers: cors,
+          contentType: 'audio/pcm',
+          body: tone(),
+        });
+      },
+    );
+    let dialog = await connect(page, context, base, 'OpenRouter', 'local');
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      await expect(
+        dialog.getByText('Phrase timing', { exact: true }),
+      ).toHaveCount(0);
+      await expect(dialog).not.toContainText('Configured STT route');
+      await expect(
+        dialog.getByRole('button', {
+          name: 'Prepare transcription (68 MB)',
+          exact: true,
+        }),
+      ).toBeVisible();
+      await page.screenshot({
+        path: info.outputPath(`speech-no-timing-options-${width}.png`),
+      });
+    }
+    await page.setViewportSize({ width: 1280, height: 844 });
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect(dialog.getByRole('alert')).toContainText(
+      'Prepare transcription',
+    );
+    expect(synthesis).toBe(0);
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await openAISettings(page);
+    await selectAISettingsTab(page, 'STT - Transcription');
+    const settings = page.getByRole('dialog', {
+      name: 'AI connection',
+      exact: true,
+    });
+    await settings
+      .getByRole('combobox', { name: 'Transcription service', exact: true })
+      .click();
+    await page.getByRole('option', { name: 'OpenRouter', exact: true }).click();
+    await settings.getByRole('button', { name: 'Done', exact: true }).click();
+    await context.route(
+      'https://openrouter.ai/api/v1/audio/transcriptions',
+      (route) => {
+        alignmentModels.push(
+          /name="model"\r\n\r\n([^\r]+)/.exec(
+            route.request().postData() ?? '',
+          )?.[1] ?? '',
+        );
+        return route.fulfill({
+          headers: cors,
+          json: { segments: [{ text: 'Hello!', start: 0.1, end: 0.9 }] },
+        });
+      },
+    );
+    await page
+      .getByRole('button', { name: 'Text to speech', exact: true })
+      .click();
+    dialog = page.getByRole('dialog', { name: 'Text to speech', exact: true });
+    await expect(dialog.getByText('Loading speech models…')).not.toBeVisible();
+    await configureSpeech(page, dialog);
+    expect(synthesis).toBe(0);
+    expect(alignmentModels).toHaveLength(0);
+    await expect(
+      dialog.getByRole('button', {
+        name: 'Prepare transcription (68 MB)',
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect(
+      dialog.getByRole('button', { name: 'Add to timeline', exact: true }),
+    ).toBeEnabled();
+    expect(synthesis).toBe(1);
+    expect(alignmentModels).toEqual(['openai/whisper-1']);
+    await expect(dialog).not.toContainText('timed phrases saved');
+    await expect(dialog).not.toContainText('Provider charges may apply');
+    const input = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const task = (await editor.tasks.list()).find(
+          (item) => item.label === 'Generating speech',
+        )!;
+        return (await editor.tasks.input(
+          task.id,
+        )) as import('../../src/workspace/speech-tasks').SpeechTaskInput;
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    expect(input.timingProvider).toBe('configured');
+    expect(JSON.parse(input.timingRoute!).routes).toEqual([
+      { providerId: 'openrouter', model: 'openai/whisper-1' },
+    ]);
+  });
+  test(`restored legacy local speech retry keeps its route with remote STT configured ${base}`, async ({
+    page,
+    context,
+  }) => {
+    let synthesis = 0,
+      alignment = 0;
+    await context.route(
+      'https://openrouter.ai/api/v1/audio/speech',
+      (route) => {
+        synthesis++;
+        return route.fulfill({
+          headers: cors,
+          contentType: 'audio/pcm',
+          body: tone(),
+        });
+      },
+    );
+    const dialog = await connect(page, context, base);
+    await context.route(
+      'https://openrouter.ai/api/v1/audio/transcriptions',
+      (route) => {
+        alignment++;
+        return route.fulfill({
+          headers: cors,
+          json: { text: 'Untimed output' },
+        });
+      },
+    );
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect(
+      dialog.getByRole('button', { name: 'Retry timing', exact: true }),
+    ).toBeVisible();
+    expect(synthesis).toBe(1);
+    expect(alignment).toBe(1);
+    const taskId = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const task = (await editor.tasks.list()).find(
+          (item) => item.label === 'Generating speech',
+        )!;
+        const input = (await editor.tasks.input(
+          task.id,
+        )) as import('../../src/workspace/speech-tasks').SpeechTaskInput;
+        // Emulate an unfinished pre-change local take in this test's own sidecar.
+        // Current AI settings remain remote; restoration must retain old authority.
+        input.timingProvider = 'local';
+        delete input.timingRoute;
+        await new Promise<void>((resolve, reject) => {
+          const open = indexedDB.open('localcut-tasks-v1', 1);
+          open.onsuccess = () => {
+            const db = open.result;
+            const tx = db.transaction('inputs', 'readwrite');
+            tx.objectStore('inputs').put(input, task.id);
+            tx.oncomplete = () => {
+              db.close();
+              resolve();
+            };
+            tx.onerror = () => {
+              db.close();
+              reject(tx.error);
+            };
+          };
+          open.onerror = () => reject(open.error);
+        });
+        return task.id;
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    await page.reload();
+    await page
+      .getByRole('button', { name: 'Text to speech', exact: true })
+      .click();
+    await dialog
+      .getByRole('button', { name: 'Retry timing', exact: true })
+      .click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          async ({ base, taskId }) => {
+            const { createEditor } = (await import(
+              base + 'editor.js'
+            )) as typeof import('../../src/editor');
+            const editor = await createEditor();
+            try {
+              return (await editor.tasks.get(taskId))?.error?.code;
+            } finally {
+              await editor.dispose();
+            }
+          },
+          { base, taskId },
+        ),
+      )
+      .toBe('MODEL_REQUIRED');
+    await expect(
+      dialog.getByRole('button', { name: 'Retry timing', exact: true }),
+    ).toBeVisible();
+    expect(synthesis).toBe(1);
+    expect(alignment).toBe(1);
+  });
   test(`text to speech retains measured phrases and retries alignment without regenerating ${base}`, async ({
     page,
     context,
@@ -1255,25 +1478,6 @@ for (const base of ['/', '/LocalCut/']) {
       },
     );
     const dialog = await connect(page, context, base);
-    await dialog
-      .getByRole('combobox', { name: 'Phrase timing', exact: true })
-      .click();
-    await page
-      .getByRole('option', { name: 'Local Whisper', exact: true })
-      .click();
-    await dialog
-      .getByRole('button', { name: 'Generate speech', exact: true })
-      .click();
-    await expect(dialog.getByRole('alert')).toContainText(
-      'Prepare phrase timing',
-    );
-    expect(synthesis).toBe(0);
-    await dialog
-      .getByRole('combobox', { name: 'Phrase timing', exact: true })
-      .click();
-    await page
-      .getByRole('option', { name: 'Configured STT route', exact: true })
-      .click();
     await context.route(
       'https://openrouter.ai/api/v1/audio/transcriptions',
       (route) => {
@@ -1297,7 +1501,7 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await expect(
       dialog.getByRole('button', {
-        name: 'Measure phrase timing',
+        name: 'Retry timing',
         exact: true,
       }),
     ).toBeVisible();
@@ -1321,7 +1525,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Text to speech', exact: true })
       .click();
-    await expect(dialog).toContainText('2 timed phrases saved');
+    await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
     const before = await page.evaluate(async (base) => {
       const { createEditor } = (await import(
         base + 'editor.js'
@@ -1339,7 +1543,10 @@ for (const base of ['/', '/LocalCut/']) {
         await editor.dispose();
       }
     }, base);
+    expect(before?.cues).toHaveLength(2);
     expect(before?.cues[0]?.timeUs).toBe(100000);
+    await expect(dialog).not.toContainText('timed phrases saved');
+    await expect(dialog).not.toContainText('editing padding');
     // An older completed result has audio/WAV but no annotation. Adding timing
     // must preserve that completed result rather than replacing it with raw PCM.
     await page.evaluate(async (base) => {
@@ -1365,16 +1572,19 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Text to speech', exact: true })
       .click();
     await dialog
-      .getByRole('button', { name: 'Measure phrase timing', exact: true })
+      .getByRole('button', { name: 'Retry timing', exact: true })
       .click();
-    await expect(dialog).toContainText('2 timed phrases saved');
+    await expect(
+      dialog.getByRole('button', { name: 'Add to timeline', exact: true }),
+    ).toBeEnabled();
+    await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
     expect(synthesis).toBe(1);
     expect(alignment).toBe(3);
     await page.reload();
     await page
       .getByRole('button', { name: 'Text to speech', exact: true })
       .click();
-    await expect(dialog).toContainText('2 timed phrases saved');
+    await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
     await dialog
       .getByRole('button', { name: 'Add to timeline', exact: true })
       .click();
