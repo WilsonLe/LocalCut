@@ -43,16 +43,16 @@ describe('local error diagnostics', () => {
       /secret-credential|secret-token|private/,
     );
   });
-  it('removes untrusted queue messages but preserves full frame lists and handles cycles', () => {
-    const error = new Error('private provider echo\nsecret body');
-    error.stack =
-      'Error: private provider echo\nsecret body\n at provider (provider.js:10:20)';
-    error.cause = error;
-    const report = errorDiagnostic(error, false);
-    expect(report.stack).toBe(
-      'Error: [message omitted]\n at provider (provider.js:10:20)',
+  it('preserves arbitrary multiline messages and complete stacks and handles cycles', () => {
+    const error = new Error(
+      'Provider rejected segment 17\nUnexpected timestamp',
     );
-    expect(JSON.stringify(report)).not.toMatch(/private|secret/);
+    error.stack =
+      'Error: Provider rejected segment 17\nUnexpected timestamp\n at provider (provider.js:10:20)';
+    error.cause = error;
+    const report = errorDiagnostic(error);
+    expect(report.message).toBe(error.message);
+    expect(report.stack).toBe(error.stack);
     expect(report.cause?.message).toBe('Circular error reference');
     expect(errorDiagnostic({ code: 'INTERRUPTED' }).stack).toContain(
       'unavailable',
@@ -68,36 +68,39 @@ describe('local error diagnostics', () => {
     expect(report.errors?.[0]?.stack).toContain('first');
     expect(report.errors?.[1]?.stack).toContain('unavailable');
   });
-  it('keeps only allowlisted static validation messages across serialization, excluding private headers and message extensions', () => {
-    const message = 'STT returned invalid or unordered timestamps.';
+  it('preserves unfamiliar messages and original stack headers across serialization without substitutions', () => {
+    const message = 'Decoder frame 317 failed: sample timestamp 42.5';
     const error = new Error(message);
-    error.stack = 'Error: private provider body\n    at validate (ai.js:1:2)';
-    expect(errorDiagnostic(error, false)).toMatchObject({
+    error.stack =
+      'CustomDecoderError: Original header\nOriginal multiline context\n    at validate (ai.js:1:2)';
+    expect(errorDiagnostic(error)).toMatchObject({
       message,
-      stack: `Error: ${message}\n    at validate (ai.js:1:2)`,
+      stack: error.stack,
     });
-    const saved = structuredClone(errorDiagnostic(error, false));
-    expect(errorDiagnostic(saved, false).message).toBe(message);
-    error.message = message + ' private provider body';
-    expect(JSON.stringify(errorDiagnostic(error, false))).not.toContain(
-      'private',
+    const saved = structuredClone(errorDiagnostic(error));
+    expect(errorDiagnostic(saved)).toMatchObject({
+      message,
+      stack: error.stack,
+    });
+    error.message += '\nAdditional source detail';
+    expect(errorDiagnostic(error).message).toBe(error.message);
+    expect(errorDiagnostic('Unknown primitive failure').message).toBe(
+      'Unknown primitive failure',
     );
-    expect(
-      errorDiagnostic(new Error('Unknown validation message.'), false).message,
-    ).toBe('Error details unavailable');
   });
 });
 
-it('keeps Safari frames and removes multiline headers after normalization', () => {
+it('keeps Safari frames and multiline headers as supplied after normalization', () => {
   const safari = Object.assign(new Error('private echo'), {
     stack:
       'decode@https://local.test/worker.js:10:2\nrun@https://local.test/worker.js:15:3',
   });
-  expect(errorDiagnostic(safari, false).stack).toContain('decode@');
+  expect(errorDiagnostic(safari).stack).toBe(safari.stack);
   const error = Object.assign(new Error('private echo\nprivate body'), {
     stack: 'Error: private echo\nprivate body\n    at decode (worker.js:1:2)',
   });
-  expect(
-    JSON.stringify(errorDiagnostic(asEditorError(error), false)),
-  ).not.toContain('private');
+  expect(errorDiagnostic(asEditorError(error))).toMatchObject({
+    message: error.message,
+    stack: error.stack,
+  });
 });

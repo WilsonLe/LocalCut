@@ -468,7 +468,7 @@ This is the project record of the user's durable product and workflow choices. U
 ### Error code view — 13 October 2026
 
 - Render the full available stack trace and session report in a selectable code view, preserving lines and scrolling. Remove the repeated task-summary subtitle and “Stack trace and session data” metatext from the details dialog.
-- Retain safe application validation messages with nested causes so speech failures can be diagnosed; continue omitting provider bodies, credentials and private user content.
+- Display original error messages and stacks with nested causes as supplied, rather than storing hardcoded safe messages or replacing unknown messages. Keep credential/callback redaction. This supersedes the earlier safe-message allowlist; do not collect extra provider/project data for diagnostics.
 
 ## Chat skill activity — 12 October 2026
 
