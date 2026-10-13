@@ -6,8 +6,6 @@ import {
   goalResponse,
   goalContractPrompt,
   goalReviewPrompt,
-  goalContractSchema,
-  goalVerdictFor,
   fulfilledGoal,
 } from './goal-review';
 import type { GoalCompletion, GoalVerdict } from './goal-review';
@@ -660,13 +658,12 @@ export function createAssistant(options: AssistantOptions) {
         const reviewSessionId = crypto.randomUUID();
         let completionReview: GoalVerdict | undefined;
         let completionChecks = 0;
-        const review = async <T>(
+        const review = async (
           name: 'request_contract' | 'completion_check',
           instruction: string,
           data: unknown,
-          schema: import('zod').z.ZodType<T>,
-          after?: (value: T) => Promise<T>,
-        ): Promise<T> => {
+          after?: (value: string) => Promise<string>,
+        ): Promise<string> => {
           const activity = {
             type: 'tool' as const,
             turnId: id,
@@ -696,7 +693,6 @@ export function createAssistant(options: AssistantOptions) {
               provider,
               request,
               signal,
-              schema,
               check,
               interrupt: (promise) => interruptible(promise, signal),
               accountUsage: addUsage,
@@ -711,9 +707,20 @@ export function createAssistant(options: AssistantOptions) {
               },
             });
             check();
-            const value = after ? await after(response.value) : response.value;
+            const value = after ? await after(response) : response;
             check();
-            emit({ ...activity, phase: 'completed', result: value }, local);
+            emit(
+              {
+                ...activity,
+                input: {
+                  ...activity.input,
+                  ...(value !== response ? { contextChanged: true } : {}),
+                },
+                phase: 'completed',
+                result: response,
+              },
+              local,
+            );
             return value;
           } catch (error) {
             const safe = localError(error);
@@ -1466,16 +1473,11 @@ export function createAssistant(options: AssistantOptions) {
           }
         };
         const [requestContract] = await Promise.all([
-          review(
-            'request_contract',
-            goalContractPrompt,
-            {
-              initialRequest: prompt,
-              previousConversation: history.flat(),
-              execution: options.execution ?? 'review',
-            },
-            goalContractSchema,
-          ),
+          review('request_contract', goalContractPrompt, {
+            initialRequest: prompt,
+            previousConversation: history.flat(),
+            execution: options.execution ?? 'review',
+          }),
           refreshExecutionContext(),
         ]);
         let callBudgetReached = false;
@@ -1666,22 +1668,13 @@ export function createAssistant(options: AssistantOptions) {
                   actionType: proposal.action?.type ?? 'edit',
                 })),
               },
-              goalVerdictFor(requestContract),
               async (verdict) => {
                 await refreshExecutionContext();
                 if (reviewedContext === reviewContextIdentity()) return verdict;
-                return {
-                  conditions: verdict.conditions.map((condition) => ({
-                    ...condition,
-                    status: 'unknown' as const,
-                    evidence:
-                      'Project or permitted source context changed during review. Inspect current state and check again.',
-                  })),
-                  stopReason: null,
-                };
+                return `Project or permitted source context changed during review. Inspect current state and check again.\n\nEarlier reviewer observation (no longer current):\n${verdict}`;
               },
             );
-            const fulfilled = fulfilledGoal(requestContract, completionReview);
+            const fulfilled = fulfilledGoal(completionReview);
             if (!fulfilled && completionChecks < 3 && !finishing) {
               // Continue this execution session with current state, skills and receipts.
               // The reviewer is advisory data; all existing execution guards still apply.
@@ -1693,15 +1686,9 @@ export function createAssistant(options: AssistantOptions) {
               contract: requestContract,
               verdict: completionReview,
             };
-            const remaining = completionReview.conditions
-              .filter((item) => item.status !== 'met')
-              .map(
-                (item) =>
-                  requestContract.successConditions[item.conditionIndex],
-              );
             const text = fulfilled
               ? (message.content ?? '')
-              : `Request unfinished after ${completionChecks} completion check${completionChecks === 1 ? '' : 's'}. ${staged.some((proposal) => proposal.result) ? 'Completed actions remain saved. ' : ''}Remaining: ${remaining.join('; ')}.${completionReview.stopReason ? ` ${completionReview.stopReason}` : ''}`;
+              : `Request unfinished after ${completionChecks} completion check${completionChecks === 1 ? '' : 's'}. ${staged.some((proposal) => proposal.result) ? 'Completed actions remain saved. ' : ''}${completionReview}`;
             if (!fulfilled) {
               // Retained history must also describe the unfinished result honestly.
               const finalMessage: AssistantMessage = {

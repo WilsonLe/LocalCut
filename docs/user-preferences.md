@@ -10,6 +10,8 @@ This is the project record of the user's durable product and workflow choices. U
 
 ## Request completion checks — 13 October 2026
 
+- Keep reviewer goal definitions and completion assessments as plain strings. Do not require JSON or a reviewer output schema. Preserve the text in the local trace; this supersedes structured reviewer output requirements.
+
 - Parse the initial goal, observable success conditions and stop conditions for every editing-assistant request. When execution proposes to stop, use a separate read-only LLM session through the selected provider/model to check fulfillment against current state and authoritative receipts.
 - If unfinished, continue the same turn without replaying completed actions. Return after fulfillment, or report remaining work after three unsuccessful completion checks. Explicit cancellation, refusals and caller budgets still stop work; completion feedback does not authorize failed paid-action retries or bypass user-owned actions.
 - Show the review session subtly through an expandable goal/check trace, outside normal tool activity. Retain the trace locally with the chat.

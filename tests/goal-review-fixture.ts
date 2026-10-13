@@ -11,27 +11,13 @@ export function goalReviewReply(
     const data = JSON.parse(request.messages[1]!.content!);
     return {
       role: 'assistant',
-      content: JSON.stringify({
-        goal: data.initialRequest,
-        successConditions: ['Fulfill the user request'],
-        stopConditions: [],
-      }),
+      content: `Goal: ${data.initialRequest}\nFulfill the user request.`,
     };
   }
   if (instruction.startsWith('LocalCut completion review:')) {
-    const data = JSON.parse(request.messages[1]!.content!);
     return {
       role: 'assistant',
-      content: JSON.stringify({
-        conditions: data.requestContract.successConditions.map(
-          (_: string, conditionIndex: number) => ({
-            conditionIndex,
-            status: 'met',
-            evidence: 'Scripted legacy scenario result',
-          }),
-        ),
-        stopReason: null,
-      }),
+      content: 'FULFILLED\nScripted legacy scenario result',
     };
   }
 }

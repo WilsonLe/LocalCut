@@ -46,23 +46,14 @@ for (const base of ['/', '/LocalCut/']) {
     let checks = 0,
       executionRounds = 0,
       parses = 0;
-    let parseAttempts = 0,
-      reviewAttempts = 0,
-      editCalls = 0;
-    const retryRequests: { parse: unknown[]; review: unknown[] } = {
-      parse: [],
-      review: [],
-    };
+    let editCalls = 0;
     let exhausted = false;
     const sessions: { execution: string[]; review: string[] } = {
       execution: [],
       review: [],
     };
-    const contract = {
-      goal: 'Add overlay track',
-      successConditions: ['A new overlay track exists'],
-      stopConditions: [],
-    };
+    const contract =
+      'Goal: Add overlay track.\nSuccess: A new overlay track exists.';
     const payloads: Record<string, unknown>[] = [];
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
@@ -74,24 +65,12 @@ for (const base of ['/', '/LocalCut/']) {
         const request = route.request().postDataJSON();
         const instruction = request.messages[0]?.content ?? '';
         if (instruction.startsWith('LocalCut request contract:')) {
-          parseAttempts++;
-          if (parseAttempts <= 2) retryRequests.parse.push(request);
-          if (parseAttempts === 1) {
-            await reply(route, '{malformed contract');
-            return;
-          }
           parses++;
           sessions.review.push(request.session_id);
-          await reply(route, '```json\n' + JSON.stringify(contract) + '\n```');
+          await reply(route, contract);
           return;
         }
         if (instruction.startsWith('LocalCut completion review:')) {
-          reviewAttempts++;
-          if (reviewAttempts <= 2) retryRequests.review.push(request);
-          if (reviewAttempts === 1) {
-            await reply(route, '{malformed verdict');
-            return;
-          }
           checks++;
           sessions.review.push(request.session_id);
           const data = JSON.parse(request.messages[1].content);
@@ -103,20 +82,9 @@ for (const base of ['/', '/LocalCut/']) {
             );
           await reply(
             route,
-            JSON.stringify({
-              conditions: [
-                {
-                  conditionIndex: 0,
-                  status: met ? 'met' : 'unmet',
-                  evidence: met
-                    ? 'Persisted project and edit receipt show the overlay'
-                    : 'The overlay track is still missing',
-                },
-              ],
-              stopReason: exhausted
-                ? 'Missing required user information'
-                : null,
-            }),
+            met
+              ? 'FULFILLED\nPersisted project and edit receipt show the overlay'
+              : `The overlay track is still missing.${exhausted ? '\nMissing required user information' : ''}`,
           );
           return;
         }
@@ -216,8 +184,6 @@ for (const base of ['/', '/LocalCut/']) {
     expect(checks).toBe(2);
     expect(parses).toBe(1);
     expect(editCalls).toBe(1);
-    expect(retryRequests.parse[1]).toEqual(retryRequests.parse[0]);
-    expect(retryRequests.review[1]).toEqual(retryRequests.review[0]);
     expect(new Set(sessions.review).size).toBe(1);
     expect(sessions.review[0]).not.toBe(sessions.execution[0]);
     expect(payloads[0]!.initialRequest).toBe('Add an overlay track');
@@ -248,6 +214,18 @@ for (const base of ['/', '/LocalCut/']) {
         exact: true,
       }),
     ).toBeVisible();
+    await restored
+      .getByRole('button', { name: 'Completion verified · 2', exact: true })
+      .click();
+    await expect(restored.locator('[data-completion-review]')).toContainText(
+      contract,
+    );
+    await expect(restored.locator('[data-completion-review]')).toContainText(
+      'FULFILLED',
+    );
+    await expect(restored.locator('[data-completion-review]')).toContainText(
+      'Persisted project and edit receipt show the overlay',
+    );
     expect(checks).toBe(2);
     expect(parses).toBe(1);
     exhausted = true;
@@ -283,5 +261,70 @@ for (const base of ['/', '/LocalCut/']) {
         .last()
         .locator('[data-completion-review]'),
     ).toContainText('Missing required user information');
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    // Exercise an actual pre-string sidecar without rewriting it on restore.
+    await page.evaluate(async () => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const open = indexedDB.open('localcut-chats-v1');
+        open.onsuccess = () => resolve(open.result);
+        open.onerror = () => reject(open.error);
+      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const transaction = db.transaction('sessions', 'readwrite');
+          const store = transaction.objectStore('sessions');
+          const rows = store.getAll();
+          rows.onsuccess = () => {
+            for (const row of rows.result) {
+              for (const message of row.content.messages) {
+                for (const tool of message.tools ?? []) {
+                  if (tool.name === 'request_contract')
+                    tool.result = {
+                      goal: 'Legacy overlay goal',
+                      successConditions: ['Legacy overlay outcome'],
+                      stopConditions: [],
+                    };
+                  else if (tool.name === 'completion_check')
+                    tool.result = {
+                      conditions: [
+                        {
+                          conditionIndex: 0,
+                          status: 'met',
+                          evidence: 'Legacy persisted receipt',
+                        },
+                      ],
+                      stopReason: null,
+                    };
+                }
+              }
+              store.put(row);
+            }
+          };
+          transaction.oncomplete = () => resolve();
+          transaction.onerror = () => reject(transaction.error);
+          transaction.onabort = () => reject(transaction.error);
+        });
+      } finally {
+        db.close();
+      }
+    });
+    await page.reload();
+    const legacy = page
+      .getByRole('article', { name: 'Assistant response' })
+      .last();
+    await legacy
+      .getByRole('button', { name: 'Completion verified · 3', exact: true })
+      .click();
+    await expect(legacy.locator('[data-completion-review]')).toContainText(
+      'Legacy overlay goal',
+    );
+    await expect(legacy.locator('[data-completion-review]')).toContainText(
+      'Legacy overlay outcome',
+    );
+    await expect(legacy.locator('[data-completion-review]')).toContainText(
+      'Legacy persisted receipt',
+    );
+    expect(checks).toBe(3);
+    expect(parses).toBe(2);
   });
 }
