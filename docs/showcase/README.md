@@ -77,18 +77,20 @@ its score. Edit HTML/CSS/JS and the synthesis program, keeping timing changes in
 
 Artwork can be regenerated with `artwork.py` using the same Python environment.
 To recapture the actual editor, install the repository's pinned dependencies,
-start `pnpm dev --port 4196 --strictPort`, then generate the owned sample video
-and run the capture:
+start `pnpm dev --host 127.0.0.1 --port 4196 --strictPort`, then generate the owned
+sample video and run the capture:
 
 ```sh
 .artifacts/brand-showcase-venv/bin/python docs/showcase/compose.py --output .artifacts/brand-showcase/sample-score.wav
 ffmpeg -y -loop 1 -i docs/showcase/assets/landscape-1.jpg -i .artifacts/brand-showcase/sample-score.wav -t 15 -vf scale=1280:720 -r 30 -c:v libx264 -pix_fmt yuv420p -c:a aac .artifacts/brand-showcase/sample.mp4
-node docs/showcase/capture.mjs http://127.0.0.1:4196/LocalCut/ .artifacts/brand-showcase/sample.mp4
+node docs/showcase/capture.mjs http://127.0.0.1:4196/ .artifacts/brand-showcase/sample.mp4
 ```
 
-The script uses a fresh Chrome context and local provider interception. Closing
-that context retires its isolated storage. Recapture needs the application
-checkout; the ZIP includes the captured assets so rendering alone does not.
+The development server uses the root base `/`; the capture URL and source-module
+imports must use that same base. The script selects the current single OpenRouter
+connection and LLM settings section, using a fresh Chrome context and local
+provider interception. Closing that context retires its isolated storage. Recapture
+needs the application checkout; the ZIP includes the captured assets so rendering alone does not.
 
 ## Verification boundaries
 

@@ -2,7 +2,7 @@
 import { chromium } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 const assets = new URL('./assets/', import.meta.url);
-const base = new URL(process.argv[2] || 'http://127.0.0.1:4196/LocalCut/');
+const base = new URL(process.argv[2] || 'http://127.0.0.1:4196/');
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   const page = await browser.newPage({
@@ -230,17 +230,14 @@ try {
     name: 'AI connection',
     exact: true,
   });
-  await dialog
-    .getByRole('button', { name: 'Add provider', exact: true })
-    .click();
-  await page
-    .getByRole('combobox', { name: 'Provider type', exact: true })
-    .click();
-  await page.getByRole('option', { name: 'OpenRouter', exact: true }).click();
-  await page.getByLabel('Account name', { exact: true }).fill('');
-  await page
-    .getByRole('button', { name: 'Add OpenRouter account', exact: true })
-    .click();
+  const section = dialog.getByRole('combobox', {
+    name: 'AI settings section',
+    exact: true,
+  });
+  if ((await section.textContent()) !== 'OpenRouter') {
+    await section.click();
+    await page.getByRole('option', { name: 'OpenRouter', exact: true }).click();
+  }
   await dialog
     .getByRole('group', { name: 'OpenRouter connection', exact: true })
     .getByRole('button', { name: 'I have an API key', exact: true })
@@ -251,6 +248,8 @@ try {
   await dialog
     .getByRole('button', { name: 'Use API key', exact: true })
     .click();
+  await section.click();
+  await page.getByRole('option', { name: 'LLM - Chat', exact: true }).click();
   await dialog.getByRole('combobox', { name: 'AI model', exact: true }).click();
   await page
     .getByRole('option', { name: 'Showcase demo · demo/visual', exact: true })
