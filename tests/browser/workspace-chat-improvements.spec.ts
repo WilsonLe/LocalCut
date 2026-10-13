@@ -610,15 +610,12 @@ for (const base of ['/', '/LocalCut/']) {
     await expect.poll(() => pending.length).toBe(1);
     pending.shift()!();
     await expect(trigger).toContainText('Beach trip highlights');
-    await expect
-      .poll(() =>
-        page.evaluate(() =>
-          (
-            window as unknown as { titleAnimations: { name: string }[] }
-          ).titleAnimations.some((entry) => entry.name === 'none'),
-        ),
-      )
-      .toBe(true);
+    // Assert the rendered replacement under reduced motion. Observer records
+    // can miss a short-lived node while completion/session updates settle.
+    await expect(
+      trigger.locator('.chat-session-title > span').last(),
+    ).toHaveCSS('animation-name', 'none');
+    await expect(trigger.locator('.chat-title-out')).toBeHidden();
     await create();
     await input.fill('Fail naming');
     await input.press('Enter');

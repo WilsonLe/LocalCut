@@ -652,6 +652,7 @@ export function createAssistant(options: AssistantOptions) {
           instruction: string,
           data: unknown,
           schema: import('zod').z.ZodType<T>,
+          after?: (value: T) => Promise<T>,
         ): Promise<T> => {
           const activity = {
             type: 'tool' as const,
@@ -697,11 +698,10 @@ export function createAssistant(options: AssistantOptions) {
             });
             check();
             addUsage(response.usage);
-            emit(
-              { ...activity, phase: 'completed', result: response.value },
-              local,
-            );
-            return response.value;
+            const value = after ? await after(response.value) : response.value;
+            check();
+            emit({ ...activity, phase: 'completed', result: value }, local);
+            return value;
           } catch (error) {
             const safe = localError(error);
             if (!signal.aborted)
@@ -1632,6 +1632,14 @@ export function createAssistant(options: AssistantOptions) {
             await refreshExecutionContext();
             retireCurrentConversation();
             completionChecks++;
+            const reviewContextIdentity = () =>
+              JSON.stringify([
+                snapshot.revision,
+                indexScope,
+                resolutionCurrent,
+                context.availableAssetIds,
+              ]);
+            const reviewedContext = reviewContextIdentity();
             completionReview = await review(
               'completion_check',
               goalReviewPrompt,
@@ -1654,6 +1662,20 @@ export function createAssistant(options: AssistantOptions) {
                 })),
               },
               goalVerdictFor(requestContract),
+              async (verdict) => {
+                await refreshExecutionContext();
+                retireCurrentConversation();
+                if (reviewedContext === reviewContextIdentity()) return verdict;
+                return {
+                  conditions: verdict.conditions.map((condition) => ({
+                    ...condition,
+                    status: 'unknown' as const,
+                    evidence:
+                      'Project or permitted source context changed during review. Inspect current state and check again.',
+                  })),
+                  stopReason: null,
+                };
+              },
             );
             const fulfilled = fulfilledGoal(requestContract, completionReview);
             if (!fulfilled && completionChecks < 3 && !finishing) {

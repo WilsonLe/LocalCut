@@ -7717,4 +7717,55 @@ describe('request completion review sessions', () => {
     ).toBe(false);
     await assistant.dispose();
   });
+  it('invalidates a fulfilled verdict when the project changes during its check', async () => {
+    const p = reviewedProvider(
+      [[final('Candidate')], [final('Current answer')]],
+      [verdict('met'), verdict('met')],
+    );
+    const f = make(p);
+    const original = p.stream;
+    let checks = 0;
+    p.stream = async function* (request) {
+      if (
+        request.messages[0]?.content?.startsWith(
+          'LocalCut completion review:',
+        ) &&
+        checks++ === 0
+      ) {
+        await f.editor.commands.apply({
+          projectId: f.project().id,
+          expectedRevision: 0,
+          requestId: 'concurrent',
+          operations: [
+            {
+              type: 'moveClip',
+              clipId: 'video',
+              trackId: 'main',
+              startUs: 1e6,
+            },
+          ],
+        });
+      }
+      yield* original(request);
+    };
+    const events: AssistantEvent[] = [];
+    f.assistant.subscribe((e) => events.push(e));
+    const result = await f.assistant.run('Move and answer').completion;
+    expect(result.completion).toMatchObject({ status: 'fulfilled', checks: 2 });
+    const first = events.find(
+      (e) =>
+        e.type === 'tool' &&
+        e.name === 'completion_check' &&
+        e.phase === 'completed',
+    );
+    expect(first && first.type === 'tool' && first.result).toMatchObject({
+      conditions: [
+        expect.objectContaining({ status: 'unknown' }),
+        expect.objectContaining({ status: 'unknown' }),
+      ],
+    });
+    expect(result.text).toBe('Current answer');
+    expect(f.project().tracks[0]!.clips[0]!.startUs).toBe(1e6);
+    await f.assistant.dispose();
+  });
 });
