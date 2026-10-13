@@ -1,8 +1,9 @@
+import { behaviorBases } from './coverage-bases';
 import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test } from '@playwright/test';
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`unified media header keeps folder controls reachable on desktop and mobile ${base}`, async ({
     page,
   }, info) => {

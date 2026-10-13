@@ -1,6 +1,7 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`workspace resizable panels follow dragging without preference writes ${base}`, async ({
     page,
   }) => {
@@ -184,7 +185,7 @@ for (const base of ['/', '/LocalCut/']) {
 for (const input of ['mouse', 'touch'] as const) {
   test.describe(`${input} expanded divider targets`, () => {
     test.use({ hasTouch: input === 'touch' });
-    for (const base of ['/', '/LocalCut/']) {
+    for (const base of behaviorBases) {
       for (const [interfaceSize, scale] of [
         ['default', 1],
         ['small', 0.75],

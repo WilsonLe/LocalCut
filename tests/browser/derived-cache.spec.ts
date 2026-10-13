@@ -1,8 +1,9 @@
+import { behaviorBases } from './coverage-bases';
 import { test, expect } from '@playwright/test';
 import { mediaVideo } from './workspace-video-fixture';
 import type { Derivative } from '../../src/storage/store';
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`derived media survives refresh without native recomputation ${base}`, async ({
     page,
   }) => {

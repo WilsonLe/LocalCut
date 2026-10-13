@@ -26,55 +26,61 @@ export async function closeMediaImportAndPlace(page: Page) {
     .locator('[data-status="completed"] .import-progress-name')
     .allTextContents();
   await closeMediaImport(page);
-  for (const name of names) {
-    const state = await page.evaluate(async (name) => {
-      const { createEditor } = (await import(
-        location.pathname + 'editor.js'
-      )) as { createEditor(): Promise<Editor> };
-      const engine = await createEditor();
-      try {
-        const id = decodeURIComponent(
-          location.hash.match(/^#\/project\/([^?]+)/)![1]!,
-        );
-        const project = await engine.projects.snapshot(id);
-        const entries = (await engine.library.forProject(id).list()).entries;
+  const engine = await page.evaluateHandle(async () => {
+    const { createEditor } = (await import(
+      location.pathname + 'editor.js'
+    )) as { createEditor(): Promise<Editor> };
+    return createEditor();
+  });
+  try {
+    const imported = await engine.evaluate(async (engine, names) => {
+      const id = decodeURIComponent(
+        location.hash.match(/^#\/project\/([^?]+)/)![1]!,
+      );
+      const entries = (await engine.library.forProject(id).list()).entries;
+      return names.map((name) => {
         const entry = entries.find(
           (item) => item.assetId && item.name === name && !item.trashed,
         );
         if (!entry?.assetId)
           throw new Error('Imported fixture asset not found: ' + name);
-        return { project, asset: await engine.assets.inspect(entry.assetId) };
-      } finally {
-        await engine.dispose();
-      }
-    }, name);
-    const operations = appendAsset(state.project, state.asset as Asset);
-    await page.evaluate(
-      async ({ project, operations }) => {
-        const { createEditor } = (await import(
-          location.pathname + 'editor.js'
-        )) as { createEditor(): Promise<Editor> };
-        const engine = await createEditor();
-        try {
+        return { name, projectId: id, assetId: entry.assetId };
+      });
+    }, names);
+    for (const { name, projectId, assetId } of imported) {
+      const state = await engine.evaluate(
+        async (engine, { projectId, assetId }) => ({
+          project: await engine.projects.snapshot(projectId),
+          asset: await engine.assets.inspect(assetId),
+        }),
+        { projectId, assetId },
+      );
+      const operations = appendAsset(state.project, state.asset as Asset);
+      await engine.evaluate(
+        async (engine, { project, operations }) => {
           await engine.commands.apply({
             projectId: project.id,
             expectedRevision: project.revision,
             requestId: crypto.randomUUID(),
             operations,
           });
-        } finally {
-          await engine.dispose();
-        }
-      },
-      { project: state.project, operations },
-    );
-    await expect(
-      page.locator('.timeline-clip').filter({ hasText: name }).last(),
-    ).toBeAttached();
-    const clip = page
-      .locator('.timeline-clip')
-      .filter({ hasText: name })
-      .last();
-    if (await clip.isVisible()) await clip.click();
+        },
+        { project: state.project, operations },
+      );
+      await expect(
+        page.locator('.timeline-clip').filter({ hasText: name }).last(),
+      ).toBeAttached();
+      const clip = page
+        .locator('.timeline-clip')
+        .filter({ hasText: name })
+        .last();
+      if (await clip.isVisible()) await clip.click();
+    }
+  } finally {
+    try {
+      await engine.evaluate((engine) => engine.dispose());
+    } finally {
+      await engine.dispose();
+    }
   }
 }

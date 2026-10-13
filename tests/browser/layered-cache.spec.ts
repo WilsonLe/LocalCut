@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { test, expect } from '@playwright/test';
 import type { TaskQueue } from '../../src/services/task-queue';
 import type { Job } from '../../src/services/jobs';
@@ -9,7 +10,7 @@ type CacheWindow = Window & {
   releaseCache: () => void;
 };
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`layered task cache shares two tabs and survives reload ${base}`, async ({
     page,
     context,

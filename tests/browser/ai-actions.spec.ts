@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { installGoalReviewFixture } from './goal-review-fixture';
 import { expect, test } from '@playwright/test';
 
@@ -5,7 +6,7 @@ test.beforeEach(async ({ page }) => {
   await installGoalReviewFixture(page);
 });
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`AI approved history and local export actions use production services ${base}`, async ({
     page,
   }) => {

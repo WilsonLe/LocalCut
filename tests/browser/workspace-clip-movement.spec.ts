@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { Project } from '../../src/editor';
@@ -23,7 +24,7 @@ async function snapshot(
   );
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`timeline clip movement supports mouse, touch, snapping and history ${base}`, async ({
     page,
   }, testInfo) => {
@@ -421,7 +422,7 @@ for (const base of ['/', '/LocalCut/']) {
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`timeline narrow clips keep a touch drag target beside resize handles ${base}`, async ({
     page,
   }) => {

@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { fulfillGoalReview } from './chat-title-fixture';
 import { expect, test } from '@playwright/test';
 import type { BrowserContext } from '@playwright/test';
@@ -42,7 +43,7 @@ async function mockCatalog(context: BrowserContext) {
   );
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`AI entry is inert and OAuth survives only its tab callback ${base}`, async ({
     page,
     context,

@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { test, expect } from '@playwright/test';
 import type { Route } from '@playwright/test';
 import {
@@ -24,7 +25,7 @@ const reply = (
     body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: calls ? { tool_calls: calls.map((call, index) => ({ index, id: `goal-${index}`, type: 'function', function: call })) } : { content }, finish_reason: calls ? 'tool_calls' : 'stop' }] })}\n\ndata: [DONE]\n\n`,
   });
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`completion review corrects initial request and persists subtle trace ${base}`, async ({
     page,
     context,

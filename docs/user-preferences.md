@@ -105,6 +105,11 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Divide AI settings into Providers, LLM - Chat, TTS - Speech and STT - Transcription tabs. Manage connections in Providers; expose a primary provider and ordered backup providers in LLM - Chat.
 
+## Test coverage without duplicate work — 13 October 2026
+
+- Remove repeated test setup, resource use and executions that add no distinct coverage. Keep deployment-sensitive paths and genuinely different fixtures, native media, privacy, fresh-start/reload, failure and cross-tab assertions.
+- Run identical path-independent behavior once, reuse fixture-owned engines and valid immutable assets, and retain explicit diagnostics for the full deployment matrix. Measure affected cases and state the limits of timing evidence.
+
 ## Test allocation and runtime — 12 October 2026
 
 - Target under five minutes for the full normal local test run using broadly applicable improvements and best practices. Preserve correctness, production Chrome codecs, privacy, transcription and export acceptance.

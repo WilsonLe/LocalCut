@@ -1,6 +1,7 @@
+import { behaviorBases } from './coverage-bases';
 import { test, expect } from '@playwright/test';
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`project media roots isolate files, revisions, Trash and subscriptions ${base}`, async ({
     page,
   }) => {

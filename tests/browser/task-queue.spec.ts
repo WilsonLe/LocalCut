@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { installGoalReviewFixture } from './goal-review-fixture';
 import { expect, test } from '@playwright/test';
 
@@ -77,7 +78,7 @@ test('task publication observes cancellation and preserves committed results', a
     },
   ]);
 });
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`durable task API polls retries escalates and recovers after reload ${base}`, async ({
     page,
   }) => {

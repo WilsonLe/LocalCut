@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import {
   confirmProviderDisconnect,
   prepareOpenRouterKey,
@@ -25,7 +26,7 @@ async function positions(page: Page) {
   }));
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   for (const interfaceSize of ['default', 'small', 'large']) {
     test(`app and popup scrolling stay contained at ${interfaceSize} interface size ${base}`, async ({
       page,

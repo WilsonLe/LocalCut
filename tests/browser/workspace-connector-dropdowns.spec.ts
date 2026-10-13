@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 import {
   openAISettings,
@@ -5,7 +6,7 @@ import {
   prepareOpenRouterKey,
 } from './workspace-settings-helper';
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`TTS connector catalog voices and compact dropdown options ${base}`, async ({
     page,
     context,

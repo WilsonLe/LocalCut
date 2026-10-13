@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { fulfillGoalReview } from './chat-title-fixture';
 import { selectAISettingsTab } from './workspace-settings-helper';
 import { fulfillChatTitle } from './chat-title-fixture';
@@ -127,7 +128,7 @@ async function image(page: Page) {
   await closeMediaImport(page);
   await expect(page.locator('.media-item')).toHaveCount(1);
 }
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`chat parallel indexing settles both assets before final response ${base}`, async ({
     page,
     context,
@@ -1063,7 +1064,7 @@ for (const base of ['/', '/LocalCut/']) {
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`workspace indexing audio card and incompatible model ${base}`, async ({
     page,
     context,
@@ -1229,7 +1230,7 @@ for (const base of ['/', '/LocalCut/']) {
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   for (const framesOnly of [false, true]) {
     test(`workspace indexing video ${framesOnly ? 'frames with image model' : 'clips with video model'} ${base}`, async ({
       page,
@@ -1378,7 +1379,7 @@ for (const base of ['/', '/LocalCut/']) {
   }
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`chat resolves named nested Media without attachments before evidence storyboard ${base}`, async ({
     page,
     context,

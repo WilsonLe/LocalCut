@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { test, expect } from '@playwright/test';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -7,7 +8,7 @@ import {
   closeMediaImportAndPlace,
 } from './workspace-import-helper';
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`media select-all stays scoped to visible assets and preserves native inputs ${base}`, async ({
     page,
   }, info) => {
@@ -522,7 +523,7 @@ for (const base of ['/', '/LocalCut/']) {
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`folder drop traversal stays bound to its initiating project ${base}`, async ({
     page,
   }) => {
@@ -659,7 +660,7 @@ for (const base of ['/', '/LocalCut/']) {
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`workspace project media roots reset navigation and keep unused media scoped ${base}`, async ({
     page,
   }) => {

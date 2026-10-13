@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { installGoalReviewFixture } from './goal-review-fixture';
 import { expect, test } from '@playwright/test';
 
@@ -28,7 +29,7 @@ async function snapshot(
     { base, id },
   );
 }
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`track menu operations, locked edits, stale forms and saved history @journey ${base}`, async ({
     page,
   }, testInfo) => {
@@ -280,7 +281,7 @@ for (const base of ['/', '/LocalCut/']) {
     });
   });
 }
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`track disable mute solo share native preview/export and AI-approved commands ${base}`, async ({
     page,
   }) => {

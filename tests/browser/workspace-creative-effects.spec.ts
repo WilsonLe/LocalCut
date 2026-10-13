@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { installGoalReviewFixture } from './goal-review-fixture';
 import { expect, test } from '@playwright/test';
 
@@ -5,7 +6,7 @@ test.beforeEach(async ({ page }) => {
   await installGoalReviewFixture(page);
 });
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`creative effects persist, render and export native pixels/audio ${base}`, async ({
     page,
   }) => {
@@ -404,7 +405,7 @@ for (const base of ['/', '/LocalCut/']) {
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`local mask tracking reuses results and assistant approval persists editable motion ${base}`, async ({
     page,
   }) => {
@@ -647,7 +648,7 @@ for (const base of ['/', '/LocalCut/']) {
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`black transitions keep endpoint blends and mask drafts retime with speed ${base}`, async ({
     page,
   }) => {

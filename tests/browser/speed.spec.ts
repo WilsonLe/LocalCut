@@ -1,6 +1,7 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`native pitch modes and speed ramp preview/export/history ${base}`, async ({
     page,
   }) => {

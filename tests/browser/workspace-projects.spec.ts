@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { selectAISettingsTab } from './workspace-settings-helper';
 import {
   prepareOpenRouterKey,
@@ -24,7 +25,7 @@ async function create(page: Page, name: string) {
   ).toContainText(name);
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`project navigation imports a backup and handles long names ${base}`, async ({
     page,
   }) => {
