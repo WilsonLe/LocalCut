@@ -902,10 +902,12 @@ for (const base of ['/', '/LocalCut/']) {
     context,
   }) => {
     let calls = 0;
+    const sessionIds: string[] = [];
     let release!: () => void;
     await context.route(
       'https://openrouter.ai/api/v1/audio/speech',
       async (route) => {
+        sessionIds.push(route.request().headers()['x-session-id']!);
         calls++;
         if (calls === 1)
           return route.fulfill({
@@ -938,6 +940,8 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Generate speech', exact: true })
       .click();
     await expect.poll(() => calls).toBe(2);
+    expect(sessionIds[0]).toMatch(/^[a-f\d-]{36}$/);
+    expect(sessionIds[1]).toBe(sessionIds[0]);
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
     release();
     await page.getByRole('button', { name: 'Task queue', exact: true }).click();
@@ -1006,6 +1010,8 @@ for (const base of ['/', '/LocalCut/']) {
         .filter({ hasText: 'completed' }),
     ).toHaveCount(2);
     expect(calls).toBe(4);
+    expect(sessionIds[2]).not.toBe(sessionIds[0]);
+    expect(sessionIds[3]).toBe(sessionIds[2]);
   });
 }
 
