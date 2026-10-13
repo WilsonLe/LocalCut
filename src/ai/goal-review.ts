@@ -10,6 +10,15 @@ import type {
 /** Reviewer-owned prose, retained verbatim; no JSON output contract. */
 export type GoalContract = string;
 export type GoalVerdict = string;
+
+/** Keep historical protocol lossless data without feeding native control tokens
+ * back into a provider's tokenizer. This never changes the saved exchange. */
+export function goalEvidence(data: unknown): string {
+  return JSON.stringify(data).replaceAll('<', '\\u003c');
+}
+
+const toolProtocol =
+  /<\s*\/?[|｜](?:DSML|tool[▁_ ]|function[▁_ ]|im[▁_]start|im[▁_]end)|<\/?(?:tool_call|function_call|invoke)(?:\s|>)/i;
 export interface GoalCompletion {
   status: 'fulfilled' | 'unfulfilled';
   checks: number;
@@ -37,6 +46,7 @@ async function readGoalResponse({
   check: () => void;
   accountBytes: (value: unknown) => void;
   accountUsage: (usage?: Usage) => void;
+  checkRequest?: (request: ChatRequest) => void;
 }): Promise<string> {
   check();
   const stream = provider.stream(structuredClone(request), signal);
@@ -66,12 +76,16 @@ async function readGoalResponse({
     'Completion reviewer did not finish.',
   );
   accountUsage(complete.usage);
-  aiInvariant(
-    complete.message.role === 'assistant' &&
-      !complete.message.tool_calls?.length,
-    'INVALID_RESPONSE',
-    'Completion reviewer cannot execute tools.',
-  );
+  if (
+    complete.message.role !== 'assistant' ||
+    complete.message.tool_calls?.length ||
+    toolProtocol.test(complete.message.content ?? '')
+  )
+    throw new AiError(
+      'INVALID_RESPONSE',
+      'Completion reviewer returned tool protocol instead of plain text.',
+      { reason: 'reviewer_protocol' },
+    );
   const content = complete.message.content;
   aiInvariant(
     typeof content === 'string' && content.trim(),
@@ -86,11 +100,28 @@ async function readGoalResponse({
 export async function goalResponse(
   options: Parameters<typeof readGoalResponse>[0],
 ) {
+  let request = structuredClone(options.request);
   for (let attempt = 0; ; attempt++) {
     try {
-      return await readGoalResponse(options);
+      options.checkRequest?.(request);
+      return await readGoalResponse({ ...options, request });
     } catch (error) {
       options.check();
+      if (
+        error instanceof AiError &&
+        error.details.reason === 'reviewer_protocol' &&
+        attempt < 2
+      ) {
+        // Repair only private reviewer inference. Never replay execution or feed
+        // malformed output back as evidence, instructions or success conditions.
+        request = structuredClone(options.request);
+        request.messages.push({
+          role: 'user',
+          content:
+            'The prior attempt returned tool protocol, not a review. No tools are available. Return only your plain-text goal or assessment of the supplied evidence. Do not imitate historical tool calls or emit provider control tokens.',
+        });
+        continue;
+      }
       const waitMs =
         error instanceof AiError
           ? inferenceRetryDelay(error, attempt)

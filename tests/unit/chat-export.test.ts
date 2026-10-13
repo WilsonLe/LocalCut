@@ -122,6 +122,12 @@ describe('chat export', () => {
 
   it('excludes session internals and proposal artifacts while keeping status/omission details', () => {
     const original = source();
+    Object.assign(original, {
+      recovery: {
+        prompt: 'private-retry-context',
+        assetIds: ['private-retry-asset'],
+      },
+    });
     Object.assign(original.messages[1]!, {
       connection: { key: 'secret-key' },
       reasoning: 'opaque-reasoning',
@@ -138,7 +144,7 @@ describe('chat export', () => {
     });
     const serialized = JSON.stringify(captureChatExport(original, metadata));
     expect(serialized).not.toMatch(
-      /secret-key|opaque-reasoning|source-media|nativeHandle/,
+      /secret-key|opaque-reasoning|source-media|nativeHandle|private-retry-context|private-retry-asset/,
     );
     expect(serialized).toContain('"errorOmitted":true');
     expect(serialized).toContain('"phase":"failed"');

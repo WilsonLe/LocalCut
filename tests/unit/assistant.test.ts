@@ -7689,6 +7689,159 @@ describe('request completion review sessions', () => {
   const kind = (p: ReturnType<typeof reviewedProvider>, marker: string) =>
     p.requests.filter((r) => r.messages[0]?.content?.startsWith(marker));
 
+  it.each(['contract', 'review'])(
+    'recovers tool markup in %s without replaying a completed edit',
+    async (phase) => {
+      const p = reviewedProvider([
+        [final('', [call('load_skill', { skillId: 'editing' })])],
+        [proposal()],
+        [final('Moved and answered')],
+      ]);
+      const original = p.stream;
+      let malformed = false;
+      const attempts: ChatRequest[] = [];
+      p.stream = async function* (request) {
+        const marker =
+          phase === 'contract'
+            ? 'LocalCut request contract:'
+            : 'LocalCut completion review:';
+        if (request.messages[0]?.content?.startsWith(marker)) {
+          attempts.push(structuredClone(request));
+          if (!malformed) {
+            malformed = true;
+            yield final(
+              '<｜DSML｜ calls><｜DSML｜ invoke name="inspect_capabilities"></｜DSML｜ calls>',
+            );
+            return;
+          }
+        }
+        yield* original(request);
+      };
+      const f = make(p);
+      try {
+        const result = await f.assistant.run('Move and answer').completion;
+        expect(result.completion).toMatchObject({
+          status: 'fulfilled',
+          checks: 1,
+          contract,
+        });
+        expect(result.text).toBe('Moved and answered');
+        expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
+        expect(attempts).toHaveLength(2);
+        expect(attempts[1]!.messages.slice(0, 2)).toEqual(
+          attempts[0]!.messages,
+        );
+        expect(JSON.stringify(attempts[1])).not.toContain('<｜DSML｜');
+      } finally {
+        await f.assistant.dispose();
+      }
+    },
+  );
+
+  it('keeps restored protocol immutable and escapes it only in reviewer evidence', async () => {
+    const historical = {
+      role: 'assistant' as const,
+      content: '<｜DSML｜ calls>captured old response</｜DSML｜ calls>',
+    };
+    const exchange = [
+      { role: 'user' as const, content: 'Earlier request' },
+      historical,
+    ];
+    const frozen = structuredClone(exchange);
+    const p = reviewedProvider([[final('Continued without repeating work')]]);
+    const f = make(p, {
+      restoredTurns: [
+        {
+          id: 'saved',
+          user: 'Earlier request',
+          assistant: historical.content,
+          exchange,
+          interrupted: true,
+        },
+      ],
+    });
+    try {
+      await f.assistant.run('Please finish the earlier answer').completion;
+      const parse = kind(p, 'LocalCut request contract:')[0]!;
+      const review = kind(p, 'LocalCut completion review:')[0]!;
+      expect(parse.messages[1]!.content).not.toContain('<｜DSML｜');
+      expect(
+        JSON.parse(parse.messages[1]!.content!).previousConversation,
+      ).toEqual(frozen);
+      expect(review.messages[1]!.content).not.toContain('<｜DSML｜');
+      const execution = p.requests.find((r) => r.tools.length)!;
+      expect(execution.messages).toContainEqual(historical);
+      expect(exchange).toEqual(frozen);
+      expect(f.editor.commands.apply).not.toHaveBeenCalled();
+    } finally {
+      await f.assistant.dispose();
+    }
+  });
+
+  it('reports completion rejection stage and retains completed edits for a follow-up', async () => {
+    const p = reviewedProvider([
+      [final('', [call('load_skill', { skillId: 'editing' })])],
+      [proposal()],
+      [final('Moved and answered')],
+      [final('Earlier move remains complete')],
+    ]);
+    const original = p.stream;
+    let rejected = false;
+    p.stream = async function* (request) {
+      if (
+        !rejected &&
+        request.messages[0]?.content?.startsWith('LocalCut completion review:')
+      ) {
+        rejected = true;
+        throw new AiError('INVALID_REQUEST', 'Rejected', {
+          status: 400,
+          providerReason: 'invalid_prompt',
+        });
+      }
+      yield* original(request);
+    };
+    const f = make(p);
+    const events: AssistantEvent[] = [];
+    f.assistant.subscribe((e) => events.push(e));
+    try {
+      await expect(
+        f.assistant.run('Move and answer').completion,
+      ).rejects.toMatchObject({
+        code: 'INVALID_REQUEST',
+        details: {
+          stage: 'completion_check',
+          status: 400,
+          providerReason: 'invalid_prompt',
+        },
+      });
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: 'tool',
+          name: 'completion_check',
+          phase: 'failed',
+          error: expect.objectContaining({
+            details: expect.objectContaining({ stage: 'completion_check' }),
+          }),
+        }),
+      );
+      await f.assistant.run('Finish the earlier response').completion;
+      expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
+      expect(f.project().revision).toBe(1);
+      const followUp = kind(p, 'LocalCut request contract:').at(-1)!;
+      expect(
+        JSON.parse(followUp.messages[1]!.content!).previousConversation,
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            content: expect.stringContaining('Moved and answered'),
+          }),
+        ]),
+      );
+    } finally {
+      await f.assistant.dispose();
+    }
+  });
+
   it('parses every request, uses a separate review identity, and stops at the first fulfilled check', async () => {
     const p = reviewedProvider(
       [[final('Answer')], [final('Next answer')]],

@@ -1,5 +1,11 @@
-import { errorDiagnostic } from '../core/error-diagnostics';
-import type { ErrorDiagnostic } from '../core/error-diagnostics';
+import {
+  errorDiagnostic,
+  safeRecoveryDetails,
+} from '../core/error-diagnostics';
+import type {
+  ErrorDiagnostic,
+  RecoveryDetails,
+} from '../core/error-diagnostics';
 import { TaskStore } from '../storage/tasks';
 import type { TaskStorage } from '../storage/tasks';
 import { Jobs, checkAbort } from './jobs';
@@ -41,7 +47,7 @@ export interface TaskRecord {
     message: string;
     action: string;
     diagnostic?: ErrorDiagnostic;
-    details?: { status?: number; reason?: 'output_limit' | 'empty_response' };
+    details?: RecoveryDetails;
   };
 }
 export interface TaskContext {
@@ -155,21 +161,7 @@ const taskError = (error: unknown): TaskQueueError => {
     typeof error.details === 'object'
       ? error.details
       : {};
-  const details: NonNullable<TaskQueueError['details']> = {};
-  if (
-    'status' in metadata &&
-    typeof metadata.status === 'number' &&
-    Number.isInteger(metadata.status) &&
-    metadata.status >= 400 &&
-    metadata.status <= 599
-  )
-    details.status = metadata.status;
-  if (
-    code === 'RESPONSE_INCOMPLETE' &&
-    'reason' in metadata &&
-    (metadata.reason === 'output_limit' || metadata.reason === 'empty_response')
-  )
-    details.reason = metadata.reason;
+  const details = safeRecoveryDetails(metadata, code);
   // Recovery metadata stays bounded; diagnostics retain the source error separately.
   return {
     ...(Object.keys(details).length ? { details } : {}),

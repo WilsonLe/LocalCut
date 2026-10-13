@@ -6,6 +6,7 @@ import {
   selectAISettingsTab,
 } from './workspace-settings-helper';
 import { fulfillChatTitle } from './chat-title-fixture';
+import { dismissNotifications } from './workspace-notifications-helper';
 
 const cors = {
   'access-control-allow-origin': '*',
@@ -48,6 +49,7 @@ for (const base of ['/', '/LocalCut/']) {
       parses = 0;
     let editCalls = 0;
     let exhausted = false;
+    let rejectReview = false;
     const sessions: { execution: string[]; review: string[] } = {
       execution: [],
       review: [],
@@ -67,12 +69,37 @@ for (const base of ['/', '/LocalCut/']) {
         if (instruction.startsWith('LocalCut request contract:')) {
           parses++;
           sessions.review.push(request.session_id);
+          expect(request.tool_choice).toBe('none');
+          expect(request.tools).toBeUndefined();
+          if (parses === 1) {
+            await reply(
+              route,
+              '<｜DSML｜ calls><｜DSML｜ invoke name="inspect_capabilities"></｜DSML｜ calls>',
+            );
+            return;
+          }
           await reply(route, contract);
           return;
         }
         if (instruction.startsWith('LocalCut completion review:')) {
           checks++;
           sessions.review.push(request.session_id);
+          expect(request.tool_choice).toBe('none');
+          expect(request.tools).toBeUndefined();
+          if (rejectReview) {
+            await route.fulfill({
+              headers: cors,
+              status: 400,
+              json: {
+                error: {
+                  message: 'PRIVATE_PROVIDER_ECHO',
+                  metadata: { error_type: 'invalid_prompt' },
+                  param: 'messages',
+                },
+              },
+            });
+            return;
+          }
           const data = JSON.parse(request.messages[1].content);
           payloads.push(data);
           const met =
@@ -182,7 +209,7 @@ for (const base of ['/', '/LocalCut/']) {
       }),
     ).toBeVisible();
     expect(checks).toBe(2);
-    expect(parses).toBe(1);
+    expect(parses).toBe(2);
     expect(editCalls).toBe(1);
     expect(new Set(sessions.review).size).toBe(1);
     expect(sessions.review[0]).not.toBe(sessions.execution[0]);
@@ -227,7 +254,7 @@ for (const base of ['/', '/LocalCut/']) {
       'Persisted project and edit receipt show the overlay',
     );
     expect(checks).toBe(2);
-    expect(parses).toBe(1);
+    expect(parses).toBe(2);
     exhausted = true;
     checks = 0;
     await page
@@ -246,7 +273,7 @@ for (const base of ['/', '/LocalCut/']) {
       }),
     ).toBeVisible();
     expect(checks).toBe(3);
-    expect(parses).toBe(2);
+    expect(parses).toBe(3);
     await page.setViewportSize({ width: 390, height: 844 });
     await page
       .getByRole('navigation', { name: 'Workspace sections' })
@@ -325,6 +352,63 @@ for (const base of ['/', '/LocalCut/']) {
       'Legacy persisted receipt',
     );
     expect(checks).toBe(3);
-    expect(parses).toBe(2);
+    expect(parses).toBe(3);
+
+    // A provider completion rejection preserves the generated answer and edit;
+    // reload and primary Retry resume the same request without applying again.
+    rejectReview = true;
+    await page
+      .getByLabel('Describe your edit', { exact: true })
+      .fill('Check the earlier overlay again');
+    await page
+      .getByRole('button', { name: 'Send edit request', exact: true })
+      .click();
+    const failed = page
+      .getByRole('article', { name: 'Assistant response' })
+      .last();
+    await expect(page.locator('form [role="alert"]')).toContainText(
+      'The completion check failed after the assistant response',
+    );
+    await expect(page.locator('form [role="alert"]')).toContainText(
+      'provider rejected the message format',
+    );
+    await failed
+      .getByRole('button', { name: 'Completion check failed', exact: true })
+      .click();
+    await expect(failed).toContainText(
+      'The completion check failed after the assistant response',
+    );
+    await expect(failed).toContainText('provider rejected the message format');
+    await expect(page.locator('body')).not.toContainText(
+      'PRIVATE_PROVIDER_ECHO',
+    );
+    await page.screenshot({
+      path: testInfo.outputPath('completion-rejection.png'),
+    });
+    await page.reload();
+    await page
+      .getByRole('article', { name: 'Assistant response' })
+      .last()
+      .getByRole('button', { name: 'Completion check failed', exact: true })
+      .click();
+    await expect(
+      page.getByRole('article', { name: 'Assistant response' }).last(),
+    ).toContainText('The completion check failed after the assistant response');
+    rejectReview = false;
+    exhausted = false;
+    await dismissNotifications(page);
+    await page
+      .getByRole('button', { name: 'Retry response', exact: true })
+      .click();
+    await expect(
+      page.getByRole('article', { name: 'Assistant response' }).last(),
+    ).toContainText('The overlay track is now added.');
+    await expect(
+      page
+        .getByRole('article', { name: 'Assistant response' })
+        .last()
+        .getByRole('button', { name: 'Completion verified · 1', exact: true }),
+    ).toBeVisible();
+    expect(editCalls).toBe(1);
   });
 }

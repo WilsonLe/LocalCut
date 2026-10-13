@@ -373,7 +373,7 @@ for (const base of ['/', '/LocalCut/']) {
       const final = requests
         .filter((request) => request.scenario === scenario)
         .at(-1)!;
-      expect(final.tools).toEqual([]);
+      expect(final.tools).toBeUndefined();
       expect(
         final.messages.some(
           (message) =>

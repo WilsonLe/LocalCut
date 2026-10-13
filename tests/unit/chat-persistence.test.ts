@@ -7,8 +7,63 @@ import {
   forkChatSession,
   legacyIndexChatScopes,
   legacyOpenRouterChatScopes,
+  restoredChatRecovery,
 } from '../../src/storage/chats';
 import { restoredChatTurns } from '../../src/workspace/chat-transcript';
+
+it('retains a captured retry through reload and fork only for the latest unfinished turn', () => {
+  const chat = newChatSession('project:model:private');
+  chat.content.messages.push({
+    id: 'unfinished',
+    role: 'assistant',
+    text: 'Already applied',
+    status: 'failed',
+  });
+  chat.content.recovery = {
+    kind: 'retry',
+    turnId: 'unfinished',
+    prompt: 'Original request with captured context',
+    assetIds: ['explicit-image'],
+  };
+  const captured = structuredClone(chat.content.recovery);
+  for (const candidate of [restoreChatSession(chat)!, forkChatSession(chat)]) {
+    expect(restoredChatRecovery(candidate.content)).toEqual(captured);
+    candidate.content.messages.at(-1)!.status = 'complete';
+    expect(restoredChatRecovery(candidate.content)).toBeNull();
+  }
+  chat.content.messages.push({
+    id: 'newer',
+    role: 'user',
+    text: 'New direction',
+    status: 'complete',
+  });
+  expect(restoredChatRecovery(chat.content)).toBeNull();
+  expect(chat.content.recovery).toEqual(captured);
+  expect(
+    restoredChatRecovery(newChatSession('other:scope').content),
+  ).toBeNull();
+});
+
+it('restores paused explicit recovery without auto-executing old tools or changing legacy records', () => {
+  const chat = newChatSession('project:model:private');
+  chat.content.messages.push({
+    id: 'paused',
+    role: 'assistant',
+    text: 'Partial',
+    status: 'paused',
+  });
+  chat.content.recovery = {
+    kind: 'paused',
+    turnId: 'paused',
+    prompt: 'Continue the original request',
+    assetIds: [],
+  };
+  expect(restoredChatRecovery(restoreChatSession(chat)!.content)).toEqual(
+    chat.content.recovery,
+  );
+  delete chat.content.recovery;
+  expect(restoredChatRecovery(restoreChatSession(chat)!.content)).toBeNull();
+});
 
 describe('local chat records', () => {
   it('retains additive cache and reasoning accounting through restore and fork', () => {

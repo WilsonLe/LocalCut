@@ -7,6 +7,44 @@ export function errorCode(error: unknown): string {
     : '';
 }
 export function errorText(error: unknown): string {
+  const message = requestErrorText(error);
+  const details =
+    error && typeof error === 'object' && 'details' in error
+      ? error.details
+      : undefined;
+  if (details && typeof details === 'object' && 'stage' in details) {
+    if (details.stage === 'request_contract')
+      return `The initial goal check failed. ${message} Any completed actions remain saved.`;
+    if (details.stage === 'completion_check')
+      return `The completion check failed after the assistant response. ${message} Any completed actions remain saved.`;
+  }
+  return message;
+}
+
+function requestErrorText(error: unknown): string {
+  const details =
+    error && typeof error === 'object' && 'details' in error
+      ? error.details
+      : undefined;
+  if (details && typeof details === 'object') {
+    if ('reason' in details && details.reason === 'attachment_unavailable')
+      return 'An attached image is unavailable. Restore it in Media before retrying, or send a new request with a replacement image.';
+    if ('reason' in details && details.reason === 'reviewer_protocol')
+      return 'The model returned tool protocol instead of a plain-text review after recovery attempts. Use Retry response, or choose another model.';
+    if ('providerReason' in details) {
+      switch (details.providerReason) {
+        case 'context_length_exceeded':
+        case 'string_too_long':
+        case 'payload_too_large':
+          return 'The provider rejected the conversation size. Existing history is preserved. Start a separate chat or choose a model with a larger context window.';
+        case 'max_tokens_exceeded':
+        case 'token_limit_exceeded':
+          return 'The provider rejected the token budget. Check the selected model and its output allowance.';
+        case 'invalid_prompt':
+          return 'The provider rejected the message format. Use Retry response after updating LocalCut, or choose another model.';
+      }
+    }
+  }
   if (
     errorCode(error) === 'RESPONSE_INCOMPLETE' &&
     error &&

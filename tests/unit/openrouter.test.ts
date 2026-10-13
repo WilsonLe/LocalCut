@@ -56,6 +56,88 @@ async function collect(
 }
 
 describe('OpenRouter transport', () => {
+  it('disables tools explicitly for reviewer and title requests without empty declarations', async () => {
+    const { client, fetch } = setup();
+    await collect(client, { ...request(), tools: [] });
+    const body = JSON.parse(String(fetch.mock.calls[1]![1]?.body));
+    expect(body.tool_choice).toBe('none');
+    expect(body).not.toHaveProperty('tools');
+    expect(body).not.toHaveProperty('parallel_tool_calls');
+    client.dispose();
+  });
+
+  it('retains only allowlisted rejection metadata from an HTTP body', async () => {
+    const { client } = setup(() =>
+      Response.json(
+        {
+          error: {
+            message: 'test-key-private prompt SECRET',
+            metadata: { error_type: 'context_length_exceeded', raw: 'SECRET' },
+            param: 'max_tokens',
+          },
+        },
+        { status: 400 },
+      ),
+    );
+    await expect(collect(client)).rejects.toMatchObject({
+      code: 'INVALID_REQUEST',
+      details: {
+        status: 400,
+        providerReason: 'context_length_exceeded',
+        parameter: 'max_tokens',
+      },
+    });
+    client.dispose();
+  });
+
+  it.each([
+    'not JSON SECRET',
+    JSON.stringify({
+      error: {
+        code: 'SECRET',
+        param: 'SECRET',
+        metadata: { error_type: 'SECRET' },
+      },
+    }),
+    'x'.repeat(16_385),
+  ])(
+    'preserves HTTP status when rejection diagnostics are malformed, unknown or oversized',
+    async (body) => {
+      const { client } = setup(() => new Response(body, { status: 400 }));
+      try {
+        await collect(client);
+        expect.unreachable();
+      } catch (error) {
+        expect(error).toMatchObject({
+          code: 'INVALID_REQUEST',
+          details: { status: 400 },
+        });
+        expect(JSON.stringify(error)).not.toContain('SECRET');
+      } finally {
+        client.dispose();
+      }
+    },
+  );
+
+  it('bounds stalled rejection diagnostics and cancels their stream', async () => {
+    vi.useFakeTimers();
+    const cancel = vi.fn();
+    const { client } = setup(
+      () => new Response(new ReadableStream({ cancel }), { status: 400 }),
+    );
+    try {
+      const result = collect(client).catch((error) => error);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(await result).toMatchObject({
+        code: 'INVALID_REQUEST',
+        details: { status: 400 },
+      });
+      expect(cancel).toHaveBeenCalledTimes(1);
+    } finally {
+      client.dispose();
+      vi.useRealTimers();
+    }
+  });
   it('groups explicit chat sessions and gives unrelated standalone requests distinct IDs', async () => {
     const { client, fetch } = setup();
     await collect(client, { ...request(), sessionId: 'chat:stable-1' });

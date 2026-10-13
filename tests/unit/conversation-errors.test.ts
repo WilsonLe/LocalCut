@@ -3,6 +3,42 @@ import { AiError, httpError } from '../../src/ai/errors';
 import { errorText } from '../../src/workspace/conversation-errors';
 
 describe('safe conversation request diagnostics', () => {
+  it('identifies a completion failure and explains safe provider context rejection', () => {
+    const text = errorText(
+      new AiError('INVALID_REQUEST', 'SECRET', {
+        status: 400,
+        stage: 'completion_check',
+        providerReason: 'context_length_exceeded',
+      }),
+    );
+    expect(text).toContain(
+      'completion check failed after the assistant response',
+    );
+    expect(text).toContain('conversation size');
+    expect(text).toContain('history is preserved');
+    expect(text).toContain('completed actions remain saved');
+    expect(text).not.toContain('SECRET');
+  });
+  it('explains exhausted private protocol repair without requiring JSON', () => {
+    const text = errorText(
+      new AiError('INVALID_RESPONSE', 'SECRET', {
+        reason: 'reviewer_protocol',
+        stage: 'request_contract',
+      }),
+    );
+    expect(text).toContain('initial goal check failed');
+    expect(text).toContain('plain-text review');
+    expect(text).not.toMatch(/SECRET|JSON/);
+  });
+  it('keeps provider refusals separate from authentication even on HTTP 403', () => {
+    const error = httpError(403, undefined, {
+      metadata: { error_type: 'refusal' },
+      message: 'SECRET',
+    });
+    expect(error.code).toBe('PROVIDER_REFUSAL');
+    expect(errorText(error)).not.toContain('reconnect');
+    expect(JSON.stringify(error)).not.toContain('SECRET');
+  });
   it.each(['SECRET', '__proto__', 'constructor', undefined])(
     'does not render unknown ChatGPT verification reasons: %s',
     (reason) => {

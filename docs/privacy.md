@@ -35,6 +35,8 @@ Disconnecting locally does not necessarily revoke a provider-issued credential o
 
 Do not publish private media, project archives, transcripts, callback addresses, tokens or raw storage/network traces in support reports. Use generated samples and redact screenshots/logs. Follow [SECURITY.md](../SECURITY.md) for suspected data disclosure or credential vulnerabilities.
 
+Provider HTTP rejection bodies are read locally with a 16 KiB and one-second diagnostic budget. Only fixed machine rejection categories and recognized parameter names enter local errors; provider messages, arbitrary fields and raw metadata are discarded. SSE errors use the same allowlist. Errors also identify whether the initial goal definition or completion check failed. These diagnostics do not initiate another request or disclose new project data. Unknown or unreadable diagnostics retain the original HTTP status.
+
 Embedded capture dates and GPS are retained locally with imported assets and backups. A connected OpenRouter account authorizes their use in remote chat inspection and explicit indexing prompts. Without that grant, capture facts and labels generated with capture context are withheld. No location lookup or browser geolocation request runs. Local asset details remain available. See [capture access](ai.md#capture-metadata-access-and-sharing).
 
 ## Chat exports

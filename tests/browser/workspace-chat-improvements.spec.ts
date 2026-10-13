@@ -92,7 +92,7 @@ for (const base of ['/', '/LocalCut/']) {
         const body = route
           .request()
           .postDataJSON() as (typeof requests)[number];
-        if (!body.tools.length) {
+        if (!body.tools?.length) {
           await route.fulfill({
             headers: cors,
             contentType: 'text/event-stream',
@@ -231,7 +231,7 @@ data: [DONE]
         const body = route
           .request()
           .postDataJSON() as (typeof requests)[number];
-        if (!body.tools.length) {
+        if (!body.tools?.length) {
           await route.fulfill({
             headers: cors,
             contentType: 'text/event-stream',
@@ -403,7 +403,7 @@ data: [DONE]
         const body = route
           .request()
           .postDataJSON() as (typeof requests)[number];
-        if (!body.tools.length) {
+        if (!body.tools?.length) {
           await route.fulfill({
             headers: cors,
             contentType: 'text/event-stream',
@@ -478,6 +478,9 @@ data: [DONE]
     await page
       .locator('.chat-composer')
       .screenshot({ path: info.outputPath('retry-primary-desktop.png') });
+    await page.reload();
+    await expect(retry).toBeEnabled();
+    expect(requests).toHaveLength(3); // Reload restores captured retry without inference.
     await input.fill('A different request');
     await expect(send).toBeEnabled();
     await expect(retry).toHaveCount(0);
@@ -564,7 +567,7 @@ data: [DONE]
       async (route) => {
         if (await fulfillGoalReview(route)) return;
         const body = route.request().postDataJSON() as (typeof naming)[number];
-        if (!body.tools.length) {
+        if (!body.tools?.length) {
           naming.push(body);
           const first = body.messages.at(-1)!.content;
           if (first === 'Fail naming') {

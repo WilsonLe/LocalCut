@@ -213,6 +213,31 @@ class ReasoningAccumulator {
   }
 }
 
+/** Error diagnostics have a separate small size/time budget; failure to parse
+ * them never replaces the authoritative HTTP status or delays recovery. */
+export async function readHttpError(response: Response, signal: AbortSignal) {
+  const retryAfter = response.headers.get('retry-after');
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal.addEventListener('abort', abort, { once: true });
+  if (signal.aborted) abort();
+  const timer = setTimeout(abort, 1_000);
+  try {
+    const body = await readJson(response, controller.signal, 16_384);
+    return httpError(
+      response.status,
+      retryAfter,
+      object(body) ? body.error : undefined,
+    );
+  } catch {
+    if (signal.aborted) throw new AiError('CANCELLED', 'AI request cancelled.');
+    return httpError(response.status, retryAfter);
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener('abort', abort);
+  }
+}
+
 export async function readJson(
   response: Response,
   signal: AbortSignal,
@@ -443,7 +468,7 @@ export async function* parseChatStream(
     if (frame.error !== undefined) {
       const code = object(frame.error) ? frame.error.code : undefined;
       throw typeof code === 'number'
-        ? httpError(code)
+        ? httpError(code, undefined, frame.error)
         : new AiError(
             'PROVIDER_UNAVAILABLE',
             'OpenRouter interrupted the response.',

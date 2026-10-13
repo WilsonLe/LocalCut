@@ -56,9 +56,30 @@ export const chatContentSchema = z.object({
   messages: z.array(messageSchema),
   historyTurnIds: z.array(identity).optional(),
   historyIndexScope: z.string().optional(),
+  // Captured user request only; never credentials, live proposals or consent.
+  recovery: z
+    .object({
+      kind: z.enum(['paused', 'retry']),
+      turnId: identity,
+      prompt: z.string().min(1),
+      assetIds: z.array(identity),
+    })
+    .optional(),
 });
 export type ChatContent = z.infer<typeof chatContentSchema>;
 export type SavedChatMessage = ChatContent['messages'][number];
+/** Recovery stays scoped with the chat and only targets its latest unfinished
+ * assistant turn. It authorizes no execution until the user explicitly submits. */
+export function restoredChatRecovery(content: ChatContent) {
+  const recovery = content.recovery;
+  const latest = content.messages.at(-1);
+  return recovery &&
+    latest?.id === recovery.turnId &&
+    latest.role === 'assistant' &&
+    latest.status !== 'complete'
+    ? structuredClone(recovery)
+    : null;
+}
 const sessionSchema = z.object({
   version: z.literal(1),
   scope: z.string().min(1),

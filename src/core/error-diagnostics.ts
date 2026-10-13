@@ -9,6 +9,87 @@ export interface ErrorDiagnostic {
   errors?: ErrorDiagnostic[];
 }
 
+const providerReasons = [
+  'context_length_exceeded',
+  'max_tokens_exceeded',
+  'token_limit_exceeded',
+  'string_too_long',
+  'invalid_request',
+  'invalid_prompt',
+  'payload_too_large',
+  'unprocessable',
+  'refusal',
+  'content_policy_violation',
+] as const;
+const requestParameters = [
+  'model',
+  'messages',
+  'tools',
+  'tool_choice',
+  'max_tokens',
+  'reasoning',
+  'reasoning_content',
+  'reasoning_details',
+] as const;
+export type RecoveryDetails = {
+  status?: number;
+  reason?:
+    | 'output_limit'
+    | 'empty_response'
+    | 'reviewer_protocol'
+    | 'attachment_unavailable';
+  stage?: 'request_contract' | 'completion_check';
+  providerReason?: (typeof providerReasons)[number];
+  parameter?: (typeof requestParameters)[number];
+};
+
+/** One bounded machine-data contract across direct errors, queued Jobs and local
+ * diagnostics. Arbitrary remote text is never a recovery field. */
+export function safeRecoveryDetails(
+  value: unknown,
+  code?: string,
+): RecoveryDetails {
+  const details: RecoveryDetails = {};
+  if (!value || typeof value !== 'object') return details;
+  const metadata = value as Record<string, unknown>;
+  if (
+    typeof metadata.status === 'number' &&
+    Number.isInteger(metadata.status) &&
+    metadata.status >= 400 &&
+    metadata.status <= 599
+  )
+    details.status = metadata.status;
+  if (
+    code === 'RESPONSE_INCOMPLETE' &&
+    (metadata.reason === 'output_limit' || metadata.reason === 'empty_response')
+  )
+    details.reason = metadata.reason;
+  if (code === 'INVALID_RESPONSE' && metadata.reason === 'reviewer_protocol')
+    details.reason = metadata.reason;
+  if (
+    code === 'INVALID_REQUEST' &&
+    metadata.reason === 'attachment_unavailable'
+  )
+    details.reason = metadata.reason;
+  if (
+    metadata.stage === 'request_contract' ||
+    metadata.stage === 'completion_check'
+  )
+    details.stage = metadata.stage;
+  if (
+    typeof metadata.providerReason === 'string' &&
+    providerReasons.some((reason) => reason === metadata.providerReason)
+  )
+    details.providerReason =
+      metadata.providerReason as RecoveryDetails['providerReason'];
+  if (
+    typeof metadata.parameter === 'string' &&
+    requestParameters.some((parameter) => parameter === metadata.parameter)
+  )
+    details.parameter = metadata.parameter as RecoveryDetails['parameter'];
+  return details;
+}
+
 export function redactDiagnosticText(text: string): string {
   return (
     text
@@ -77,6 +158,13 @@ export function errorDiagnostic(
       : 'Stack trace unavailable: the source did not retain it.';
   const details: Record<string, unknown> = {};
   if (value.details && typeof value.details === 'object') {
+    Object.assign(
+      details,
+      safeRecoveryDetails(
+        value.details,
+        typeof value.code === 'string' ? value.code : undefined,
+      ),
+    );
     for (const [key, entry] of Object.entries(value.details)) {
       if (
         metadataKeys.has(key) &&

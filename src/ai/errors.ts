@@ -1,3 +1,5 @@
+import { safeRecoveryDetails } from '../core/error-diagnostics';
+
 export type AiErrorCode =
   | 'AUTH_STORAGE'
   | 'AUTH_REQUIRED'
@@ -49,16 +51,45 @@ export function aiInvariant(
   if (!condition) throw new AiError(code, message);
 }
 
-/** Provider bodies can echo secrets or prompt data; only map status, never expose body text. */
-export function httpError(status: number, retryAfter?: string | null): AiError {
+/** Provider bodies can echo secrets or prompt data. Copy only fixed machine
+ * categories, never provider messages, arbitrary parameters or raw metadata. */
+export function httpError(
+  status: number,
+  retryAfter?: string | null,
+  diagnostic?: unknown,
+): AiError {
   const retrySeconds = retryAfter ? Number(retryAfter) : NaN;
   const dateSeconds = retryAfter
     ? Math.ceil((Date.parse(retryAfter) - Date.now()) / 1000)
     : NaN;
   const seconds = Number.isFinite(retrySeconds) ? retrySeconds : dateSeconds;
   const details: Record<string, unknown> = { status };
+  if (diagnostic && typeof diagnostic === 'object') {
+    const error = diagnostic as Record<string, unknown>;
+    const metadata = error.metadata;
+    const category =
+      metadata && typeof metadata === 'object' && 'error_type' in metadata
+        ? metadata.error_type
+        : error.code;
+    Object.assign(
+      details,
+      safeRecoveryDetails({
+        providerReason: category,
+        parameter: error.param,
+      }),
+    );
+  }
   if (Number.isFinite(seconds) && seconds >= 0)
     details.retryAfterSeconds = Math.min(Math.ceil(seconds), 86_400);
+  if (
+    details.providerReason === 'refusal' ||
+    details.providerReason === 'content_policy_violation'
+  )
+    return new AiError(
+      'PROVIDER_REFUSAL',
+      'OpenRouter declined the request.',
+      details,
+    );
   if (status === 401 || status === 403)
     return new AiError(
       'AUTH_INVALID',
