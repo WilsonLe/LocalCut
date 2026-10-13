@@ -1660,7 +1660,7 @@ for (const base of ['/', '/LocalCut/']) {
         return route.fulfill({
           headers: cors,
           json:
-            alignment === 1
+            alignment <= 2
               ? { segments: [{ text: 'Invalid phrase', start: 1, end: 0.5 }] }
               : {
                   segments: [
@@ -1685,6 +1685,17 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(dialog.getByRole('alert')).toContainText(
       'Speech audio is saved, but phrase timing failed',
     );
+    await dialog
+      .getByRole('button', { name: 'Retry timing', exact: true })
+      .click();
+    await expect(dialog.getByRole('alert')).toContainText(
+      'Speech audio is saved, but phrase timing failed',
+    );
+    await expect(
+      dialog.getByRole('button', { name: 'Retry timing', exact: true }),
+    ).toBeEnabled();
+    expect(synthesis).toBe(1);
+    expect(alignment).toBe(2);
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
     await page.getByRole('button', { name: 'Task queue', exact: true }).click();
     const queue = page.getByRole('dialog', { name: 'Task queue', exact: true });
@@ -1698,7 +1709,7 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await expect(failed.getByRole('status')).toContainText('completed');
     expect(synthesis).toBe(1);
-    expect(alignment).toBe(2);
+    expect(alignment).toBe(3);
     await queue.getByRole('button', { name: 'Close', exact: true }).click();
     await page
       .getByRole('button', { name: 'Text to speech', exact: true })
@@ -1757,7 +1768,7 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeEnabled();
     await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
     expect(synthesis).toBe(1);
-    expect(alignment).toBe(3);
+    expect(alignment).toBe(4);
     await page.reload();
     await page
       .getByRole('button', { name: 'Text to speech', exact: true })
@@ -1796,7 +1807,7 @@ for (const base of ['/', '/LocalCut/']) {
     expect(saved.cues[0].timeUs).toBe(20000);
     expect(saved.cues[0].endUs).toBe(saved.cues[1].timeUs);
     expect(synthesis).toBe(1);
-    expect(alignment).toBe(3);
+    expect(alignment).toBe(4);
   });
   test(`restored speech cancels its saved pending task ${base}`, async ({
     page,

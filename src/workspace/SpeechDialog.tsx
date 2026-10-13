@@ -57,6 +57,7 @@ import {
   speechRoute,
   speechTimingRoute,
   speechTaskError,
+  SPEECH_TIMING_FAILURE,
 } from './speech-tasks';
 import type {
   SpeechTaskInput,
@@ -239,16 +240,18 @@ export default function SpeechDialog({
           if (active.current && !abort.signal.aborted) {
             const code = errorCode(error);
             const message =
-              code === 'INVALID_REQUEST' ||
-              code === 'INVALID_RESPONSE' ||
-              code === 'MODEL_UNSUPPORTED' ||
-              code === 'RESPONSE_LIMIT'
-                ? error instanceof Error
-                  ? error.message
-                  : 'Speech could not be generated.'
-                : code === 'REVISION_CONFLICT'
-                  ? 'The project changed. Review the timeline and try adding again.'
-                  : errorText(error);
+              error instanceof Error && error.message === SPEECH_TIMING_FAILURE
+                ? SPEECH_TIMING_FAILURE
+                : code === 'INVALID_REQUEST' ||
+                    code === 'INVALID_RESPONSE' ||
+                    code === 'MODEL_UNSUPPORTED' ||
+                    code === 'RESPONSE_LIMIT'
+                  ? error instanceof Error
+                    ? error.message
+                    : 'Speech could not be generated.'
+                  : code === 'REVISION_CONFLICT'
+                    ? 'The project changed. Review the timeline and try adding again.'
+                    : errorText(error);
             setError(message);
           }
         } finally {
