@@ -109,7 +109,7 @@ describe('local chat records', () => {
       status: 'interrupted',
       tools: [{ phase: 'failed', error: { code: 'CANCELLED' } }],
     });
-    expect(restoredChatTurns(restored!.content.messages)).toEqual([
+    expect(restoredChatTurns(restored!.content.messages)).toMatchObject([
       { id: 'a1', user: 'Hello', assistant: 'Done' },
       {
         id: 'a2',
@@ -122,7 +122,7 @@ describe('local chat records', () => {
       'a1',
     ]).at(-1)!;
     expect(interrupted.interrupted).toBe(true);
-    expect(interrupted.assistant).not.toContain('propose_edits');
+    expect(JSON.stringify(interrupted.exchange)).toContain('propose_edits');
   });
   it('rejects malformed and unknown-version records and assigns distinct session identities', () => {
     const a = newChatSession('scope'),
@@ -139,7 +139,7 @@ describe('local chat records', () => {
   });
 });
 
-it('restores canonical interruption context without replaying stale display rows', () => {
+it('retains canonical interruption context and legacy observations across index changes', () => {
   const chat = restoreChatSession({
     ...newChatSession('scope'),
     content: {
@@ -184,15 +184,15 @@ it('restores canonical interruption context without replaying stale display rows
   expect(turns[0]!.assistant).not.toContain('Retired private');
   expect(
     restoredChatTurns(chat.content.messages, [], 'changed')[0]!.assistant,
-  ).not.toContain('appliedRevision');
+  ).toContain('appliedRevision');
   const legacy = { ...chat.content.messages[1]!, continuation: undefined };
   expect(
     restoredChatTurns([chat.content.messages[0]!, legacy], [], 'current')[0]!
       .assistant,
-  ).not.toContain('Retired private');
+  ).toContain('Retired private');
 });
 
-it('does not reintroduce compacted or retired turns from the visible transcript', () => {
+it('restores earlier visible turns retired by older builds', () => {
   const messages = [
     {
       id: 'u1',
@@ -220,9 +220,10 @@ it('does not reintroduce compacted or retired turns from the visible transcript'
     },
   ];
   expect(restoredChatTurns(messages, ['a2'])).toEqual([
+    { id: 'a1', user: 'Old request', assistant: 'Old labels' },
     { id: 'a2', user: 'Current request', assistant: 'Current answer' },
   ]);
-  expect(restoredChatTurns(messages, [])).toEqual([]);
+  expect(restoredChatTurns(messages, [])).toEqual(restoredChatTurns(messages));
 });
 
 it('keeps manual titles authoritative and supports old records without lifecycle fields', () => {

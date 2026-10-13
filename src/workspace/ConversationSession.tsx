@@ -61,7 +61,7 @@ import { restoredChatTurns } from './chat-transcript';
 const ChatMarkdown = lazy(() => import('./ChatMarkdown'));
 
 export type Message = ChatExportMessage &
-  Pick<SavedChatMessage, 'continuation'>;
+  Pick<SavedChatMessage, 'continuation' | 'exchange'>;
 type HistoricalTool = NonNullable<SavedChatMessage['tools']>[number];
 function toolLabel(tool: HistoricalTool, includeSkill = false): string {
   if (tool.name !== 'load_skill') return tool.name.replaceAll('_', ' ');
@@ -432,6 +432,11 @@ export default function ConversationSession({
     cancelBeforeRun.current = false;
     pausedByNavigation.current = false;
     let activeTurn: AssistantTurn | undefined;
+    const resumedExchange =
+      resuming && !retrying
+        ? (messages.find((message) => message.id === resuming.turnId)
+            ?.continuation?.exchange ?? [])
+        : [];
     let submitted: RecoveryRequest | undefined;
     let stop: (() => void) | undefined;
     try {
@@ -515,7 +520,16 @@ ${resuming.prompt}`
           setMessages((current) =>
             current.map((message) =>
               message.id === event.turnId
-                ? { ...message, continuation: event.context }
+                ? {
+                    ...message,
+                    continuation: {
+                      ...event.context,
+                      exchange: [
+                        ...resumedExchange,
+                        ...(event.context.exchange ?? []),
+                      ],
+                    },
+                  }
                 : message,
             ),
           );
@@ -564,6 +578,7 @@ ${resuming.prompt}`
                   status: 'complete',
                   proposalIds: result.proposalIds,
                   usage: result.usage,
+                  exchange: [...resumedExchange, ...result.exchange],
                 }
               : message,
           ),

@@ -2,6 +2,12 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Immutable chat continuity — 13 October 2026
+
+- Keep conversation messages, supplied context snapshots and returned tool results immutable. Retain stale results rather than deleting, redacting or rewriting them; never clear conversation history because media scope or saved indexes changed.
+- Recompute fresh context for each turn. The assistant calls tools again when it needs current data. Historical results are observations at their captured state; current tool declarations, permissions and revision checks govern new actions.
+- Preserve this history through cancellation, reload and forks within the same project/model/sharing scope. This supersedes automatic retirement of index-bearing narration and text-only restoration. Explicit new chats, branches, clear-history actions and connection/scope isolation retain their existing ownership.
+
 ## Silent chat retries — 13 October 2026
 
 - When a chat error escalates, show a play-icon Retry response button in the primary Send position. Retry the captured request without retyping; preserve completed actions. A new draft takes precedence as Send, and clearing it restores Retry.

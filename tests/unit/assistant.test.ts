@@ -36,7 +36,11 @@ import {
 } from '../../src/ai/tools';
 import { assistantCapabilities } from '../../src/ai/actions';
 import type { EditOperation } from '../../src/core/commands';
-import { newChatSession, restoreChatSession } from '../../src/storage/chats';
+import {
+  newChatSession,
+  restoreChatSession,
+  forkChatSession,
+} from '../../src/storage/chats';
 import type { SavedChatMessage } from '../../src/storage/chats';
 import { restoredChatTurns } from '../../src/workspace/chat-transcript';
 
@@ -3000,12 +3004,13 @@ describe('incremental assistant skills', () => {
       (await f.assistant.run('Move it again').completion).proposalIds,
     ).toEqual([]);
     expect(names(f.provider.requests[3]!)).toEqual(baseTools);
-    expect(JSON.stringify(f.provider.requests[3])).not.toContain(
+    expect(JSON.stringify(f.provider.requests[3])).toContain(
       'Transition templates are editable recipes',
     );
-    expect(JSON.stringify(f.provider.requests[3])).toContain(
-      'loaded_in_previous_turn',
-    );
+    expect(
+      JSON.parse(f.provider.requests[3]!.messages[1]!.content!).capabilityMap
+        .loadedSkills,
+    ).toEqual([]);
     expect(f.editor.commands.validate).toHaveBeenCalledTimes(1);
     expect(f.editor.commands.apply).not.toHaveBeenCalled();
     await f.assistant.dispose();
@@ -3310,7 +3315,7 @@ describe('incremental assistant skills', () => {
   });
 });
 
-it('retires index-bearing model history when relinking invalidates saved labels', async () => {
+it('retains historical index narration while recomputing current evidence after relinking', async () => {
   const f = fixture(),
     p = provider([
       [final('A stale red subject')],
@@ -3377,8 +3382,11 @@ it('retires index-bearing model history when relinking invalidates saved labels'
     ]);
     run.invalidated = true;
     await assistant.run('Describe the current source').completion;
-    expect(JSON.stringify(p.requests[1])).not.toContain('A stale red subject');
-    expect(JSON.stringify(p.requests[1])).not.toContain('A red subject');
+    expect(JSON.stringify(p.requests[1])).toContain('A stale red subject');
+    expect(
+      JSON.parse(p.requests[1]!.messages[1]!.content!).assetIndex
+        .indexedAssetCount,
+    ).toBe(0);
   } finally {
     await assistant.dispose();
   }
@@ -3442,13 +3450,13 @@ it('keeps committed receipts across cancellation before the tool completion even
   expect(JSON.stringify(p.requests[0]!.messages)).toContain('appliedRevision');
   expect(
     p.requests[0]!.messages.some((message) => message.role === 'tool'),
-  ).toBe(false);
+  ).toBe(true);
   expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
   await reloaded.dispose();
   await a.dispose();
 });
 
-it('never restores retired index observations or narration from display rows after cancellation and reload', async () => {
+it('retains historical index observations and narration after cancellation and reload', async () => {
   const f = fixture();
   const run: import('../../src/core/asset-index').AssetIndexRun = {
     version: 1,
@@ -3551,7 +3559,14 @@ it('never restores retired index observations or narration from display rows aft
     restoredIndexScope: saved.content.historyIndexScope,
   });
   await reloaded.run('Keep going').completion;
-  expect(JSON.stringify(p.requests[0])).not.toContain('Private retired');
+  expect(JSON.stringify(p.requests[0])).toContain(
+    'Private retired observation',
+  );
+  expect(JSON.stringify(p.requests[0])).toContain('Private retired narration');
+  expect(
+    JSON.parse(p.requests[0]!.messages[1]!.content!).assetIndex
+      .indexedAssetCount,
+  ).toBe(0);
   expect(
     p.requests[0]!.messages.some(
       (message) =>
@@ -4509,7 +4524,7 @@ it.each(
     [false, true].map((interrupted) => [scope, interrupted] as const),
   ),
 )(
-  'revalidates restored index history against current evidence: %s, interrupted: %s',
+  'retains restored history with freshly recomputed evidence: %s, interrupted: %s',
   async (restoredIndexScope, interrupted) => {
     const f = fixture();
     const p = provider([[final('Current answer')]], false);
@@ -4531,9 +4546,7 @@ it.each(
     });
     await assistant.run('Current question').completion;
     const request = JSON.stringify(p.requests[0]);
-    if (restoredIndexScope === '[]')
-      expect(request).toContain('Previous index narration');
-    else expect(request).not.toContain('Previous index narration');
+    expect(request).toContain('Previous index narration');
     expect(assistant.snapshot().historyIndexScope).toBe('[]');
     await assistant.dispose();
   },
@@ -5484,7 +5497,7 @@ describe('requested chat execution', () => {
     },
   );
   it.each(['remove', 'relink', 'replace'])(
-    'retires current index observations and history when scope changes: %s',
+    'retains immutable index history while refreshing current scope: %s',
     async (change) => {
       const f = fixture();
       const old = {
@@ -5553,11 +5566,11 @@ describe('requested chat execution', () => {
       expect(JSON.stringify(requests[1])).toContain(
         'Private retired observation',
       );
-      expect(JSON.stringify(requests[2])).not.toContain(
+      expect(JSON.stringify(requests[2])).toContain(
         'Private retired observation',
       );
       await a.run('Continue using current context').completion;
-      expect(JSON.stringify(requests.at(-1))).not.toContain(
+      expect(JSON.stringify(requests.at(-1))).toContain(
         'Private retired observation',
       );
       if (change === 'replace')
@@ -6838,4 +6851,204 @@ describe('canonical storyboard image scope', () => {
       await a.dispose();
     },
   );
+});
+
+describe('immutable conversation continuity', () => {
+  it('retains the preceding options, context snapshots and exact tool replies through library expansion, shrink and reload', async () => {
+    const f = fixture();
+    const library = {
+      revision: 7,
+      entries: ['asset', 'extra'].map((assetId) => ({
+        id: assetId,
+        parentId: null,
+        kind: 'asset' as const,
+        name: assetId,
+        assetId,
+      })),
+    };
+    f.editor.library = {
+      forProject: () => ({
+        list: async () => structuredClone(library),
+        apply: vi.fn(),
+      }),
+    };
+    const runs = ['asset', 'extra'].map((assetId) => ({
+      id: `stable-${assetId}`,
+      assetId,
+      createdAt: 1,
+      status: 'complete',
+      invalidated: false,
+      source: {},
+      label: { summary: `Saved ${assetId}`, tags: [] },
+      analysis: { scenes: [] },
+    })) as unknown as import('../../src/core/asset-index').AssetIndexRun[];
+    f.editor.assets.indexes = { list: async () => structuredClone(runs) };
+    const inspect = f.editor.assets.inspect;
+    let name = 'Original source.mov';
+    f.editor.assets.inspect = vi.fn(async (id) => ({
+      ...(await inspect(id)),
+      name,
+    }));
+    const offer = '1. Pacing. 2. Cohesive grade. 3. Audio.';
+    const p = provider(
+      [
+        [final('', [call('load_skill', { skillId: 'editing' })])],
+        [final('', [call('inspect_asset', { assetId: 'asset' })])],
+        [final(offer)],
+        [final('', [call('load_skill', { skillId: 'editing' })])],
+        [
+          final('', [
+            call('resolve_library_assets', {
+              folderId: null,
+              recursive: true,
+              expectedRevision: 7,
+            }),
+          ]),
+        ],
+        [final('', [call('inspect_asset', { assetId: 'asset' })])],
+        [final('All three understood')],
+        [final('Still remembered')],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      execution: 'requested',
+      libraryAccess: 'project',
+      context: { includeAssetIndexes: true, includeAssetNames: true },
+    });
+    try {
+      const first = await a.run('I expect a polished video timeline')
+        .completion;
+      const frozen = structuredClone(first.exchange);
+      const originalReply = frozen.find(
+        (m) => m.role === 'tool' && m.content.includes('Original source.mov'),
+      )!;
+      name = 'Updated source.mov';
+      const second = await a.run('do all 3').completion;
+      for (const request of p.requests.slice(3))
+        expect(request.messages.slice(2, 2 + frozen.length)).toEqual(frozen);
+      expect(
+        p.requests[3]!.tools.some((t) => t.function.name === 'inspect_asset'),
+      ).toBe(false);
+      expect(
+        JSON.parse(p.requests[6]!.messages[1]!.content!).assetIndex
+          .indexedAssetCount,
+      ).toBe(2);
+      expect(p.requests[6]!.messages).toContainEqual(originalReply);
+      expect(
+        p.requests[6]!.messages.some(
+          (m) => m.role === 'tool' && m.content.includes('Updated source.mov'),
+        ),
+      ).toBe(true);
+      // Returned copies cannot rewrite retained history.
+      first.exchange[0]!.content = 'Caller mutation';
+      await a.run('how about now? all 3').completion;
+      const current = p.requests.at(-1)!;
+      expect(current.messages.slice(2, 2 + frozen.length)).toEqual(frozen);
+      expect(
+        JSON.parse(current.messages[1]!.content!).assetIndex.indexedAssetCount,
+      ).toBe(1);
+      expect(JSON.stringify(current.messages)).toContain(offer);
+      const chat = newChatSession('matching-scope');
+      chat.content.historyTurnIds = [second.id]; // Legacy retirement metadata must not drop the first exchange.
+      chat.content.messages = [
+        {
+          id: 'u1',
+          role: 'user',
+          text: 'I expect a polished video timeline',
+          status: 'complete',
+        },
+        {
+          id: first.id,
+          role: 'assistant',
+          text: offer,
+          status: 'complete',
+          exchange: frozen,
+        },
+        { id: 'u2', role: 'user', text: 'do all 3', status: 'complete' },
+        {
+          id: second.id,
+          role: 'assistant',
+          text: second.text,
+          status: 'complete',
+          exchange: second.exchange,
+        },
+      ];
+      const saved = restoreChatSession(forkChatSession(chat))!;
+      const reloadProvider = provider(
+        [[final('All three still understood')]],
+        false,
+      );
+      const reloaded = createAssistant({
+        editor: f.editor,
+        provider: reloadProvider,
+        projectId: f.project().id,
+        model: 'test/model',
+        execution: 'requested',
+        libraryAccess: 'project',
+        context: { includeAssetIndexes: true, includeAssetNames: true },
+        restoredTurns: restoredChatTurns(
+          saved.content.messages,
+          saved.content.historyTurnIds,
+          'changed',
+        ),
+      });
+      try {
+        expect(reloadProvider.requests).toEqual([]);
+        expect(reloaded.snapshot().proposals).toEqual([]);
+        await reloaded.run('Continue all three').completion;
+        expect(
+          reloadProvider.requests[0]!.messages.slice(2, 2 + frozen.length),
+        ).toEqual(frozen);
+        expect(reloadProvider.requests[0]!.messages).toContainEqual(
+          originalReply,
+        );
+        expect(
+          JSON.parse(reloadProvider.requests[0]!.messages[1]!.content!)
+            .capabilityMap.loadedSkills,
+        ).toEqual([]);
+        expect(
+          reloadProvider.requests[0]!.tools.some(
+            (t) => t.function.name === 'inspect_asset',
+          ),
+        ).toBe(false);
+        expect(f.editor.commands.apply).not.toHaveBeenCalled();
+      } finally {
+        await reloaded.dispose();
+      }
+    } finally {
+      await a.dispose();
+    }
+  });
+
+  it('rejects malformed historical protocol without executing or restoring tool authority', () => {
+    const f = fixture();
+    expect(() =>
+      createAssistant({
+        editor: f.editor,
+        provider: provider([]),
+        projectId: f.project().id,
+        model: 'test',
+        restoredTurns: [
+          {
+            id: 'old',
+            user: 'Earlier',
+            assistant: 'Done',
+            exchange: [
+              {
+                role: 'assistant',
+                content: null,
+                tool_calls: [call('propose_edits', {})],
+              },
+            ],
+          },
+        ],
+      }),
+    ).toThrow('Invalid restored chat history');
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+  });
 });
