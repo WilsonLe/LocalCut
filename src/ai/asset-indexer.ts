@@ -290,7 +290,7 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
         reason:
           'Explicit labeling is bound to current consent/model and selected run checkpoints.',
       },
-      lane: 'labels',
+      lane: `labels:${assetId}`,
       recovery: 'manual',
       sessionBound: true,
       maxAttempts: 1,

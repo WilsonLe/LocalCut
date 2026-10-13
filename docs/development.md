@@ -262,7 +262,7 @@ Run affected existing consumer journeys as well, including `project switcher dia
 
 ## Requested chat execution checks
 
-Run `pnpm test tests/unit/assistant.test.ts`, then `pnpm test:ui --grep 'chat indexing requested execution|text clarification|conversation cancellation|rate-limit errors|chat executes atomic edits|conversation proposes and applies'`. Requested mode covers sequential receipts/fresh revisions, scoped indexing and explicit retry after failure, response/service cancellation and plain text clarification. Existing headless approval/privacy regressions remain in the same assistant suite. Native media processing is unchanged; these deterministic providers establish execution and transport, without paid inference.
+Run `pnpm test tests/unit/assistant.test.ts tests/unit/task-queue.test.ts tests/unit/asset-indexer-capture.test.ts`, then `pnpm test:ui --grep 'chat parallel indexing|chat independently discloses|chat indexing requested execution|text clarification|conversation cancellation|rate-limit errors|chat executes atomic edits|conversation proposes and applies'`. Requested mode covers parallel reads/distinct-asset indexing, bounded in-flight work, out-of-order receipts, same-asset exclusion, cancellation and paid-failure barriers, tool/action-before-text ordering, sequential mutation receipts/fresh revisions, scoped indexing and explicit retry after failure, response/service cancellation and plain text clarification. Existing headless approval/privacy regressions remain in the same assistant suite. Native media processing is unchanged; these deterministic providers establish execution and transport, without paid inference.
 
 ## Creative effect checks
 

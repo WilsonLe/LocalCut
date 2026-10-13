@@ -1,3 +1,7 @@
+import { createAssetIndexer } from '../../src/ai/asset-indexer';
+import type { Editor } from '../../src/editor';
+import type { OpenRouter } from '../../src/ai/types';
+import { Jobs } from '../../src/services/jobs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TaskQueue } from '../../src/services/task-queue';
 import type { TaskRecord } from '../../src/services/task-queue';
@@ -111,6 +115,65 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 describe('durable task queue', () => {
+  it('lets queued indexing overlap across assets while retaining same-asset exclusion', async () => {
+    const q = queue();
+    const jobs = new Jobs();
+    const started: string[] = [];
+    const releases: (() => void)[] = [];
+    const runs = new Map<string, unknown>();
+    const editor = {
+      tasks: q,
+      assets: {
+        inspect: async (assetId: string) => {
+          started.push(assetId);
+          await new Promise<void>((resolve) => releases.push(resolve));
+          return { kind: 'image' };
+        },
+        analyze: (assetId: string) =>
+          jobs.start(async () => {
+            const run = { id: assetId, assetId, status: 'complete' };
+            runs.set(assetId, run);
+            return run;
+          }),
+        indexes: {
+          withRun: async (_id: string, work: () => Promise<unknown>) => work(),
+          get: async (id: string) => runs.get(id),
+        },
+      },
+    } as unknown as Editor;
+    const provider = {
+      status: () => ({ connected: true }),
+      listModels: async () => [
+        { id: 'synthetic', supportsTools: true, inputModalities: ['image'] },
+      ],
+    } as unknown as OpenRouter;
+    const indexer = createAssetIndexer({
+      editor,
+      provider,
+      model: 'synthetic',
+      consent: () => true,
+    });
+    try {
+      const first = indexer.run('first');
+      const same = indexer.run('first');
+      const second = indexer.run('second');
+      await vi.waitFor(() => expect(started).toEqual(['first', 'second']));
+      releases[1]!();
+      await second.completion;
+      expect(started).toEqual(['first', 'second']);
+      releases[0]!();
+      await first.completion;
+      await vi.waitFor(() =>
+        expect(started).toEqual(['first', 'second', 'first']),
+      );
+      releases[2]!();
+      await same.completion;
+    } finally {
+      await q.dispose();
+      await indexer.dispose();
+      await jobs.dispose();
+    }
+  });
   it('retains original error messages, causes and every frame through nested measurement/generation queues and reopening', async () => {
     const storage = new MemoryStore(),
       q = queue(storage);

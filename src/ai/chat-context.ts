@@ -49,7 +49,11 @@ export const chatExchangeSchema = z
   }, 'Historical tool calls must have matching outcomes.');
 
 /** Append interruption outcomes without changing any supplied message/reply. */
-export function interruptedExchange(exchange: ChatMessage[], notice: string) {
+export function interruptedExchange(
+  exchange: ChatMessage[],
+  notice: string,
+  returnedTools: ReadonlyMap<string, string> = new Map(),
+) {
   const messages = structuredClone(exchange);
   const pending = new Set<string>();
   for (const message of messages) {
@@ -61,11 +65,13 @@ export function interruptedExchange(exchange: ChatMessage[], notice: string) {
     messages.push({
       role: 'tool',
       tool_call_id: id,
-      content: JSON.stringify({
-        code: 'CANCELLED',
-        message:
-          'The response stopped before this tool outcome was returned. Inspect current state and confirmed receipts before retrying.',
-      }),
+      content:
+        returnedTools.get(id) ??
+        JSON.stringify({
+          code: 'CANCELLED',
+          message:
+            'The response stopped before this tool outcome was returned. Inspect current state and confirmed receipts before retrying.',
+        }),
     });
   messages.push({ role: 'assistant', content: notice });
   return messages;

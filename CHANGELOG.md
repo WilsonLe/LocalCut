@@ -4,6 +4,8 @@ Current version: **0.1.0-alpha.1**. Short summaries for end users and executives
 
 ## Unreleased
 
+- Run independent chat tools and asset indexing in parallel while dependent work stays ordered; keep each final reply below its tool and action results. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...codex/parallel-chat-tools).
+
 - Keep project chats and drafts across reloads, rename titles, archive/restore sessions and fork independent conversations locally. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/pull/182/files).
 - Export a chat from its own header into a local Markdown/JSON archive, with saved downloads and recovery through Task queue. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/pull/186/files).
 
