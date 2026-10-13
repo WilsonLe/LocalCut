@@ -305,7 +305,7 @@ Animation belongs to the selected timeline instance. Other placements of the sam
 
 The main header's right action group begins with Task queue. Media actions, including Text to speech, stay inline at the right of the media heading. The connected OpenRouter card places Verify and Disconnect icons at the right; successful verification adds an accessible green check. Disconnect clears the credential and retains model choices for reconnection. STT and TTS model pickers search OpenRouter's catalog. Catalog discovery sends no source audio.
 
-Empty chats show centered editing guidance. Dictation sits immediately before Send on the right; it occupies the final position while a new draft is empty. A paused response retains Resume as the primary action; an escalated failure shows Retry response with the same play icon. Dictation sits directly beside it.
+Empty chats show centered editing guidance. Dictation sits immediately before Send on the right; it occupies the final position while a new draft is empty. A paused response retains Resume as the primary action; an escalated failure shows Retry response with the same play icon. Dictation sits directly beside it. See the verified [desktop Retry control](images/chat-retry-primary-desktop.png) and [mobile Retry control](images/chat-retry-primary-mobile.png).
 
 ![Empty chat guidance with inline media actions and the task queue in the main header](images/chat-empty-controls.png)
 
