@@ -15,8 +15,23 @@ export interface SessionGoal {
   todos: string;
 }
 /** A missing/malformed checklist cannot silently satisfy the stop gate. */
+function todoItems(markdown: string) {
+  return [
+    ...markdown.matchAll(
+      /^[ \t]*(?:[-*+]|\d+[.)])[ \t]+\[([ xX])\][ \t]+\S.*$/gm,
+    ),
+  ];
+}
+export function validateTodos(markdown: string): void {
+  if (!todoItems(markdown).length)
+    throw new AiError(
+      'INVALID_RESPONSE',
+      'To-do agent returned no Markdown checklist.',
+      { reason: 'reviewer_checklist' },
+    );
+}
 export function clearedTodos(markdown: string): boolean {
-  const items = [...markdown.matchAll(/^\s*[-*] \[([ xX])\] \S.*$/gm)];
+  const items = todoItems(markdown);
   return (
     items.length > 0 && items.every((item) => item[1]?.toLowerCase() === 'x')
   );
@@ -59,6 +74,7 @@ async function readGoalResponse({
   accountBytes: (value: unknown) => void;
   accountUsage: (usage?: Usage) => void;
   checkRequest?: (request: ChatRequest) => void;
+  validateResponse?: (response: string) => void;
 }): Promise<string> {
   check();
   const stream = provider.stream(structuredClone(request), signal);
@@ -116,12 +132,16 @@ export async function goalResponse(
   for (let attempt = 0; ; attempt++) {
     try {
       options.checkRequest?.(request);
-      return await readGoalResponse({ ...options, request });
+      const response = await readGoalResponse({ ...options, request });
+      options.check();
+      options.validateResponse?.(response);
+      return response;
     } catch (error) {
       options.check();
       if (
         error instanceof AiError &&
-        error.details.reason === 'reviewer_protocol' &&
+        (error.details.reason === 'reviewer_protocol' ||
+          error.details.reason === 'reviewer_checklist') &&
         attempt < 2
       ) {
         // Repair only private reviewer inference. Never replay execution or feed
@@ -130,7 +150,9 @@ export async function goalResponse(
         request.messages.push({
           role: 'user',
           content:
-            'The prior attempt returned tool protocol, not a review. No tools are available. Return only your plain-text goal or assessment of the supplied evidence. Do not imitate historical tool calls or emit provider control tokens.',
+            error.details.reason === 'reviewer_checklist'
+              ? 'The prior attempt did not return a Markdown task checklist. No tools are available. Return only ## To-dos followed by one - [ ] or - [x] line per required task, using the original supplied goal and evidence. Preserve required work and mark completed only from authoritative evidence. Keep blocked, failed and user-owned work unchecked. Do not replace tasks with prose, JSON, a plan or an empty list.'
+              : 'The prior attempt returned tool protocol, not a review. No tools are available. Follow the original response instructions and supplied evidence. Return only the requested plain-text goal, Markdown task checklist or assessment. Do not imitate historical tool calls or emit provider control tokens.',
         });
         continue;
       }

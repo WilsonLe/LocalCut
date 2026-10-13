@@ -9,6 +9,7 @@ import {
   goalReviewPrompt,
   fulfilledGoal,
   clearedTodos,
+  validateTodos,
   todoPrompt,
 } from './goal-review';
 import type { GoalCompletion, GoalVerdict, SessionGoal } from './goal-review';
@@ -733,6 +734,8 @@ export function createAssistant(options: AssistantOptions) {
               check,
               interrupt: (promise) => interruptible(promise, signal),
               accountUsage: addUsage,
+              validateResponse:
+                name === 'session_todos' ? validateTodos : undefined,
               checkRequest: (value) =>
                 boundedContext(value, limits.maxContextBytes),
               accountBytes: (value) => {
@@ -1532,33 +1535,21 @@ export function createAssistant(options: AssistantOptions) {
         };
         publishGoal({ goal: requestContract, todos: sessionGoal?.todos ?? '' });
         const updateTodos = () =>
-          review(
-            'session_todos',
-            todoPrompt,
-            {
-              initialRequest: prompt,
-              requestContract,
-              existingTodos: sessionGoal?.todos,
-              previousConversation: history.flat(),
-              conversation: liveConversation,
-              currentContext: context,
-              execution: options.execution ?? 'review',
-              paidActionFailed,
-              actions: staged.map((proposal) => ({
-                status: proposal.status,
-                result: proposal.result,
-                summary: proposal.summary,
-              })),
-            },
-            async (todos) => {
-              aiInvariant(
-                /^\s*[-*] \[[ xX]\] \S.*$/m.test(todos),
-                'INVALID_RESPONSE',
-                'To-do agent returned no Markdown checklist.',
-              );
-              return todos;
-            },
-          ).then((todos) => {
+          review('session_todos', todoPrompt, {
+            initialRequest: prompt,
+            requestContract,
+            existingTodos: sessionGoal?.todos,
+            previousConversation: history.flat(),
+            conversation: liveConversation,
+            currentContext: context,
+            execution: options.execution ?? 'review',
+            paidActionFailed,
+            actions: staged.map((proposal) => ({
+              status: proposal.status,
+              result: proposal.result,
+              summary: proposal.summary,
+            })),
+          }).then((todos) => {
             publishGoal({ goal: requestContract, todos });
           });
         // Kick off an independent read-only agent at iteration boundaries. The

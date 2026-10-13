@@ -7843,6 +7843,110 @@ describe('request completion review sessions', () => {
     }
   });
 
+  it.each(['initial', 'after edit'])(
+    'repairs a missing checklist %s without replaying edits',
+    async (phase) => {
+      const p = reviewedProvider([
+        [final('', [call('load_skill', { skillId: 'editing' })])],
+        [proposal()],
+        [final('Moved and answered')],
+      ]);
+      const original = p.stream;
+      const attempts: ChatRequest[] = [];
+      let repaired = false;
+      p.stream = async function* (request) {
+        if (
+          request.messages[0]?.content?.startsWith(
+            'LocalCut session to-dos:',
+          ) &&
+          (phase === 'initial' || f.project().revision > 0) &&
+          !repaired
+        ) {
+          attempts.push(structuredClone(request));
+          if (attempts.length === 1) {
+            yield final('The requested work has been considered.');
+            return;
+          }
+          repaired = true;
+        }
+        yield* original(request);
+      };
+      const f = make(p);
+      const events: AssistantEvent[] = [];
+      f.assistant.subscribe((event) => events.push(event));
+      try {
+        const result = await f.assistant.run('Move and answer').completion;
+        expect(result.completion.status).toBe('fulfilled');
+        expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
+        expect(attempts).toHaveLength(2);
+        expect(attempts[1]!.messages.slice(0, 2)).toEqual(
+          attempts[0]!.messages,
+        );
+        expect(attempts[1]!.sessionId).toBe(attempts[0]!.sessionId);
+        expect(attempts[1]!.tools).toEqual([]);
+        expect(JSON.stringify(attempts[1])).not.toContain(
+          'The requested work has been considered.',
+        );
+        expect(
+          events.filter(
+            (e) =>
+              e.type === 'tool' &&
+              e.name === 'session_todos' &&
+              e.phase === 'failed',
+          ),
+        ).toEqual([]);
+        expect(
+          events
+            .filter((e) => e.type === 'session_goal')
+            .map((e) => JSON.stringify(e))
+            .join('\n'),
+        ).not.toContain('The requested work has been considered.');
+      } finally {
+        await f.assistant.dispose();
+      }
+    },
+  );
+
+  it('exhausts malformed post-edit checklists with staged diagnostics and retains the last valid checklist', async () => {
+    const p = reviewedProvider([
+      [final('', [call('load_skill', { skillId: 'editing' })])],
+      [proposal()],
+      [final('Must not run')],
+    ]);
+    const original = p.stream;
+    let attempts = 0;
+    let lastValid = '';
+    p.stream = async function* (request) {
+      if (
+        request.messages[0]?.content?.startsWith('LocalCut session to-dos:')
+      ) {
+        p.requests.push(structuredClone(request));
+        if (f.project().revision > 0) {
+          lastValid = JSON.parse(request.messages[1]!.content!).existingTodos;
+          attempts++;
+          yield final('No checklist');
+        } else yield final('## To-dos\n- [ ] Move and answer');
+      } else yield* original(request);
+    };
+    const f = make(p);
+    try {
+      await expect(
+        f.assistant.run('Move and answer').completion,
+      ).rejects.toMatchObject({
+        code: 'INVALID_RESPONSE',
+        details: { stage: 'session_todos', reason: 'reviewer_checklist' },
+      });
+      expect(attempts).toBe(3);
+      expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
+      expect(lastValid).toContain('- [ ]');
+      expect(f.assistant.snapshot().sessionGoal?.todos).toBe(lastValid);
+      expect(p.requests.filter((r) => r.tools.length)).toHaveLength(2);
+      expect(kind(p, 'LocalCut completion review:')).toHaveLength(0);
+    } finally {
+      await f.assistant.dispose();
+    }
+  });
+
   it('cancels an asynchronous checklist agent without publishing its late result', async () => {
     const p = reviewedProvider([[final('Candidate')]]);
     const original = p.stream;

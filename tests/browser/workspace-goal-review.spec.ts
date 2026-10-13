@@ -64,6 +64,11 @@ for (const base of behaviorBases) {
       '## Goal\nAdd overlay track and closing title.\n## Success conditions\n- The track contains the closing title.\n## Stop conditions\n- None';
     const updates: Record<string, unknown>[] = [];
     let todoUpdates = 0;
+    const todoRepairs: {
+      session_id: string;
+      messages: { content: string }[];
+    }[] = [];
+    let repairedAfterEdit = false;
     const payloads: Record<string, unknown>[] = [];
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
@@ -93,6 +98,23 @@ for (const base of behaviorBases) {
         }
         if (instruction.startsWith('LocalCut session to-dos:')) {
           todoUpdates++;
+          if (todoUpdates <= 2) {
+            todoRepairs.push(request);
+            if (todoUpdates === 1) {
+              await reply(route, 'I will add the requested overlay and title.');
+              return;
+            }
+            expect(request.messages.slice(0, 2)).toEqual(
+              todoRepairs[0]!.messages,
+            );
+            expect(request.session_id).toBe(todoRepairs[0]!.session_id);
+            expect(request.messages[2].content).toContain(
+              'Markdown task checklist',
+            );
+            expect(JSON.stringify(request)).not.toContain(
+              'I will add the requested overlay and title.',
+            );
+          }
           if (rejectTodos) {
             await route.fulfill({
               headers: cors,
@@ -116,9 +138,14 @@ for (const base of behaviorBases) {
                 track.id === 'checked-overlay' &&
                 track.clips.some((clip) => clip.id === 'checked-title'),
             );
+          if (met && !repairedAfterEdit) {
+            repairedAfterEdit = true;
+            await reply(route, 'The overlay and title are complete.');
+            return;
+          }
           await reply(
             route,
-            `## To-dos\n- [${met ? 'x' : ' '}] Add overlay track and closing title`,
+            `## To-dos\n1. [${met ? 'x' : ' '}] Add overlay track and closing title`,
           );
           return;
         }
@@ -432,6 +459,8 @@ for (const base of behaviorBases) {
     expect(parses).toBe(3);
     expect(updates.at(-1)?.existingGoal).toBe(contract);
     expect(todoUpdates).toBeGreaterThan(executionRounds);
+    expect(todoRepairs).toHaveLength(2);
+    expect(repairedAfterEdit).toBe(true);
     await page.setViewportSize({ width: 390, height: 844 });
     await page
       .getByRole('navigation', { name: 'Workspace sections' })

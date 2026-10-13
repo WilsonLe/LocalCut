@@ -3,6 +3,7 @@ import {
   goalEvidence,
   goalResponse,
   clearedTodos,
+  validateTodos,
 } from '../../src/ai/goal-review';
 import { AiError } from '../../src/ai/errors';
 import type { ChatRequest, ProviderEvent } from '../../src/ai/types';
@@ -165,4 +166,87 @@ it('only clears a nonempty task list when every item is checked', () => {
     '- [ ] Needs Save',
   ])
     expect(clearedTodos(text)).toBe(false);
+});
+
+describe('private checklist repair', () => {
+  it.each(['All done', '## To-dos', '{"tasks":["Finish"]}', '- [x]'])(
+    'repairs missing task output: %s',
+    async (bad) => {
+      const o = options([bad, '## To-dos\n- [ ] Required work']);
+      expect(
+        await goalResponse({ ...o, validateResponse: validateTodos }),
+      ).toBe('## To-dos\n- [ ] Required work');
+      expect(o.requests).toHaveLength(2);
+      expect(o.requests[1]!.messages.slice(0, 2)).toEqual(request.messages);
+      expect(o.requests[1]!.messages.at(-1)!.content).toContain(
+        'Markdown task checklist',
+      );
+      expect(o.requests[1]!.tools).toEqual([]);
+      expect(o.requests[1]!.sessionId).toBe(request.sessionId);
+      expect(o.accountUsage).toHaveBeenCalledTimes(2);
+      expect(request.messages).toHaveLength(2);
+    },
+  );
+
+  it('shares the three-attempt ceiling with protocol repair and accounts for all attempts', async () => {
+    const o = options([
+      'All done',
+      '<tool_call>inspect</tool_call>',
+      'Still no tasks',
+    ]);
+    await expect(
+      goalResponse({ ...o, validateResponse: validateTodos }),
+    ).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+      details: { reason: 'reviewer_checklist' },
+    });
+    expect(o.requests).toHaveLength(3);
+    expect(o.accountUsage).toHaveBeenCalledTimes(3);
+    for (const r of o.requests) {
+      expect(r.messages.slice(0, 2)).toEqual(request.messages);
+      expect(r.tools).toEqual([]);
+      expect(r.messages.length).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it('honors cancellation and context budgets before checklist repair', async () => {
+    const cancelled = options(['All done']);
+    cancelled.accountUsage.mockImplementation(() =>
+      cancelled.controller.abort(),
+    );
+    await expect(
+      goalResponse({ ...cancelled, validateResponse: validateTodos }),
+    ).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(cancelled.requests).toHaveLength(1);
+    const bounded = options(['All done']);
+    await expect(
+      goalResponse({
+        ...bounded,
+        validateResponse: validateTodos,
+        checkRequest: (r) => {
+          if (r.messages.length > 2)
+            throw new AiError('CONTEXT_LIMIT', 'Caller budget');
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'CONTEXT_LIMIT' });
+    expect(bounded.requests).toHaveLength(1);
+  });
+
+  it.each([
+    '- [x] First\n+ [X] Second',
+    '1. [x] First\n2) [X] Second',
+    '*   [x]   First\n\t+\t[X]\tSecond',
+  ])(
+    'accepts Markdown task list styles verbatim without overlooking unchecked siblings: %s',
+    async (list) => {
+      const o = options([list]);
+      expect(
+        await goalResponse({ ...o, validateResponse: validateTodos }),
+      ).toBe(list);
+      expect(o.requests).toHaveLength(1);
+      expect(clearedTodos(list)).toBe(true);
+      expect(clearedTodos(`${list}\n+ [ ] Blocked`)).toBe(false);
+      expect(clearedTodos(`${list}\n3. [ ] Await Save`)).toBe(false);
+    },
+  );
 });
