@@ -104,6 +104,8 @@ pnpm lint
 pnpm format:check
 ```
 
+For overlap cues and contextual transition actions, run `pnpm test tests/unit/timeline-features.test.ts tests/unit/assistant.test.ts`, then `pnpm test:ui --grep 'timeline overlap context menu|timeline audio separation'`. These cover visual span/icon state, exact-pair edits independent of selection, mouse/keyboard/touch menus, cancelled holds, locked/stale actions, shared recipes, history, reload and both static bases. The gesture/menu state adds no assistant API; authored transitions retain the existing shared operations and discovery. Native media/inference owners are unchanged.
+
 For audio separation, groups and transition recipes, run `pnpm test tests/unit/timeline-features.test.ts`. The production scenario `pnpm test:ui --grep 'timeline audio|native separated'` covers selection and grouping, all template previews, native audio equivalence, MP4/WebM outputs, persistence and both static paths.
 
 For workspace changes, use `pnpm dev` for interactive work, then run the matching production UI scenario:
