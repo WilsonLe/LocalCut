@@ -144,6 +144,13 @@ const WorkspaceDialogs = onDemandDialog(
       else if (!props.busy) props.onDialogChange(null);
     },
     showCloseButton: !props.busy,
+    finalFocus:
+      props.dialog === 'properties' && props.propertiesOpener
+        ? () =>
+            props.propertiesOpener?.isConnected
+              ? props.propertiesOpener
+              : document.getElementById('workspace-settings-trigger')
+        : undefined,
   }),
 );
 const Preview = lazy(() =>
@@ -434,7 +441,17 @@ export function Workspace() {
   };
   const [timeUs, setTimeUs] = useState(0);
   const [seekRevision, setSeekRevision] = useState(0);
-  const [dialog, setDialog] = useState<DialogName>(null);
+  const [dialog, setDialogState] = useState<DialogName>(null);
+  const [propertiesOpener, setPropertiesOpener] = useState<HTMLElement | null>(
+    null,
+  );
+  const setDialog = useCallback(
+    (next: DialogName) => {
+      setDialogState(next);
+      if (next !== 'properties') setPropertiesOpener(null);
+    },
+    [setDialogState, setPropertiesOpener],
+  );
   const commandRequest = useRef(0);
   const commandCompleted = useRef(0);
   const [commandsOpen, setCommandsOpen] = useState(false);
@@ -2360,7 +2377,11 @@ export function Workspace() {
                       onRedo={redo}
                       onSplit={split}
                       onDelete={deleteClip}
-                      onProperties={() => setDialog('properties')}
+                      onProperties={(clipId, opener) => {
+                        setPropertiesOpener(opener ?? null);
+                        if (clipId) selectClip(clipId);
+                        setDialog('properties');
+                      }}
                       onText={addText}
                       onAddTrack={addTrack}
                       onReorderTrack={reorderTrack}
@@ -2508,6 +2529,7 @@ export function Workspace() {
         <Suspense fallback={null}>
           <WorkspaceDialogs
             dialog={dialog}
+            propertiesOpener={propertiesOpener}
             busy={busy}
             project={viewProject}
             readOnly={!!browsed || navigation.blocked}

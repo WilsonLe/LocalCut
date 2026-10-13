@@ -101,8 +101,13 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'Clip properties',
       exact: true,
     });
-    await expect(properties.getByLabel('Text', { exact: true })).toBeVisible();
-    await properties.getByLabel('Text', { exact: true }).fill('Palette edit');
+    await properties.getByRole('tab', { name: 'Text', exact: true }).click();
+    await expect(
+      properties.getByRole('textbox', { name: 'Text', exact: true }),
+    ).toBeVisible();
+    await properties
+      .getByRole('textbox', { name: 'Text', exact: true })
+      .fill('Palette edit');
     await properties.getByRole('button', { name: 'Apply properties' }).click();
     await expect(properties).not.toBeVisible();
     await expect(

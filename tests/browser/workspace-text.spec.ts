@@ -66,6 +66,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'Clip properties',
       exact: true,
     });
+    await properties.getByRole('tab', { name: 'Text', exact: true }).click();
     await expect(
       properties.getByRole('combobox', { name: 'Font', exact: true }),
     ).toContainText('Inter');
@@ -82,6 +83,7 @@ for (const base of ['/', '/LocalCut/']) {
     await library
       .getByRole('button', { name: 'Insert Handmade 5 frames', exact: true })
       .click();
+    await properties.getByRole('tab', { name: 'Text', exact: true }).click();
     await properties
       .getByRole('button', { name: 'Animation settings', exact: true })
       .click();
@@ -142,7 +144,9 @@ for (const base of ['/', '/LocalCut/']) {
     await properties
       .getByLabel('Text variations (optional, one per frame)')
       .fill('hello\nhey\nhi');
-    await properties.getByLabel('Text', { exact: true }).fill('');
+    await properties
+      .getByRole('textbox', { name: 'Text', exact: true })
+      .fill('');
     await expect.poll(samplePixels).toBeGreaterThan(100);
     await properties
       .getByRole('button', { name: 'Apply properties', exact: true })
@@ -176,6 +180,7 @@ for (const base of ['/', '/LocalCut/']) {
     await library
       .getByRole('button', { name: 'Insert Typewriter', exact: true })
       .click();
+    await properties.getByRole('tab', { name: 'Text', exact: true }).click();
     await properties
       .getByRole('button', { name: 'Animation settings', exact: true })
       .click();
@@ -244,6 +249,7 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'Clip properties',
       exact: true,
     });
+    await properties.getByRole('tab', { name: 'Text', exact: true }).click();
     await expect(properties).toBeVisible();
     const clip = (await snapshot(page, base)).tracks[0]!.clips[0]!;
     expect(clip.text).toMatchObject({
@@ -252,7 +258,7 @@ for (const base of ['/', '/LocalCut/']) {
       fontWeight: 'bold',
     });
     await properties
-      .getByLabel('Text', { exact: true })
+      .getByRole('textbox', { name: 'Text', exact: true })
       .fill('Summer memories');
     await properties
       .getByRole('combobox', { name: 'Font', exact: true })
@@ -306,6 +312,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Clip properties', exact: true })
       .click();
+    await properties.getByRole('tab', { name: 'Text', exact: true }).click();
     await expect(page.getByLabel('Curve (degrees)')).toHaveValue('100');
     await expect(
       page.getByRole('combobox', { name: 'Font', exact: true }),
@@ -387,9 +394,12 @@ for (const base of ['/', '/LocalCut/']) {
         name: 'Clip properties',
         exact: true,
       });
+      await form.getByRole('tab', { name: 'Text', exact: true }).click();
       const input = form.getByLabel('Font size', { exact: true });
       await expect(input).toHaveValue(String(fontSize));
-      await form.getByLabel('Text', { exact: true }).fill('Edited ' + fontSize);
+      await form
+        .getByRole('textbox', { name: 'Text', exact: true })
+        .fill('Edited ' + fontSize);
       await form
         .getByRole('button', { name: 'Apply properties', exact: true })
         .click();
@@ -404,6 +414,7 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Clip properties', exact: true })
       .click();
+    await page.getByRole('tab', { name: 'Text', exact: true }).click();
     const input = page.getByLabel('Font size', { exact: true });
     await input.fill('0');
     expect(

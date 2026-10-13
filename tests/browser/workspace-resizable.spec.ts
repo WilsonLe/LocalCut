@@ -147,6 +147,7 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.reload();
+    await expect(page.locator('.conversation-panel')).toBeVisible();
     await expect
       .poll(async () =>
         Math.round(

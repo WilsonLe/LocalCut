@@ -225,8 +225,7 @@ for (const base of ['/', '/LocalCut/']) {
           await page.locator('.timeline-clip[aria-pressed="true"]').count(),
         ).toBe(selected);
         await playhead.focus();
-        // Playback can reach the final frame while the project popup opens.
-        // Establish a known start before verifying keyboard seek and retention.
+        // Playback can reach the endpoint under load. Seek from a known frame.
         await page.keyboard.press('Home');
         await expect(playhead).toHaveAttribute('aria-valuenow', '0');
         await page.keyboard.press('End');

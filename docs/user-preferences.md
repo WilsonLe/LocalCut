@@ -621,3 +621,8 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Focus provider-specific text-to-speech configuration on ElevenLabs through OpenRouter first. Use main voice controls, collapsible advanced settings and reusable saved voice presets.
 - Preserve the existing explicit Generate action and local preset storage. Save the selected voice/model/settings and optional seed together; seed alone is not a reusable speaker identity.
+
+## Clip properties and timeline actions — 13 October 2026
+
+- Organize clip properties in tabs instead of section accordions.
+- Right-click or press and hold an asset instance on a timeline track to open its action menu, including Properties for that specific instance.
