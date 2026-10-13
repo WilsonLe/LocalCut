@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 import {
   openAISettings,
@@ -10,7 +11,7 @@ const cors = {
   'access-control-allow-headers': 'authorization,content-type',
   'access-control-allow-methods': 'GET,POST,OPTIONS',
 };
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`single OpenRouter settings preserve sections and keyboard focus on desktop and phone ${base}`, async ({
     page,
   }, info) => {

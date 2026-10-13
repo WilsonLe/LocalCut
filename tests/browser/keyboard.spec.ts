@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -26,7 +27,7 @@ async function snapshot(
   );
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`keyboard editing respects typing, native controls and modal focus ${base}`, async ({
     page,
   }) => {

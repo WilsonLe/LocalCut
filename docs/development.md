@@ -4,6 +4,10 @@ Start with [CONTRIBUTING.md](../CONTRIBUTING.md), the [agent contract](../AGENTS
 
 Verify Node 24, pnpm 11.25.0, and installed stable Google Chrome once, then reuse that setup throughout the iteration. Run `pnpm install --frozen-lockfile` when dependencies are missing or the lockfile changes; do not reinstall or download a browser after every edit. Generic Playwright Chromium does not satisfy the native codec acceptance gate.
 
+## Chrome behavior and deployment coverage
+
+Normal Chrome acceptance runs path-independent behavior once at `/LocalCut/`, retaining both static builds and paired-path cases for deployment-sensitive contracts and distinct fixtures. See [the complete matrix inventory](playwright-journeys.md#avoid-duplicate-work). To diagnose a path-specific issue, use `LOCALCUT_TEST_BASES=both pnpm test:browser tests/browser/<name>.spec.ts`; discovery with `--list` verifies selection without launching Chrome. The full matrix is diagnostic, not a second routine run after successful normal acceptance.
+
 ## Commands
 
 | Command                               | Purpose                                                       |

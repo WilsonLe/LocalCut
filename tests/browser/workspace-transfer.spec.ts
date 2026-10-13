@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
@@ -14,7 +15,7 @@ async function transfer(
     page.getByRole('dialog', { name: action, exact: true }),
   ).toBeVisible();
 }
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`workspace ZIP rejects misleading actual metadata expansion before storage ${base}`, async ({
     page,
   }) => {

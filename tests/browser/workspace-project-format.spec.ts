@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -23,7 +24,7 @@ async function snapshot(page: Page, base: string) {
   }, base);
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`project format extreme preview dimensions ${base}`, async ({
     page,
   }) => {

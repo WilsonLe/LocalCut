@@ -1,6 +1,7 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`preview frame controls keep integer positions and resume playback ${base}`, async ({
     page,
   }) => {

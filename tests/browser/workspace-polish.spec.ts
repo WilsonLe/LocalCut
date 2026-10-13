@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { selectAISettingsTab } from './workspace-settings-helper';
 import { fulfillChatTitle } from './chat-title-fixture';
 import {
@@ -56,7 +57,7 @@ test('chat resize controls match responsive layout and report actual desktop wid
   await expect(handle).toHaveAttribute('aria-valuetext', `${max} pixels`);
 });
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`workspace keeps metadata quiet, project forms spacious and media on the left ${base}`, async ({
     page,
   }) => {

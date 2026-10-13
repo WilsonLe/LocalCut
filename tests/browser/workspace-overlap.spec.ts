@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test, type Page } from '@playwright/test';
 import type { Project } from '../../src/editor';
 import {
@@ -28,7 +29,7 @@ async function snapshot(
   );
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`timeline overlap context menu shows visual spans and supports mouse keyboard touch ${base}`, async ({
     page,
   }, testInfo) => {

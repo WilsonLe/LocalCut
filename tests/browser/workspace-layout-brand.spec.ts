@@ -1,7 +1,8 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 import { openAISettings } from './workspace-settings-helper';
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`workspace layout and sidebar drag collapse preserve state ${base}`, async ({
     page,
   }, testInfo) => {
@@ -158,7 +159,7 @@ for (const base of ['/', '/LocalCut/']) {
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`AI settings queues a cold-load request while chat is collapsed ${base}`, async ({
     page,
   }) => {

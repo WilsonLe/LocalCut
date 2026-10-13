@@ -1,6 +1,10 @@
+import { behaviorBases } from './coverage-bases';
 import { selectAISettingsTab } from './workspace-settings-helper';
 import { fulfillChatTitle } from './chat-title-fixture';
-import { closeMediaImportAndPlace } from './workspace-import-helper';
+import {
+  closeMediaImport,
+  closeMediaImportAndPlace,
+} from './workspace-import-helper';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test, type Page } from '@playwright/test';
 
@@ -40,7 +44,7 @@ async function select(page: Page, name: RegExp) {
   await page.getByRole('combobox', { name: 'Select timeline clip' }).click();
   await page.getByRole('option', { name }).click();
 }
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`mobile shared headers scroll actions and Edit scrolls from the preview surface ${base}`, async ({
     page,
   }, info) => {
@@ -701,7 +705,7 @@ for (const base of ['/', '/LocalCut/']) {
         buffer: Buffer.from(bytes),
       })),
     );
-    await closeMediaImportAndPlace(page);
+    await closeMediaImport(page);
     await expect(media.locator('.media-item')).toHaveCount(24);
     const header = media.locator('.section-heading');
     const commands = header.getByRole('button', {

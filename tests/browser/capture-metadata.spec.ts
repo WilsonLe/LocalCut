@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 import {
   Input,
@@ -22,7 +23,7 @@ declare global {
     captureAssets: string[];
   }
 }
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`capture metadata survives native imports, indexes, reload and backups ${base}`, async ({
     page,
   }) => {

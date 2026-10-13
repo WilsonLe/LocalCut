@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { test, expect } from '@playwright/test';
 
 interface ExportProbe {
@@ -13,7 +14,7 @@ declare global {
   }
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`storyboard export and image insertion ownership ends during pending snapshot ${base}`, async ({
     page,
   }) => {

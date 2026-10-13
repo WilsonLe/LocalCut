@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { Project } from '../../src/core/model';
@@ -23,7 +24,7 @@ async function snapshot(
     { base, name },
   );
 }
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`bundled font pages and editable animated templates ${base}`, async ({
     page,
   }) => {
@@ -57,7 +58,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       library.getByRole('button', { name: 'Insert Inter', exact: true }),
     ).toBeVisible();
-    if (base === '/')
+    if (base === behaviorBases[0])
       await page.screenshot({ path: 'docs/images/text-fonts.png' });
     await library
       .getByRole('button', { name: 'Insert Inter', exact: true })
@@ -217,7 +218,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(library.getByRole('button', { name: /^Insert / })).toHaveCount(
       17,
     );
-    if (base === '/')
+    if (base === behaviorBases[0])
       await page.screenshot({
         animations: 'disabled',
         path: 'docs/images/text-library.png',
@@ -332,7 +333,7 @@ for (const base of ['/', '/LocalCut/']) {
         exact: true,
       }),
     ).toBeVisible();
-    if (base === '/')
+    if (base === behaviorBases[0])
       await page.screenshot({
         animations: 'disabled',
         path: 'docs/images/text-library-narrow.png',

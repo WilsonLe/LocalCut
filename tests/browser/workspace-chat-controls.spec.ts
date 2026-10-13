@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { fulfillGoalReview } from './chat-title-fixture';
 import { selectAISettingsTab } from './workspace-settings-helper';
 import {
@@ -6,7 +7,7 @@ import {
 } from './workspace-settings-helper';
 import { test, expect } from '@playwright/test';
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(
     '@journey ' +
       [

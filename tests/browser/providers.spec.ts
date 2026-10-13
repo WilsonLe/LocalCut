@@ -1,10 +1,11 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 const cors = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'authorization,content-type',
   'access-control-allow-methods': 'POST,GET,OPTIONS',
 };
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`native audio extraction routes OpenRouter STT and persists exact source cues ${base}`, async ({
     page,
     context,

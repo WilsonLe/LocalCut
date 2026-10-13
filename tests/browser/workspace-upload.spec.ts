@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { test, expect } from '@playwright/test';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -5,7 +6,7 @@ import { join } from 'node:path';
 import { closeMediaImport } from './workspace-import-helper';
 import { mediaVideo } from './workspace-video-fixture';
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`mixed photo folder upload skips sidecars and leaves the timeline untouched ${base}`, async ({
     page,
   }) => {
@@ -174,7 +175,7 @@ for (const base of ['/', '/LocalCut/']) {
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`upload classifier loading keeps the initiating project after navigation ${base}`, async ({
     page,
   }) => {

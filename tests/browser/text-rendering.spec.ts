@@ -1,5 +1,6 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`text effects share real worker preview and native MP4/WebM export ${base}`, async ({
     page,
   }) => {

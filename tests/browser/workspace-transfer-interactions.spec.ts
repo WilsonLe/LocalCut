@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { mkdir, readFile } from 'node:fs/promises';
@@ -15,7 +16,7 @@ async function openTransfer(page: Page, scope: string, action: string) {
     page.getByRole('dialog', { name: action, exact: true }),
   ).toBeVisible();
 }
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`project asset checkboxes control ZIP export and import and preserve the active project ${base}`, async ({
     page,
   }, testInfo) => {

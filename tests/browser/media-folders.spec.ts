@@ -1,10 +1,11 @@
+import { behaviorBases } from './coverage-bases';
 import { installGoalReviewFixture } from './goal-review-fixture';
 import { test, expect } from '@playwright/test';
 
 test.beforeEach(async ({ page }) => {
   await installGoalReviewFixture(page);
 });
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`OPFS media folder operations, recovery and native sources ${base}`, async ({
     page,
   }) => {
@@ -284,7 +285,7 @@ for (const base of ['/', '/LocalCut/']) {
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`assistant media folder discovery and persisted requested action ${base}`, async ({
     page,
   }) => {
@@ -402,7 +403,7 @@ for (const base of ['/', '/LocalCut/']) {
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`committed library apply and placement survive disposal ${base}`, async ({
     page,
   }) => {

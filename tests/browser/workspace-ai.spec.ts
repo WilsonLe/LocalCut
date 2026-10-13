@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import {
   confirmProviderDisconnect,
   showOpenRouterTerms,
@@ -593,7 +594,7 @@ for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`saved API key restores speech access and full context, and disconnects other tabs ${base}`, async ({
     page,
     context,

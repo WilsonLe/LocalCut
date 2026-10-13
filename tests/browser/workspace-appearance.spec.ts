@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { selectAISettingsTab } from './workspace-settings-helper';
 import {
   prepareOpenRouterKey,
@@ -58,7 +59,7 @@ async function styles(page: Page) {
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`workspace appearance searches the local text catalog and retries verified fonts ${base}`, async ({
     page,
     context,

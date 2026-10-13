@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { secondaryTab } from './workspace-tab';
 import { dragPlayhead } from './workspace-playhead-helper';
 import { expect, test } from '@playwright/test';
@@ -91,7 +92,7 @@ async function snapshot(
     { base, id },
   );
 }
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(
     '@journey ' +
       [
@@ -575,7 +576,7 @@ for (const base of ['/', '/LocalCut/']) {
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`timeline snapping remembers its toggle and direct edits show results without success toasts ${base}`, async ({
     page,
     context,
@@ -770,7 +771,7 @@ for (const base of ['/', '/LocalCut/']) {
 
 test.describe('touch playhead dragging', () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
-  for (const base of ['/', '/LocalCut/']) {
+  for (const base of behaviorBases) {
     test(`playhead marker seeks with touch and cancels without editing ${base}`, async ({
       page,
     }, testInfo) => {

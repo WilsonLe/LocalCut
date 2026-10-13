@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import {
   showOpenRouterTerms,
   selectAISettingsTab,
@@ -34,7 +35,7 @@ const cors = {
   'access-control-allow-headers': 'authorization,content-type',
   'access-control-allow-methods': 'GET,POST,OPTIONS',
 };
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`chat readiness and persisted sessions recover after connecting and reloading ${base}`, async ({
     page,
     context,

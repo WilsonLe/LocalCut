@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 test.use({ hasTouch: true });
@@ -29,7 +30,7 @@ async function hold(page: Page, tool: Locator, label: string) {
   }
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`mobile inline clip picker and tool hold preserve tap and selection ${base}`, async ({
     page,
   }, info) => {

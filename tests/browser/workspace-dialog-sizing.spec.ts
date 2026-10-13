@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   openAISettings,
@@ -33,7 +34,7 @@ async function bounds(dialog: Locator, page: Page) {
   ).toBeLessThanOrEqual(2);
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`dialog sizing fits content and contains rich editors across viewports ${base}`, async ({
     page,
   }, testInfo) => {

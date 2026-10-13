@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { Project } from '../../src/editor';
@@ -35,7 +36,7 @@ async function sourceDigest(page: Page, assetId: string) {
   }, assetId);
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`object keyframes isolate instances, persist and render native exports @journey ${base}`, async ({
     page,
   }, testInfo) => {

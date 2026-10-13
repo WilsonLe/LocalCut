@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { selectAISettingsTab } from './workspace-settings-helper';
 import { strFromU8, unzipSync } from 'fflate';
 import { expect, test } from '@playwright/test';
@@ -82,7 +83,7 @@ async function save(page: Page, label: string | RegExp) {
   return archive(await downloaded);
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`chat export recovers an abandoned running archive before chat UI loads ${base}`, async ({
     page,
   }) => {

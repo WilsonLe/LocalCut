@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { openVersions } from './workspace-settings-helper';
 import { dismissNotifications } from './workspace-notifications-helper';
@@ -102,7 +103,7 @@ async function snapshot(
     { base, name },
   );
 }
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`timeline add tracks preserves empty lanes, history and persistence ${base}`, async ({
     page,
   }, testInfo) => {

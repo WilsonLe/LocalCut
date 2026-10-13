@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test, type Page } from '@playwright/test';
 import type { Project } from '../../src/editor';
 
@@ -22,7 +23,7 @@ async function snapshot(
   );
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`timeline clip action menus and property tabs retain instance drafts with mouse keyboard touch ${base}`, async ({
     page,
   }, testInfo) => {

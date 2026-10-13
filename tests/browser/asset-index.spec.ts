@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 import type { Asset, Editor } from '../../src/editor';
 declare global {
@@ -9,7 +10,7 @@ declare global {
     indexLease: Promise<void>;
   }
 }
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`native indexing keeps scenes, audio and evidence across reload ${base}`, async ({
     page,
   }) => {
@@ -600,7 +601,7 @@ test('another tab preserves an active index lease and recovers an abandoned dele
   await other.close();
 });
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`native audio indexing retains timed stereo excerpts and selected-model labels ${base}`, async ({
     page,
     context,

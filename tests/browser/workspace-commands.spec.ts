@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { openWorkspaceGroup } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -28,7 +29,7 @@ async function run(page: Page, name: string) {
     .click();
   await expect(dialog).not.toBeVisible();
 }
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`workspace commands discover and run available operations with keyboard focus ${base}`, async ({
     page,
   }) => {

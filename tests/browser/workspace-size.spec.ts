@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { dragPlayhead } from './workspace-playhead-helper';
 import { openAISettings } from './workspace-settings-helper';
@@ -65,7 +66,7 @@ async function prepareProject(page: Page, base: string, navigate = true) {
   await closeMediaImportAndPlace(page);
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(
     '@journey ' +
       [
@@ -388,7 +389,7 @@ for (const base of ['/', '/LocalCut/']) {
 
 test.describe('scaled touch layouts', () => {
   test.use({ hasTouch: true });
-  for (const base of ['/', '/LocalCut/']) {
+  for (const base of behaviorBases) {
     test(`interface size keeps playback reachable with expanded media on tablets ${base}`, async ({
       page,
     }) => {
