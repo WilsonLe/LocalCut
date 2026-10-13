@@ -69,6 +69,148 @@ function frequency(samples: Float32Array) {
 }
 
 describe('OpenRouter speech', () => {
+  it('discovers ElevenLabs and sends validated settings through OpenRouter with native MP3 decoding', async () => {
+    const model = 'elevenlabs/eleven-multilingual-v2';
+    const fetch = vi.fn<typeof globalThis.fetch>(async (url) =>
+      String(url).includes('/models')
+        ? Response.json({
+            data: [
+              {
+                ...speech,
+                id: model,
+                name: 'ElevenLabs',
+                supported_voices: ['george'],
+              },
+            ],
+          })
+        : new Response(new Uint8Array([1, 2, 3]), {
+            headers: { 'Content-Type': 'audio/mpeg' },
+          }),
+    );
+    const close = vi.fn(async () => {});
+    vi.stubGlobal(
+      'AudioContext',
+      class {
+        close = close;
+        async decodeAudioData() {
+          return {
+            sampleRate: 24000,
+            numberOfChannels: 1,
+            length: 24000,
+            getChannelData: () => tone(),
+          };
+        }
+      },
+    );
+    const client = createOpenRouter({ fetch });
+    client.setKey('synthetic-elevenlabs-key');
+    const options = {
+      stability: 0.55,
+      similarity_boost: 0.8,
+      speed: 0.95,
+      style: 0.1,
+      use_speaker_boost: false,
+      seed: 0,
+      apply_text_normalization: 'on' as const,
+      pronunciation_dictionary_locators: [
+        { pronunciation_dictionary_id: 'dict-1', version_id: 'version-1' },
+      ],
+      previous_text: 'Before.',
+      next_text: 'After.',
+    };
+    const input: SpeechRequest = {
+      ...request(),
+      model,
+      voice: 'george',
+      instructions: undefined,
+      elevenlabs: options,
+      sessionId: 'elevenlabs-job',
+    };
+    expect(await client.listSpeechModels()).toEqual([
+      { id: model, name: 'ElevenLabs', voices: ['george'] },
+    ]);
+    expect(
+      (await client.synthesizeSpeech(input, signal())).samples,
+    ).toHaveLength(24000);
+    const sent = fetch.mock.calls.find(([url]) =>
+      String(url).endsWith('/audio/speech'),
+    )!;
+    expect(JSON.parse(sent[1]!.body as string)).toEqual({
+      model,
+      input: request().script,
+      voice: 'george',
+      response_format: 'mp3',
+      provider: {
+        data_collection: 'deny',
+        options: {
+          elevenlabs: {
+            seed: 0,
+            apply_text_normalization: 'on',
+            pronunciation_dictionary_locators:
+              options.pronunciation_dictionary_locators,
+            previous_text: 'Before.',
+            next_text: 'After.',
+            voice_settings: {
+              stability: 0.55,
+              similarity_boost: 0.8,
+              speed: 0.95,
+              style: 0.1,
+              use_speaker_boost: false,
+            },
+          },
+        },
+      },
+    });
+    expect(JSON.parse(speechBody({ ...input, languages: [] }))).toEqual(
+      JSON.parse(speechBody(input)),
+    );
+    expect(
+      JSON.parse(
+        speechBody({
+          ...input,
+          model: 'elevenlabs/eleven-flash-v2.5',
+          elevenlabs: { language_code: 'vi' },
+        }),
+      ).provider.options.elevenlabs.language_code,
+    ).toBe('vi');
+    expect(close).toHaveBeenCalledTimes(1);
+    fetch.mockClear();
+    for (const invalid of [
+      { ...input, elevenlabs: { seed: -1 } },
+      { ...input, elevenlabs: { seed: 4294967296 } },
+      { ...input, elevenlabs: { seed: 1.2 } },
+      { ...input, elevenlabs: { stability: 1.1 } },
+      { ...input, elevenlabs: { speed: 1.3 } },
+      {
+        ...input,
+        elevenlabs: {
+          language_code: 'en',
+          apply_language_text_normalization: true,
+        },
+      },
+      {
+        ...input,
+        elevenlabs: {
+          pronunciation_dictionary_locators: [
+            { pronunciation_dictionary_id: '' },
+          ],
+        },
+      },
+      { ...input, instructions: 'Ignored directions' },
+      { ...input, model: speech.id },
+      { ...input, model: 'elevenlabs/eleven-v4' },
+      { ...input, model: 'elevenlabs/eleven-v3' },
+      { ...input, script: 'a'.repeat(10001) },
+    ])
+      await expect(
+        client.synthesizeSpeech(invalid, signal()),
+      ).rejects.toHaveProperty('code', 'INVALID_REQUEST');
+    expect(fetch).not.toHaveBeenCalled();
+    expect(() =>
+      speechBody({ ...input, script: 'a'.repeat(10000) }),
+    ).not.toThrow();
+    client.dispose();
+  });
   it('uses reference WAV and its matching transcript only on the verified cloning endpoint', async () => {
     const rendered = await renderSpeech(
       { samples: tone(), sampleRate: 24000 },

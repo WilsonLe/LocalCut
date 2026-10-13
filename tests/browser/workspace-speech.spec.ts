@@ -28,6 +28,7 @@ async function connect(
   base: string,
   profileName = 'OpenRouter',
   sttProvider: 'local' | 'openrouter' = 'openrouter',
+  includeElevenLabs = false,
 ) {
   await context.route('https://openrouter.ai/api/v1/models**', (route) =>
     route.request().url().endsWith('/endpoints')
@@ -39,6 +40,18 @@ async function connect(
           headers: cors,
           json: {
             data: [
+              ...(includeElevenLabs
+                ? [
+                    'elevenlabs/eleven-multilingual-v2',
+                    'elevenlabs/eleven-v4',
+                    'elevenlabs/eleven-v3',
+                  ].map((id) => ({
+                    id,
+                    name: id,
+                    architecture: { output_modalities: ['speech'] },
+                    supported_voices: ['george', 'sarah'],
+                  }))
+                : []),
               {
                 id: model,
                 name: 'Google: Gemini 3.8 Flash TTS',
@@ -229,6 +242,217 @@ async function snapshot(page: Page, base: string): Promise<Project> {
   }, base);
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`ElevenLabs speech configuration presets persist and submit supported options ${base}`, async ({
+    page,
+    context,
+  }, info) => {
+    const requests: Record<string, unknown>[] = [];
+    const mp3 = Buffer.concat(
+      Array.from({ length: 80 }, () =>
+        Buffer.concat([
+          Buffer.from([0xff, 0xfb, 0x90, 0xc0]),
+          Buffer.alloc(413),
+        ]),
+      ),
+    );
+    await context.route(
+      'https://openrouter.ai/api/v1/audio/speech',
+      async (route) => {
+        requests.push(route.request().postDataJSON());
+        await route.fulfill({
+          headers: cors,
+          contentType: 'audio/mpeg',
+          body: mp3,
+        });
+      },
+    );
+    let dialog = await connect(
+      page,
+      context,
+      base,
+      'OpenRouter',
+      'openrouter',
+      true,
+    );
+    const eleven = 'elevenlabs/eleven-multilingual-v2';
+    const chooseModel = async (id: string) => {
+      await dialog
+        .getByRole('combobox', { name: 'Speech model', exact: true })
+        .click();
+      await page.getByRole('option', { name: id, exact: true }).click();
+    };
+    await chooseModel(eleven);
+    await dialog
+      .getByRole('combobox', { name: 'Speech voice', exact: true })
+      .click();
+    await page.getByRole('option', { name: 'george', exact: true }).click();
+    await expect(dialog.getByLabel('Delivery directions')).toHaveCount(0);
+    await expect(
+      dialog.getByRole('combobox', {
+        name: 'Languages in script',
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await expect(dialog.getByLabel('Seed', { exact: true })).not.toBeVisible();
+    await dialog.getByLabel('Stability', { exact: true }).fill('0.6');
+    await dialog.getByLabel('Similarity', { exact: true }).fill('0.8');
+    await dialog.getByLabel('Speaking rate (×)', { exact: true }).fill('0.95');
+    await dialog.getByText('Advanced voice settings', { exact: true }).focus();
+    await page.keyboard.press('Enter');
+    await dialog.getByLabel('Seed', { exact: true }).fill('0');
+    await dialog.getByLabel('Style strength', { exact: true }).fill('0.1');
+    await expect(
+      dialog.getByLabel('Language code', { exact: true }),
+    ).toHaveCount(0);
+    await dialog
+      .getByRole('combobox', { name: 'Speaker boost', exact: true })
+      .click();
+    await page.getByRole('option', { name: 'Off', exact: true }).click();
+    await dialog.getByLabel('Previous text', { exact: true }).fill('Before.');
+    await dialog
+      .getByRole('button', {
+        name: 'Add pronunciation dictionary',
+        exact: true,
+      })
+      .click();
+    await expect(
+      dialog.getByRole('button', { name: 'Generate speech', exact: true }),
+    ).toHaveCount(0);
+    await dialog
+      .getByLabel('Pronunciation dictionary 1', { exact: true })
+      .fill('dictionary-1');
+    await dialog
+      .getByLabel('Dictionary 1 version', { exact: true })
+      .fill('version-1');
+    await dialog.getByLabel('Seed', { exact: true }).fill('4294967296');
+    await expect(
+      dialog.getByRole('button', { name: 'Generate speech', exact: true }),
+    ).toHaveCount(0);
+    await dialog.getByLabel('Seed', { exact: true }).fill('0');
+    await dialog
+      .getByLabel('New preset name', { exact: true })
+      .fill('Eleven narrator');
+    await dialog
+      .getByRole('button', { name: 'Save configuration', exact: true })
+      .click();
+    await expect(
+      dialog.getByText('Unsaved changes', { exact: true }),
+    ).toHaveCount(0);
+    await dialog.getByLabel('Seed', { exact: true }).fill('7');
+    await dialog
+      .getByRole('button', { name: 'Save preset changes', exact: true })
+      .click();
+    await expect(
+      dialog.getByText('Unsaved changes', { exact: true }),
+    ).toHaveCount(0);
+    await dialog.getByLabel('Seed', { exact: true }).fill('0');
+    await dialog
+      .getByRole('button', { name: 'Save preset changes', exact: true })
+      .click();
+    expect(requests).toHaveLength(0);
+    await chooseModel('elevenlabs/eleven-v4');
+    await expect(
+      dialog.getByLabel('Speaking rate (×)', { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      dialog.getByLabel('Style strength', { exact: true }),
+    ).toHaveCount(0);
+    await chooseModel('elevenlabs/eleven-v3');
+    await expect(dialog.getByLabel('Similarity', { exact: true })).toHaveCount(
+      0,
+    );
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.reload();
+    await page
+      .getByRole('button', { name: 'Text to speech', exact: true })
+      .click();
+    dialog = page.getByRole('dialog', { name: 'Text to speech', exact: true });
+    await dialog
+      .getByRole('combobox', { name: 'Voice preset', exact: true })
+      .click();
+    await page.getByLabel('Search voice presets').fill('Eleven narrator');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await expect(dialog.getByLabel('Stability', { exact: true })).toHaveValue(
+      '0.6',
+    );
+    await expect(
+      dialog.getByLabel('Speaking rate (×)', { exact: true }),
+    ).toHaveValue('0.95');
+    await dialog.getByText('Advanced voice settings', { exact: true }).click();
+    await expect(dialog.getByLabel('Seed', { exact: true })).toHaveValue('0');
+    await expect(
+      dialog.getByRole('combobox', { name: 'Speaker boost', exact: true }),
+    ).toContainText('Off');
+    await expect(
+      dialog.getByLabel('Pronunciation dictionary 1', { exact: true }),
+    ).toHaveValue('dictionary-1');
+    expect(requests).toHaveLength(0);
+    if (base === '/') {
+      await page.setViewportSize({ width: 1366, height: 900 });
+      await dialog.locator('fieldset').evaluate((element) => {
+        element.parentElement!.scrollTop = 0;
+      });
+      await page.screenshot({
+        path: info.outputPath('elevenlabs-desktop.png'),
+      });
+      await page.setViewportSize({ width: 375, height: 812 });
+      expect(
+        await dialog.evaluate(
+          (element) => element.scrollWidth <= element.clientWidth,
+        ),
+      ).toBe(true);
+      await page.screenshot({ path: info.outputPath('elevenlabs-mobile.png') });
+      await page.setViewportSize({ width: 1366, height: 900 });
+    }
+    await dialog.getByLabel('Script', { exact: true }).fill('Hello! Xin chào!');
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toEqual({
+      model: eleven,
+      voice: 'george',
+      input: 'Hello! Xin chào!',
+      response_format: 'mp3',
+      provider: {
+        data_collection: 'deny',
+        options: {
+          elevenlabs: {
+            seed: 0,
+            previous_text: 'Before.',
+            pronunciation_dictionary_locators: [
+              {
+                pronunciation_dictionary_id: 'dictionary-1',
+                version_id: 'version-1',
+              },
+            ],
+            voice_settings: {
+              stability: 0.6,
+              similarity_boost: 0.8,
+              speed: 0.95,
+              style: 0.1,
+              use_speaker_boost: false,
+            },
+          },
+        },
+      },
+    });
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.reload();
+    await page
+      .getByRole('button', { name: 'Text to speech', exact: true })
+      .click();
+    dialog = page.getByRole('dialog', { name: 'Text to speech', exact: true });
+    await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
+    await expect(
+      dialog.getByLabel('Speaking rate (×)', { exact: true }),
+    ).toHaveValue('0.95');
+    await dialog.getByText('Advanced voice settings', { exact: true }).click();
+    await expect(dialog.getByLabel('Seed', { exact: true })).toHaveValue('0');
+    expect(requests).toHaveLength(1);
+  });
   test(`speech provider controls hide unsupported Fish options and restore Gemini ${base}`, async ({
     page,
     context,
