@@ -208,28 +208,27 @@ for (const base of ['/', '/LocalCut/']) {
             );
           } else if (round === 6) {
             expect(sceneRequests).toBe(2);
-            // New saved indexes retire index-bearing exchanges; authoritative receipts survive in the completion ledger.
-            const ledger = body.messages.find(
-              (message: { role: string; content: string }) =>
-                message.role === 'system' &&
-                message.content.startsWith('Saved index context changed;'),
-            );
-            expect(ledger).toBeTruthy();
-            const receipts = JSON.parse(
-              ledger.content.slice(ledger.content.indexOf('[')),
-            );
-            expect(receipts).toHaveLength(2);
+            // Refresh current context while keeping both original indexing replies.
+            const outcomes = body.messages
+              .filter(
+                (message: { role: string; tool_call_id?: string }) =>
+                  message.role === 'tool' &&
+                  message.tool_call_id?.startsWith('round-5-'),
+              )
+              .map((message: { content: string }) =>
+                JSON.parse(message.content),
+              );
+            expect(outcomes).toHaveLength(2);
             expect(
-              receipts.map(
-                (receipt: { result: { kind: string; assetId: string } }) =>
-                  receipt.result.kind,
+              outcomes.map(
+                (outcome: { result: { kind: string } }) => outcome.result.kind,
               ),
             ).toEqual(['indexing', 'indexing']);
             expect(
-              receipts
+              outcomes
                 .map(
-                  (receipt: { result: { assetId: string } }) =>
-                    receipt.result.assetId,
+                  (outcome: { result: { assetId: string } }) =>
+                    outcome.result.assetId,
                 )
                 .sort(),
             ).toEqual([...ids].sort());

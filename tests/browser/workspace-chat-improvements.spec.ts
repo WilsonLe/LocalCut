@@ -75,6 +75,142 @@ async function setup(page: Page, context: BrowserContext, base: string) {
   await page.getByRole('button', { name: 'Expand media', exact: true }).click();
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`chat immutable tool history survives fresh project context and reload ${base}`, async ({
+    page,
+    context,
+  }) => {
+    const requests: {
+      tools: unknown[];
+      messages: import('../../src/ai/types').ChatMessage[];
+    }[] = [];
+    const offer = '1. Pacing. 2. Cohesive grade. 3. Audio.';
+    let step = 0;
+    await context.route(
+      'https://openrouter.ai/api/v1/chat/completions',
+      async (route) => {
+        if (await fulfillGoalReview(route)) return;
+        const body = route
+          .request()
+          .postDataJSON() as (typeof requests)[number];
+        if (!body.tools.length) {
+          await route.fulfill({
+            headers: cors,
+            contentType: 'text/event-stream',
+            body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'Polished trip' }, finish_reason: 'stop' }] })}
+
+data: [DONE]
+
+`,
+          });
+          return;
+        }
+        requests.push(body);
+        const round = step++;
+        const delta =
+          round === 0 || round === 2
+            ? {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: `inspect-${round}`,
+                    type: 'function',
+                    function: { name: 'inspect_project', arguments: '{}' },
+                  },
+                ],
+              }
+            : {
+                content:
+                  round === 1
+                    ? offer
+                    : 'Pacing, cohesive grade and audio are all remembered.',
+              };
+        await route.fulfill({
+          headers: cors,
+          contentType: 'text/event-stream',
+          body: `data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: 'tool_calls' in delta ? 'tool_calls' : 'stop' }] })}
+
+data: [DONE]
+
+`,
+        });
+      },
+    );
+    await setup(page, context, base);
+    const input = page.getByRole('textbox', {
+      name: 'Describe your edit',
+      exact: true,
+    });
+    const send = page.getByRole('button', {
+      name: 'Send edit request',
+      exact: true,
+    });
+    const responses = page.getByRole('article', { name: 'Assistant response' });
+    await input.fill('I expect a polished timeline');
+    await send.click();
+    await expect(responses.last()).toContainText('Cohesive grade.');
+    const oldContext = requests[0]!.messages[1]!;
+    const oldReply = requests[1]!.messages.find(
+      (m) => m.role === 'tool' && m.tool_call_id === 'inspect-0',
+    )!;
+    expect(oldReply).toBeDefined();
+    const oldRevision = JSON.parse(oldReply.content!).revision;
+    await page.getByRole('button', { name: 'Add track', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Audio track', exact: true })
+      .click();
+    await input.fill('do all 3');
+    await send.click();
+    await expect(responses.last()).toContainText('all remembered');
+    expect(requests[2]!.messages).toContainEqual(oldContext);
+    expect(requests[2]!.messages).toContainEqual(oldReply);
+    const freshReply = requests[3]!.messages.find(
+      (m) => m.role === 'tool' && m.tool_call_id === 'inspect-2',
+    )!;
+    expect(JSON.parse(freshReply.content!).revision).toBeGreaterThan(
+      oldRevision,
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(async () => {
+          const db = await new Promise<IDBDatabase>((resolve) => {
+            const request = indexedDB.open('localcut-chats-v1');
+            request.onsuccess = () => resolve(request.result);
+          });
+          const chats = await new Promise<
+            { content: { messages: { exchange?: unknown[] }[] } }[]
+          >((resolve) => {
+            const request = db
+              .transaction('sessions')
+              .objectStore('sessions')
+              .getAll();
+            request.onsuccess = () => resolve(request.result);
+          });
+          db.close();
+          return chats.some(
+            (chat) =>
+              chat.content.messages.filter(
+                (message) => message.exchange?.length,
+              ).length === 2,
+          );
+        }),
+      )
+      .toBe(true);
+    const beforeReload = requests.length;
+    await page.reload();
+    await expect(input).toBeVisible();
+    expect(requests).toHaveLength(beforeReload);
+    await input.fill('how about now? all 3');
+    await send.click();
+    await expect(responses.last()).toContainText('all remembered');
+    const restored = requests.at(-1)!;
+    expect(restored.messages).toContainEqual(oldContext);
+    expect(restored.messages).toContainEqual(oldReply);
+    expect(restored.messages).toContainEqual(freshReply);
+    expect(JSON.stringify(restored.messages)).toContain(offer);
+    expect(
+      JSON.parse(restored.messages[1]!.content!).capabilityMap.loadedSkills,
+    ).toEqual([]);
+  });
   test(`chat continuation remembers interrupted work and empty replies recover ${base}`, async ({
     page,
     context,

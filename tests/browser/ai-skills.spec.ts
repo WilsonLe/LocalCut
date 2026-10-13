@@ -205,6 +205,13 @@ for (const base of ['/', '/LocalCut/']) {
         return requests.map((request) => ({
           tools: request.tools.map((tool) => tool.function.name),
           payload: JSON.stringify(request),
+          currentSkills: JSON.parse(request.messages[1]!.content!).capabilityMap
+            .loadedSkills,
+          skillLoads: request.messages.filter(
+            (message) =>
+              message.role === 'tool' &&
+              JSON.parse(message.content).skillId === 'editing',
+          ),
         }));
       } finally {
         await assistant.dispose();
@@ -232,9 +239,12 @@ for (const base of ['/', '/LocalCut/']) {
     expect(result[2]!.payload).toContain('interpolation');
     expect(result[3]!.payload).toContain('font-space-mono');
     expect(result[5]!.tools).toEqual(result[0]!.tools);
-    expect(result[5]!.payload).not.toContain(
+    expect(result[5]!.payload).toContain(
       'Transition templates are editable recipes',
     );
+    expect(result[1]!.currentSkills).toEqual(['editing']);
+    expect(result[5]!.currentSkills).toEqual([]);
+    expect(result[5]!.skillLoads).toEqual(result[1]!.skillLoads);
     expect(requested).toContain(skillFiles[0]);
     for (const path of skillFiles.slice(1))
       expect(requested).not.toContain(path);

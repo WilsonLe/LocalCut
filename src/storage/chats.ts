@@ -1,6 +1,7 @@
 import { openDB } from 'idb';
 import type { DBSchema, IDBPDatabase } from 'idb';
 import { z } from 'zod';
+import { chatExchangeSchema } from '../ai/chat-context';
 
 const identity = z.string().min(1).max(200);
 const toolSchema = z.object({
@@ -37,12 +38,14 @@ const messageSchema = z.object({
       reasoningTokens: z.number().int().nonnegative().optional(),
     })
     .optional(),
-  // Model continuation is canonical text context; display tools have no provenance.
+  // Canonical historical exchange, separate from UI activity and live authority.
+  exchange: chatExchangeSchema.optional(),
   continuation: z
     .object({
       user: z.string(),
       assistant: z.string(),
       indexScope: z.string().optional(),
+      exchange: chatExchangeSchema.optional(),
     })
     .optional(),
   tools: z.array(toolSchema).optional(),
@@ -197,7 +200,7 @@ export function restoreChatSession(value: unknown): SavedChatSession | null {
     },
   };
 }
-/** Display-only sidecar; never enters project JSON, backups or assistant authority. */
+/** Historical chat sidecar; never enters project JSON, backups or live authority. */
 export class ChatStore {
   private database?: Promise<IDBPDatabase<ChatDatabase>>;
   constructor(private namespace: string) {}

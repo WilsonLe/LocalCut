@@ -2,6 +2,12 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Immutable chat continuity — 13 October 2026
+
+- Keep conversation messages, supplied context snapshots and returned tool results immutable. Retain stale results rather than deleting, redacting or rewriting them; never clear conversation history because media scope or saved indexes changed.
+- Recompute fresh context for each turn. The assistant calls tools again when it needs current data. Historical results are observations at their captured state; current tool declarations, permissions and revision checks govern new actions.
+- Preserve this history through cancellation, reload and forks within the same project/model/sharing scope. This supersedes automatic retirement of index-bearing narration and text-only restoration. Explicit new chats, branches, clear-history actions and connection/scope isolation retain their existing ownership.
+
 ## Request completion checks — 13 October 2026
 
 - Parse the initial goal, observable success conditions and stop conditions for every editing-assistant request. When execution proposes to stop, use a separate read-only LLM session through the selected provider/model to check fulfillment against current state and authoritative receipts.
