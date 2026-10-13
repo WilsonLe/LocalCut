@@ -2,6 +2,12 @@
 
 Storyboard is the project's local Excalidraw whiteboard for drawings, text and images. Open the **Storyboard** tab or ask Klip to build or revise a diagram. The [API contract](api.md#storyboard-export-and-media-reuse) defines shared export/storage options; [AI contracts](ai.md#workspace-requested-execution) define requested workspace execution and headless review.
 
+## Build a timeline from a shot plan
+
+Ask Klip to build the timeline from the storyboard. It inspects the entire board, current timeline and permitted project Media, then applies missing source clips, order, timing, transitions and specified titles/audio through the shared editing commands. It chooses routine details within the brief, reports assumptions and verifies matching portions without rebuilding. A title or music note on the board is a requirement to check, not proof it already exists on the timeline.
+
+Missing required sources need the specific Media import or sharing step after permitted library discovery. Klip continues independent supported work; it does not invent a soundtrack or add optional exports outside the request. The [completion review](ai.md#request-completion-review) verifies the requested result and preserves real blockers.
+
 ## Supported authoring workflows
 
 | Task                                                                                    | Shared agent path                                                                                                                                                                        |

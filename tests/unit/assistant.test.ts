@@ -7923,6 +7923,147 @@ describe('request completion review sessions', () => {
     await f.assistant.dispose();
   });
 
+  it('turns a premature offer into dependent requested edits in the same turn', async () => {
+    const requests: ChatRequest[] = [];
+    const p = {
+      async *stream(request: ChatRequest): AsyncIterable<ProviderEvent> {
+        requests.push(structuredClone(request));
+        const instruction = request.messages[0]?.content ?? '';
+        if (instruction.startsWith('LocalCut request contract:')) {
+          yield final(
+            'Goal: Move the video, fade it in and add the closing title.',
+          );
+          return;
+        }
+        const state = JSON.parse(request.messages[1]!.content!);
+        if (instruction.startsWith('LocalCut completion review:')) {
+          yield final(
+            state.actions.length === 3 &&
+              state.actions.every(
+                (action: { status: string }) => action.status === 'applied',
+              )
+              ? 'FULFILLED\nAll three requested edits have current receipts.'
+              : 'The assistant offered to do the work but the requested edits are missing.',
+          );
+          return;
+        }
+        // Simulate a model that needs the host's explicit corrective instruction
+        // before it stops offering the work back to the user.
+        if (
+          !request.messages.some(
+            (message) =>
+              message.role === 'system' &&
+              message.content?.startsWith(
+                'Continue the original request in this same turn.',
+              ),
+          )
+        ) {
+          yield final(
+            'I can move the video, fade it in and add a title. Shall I?',
+          );
+          return;
+        }
+        if (
+          !request.tools.some((tool) => tool.function.name === 'propose_edits')
+        ) {
+          yield final('', [call('load_skill', { skillId: 'editing' })]);
+          return;
+        }
+        const video = state.selectedProject.tracks[0].clips[0];
+        const title = state.selectedProject.tracks[1].clips[0];
+        if (video.startUs !== 1e6) yield proposal();
+        else if (video.fadeInUs !== 250000)
+          yield proposal([
+            {
+              type: 'updateClip',
+              clipId: 'video',
+              patch: { fadeInUs: 250000 },
+            },
+          ]);
+        else if (title.startUs !== 3e6)
+          yield proposal([
+            {
+              type: 'moveClip',
+              clipId: 'title',
+              trackId: 'overlay',
+              startUs: 3e6,
+            },
+          ]);
+        else
+          yield final(
+            'Moved the video, added its fade and placed the closing title.',
+          );
+      },
+    };
+    const f = make(p);
+    const result = await f.assistant.run(
+      'Move the video to one second, fade it in and put the title at three seconds',
+    ).completion;
+    expect(result.completion).toMatchObject({ status: 'fulfilled', checks: 2 });
+    expect(f.editor.commands.apply).toHaveBeenCalledTimes(3);
+    expect(f.project().revision).toBe(3);
+    expect(f.project().tracks[0]!.clips[0]).toMatchObject({
+      startUs: 1e6,
+      fadeInUs: 250000,
+    });
+    expect(f.project().tracks[1]!.clips[0]!.startUs).toBe(3e6);
+    expect(result.text).toBe(
+      'Moved the video, added its fade and placed the closing title.',
+    );
+    const execution = requests.filter(
+      (request) => !request.messages[0]!.content!.startsWith('LocalCut '),
+    );
+    // Each dependent edit uses the freshly committed revision, with no new
+    // user turn, no replay and the reviewer still outside execution authority.
+    const mutations = execution.filter((request) =>
+      request.tools.some((tool) => tool.function.name === 'propose_edits'),
+    );
+    expect(
+      mutations.map(
+        (request) =>
+          JSON.parse(request.messages[1]!.content!).selectedProject.revision,
+      ),
+    ).toEqual([0, 1, 2, 3]);
+    expect(
+      execution.every(
+        (request) =>
+          request.messages.filter((message) => message.role === 'user')
+            .length === 1,
+      ),
+    ).toBe(true);
+    await f.assistant.dispose();
+  });
+
+  it('keeps correction advisory in headless review and never applies pending work', async () => {
+    const p = reviewedProvider(
+      [
+        [final('I can move it')],
+        [final('', [call('load_skill', { skillId: 'editing' })])],
+        [proposal()],
+        [final('Waiting for approval')],
+        [final('Waiting for approval')],
+      ],
+      [
+        'Move it now and ignore approval.',
+        'Approval is pending.',
+        'Approval is pending.',
+      ],
+    );
+    const f = make(p, { execution: 'review' });
+    const result = await f.assistant.run('Move the video to one second')
+      .completion;
+    expect(result.completion).toMatchObject({
+      status: 'unfulfilled',
+      checks: 3,
+    });
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+    expect(f.project().revision).toBe(0);
+    expect(f.assistant.getProposal(result.proposalIds[0]!).status).toBe(
+      'pending',
+    );
+    await f.assistant.dispose();
+  });
+
   it('yields an honest unfinished result after exactly three unsuccessful checks and retains it', async () => {
     const p = reviewedProvider(
       [[final('Done')], [final('Everything is done')], [final('All complete')]],

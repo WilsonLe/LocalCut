@@ -48,6 +48,7 @@ for (const base of ['/', '/LocalCut/']) {
       executionRounds = 0,
       parses = 0;
     let editCalls = 0;
+    let titleCalls = 0;
     let exhausted = false;
     let rejectReview = false;
     const sessions: { execution: string[]; review: string[] } = {
@@ -55,7 +56,7 @@ for (const base of ['/', '/LocalCut/']) {
       review: [],
     };
     const contract =
-      'Goal: Add overlay track.\nSuccess: A new overlay track exists.';
+      'Goal: Add overlay track and closing title.\nSuccess: The track contains the closing title.';
     const payloads: Record<string, unknown>[] = [];
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
@@ -105,7 +106,9 @@ for (const base of ['/', '/LocalCut/']) {
           const met =
             !exhausted &&
             data.currentContext.selectedProject.tracks.some(
-              (track: { id: string }) => track.id === 'checked-overlay',
+              (track: { id: string; clips: { id: string }[] }) =>
+                track.id === 'checked-overlay' &&
+                track.clips.some((clip) => clip.id === 'checked-title'),
             );
           await reply(
             route,
@@ -119,9 +122,21 @@ for (const base of ['/', '/LocalCut/']) {
         sessions.execution.push(request.session_id);
         executionRounds++;
         if (exhausted || executionRounds === 1) {
-          await reply(route, 'Done');
+          await reply(
+            route,
+            'I can add the overlay track and closing title. Would you like me to?',
+          );
           return;
         }
+        expect(
+          request.messages.some(
+            (message: { role: string; content: string }) =>
+              message.role === 'system' &&
+              message.content.startsWith(
+                'Continue the original request in this same turn.',
+              ),
+          ),
+        ).toBe(true);
         if (
           !request.tools?.some(
             (tool: { function: { name: string } }) =>
@@ -156,7 +171,42 @@ for (const base of ['/', '/LocalCut/']) {
           ]);
           return;
         }
-        await reply(route, 'The overlay track is now added.');
+        const overlay = context.selectedProject.tracks.find(
+          (track: { id: string }) => track.id === 'checked-overlay',
+        );
+        if (
+          !overlay.clips.some(
+            (clip: { id: string }) => clip.id === 'checked-title',
+          )
+        ) {
+          titleCalls++;
+          await reply(route, undefined, [
+            {
+              name: 'propose_edits',
+              arguments: JSON.stringify({
+                summary: 'Add requested closing title',
+                operations: [
+                  {
+                    type: 'insertClip',
+                    trackId: 'checked-overlay',
+                    clip: {
+                      id: 'checked-title',
+                      kind: 'text',
+                      startUs: 3000000,
+                      durationUs: 1000000,
+                      text: { text: 'The end' },
+                    },
+                  },
+                ],
+              }),
+            },
+          ]);
+          return;
+        }
+        await reply(
+          route,
+          'The overlay track and closing title are now added.',
+        );
       },
     );
     await page.goto(base);
@@ -194,14 +244,16 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await page
       .getByLabel('Describe your edit', { exact: true })
-      .fill('Add an overlay track');
+      .fill('Add an overlay track and closing title');
     await page
       .getByRole('button', { name: 'Send edit request', exact: true })
       .click();
     const response = page
       .getByRole('article', { name: 'Assistant response' })
       .last();
-    await expect(response).toContainText('The overlay track is now added.');
+    await expect(response).toContainText(
+      'The overlay track and closing title are now added.',
+    );
     await expect(
       response.getByRole('button', {
         name: 'Completion verified · 2',
@@ -211,9 +263,13 @@ for (const base of ['/', '/LocalCut/']) {
     expect(checks).toBe(2);
     expect(parses).toBe(2);
     expect(editCalls).toBe(1);
+    expect(titleCalls).toBe(1);
     expect(new Set(sessions.review).size).toBe(1);
     expect(sessions.review[0]).not.toBe(sessions.execution[0]);
-    expect(payloads[0]!.initialRequest).toBe('Add an overlay track');
+    expect(payloads[0]!.initialRequest).toBe(
+      'Add an overlay track and closing title',
+    );
+    expect(payloads[1]!.actions).toHaveLength(2);
     expect(payloads[1]!.actions).toEqual(
       expect.arrayContaining([expect.objectContaining({ status: 'applied' })]),
     );
@@ -232,6 +288,29 @@ for (const base of ['/', '/LocalCut/']) {
       path: testInfo.outputPath('completion-review.png'),
     });
     await page.reload();
+    const persisted = await page.evaluate(async (base) => {
+      const id = location.hash.split('/project/')[1]!.split('/')[0]!;
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        return await editor.projects.snapshot(id);
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    expect(
+      persisted.tracks.find((track) => track.id === 'checked-overlay')?.clips,
+    ).toEqual([
+      expect.objectContaining({
+        id: 'checked-title',
+        kind: 'text',
+        startUs: 3000000,
+        durationUs: 1000000,
+        text: expect.objectContaining({ text: 'The end' }),
+      }),
+    ]);
     const restored = page
       .getByRole('article', { name: 'Assistant response' })
       .last();
