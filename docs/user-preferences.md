@@ -8,6 +8,12 @@ This is the project record of the user's durable product and workflow choices. U
 - Recompute fresh context for each turn. The assistant calls tools again when it needs current data. Historical results are observations at their captured state; current tool declarations, permissions and revision checks govern new actions.
 - Preserve this history through cancellation, reload and forks within the same project/model/sharing scope. This supersedes automatic retirement of index-bearing narration and text-only restoration. Explicit new chats, branches, clear-history actions and connection/scope isolation retain their existing ownership.
 
+## Proactive goal execution — 13 October 2026
+
+- The main editing agent should proactively perform the supported work it judges necessary to fulfill the user's request. Use the independent goal/success/stop-condition session to keep execution focused; suggestions and offers cannot replace requested actions.
+- Choose reasonable routine details within the goal and continue supported portions in the same turn. Ask only for missing information or material ambiguity that prevents a safe choice. Verify already satisfied work without rebuilding; optional improvements remain outside the goal.
+- Retain the completion-check safeguard and existing approval, sharing, cancellation, paid-action retry and user-owned file/Save boundaries. These preferences govern a submitted editing request, not background work.
+
 ## Request completion checks — 13 October 2026
 
 - Keep reviewer goal definitions and completion assessments as plain strings. Do not require JSON or a reviewer output schema. Preserve the text in the local trace; this supersedes structured reviewer output requirements.
