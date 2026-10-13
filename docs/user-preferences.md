@@ -7,6 +7,11 @@ This is the project record of the user's durable product and workflow choices. U
 - Enable local whiteboard exports and storing reusable renders as project Media assets. Provide comprehensive agent guidance for supported Excalidraw vector/text authoring, layout, grouping, layering, export and combinations with editing, evidence, transcripts, history and document handoff.
 - Keep UI and agent workflows on the same shared editor owners, with local immutable assets and explicit user-owned file downloads.
 
+## Timeline overlaps — 13 October 2026
+
+- Indicate overlapping assets visually at the actual overlap span, without inline overlap/template text. Keep useful names and duration accessible on demand.
+- Right-click or press and hold an overlap to open an options menu including Add transition. Preserve ordinary selection and provide keyboard access; transition templates remain explicit edits through the shared engine.
+
 ## Media folder breadcrumbs — 13 October 2026
 
 - Keep Media's title and actions in the main header. When browsing subfolders, show the path in a separate breadcrumb subheader below it, with clickable ancestors and the current folder marked. Hide the breadcrumb row at the root.
