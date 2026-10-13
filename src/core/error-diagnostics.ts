@@ -45,7 +45,11 @@ export type RecoveryDetails = {
     | 'empty_response'
     | 'reviewer_protocol'
     | 'attachment_unavailable';
-  stage?: 'request_contract' | 'completion_check' | 'assistant_response';
+  stage?:
+    | 'request_contract'
+    | 'session_todos'
+    | 'completion_check'
+    | 'assistant_response';
   providerReason?: (typeof providerReasons)[number];
   parameter?: (typeof requestParameters)[number];
 };
@@ -80,6 +84,7 @@ export function safeRecoveryDetails(
     details.reason = metadata.reason;
   if (
     metadata.stage === 'request_contract' ||
+    metadata.stage === 'session_todos' ||
     metadata.stage === 'completion_check' ||
     metadata.stage === 'assistant_response'
   )

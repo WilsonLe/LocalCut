@@ -11,7 +11,12 @@ export type { SpeechTiming, RenderedSpeech } from './speech-audio';
 export type { AiErrorCode } from './errors';
 export type * from './types';
 export type * from './assistant';
-export type { GoalCompletion, GoalContract, GoalVerdict } from './goal-review';
+export type {
+  GoalCompletion,
+  GoalContract,
+  GoalVerdict,
+  SessionGoal,
+} from './goal-review';
 export type * from './context';
 
 export { createServiceRouter } from './providers';

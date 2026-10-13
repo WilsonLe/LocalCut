@@ -51,6 +51,16 @@ for (const base of ['/', '/LocalCut/']) {
               };
               return;
             }
+            if (instruction.startsWith('LocalCut session to-dos:')) {
+              yield {
+                type: 'complete' as const,
+                message: {
+                  role: 'assistant' as const,
+                  content: '## To-dos\n- [x] Scripted skill outcome',
+                },
+              };
+              return;
+            }
             if (instruction.startsWith('LocalCut completion review:')) {
               yield {
                 type: 'complete' as const,
@@ -283,6 +293,16 @@ for (const base of ['/', '/LocalCut/']) {
                 message: {
                   role: 'assistant' as const,
                   content: 'Fulfill scripted skill request.',
+                },
+              };
+              return;
+            }
+            if (instruction.startsWith('LocalCut session to-dos:')) {
+              yield {
+                type: 'complete' as const,
+                message: {
+                  role: 'assistant' as const,
+                  content: '## To-dos\n- [x] Scripted skill outcome',
                 },
               };
               return;

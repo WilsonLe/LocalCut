@@ -26,7 +26,7 @@ describe('safe conversation request diagnostics', () => {
         stage: 'request_contract',
       }),
     );
-    expect(text).toContain('initial goal check failed');
+    expect(text).toContain('session goal update failed');
     expect(text).toContain('plain-text review');
     expect(text).not.toMatch(/SECRET|JSON/);
   });
@@ -137,3 +137,12 @@ it.each([
     expect(errorText(staged)).toContain('completed actions remain saved');
   },
 );
+it('explains to-do update failures while preserving completed work', () => {
+  const text = errorText(
+    new AiError('INVALID_RESPONSE', 'SECRET', { stage: 'session_todos' }),
+  );
+  expect(text).toContain('to-do update failed');
+  expect(text).toContain('completed actions remain saved');
+  expect(text).toContain('Retry response');
+  expect(text).not.toContain('SECRET');
+});

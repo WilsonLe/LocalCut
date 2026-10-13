@@ -23,9 +23,11 @@ const toolSchema = z.object({
   resultOmitted: z.literal(true).optional(),
   errorOmitted: z.literal(true).optional(),
 });
+const sessionGoalSchema = z.object({ goal: z.string(), todos: z.string() });
 const messageSchema = z.object({
   id: identity,
   role: z.enum(['user', 'assistant']),
+  sessionGoal: sessionGoalSchema.optional(),
   text: z.string(),
   status: z.enum(['complete', 'streaming', 'interrupted', 'paused', 'failed']),
   usage: z
@@ -54,6 +56,7 @@ const messageSchema = z.object({
 });
 export const chatContentSchema = z.object({
   prompt: z.string(),
+  sessionGoal: sessionGoalSchema.optional(),
   attachmentIds: z.array(identity),
   messages: z.array(messageSchema),
   historyTurnIds: z.array(identity).optional(),

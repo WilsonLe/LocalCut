@@ -14,9 +14,12 @@ export function errorText(error: unknown): string {
       : undefined;
   if (details && typeof details === 'object' && 'stage' in details) {
     if (details.stage === 'request_contract')
-      return `The initial goal check failed. ${message} Any completed actions remain saved.`;
+      return `The session goal update failed. ${message} Any completed actions remain saved.`;
+    if (details.stage === 'session_todos')
+      return `The to-do update failed. ${message} Any completed actions remain saved. Use Retry response to continue.`;
     if (details.stage === 'assistant_response')
       return `The assistant response failed. ${message} Any completed actions remain saved.`;
+
     if (details.stage === 'completion_check')
       return `The completion check failed after the assistant response. ${message} Any completed actions remain saved.`;
   }

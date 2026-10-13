@@ -480,3 +480,31 @@ it('recovers prior sharing variants only into an explicitly OpenRouter-authorize
     ).toBe(false);
   }
 });
+
+it('persists Markdown goal and checklist snapshots through restore and fork without changing legacy chats', () => {
+  const chat = newChatSession('project:model:private');
+  const goal = {
+    goal: '## Goal\nKeep the session objective',
+    todos: '## To-dos\n- [x] First task\n- [ ] Remaining task',
+  };
+  chat.content.sessionGoal = goal;
+  chat.content.messages.push(
+    { id: 'user', role: 'user', text: 'Request', status: 'complete' },
+    {
+      id: 'reply',
+      role: 'assistant',
+      text: 'Partial',
+      status: 'complete',
+      sessionGoal: goal,
+    },
+  );
+  for (const candidate of [restoreChatSession(chat)!, forkChatSession(chat)]) {
+    expect(candidate.content.sessionGoal).toEqual(goal);
+    expect(
+      restoredChatTurns(candidate.content.messages)[0]?.sessionGoal,
+    ).toEqual(goal);
+  }
+  expect(
+    restoreChatSession(newChatSession('legacy'))!.content.sessionGoal,
+  ).toBeUndefined();
+});
