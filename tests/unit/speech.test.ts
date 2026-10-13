@@ -98,13 +98,15 @@ describe('OpenRouter speech', () => {
         { type: 'text', text: 'The original sample.' },
       ],
     });
+    expect(
+      JSON.parse(speechBody({ ...referenceRequest, languages: [] })),
+    ).toEqual(body);
     for (const key of ['voice', 'seed', 'instructions'])
       expect(body).not.toHaveProperty(key);
     for (const invalid of [
       { ...referenceRequest, model: speech.id },
       { ...referenceRequest, script: '' },
       { ...referenceRequest, script: 'a'.repeat(5001) },
-      { ...referenceRequest, languages: [] },
       { ...referenceRequest, instructions: 'a'.repeat(1501) },
       { ...referenceRequest, reference: undefined },
       {

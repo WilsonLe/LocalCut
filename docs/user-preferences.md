@@ -2,6 +2,10 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Provider-specific speech options — 13 October 2026
+
+- Hide options unavailable to the selected speech provider instead of rendering disabled controls. Fish reference synthesis has no stock voice, language hint or delivery-directions control; keep supported local speed and length controls.
+
 ## Speech phrase timing — 13 October 2026
 
 - Always use the STT route configured in AI settings for generated-speech phrase timing. Remove the separate Phrase timing options section, including its heading, selector and explanatory/metadata text.

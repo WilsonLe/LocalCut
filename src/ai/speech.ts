@@ -100,7 +100,7 @@ export function speechBody(request: SpeechRequest): string {
       typeof request.voice === 'string' &&
       /^[A-Za-z0-9_-]{1,80}$/.test(request.voice) &&
       Array.isArray(request.languages) &&
-      request.languages.length >= 1 &&
+      (referenceModel || request.languages.length >= 1) &&
       request.languages.length <= 8 &&
       request.languages.every(
         (language) =>
