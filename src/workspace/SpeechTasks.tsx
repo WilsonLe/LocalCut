@@ -1,7 +1,12 @@
 import { useEffect } from 'react';
 import type { Editor } from '../editor';
 import type { Connection } from './Conversation';
-import { speechRoute, speechTaskKind, speechTimingRoute } from './speech-tasks';
+import {
+  speechRoute,
+  speechTaskKind,
+  speechTimingRoute,
+  SPEECH_TIMING_FAILURE,
+} from './speech-tasks';
 import type { SpeechTaskInput, SpeechCheckpoint } from './speech-tasks';
 /** Project/connection owns generation; dialog lifetime owns only its preview URL. */
 export default function SpeechTasks({
@@ -60,6 +65,11 @@ export default function SpeechTasks({
             context.signal.throwIfAborted();
             audio = { ...audio, transcript: await measurement.completion };
             await editor.tasks.saveCheckpoint(context.id, audio);
+          } catch (cause) {
+            context.signal.throwIfAborted();
+            throw Object.assign(new Error(SPEECH_TIMING_FAILURE, { cause }), {
+              code: (cause as { code?: string })?.code ?? 'INVALID_RESPONSE',
+            });
           } finally {
             context.signal.removeEventListener('abort', abort);
           }

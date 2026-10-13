@@ -107,7 +107,8 @@ function ToolDetails({ tool }: { tool: HistoricalTool }) {
     </div>
   );
 }
-interface PausedRequest {
+interface RecoveryRequest {
+  kind: 'paused' | 'retry';
   turnId: string;
   prompt: string;
   assetIds: string[];
@@ -202,9 +203,8 @@ export default function ConversationSession({
   const [cancelling, setCancelling] = useState(false);
   const [activity, setActivity] = useState('Thinking…');
   const [failure, setFailure] = useState<string | null>(null);
-  const [pausedRequest, setPausedRequest] = useState<PausedRequest | null>(
-    null,
-  );
+  const [recoveryRequest, setRecoveryRequest] =
+    useState<RecoveryRequest | null>(null);
   const [following, setFollowing] = useState(true);
   const composer = useRef<HTMLTextAreaElement>(null);
   const assistant = useRef<Assistant | null>(null);
@@ -354,6 +354,7 @@ export default function ConversationSession({
         projectId: project.id,
         model,
         execution: 'requested',
+        libraryAccess: 'project',
         context: privacy,
         transcription: connection.transcription,
         indexing:
@@ -418,8 +419,9 @@ export default function ConversationSession({
   const send = async (event: FormEvent) => {
     event.preventDefault();
     if (readOnly || !active || document.visibilityState === 'hidden') return;
-    const resuming = prompt.length === 0 ? pausedRequest : null;
-    const text = prompt.trim();
+    const resuming = prompt.length === 0 ? recoveryRequest : null;
+    const retrying = resuming?.kind === 'retry';
+    const text = retrying ? 'Retry response' : prompt.trim();
     if ((!text && !resuming) || attaching || runningRef.current) return;
     runningRef.current = true;
     setFailure(null);
@@ -430,7 +432,7 @@ export default function ConversationSession({
     cancelBeforeRun.current = false;
     pausedByNavigation.current = false;
     let activeTurn: AssistantTurn | undefined;
-    let submitted: PausedRequest | undefined;
+    let submitted: RecoveryRequest | undefined;
     let stop: (() => void) | undefined;
     try {
       await waitForRetired();
@@ -444,7 +446,11 @@ export default function ConversationSession({
         (attachments.length
           ? `Attached local image asset IDs: ${attachments.map((asset) => asset.id).join(', ')}. Inspect these assets with the declared tools; their pixels remain local.\n\n`
           : '');
-      const requestPrompt = resuming?.prompt ?? context + text;
+      const requestPrompt = retrying
+        ? `Retry the unfinished response to the request below. Continue from confirmed progress in the conversation; inspect current state and do not repeat actions with completed receipts.
+
+${resuming.prompt}`
+        : (resuming?.prompt ?? context + text);
       activeTurn = session.run(requestPrompt);
       if (!resuming && !titleAttempted.current) {
         titleAttempted.current = true;
@@ -465,9 +471,14 @@ export default function ConversationSession({
           // Naming is optional: preserve the fallback without interrupting the reply.
           .catch(() => {});
       }
-      submitted = { turnId: activeTurn.id, prompt: requestPrompt, assetIds };
+      submitted = {
+        kind: 'retry',
+        turnId: activeTurn.id,
+        prompt: resuming?.prompt ?? requestPrompt,
+        assetIds,
+      };
       turn.current = activeTurn;
-      setPausedRequest(null);
+      setRecoveryRequest(null);
       if (!resuming) {
         setPrompt('');
         setAttachments([]);
@@ -482,7 +493,7 @@ export default function ConversationSession({
         proposalIds: [],
       };
       setMessages((current) =>
-        resuming
+        resuming && !retrying
           ? current.map((message) =>
               message.id === resuming.turnId ? response : message,
             )
@@ -571,7 +582,11 @@ export default function ConversationSession({
         ? 'Response stopped. No unfinished proposal was saved.'
         : errorText(error);
       setFailure(paused ? null : text);
-      if (resumable && submitted) setPausedRequest(submitted);
+      if (submitted && (resumable || !cancelled))
+        setRecoveryRequest({
+          ...submitted,
+          kind: resumable ? 'paused' : 'retry',
+        });
       if (activeTurn)
         setMessages((current) =>
           current.map((message) =>
@@ -1147,24 +1162,26 @@ export default function ConversationSession({
                 </Button>
               ) : prompt.trim() ||
                 attachments.length ||
-                (pausedRequest && prompt.length === 0) ? (
+                (recoveryRequest && prompt.length === 0) ? (
                 <Button
                   type="submit"
                   size="icon-sm"
                   aria-label={
-                    pausedRequest && prompt.length === 0
-                      ? 'Resume response'
+                    recoveryRequest && prompt.length === 0
+                      ? recoveryRequest.kind === 'retry'
+                        ? 'Retry response'
+                        : 'Resume response'
                       : 'Send edit request'
                   }
                   disabled={
                     readOnly ||
                     (!prompt.trim() &&
-                      !(pausedRequest && prompt.length === 0)) ||
+                      !(recoveryRequest && prompt.length === 0)) ||
                     applying ||
                     attaching
                   }
                 >
-                  {pausedRequest && prompt.length === 0 ? (
+                  {recoveryRequest && prompt.length === 0 ? (
                     <Play aria-hidden="true" />
                   ) : (
                     <ArrowUp aria-hidden="true" />

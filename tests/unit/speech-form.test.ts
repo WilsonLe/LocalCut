@@ -39,3 +39,26 @@ describe('speech form guidance', () => {
     );
   });
 });
+
+// Persisted task diagnostics remain private except for the speech owner's safe message.
+it('shows saved-take timing recovery without exposing arbitrary diagnostics', async () => {
+  const { speechTaskError, SPEECH_TIMING_FAILURE } =
+    await import('../../src/workspace/speech-tasks');
+  const error = {
+    code: 'WORKER_FAILED',
+    message: 'Task failed.',
+    action: 'Retry.',
+    diagnostic: {
+      name: 'Error',
+      message: 'private transcript and Bearer secret',
+      stack: '',
+    },
+  };
+  expect(speechTaskError(error)).toBe('Task failed. Retry.');
+  expect(
+    speechTaskError({
+      ...error,
+      diagnostic: { name: 'Error', message: SPEECH_TIMING_FAILURE, stack: '' },
+    }),
+  ).toBe(SPEECH_TIMING_FAILURE);
+});

@@ -1,11 +1,15 @@
 import { useEffect, useSyncExternalStore } from 'react';
 
 export const VOICE_PRESETS_KEY = 'localcut.voice-presets.v1';
+export type VoiceTiming =
+  | { mode: 'speed'; speed: number }
+  | { mode: 'duration'; durationSeconds: number };
 export interface VoiceSettings {
   model: string;
   voice: string;
   languages: string[];
   instructions: string;
+  timing?: VoiceTiming;
 }
 export interface VoicePreset extends VoiceSettings {
   id: string;
@@ -15,6 +19,21 @@ export interface VoicePreset extends VoiceSettings {
 }
 const bounded = (value: unknown, max: number): value is string =>
   typeof value === 'string' && value.length <= max;
+export function validVoiceTiming(value: unknown): value is VoiceTiming {
+  if (!value || typeof value !== 'object') return false;
+  const timing = value as VoiceTiming;
+  return timing.mode === 'speed'
+    ? Number.isFinite(timing.speed) && timing.speed >= 0.5 && timing.speed <= 2
+    : timing.mode === 'duration' &&
+        Number.isFinite(timing.durationSeconds) &&
+        timing.durationSeconds > 0;
+}
+export function voiceTimingLabel(timing?: VoiceTiming) {
+  if (!timing) return 'Timing not saved';
+  return timing.mode === 'speed'
+    ? `${timing.speed}× speed`
+    : `${timing.durationSeconds}s total length`;
+}
 export function validVoiceSettings(value: VoiceSettings): boolean {
   return (
     bounded(value.model, 256) &&
@@ -27,7 +46,8 @@ export function validVoiceSettings(value: VoiceSettings): boolean {
     value.languages.every(
       (language) => bounded(language, 80) && !!language.trim(),
     ) &&
-    bounded(value.instructions, 1500)
+    bounded(value.instructions, 1500) &&
+    (value.timing === undefined || validVoiceTiming(value.timing))
   );
 }
 export function parseVoicePresets(raw: string | null): VoicePreset[] {
@@ -60,6 +80,17 @@ export function parseVoicePresets(raw: string | null): VoicePreset[] {
         voice: p.voice,
         languages: [...new Set(p.languages)] as string[],
         instructions: p.instructions,
+        ...(p.timing
+          ? {
+              timing:
+                p.timing.mode === 'speed'
+                  ? { mode: 'speed' as const, speed: p.timing.speed }
+                  : {
+                      mode: 'duration' as const,
+                      durationSeconds: p.timing.durationSeconds,
+                    },
+            }
+          : {}),
         ...(p.referenceId ? { referenceId: p.referenceId } : {}),
       });
     }

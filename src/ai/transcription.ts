@@ -67,8 +67,13 @@ export function transcriptionSegments(
     'INVALID_RESPONSE',
     'STT returned no bounded timestamp segments.',
   );
-  let previous = -1;
-  return segments.map((item) => {
+  aiInvariant(
+    Number.isFinite(duration) && duration > 0,
+    'INVALID_REQUEST',
+    'STT requires a positive audio duration.',
+  );
+  const normalized: { text: string; timestamp: [number, number] }[] = [];
+  for (const item of segments) {
     const s = item as { text?: unknown; start?: unknown; end?: unknown };
     aiInvariant(
       s &&
@@ -78,18 +83,29 @@ export function transcriptionSegments(
         Number.isFinite(s.start) &&
         typeof s.end === 'number' &&
         Number.isFinite(s.end) &&
-        s.start >= previous &&
         s.start >= 0 &&
-        s.end > s.start &&
-        s.start < duration &&
-        s.end <= duration + 0.1,
+        s.end >= s.start,
       'INVALID_RESPONSE',
       'STT returned invalid or unordered timestamps.',
     );
-    previous = s.start;
-    return {
-      text: s.text.trim(),
+    // Providers can emit empty/instantaneous entries and return segments out of
+    // order. Keep measured spans only; never invent a duration for these tokens.
+    const text = s.text.trim();
+    if (!text || s.end === s.start) continue;
+    aiInvariant(
+      s.start < duration,
+      'INVALID_RESPONSE',
+      'STT returned timestamps outside the audio. Retry transcription with a timestamp-capable model.',
+    );
+    normalized.push({
+      text,
       timestamp: [s.start, Math.min(s.end, duration)],
-    };
-  });
+    });
+  }
+  aiInvariant(
+    !segments.length || normalized.length,
+    'INVALID_RESPONSE',
+    'STT returned no usable timestamp segments. Retry transcription with a timestamp-capable model.',
+  );
+  return normalized.sort((a, b) => a.timestamp[0] - b.timestamp[0]);
 }

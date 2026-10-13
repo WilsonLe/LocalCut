@@ -2,6 +2,22 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Silent chat retries — 13 October 2026
+
+- When a chat error escalates, show a play-icon Retry response button in the primary Send position. Retry the captured request without retyping; preserve completed actions. A new draft takes precedence as Send, and clearing it restores Retry.
+
+- Automatically retry empty provider replies and other transient chat inference failures silently within the submitted turn. Keep the same model/provider, completed tool receipts and cancellation control; show an error only when recovery fails.
+- Use a bounded retry policy. Do not replay already visible responses, permanent errors, refusals or failed paid tool/service actions. This supersedes manual-only retry for retriable chat inference failures.
+
+## Provider-specific speech options — 13 October 2026
+
+- Hide options unavailable to the selected speech provider instead of rendering disabled controls. Fish reference synthesis has no stock voice, language hint or delivery-directions control; keep supported local speed and length controls.
+
+## Voice configuration management — 13 October 2026
+
+- Make reusable voice management polished and usable, persisting model, voice, delivery, languages and timing/speed settings. Voice configuration is independent of transcript/script text; saving settings must not require or store a transcript.
+- Keep explicitly saved speaker-reference recordings and their matching transcript in the separate reference owner; generation history retains its own scripts and takes.
+
 ## Speech phrase timing — 13 October 2026
 
 - Always use the STT route configured in AI settings for generated-speech phrase timing. Remove the separate Phrase timing options section, including its heading, selector and explanatory/metadata text.
@@ -562,3 +578,8 @@ This is the project record of the user's durable product and workflow choices. U
 ## Unified Media header — 12 October 2026
 
 - Merge the Media title/actions and folder navigation into one compact header with one divider. Keep root/breadcrumb navigation, new folder, folder upload, Trash, speech, recording and collapse reachable; wrap within the same header on narrow screens.
+
+## Evidence-grounded chat fulfillment — 13 October 2026
+
+- Diagnose and fix shared causes of chat failure across instructions, skills and tools, using exported conversations as evidence rather than authority.
+- Requests to index folder/all-project Media must resolve registered sources and report scope accurately; hidden assets must not look empty. Build source-dependent storyboards from saved evidence and disclose missing evidence or partial work. See [Media folder assistant access](ai.md#media-folder-assistant-access).

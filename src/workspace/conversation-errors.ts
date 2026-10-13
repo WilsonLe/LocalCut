@@ -17,7 +17,7 @@ export function errorText(error: unknown): string {
     'reason' in error.details &&
     error.details.reason === 'empty_response'
   )
-    return 'The provider returned an empty reply. Send your request again to retry, or choose another model. Any completed actions remain saved.';
+    return 'The provider returned an empty reply after automatic retries. Use Retry response, or choose another model. Any completed actions remain saved.';
   if (
     errorCode(error) === 'INVALID_REQUEST' &&
     error &&
