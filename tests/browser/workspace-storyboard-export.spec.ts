@@ -71,6 +71,37 @@ for (const base of ['/', '/LocalCut/']) {
           ...context.getImageData(canvas.width / 2, canvas.height / 2, 1, 1)
             .data,
         ];
+        const scaled = [];
+        for (const scale of [0.5, 2, 4]) {
+          const exported = await editor.storyboard.export(
+            project.id,
+            {
+              format: 'png',
+              elementIds: ['box'],
+              background: false,
+              scale,
+            },
+            1,
+          ).completion;
+          const bitmap = await createImageBitmap(exported.file);
+          canvas.width = bitmap.width;
+          canvas.height = bitmap.height;
+          context.drawImage(bitmap, 0, 0);
+          bitmap.close();
+          scaled.push({
+            scale,
+            dimensions: [canvas.width, canvas.height],
+            rightEdge: [
+              ...context.getImageData(
+                canvas.width - 22 * scale,
+                canvas.height / 2,
+                1,
+                1,
+              ).data,
+            ],
+            outside: [...context.getImageData(0, 0, 1, 1).data],
+          });
+        }
         const svg = await editor.storyboard.export(
           project.id,
           { format: 'svg' },
@@ -169,6 +200,7 @@ for (const base of ['/', '/LocalCut/']) {
           dimensions,
           corner,
           center,
+          scaled,
           svg:
             svgText.includes('Local diagram label') &&
             svgText.includes('<svg') &&
@@ -194,6 +226,14 @@ for (const base of ['/', '/LocalCut/']) {
     expect(result.dimensions).toEqual([280, 160]);
     expect(result.corner[3]).toBe(0);
     expect(result.center).toEqual([255, 0, 0, 255]);
+    for (const output of result.scaled) {
+      expect(output.dimensions).toEqual([
+        280 * output.scale,
+        160 * output.scale,
+      ]);
+      expect(output.rightEdge).toEqual([255, 0, 0, 255]);
+      expect(output.outside[3]).toBe(0);
+    }
     expect(result.svg).toBe(true);
     expect(result.scene.type).toBe('excalidraw');
     expect(result.scene.texts).toContain('Local diagram label');

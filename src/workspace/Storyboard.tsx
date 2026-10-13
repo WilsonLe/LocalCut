@@ -169,6 +169,7 @@ export function Storyboard({
     try {
       if (!(await session.flush()) || !mounted.current) return;
       const latest = await editor.projects.snapshot(project.id);
+      if (!mounted.current) return;
       const options: StoryboardExportOptions = {
         format,
         background: exportBackground,

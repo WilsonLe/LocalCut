@@ -47,7 +47,7 @@ export async function renderStoryboard(
   );
   const { name, ...renderOptions } = options;
   const source = await taskCacheKey([
-    'storyboard-export-0.18.1-v1',
+    'storyboard-export-0.18.1-v2',
     scene,
     renderOptions,
   ]);
@@ -111,7 +111,11 @@ export async function renderStoryboard(
               'INVALID_COMMAND',
               'Storyboard raster is too large. Export a selection, lower scale, or use SVG',
             );
-            return { width, height, scale: options.scale };
+            return {
+              width: width * options.scale,
+              height: height * options.scale,
+              scale: options.scale,
+            };
           },
         });
         try {
