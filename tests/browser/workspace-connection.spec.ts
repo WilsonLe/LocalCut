@@ -65,7 +65,7 @@ for (const base of ['/', '/LocalCut/']) {
           requests++;
           const body = route.request().postDataJSON();
           expect(body.model).toBe(models[0]!.id);
-          expect(body.max_tokens).toBe(completionLimit);
+          expect(body).not.toHaveProperty('max_tokens');
           expect(body).not.toHaveProperty('max_output_tokens');
           expect(body).not.toHaveProperty('max_completion_tokens');
           expect(body.provider).toEqual({
@@ -215,7 +215,7 @@ for (const base of ['/', '/LocalCut/']) {
       await send.click();
       await expect(
         page.getByText(
-          'The selected model or endpoint is unavailable (HTTP 404). Refresh models or choose another tool-capable model.',
+          'The assistant response failed. The selected model or endpoint is unavailable (HTTP 404). Refresh models or choose another tool-capable model. Any completed actions remain saved.',
           { exact: true },
         ),
       ).toBeVisible();
@@ -239,7 +239,7 @@ for (const base of ['/', '/LocalCut/']) {
       await send.click();
       await expect(
         page.getByText(
-          'The model reached its response limit before finishing. No proposal was published. Try a smaller edit or another model.',
+          'The assistant response failed. The model reached its response limit before finishing. No proposal was published. Try a smaller edit or another model. Any completed actions remain saved.',
           { exact: true },
         ),
       ).toBeVisible();
