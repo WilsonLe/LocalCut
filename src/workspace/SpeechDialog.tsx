@@ -195,6 +195,8 @@ export default function SpeechDialog({
   const [error, setError] = useState<string | null>(null);
   const active = useRef(false);
   const [generation, setGeneration] = useState<string>();
+  const [generationSelection, setGenerationSelection] = useState(0);
+  const selectionEpoch = useRef(0);
   const [generations, setGenerations] = useState<
     { id: string; label: string }[]
   >([]);
@@ -483,12 +485,18 @@ export default function SpeechDialog({
   }, []);
   const loadSource = useCallback(
     async (id: string) => {
+      const epoch = selectionEpoch.current;
       if (loadedSource.current === id) return;
       const source = (await editor.tasks.checkpoint(id)) as
         SpeechCheckpoint | undefined;
       if (!source) return;
       const input = (await editor.tasks.input(id)) as SpeechTaskInput;
-      if (!active.current || selection.current !== id) return;
+      if (
+        !active.current ||
+        selection.current !== id ||
+        selectionEpoch.current !== epoch
+      )
+        return;
       loadedSource.current = id;
       restoreRequest(input, id);
       setAudio(source);
@@ -510,10 +518,16 @@ export default function SpeechDialog({
   );
   const loadResult = useCallback(
     async (id: string) => {
+      const epoch = selectionEpoch.current;
       if (loadedResult.current === id) return;
       const result = await editor.tasks.result<SpeechTaskResult>(id);
       const input = (await editor.tasks.input(id)) as SpeechTaskInput;
-      if (!active.current || selection.current !== id) return;
+      if (
+        !active.current ||
+        selection.current !== id ||
+        selectionEpoch.current !== epoch
+      )
+        return;
       loadedResult.current = id;
       setAudio(result.audio);
       setTranscript(result.transcript);
@@ -526,18 +540,25 @@ export default function SpeechDialog({
   );
   useEffect(() => {
     if (!open) return;
+    const isCurrent = () =>
+      active.current &&
+      selection.current === generation &&
+      selectionEpoch.current === generationSelection;
     const stop = editor.tasks.subscribe((task) => {
-      if (task.id !== generation || !active.current) return;
+      if (task.id !== generation || !isCurrent()) return;
       if (task.state === 'completed')
-        void loadResult(task.id).catch(() =>
-          setError('Saved speech could not be opened.'),
-        );
+        void loadResult(task.id).catch(() => {
+          if (isCurrent()) {
+            setBusy(null);
+            setError('Saved speech could not be opened.');
+          }
+        });
       else if (['failed', 'interrupted', 'cancelled'].includes(task.state)) {
         setBusy(null);
         if (task.error) setError(task.error.message + ' ' + task.error.action);
-        void loadSource(task.id).catch(() =>
-          setError('Saved speech source could not be opened.'),
-        );
+        void loadSource(task.id).catch(() => {
+          if (isCurrent()) setError('Saved speech source could not be opened.');
+        });
       } else setBusy(task.state === 'queued' ? 'Speech queued…' : task.stage);
     });
     if (!generation && restoreSaved)
@@ -552,18 +573,21 @@ export default function SpeechDialog({
             )
             .at(-1);
           if (saved && active.current && selection.current === undefined) {
+            const epoch = ++selectionEpoch.current;
             selection.current = saved.id;
+            setGenerationSelection(epoch);
             setGeneration(saved.id);
           }
         })
-        .catch(() =>
-          setError('Speech queue could not be read. Allow browser storage.'),
-        );
+        .catch(() => {
+          if (active.current && selectionEpoch.current === generationSelection)
+            setError('Speech queue could not be read. Allow browser storage.');
+        });
     else if (generation)
       void editor.tasks
         .get(generation)
         .then(async (task) => {
-          if (!active.current || selection.current !== generation) return;
+          if (!isCurrent()) return;
           if (!task) throw new Error('Saved speech is unavailable.');
           if (task.state === 'completed') await loadResult(task.id);
           else if (['queued', 'running', 'retrying'].includes(task.state))
@@ -576,7 +600,7 @@ export default function SpeechDialog({
           }
         })
         .catch(() => {
-          if (active.current && selection.current === generation) {
+          if (isCurrent()) {
             setBusy(null);
             setError('Saved speech could not be opened.');
           }
@@ -587,6 +611,7 @@ export default function SpeechDialog({
     editor,
     connection,
     generation,
+    generationSelection,
     project.id,
     loadResult,
     loadSource,
@@ -640,6 +665,8 @@ export default function SpeechDialog({
     };
   }, [open, editor, connection, project.id]);
   const selectGeneration = (id: string) => {
+    const epoch = ++selectionEpoch.current;
+    setGenerationSelection(epoch);
     generated.current = null;
     selection.current = id;
     loadedSource.current = undefined;
@@ -660,11 +687,19 @@ export default function SpeechDialog({
       void editor.tasks
         .input(id)
         .then((input) => {
-          if (active.current && selection.current === id)
+          if (
+            active.current &&
+            selection.current === id &&
+            selectionEpoch.current === epoch
+          )
             restoreRequest(input as SpeechTaskInput, id);
         })
         .catch(() => {
-          if (active.current && selection.current === id) {
+          if (
+            active.current &&
+            selection.current === id &&
+            selectionEpoch.current === epoch
+          ) {
             setBusy(null);
             setError('Saved speech could not be opened.');
           }
@@ -743,6 +778,8 @@ export default function SpeechDialog({
           { label: 'Generating speech', projectId: project.id },
         );
         generated.current = job;
+        const epoch = ++selectionEpoch.current;
+        setGenerationSelection(epoch);
         selection.current = job.id;
         setGeneration(job.id);
         setBusy('Speech queued…');

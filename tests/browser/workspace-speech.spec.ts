@@ -373,6 +373,24 @@ for (const base of ['/', '/LocalCut/']) {
     );
     await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
     expect(requests).toHaveLength(2);
+    // Reselecting the same saved ID must discard local draft edits every time.
+    for (const draft of ['Edited saved script', 'Another local draft']) {
+      await dialog.getByLabel('Script', { exact: true }).fill(draft);
+      await expect(dialog.getByLabel('Generated speech preview')).toHaveCount(
+        0,
+      );
+      await picker.click();
+      await page.getByLabel('Search previous generations').fill('First saved');
+      await page.getByRole('option', { name: /First saved narration/ }).click();
+      await expect(dialog.getByLabel('Script', { exact: true })).toHaveValue(
+        'First saved narration',
+      );
+      await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
+      await expect(
+        dialog.getByRole('status').filter({ hasText: 'Opening saved speech' }),
+      ).toHaveCount(0);
+      expect(requests).toHaveLength(2);
+    }
     await picker.click();
     await page.getByLabel('Search previous generations').fill('Kore');
     await expect(
@@ -381,6 +399,10 @@ for (const base of ['/', '/LocalCut/']) {
     await page.getByLabel('Search previous generations').fill('no such script');
     await expect(page.getByText('No matching generations.')).toBeVisible();
     await page.keyboard.press('Escape');
+    await expect(
+      page.getByLabel('Search previous generations'),
+    ).not.toBeVisible();
+    await expect(picker).toHaveAttribute('aria-expanded', 'false');
     await page.setViewportSize({ width: 390, height: 844 });
     const bounds = (await picker.boundingBox())!;
     expect(bounds.x).toBeGreaterThanOrEqual(0);
@@ -390,7 +412,13 @@ for (const base of ['/', '/LocalCut/']) {
       dialog.getByRole('button', { name: 'Save to assets', exact: true }),
     ).toBeInViewport();
     await picker.click();
+    await expect(picker).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByLabel('Search previous generations')).toBeVisible();
     await page.keyboard.press('Escape');
+    await expect(
+      page.getByLabel('Search previous generations'),
+    ).not.toBeVisible();
+    await expect(dialog).toBeVisible();
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   });
   test(`retained speech dialog returns focus to each opener and keeps its draft ${base}`, async ({
