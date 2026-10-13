@@ -34,6 +34,61 @@ async function collect(input: Response, abort = signal()) {
 }
 
 describe('OpenRouter SSE protocol', () => {
+  it('retains generation identity and cache/reasoning usage from terminal accounting', async () => {
+    const usage = {
+      prompt_tokens: 10,
+      completion_tokens: 5,
+      total_tokens: 15,
+      prompt_tokens_details: { cached_tokens: 8, cache_write_tokens: 2 },
+      completion_tokens_details: { reasoning_tokens: 3 },
+    };
+    const events = await collect(
+      response(
+        frame({ content: 'Ready' }, 'stop', { id: 'gen-example' }) +
+          frame({ content: '' }, 'stop', { id: 'gen-example', usage }) +
+          done,
+      ),
+    );
+    expect(events.at(-1)).toMatchObject({
+      type: 'complete',
+      generationId: 'gen-example',
+      usage: { cachedTokens: 8, cacheWriteTokens: 2, reasoningTokens: 3 },
+    });
+  });
+  it('rejects switched generation identities and malformed detailed accounting', async () => {
+    await expect(
+      collect(
+        response(
+          frame({ content: 'Ready' }, 'stop', { id: 'gen-one' }) +
+            frame({}, 'stop', {
+              id: 'gen-two',
+              usage: {
+                prompt_tokens: 1,
+                completion_tokens: 1,
+                total_tokens: 2,
+              },
+            }) +
+            done,
+        ),
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    for (const cached_tokens of [-1, 0.5, '4']) {
+      await expect(
+        collect(
+          response(
+            frame({}, 'stop', {
+              usage: {
+                prompt_tokens: 1,
+                completion_tokens: 1,
+                total_tokens: 2,
+                prompt_tokens_details: { cached_tokens },
+              },
+            }) + done,
+          ),
+        ),
+      ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    }
+  });
   it('assembles split UTF-8, comments, CRLF and multiline data, accepting accounting finish repetition', async () => {
     const first = frame({ role: 'assistant', content: 'Café 🌊' });
     const terminal = frame({}, 'stop');

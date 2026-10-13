@@ -8,6 +8,11 @@ This is the project record of the user's durable product and workflow choices. U
 - Put a single searchable previous-generation picker in the dialog header, using persistent local generations. Offer Save to assets separately from Add to timeline.
 - Show minimum/maximum length guidance from the script word count and a reasonable narration pace; distinguish estimates from the measured take's exact timing limits.
 
+## Timeline overlaps — 13 October 2026
+
+- Indicate overlapping assets visually at the actual overlap span, without inline overlap/template text. Keep useful names and duration accessible on demand.
+- Right-click or press and hold an overlap to open an options menu including Add transition. Preserve ordinary selection and provide keyboard access; transition templates remain explicit edits through the shared engine.
+
 ## Media folder breadcrumbs — 13 October 2026
 
 - Keep Media's title and actions in the main header. When browsing subfolders, show the path in a separate breadcrumb subheader below it, with clickable ancestors and the current folder marked. Hide the breadcrumb row at the root.
@@ -17,6 +22,10 @@ This is the project record of the user's durable product and workflow choices. U
 - Allow only OpenRouter for remote AI. Remove OpenAI-compatible endpoints, ChatGPT sign-in and multiple provider accounts. The connection is binary: connected to OpenRouter or disconnected.
 - Remove all backup service routes and provider priority controls for LLM, TTS and STT. A failed request stops without switching services. Preserve local Whisper as the default local transcription choice; an explicitly chosen remote transcription service uses only OpenRouter.
 - Migrate old configuration to one retained OpenRouter account and its selections, preserving its credential namespace. Retire removed accounts' saved credentials and pending authentication; portable imports cannot revive them. These choices supersede prior multiple-provider, ChatGPT and fallback preferences.
+
+## OpenRouter request management — 13 October 2026
+
+- Pass session IDs into OpenRouter requests for better management, and follow applicable official integration best practices. Keep related conversation/tool requests grouped under the saved chat identity and audit the transport beyond chat alone.
 
 ## Mobile tab headers and scrolling — 13 October 2026
 

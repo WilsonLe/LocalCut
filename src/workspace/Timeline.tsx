@@ -9,6 +9,7 @@ import {
 import { loopDurationUs } from '../core/speed';
 import { frameTimeUs } from '../core/frame-time';
 import { TrackMenu } from './TrackMenu';
+import { TimelineOverlap } from './TimelineOverlap';
 import type { TrackOperationScope } from './TrackMenu';
 import type { EditOperation } from '../editor';
 import { trackName } from '../core/timeline';
@@ -1334,21 +1335,14 @@ export function Timeline(props: Props) {
                                 t.fromClipId === pair.fromClipId &&
                                 t.toClipId === pair.toClipId,
                             );
-                            const label = transition
-                              ? TRANSITION_TEMPLATES.find(
-                                  (t) =>
-                                    t.id ===
-                                    (transition.templateId ?? transition.kind),
-                                )?.label
-                              : 'Overlap';
                             return (
-                              <button
-                                type="button"
+                              <TimelineOverlap
                                 key={pair.fromClipId + ':' + pair.toClipId}
-                                className="timeline-overlap"
-                                aria-label={`${label} transition overlap`}
-                                title={`${label} · ${formatTime(pair.endUs - pair.startUs)}`}
-                                aria-pressed={
+                                project={project}
+                                pair={pair}
+                                transition={transition}
+                                disabled={!!busy || !!track.locked}
+                                selected={
                                   selected.includes(pair.fromClipId) &&
                                   selected.includes(pair.toClipId)
                                 }
@@ -1356,15 +1350,14 @@ export function Timeline(props: Props) {
                                   left: `${(pair.startUs / total) * 100}%`,
                                   width: `${((pair.endUs - pair.startUs) / total) * 100}%`,
                                 }}
-                                onClick={() =>
+                                onSelect={() =>
                                   props.onSelectOverlap(
                                     pair.fromClipId,
                                     pair.toClipId,
                                   )
                                 }
-                              >
-                                {label}
-                              </button>
+                                onOperation={props.onTrackOperation}
+                              />
                             );
                           })}
                     </div>

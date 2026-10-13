@@ -104,6 +104,8 @@ pnpm lint
 pnpm format:check
 ```
 
+For overlap cues and contextual transition actions, run `pnpm test tests/unit/timeline-features.test.ts tests/unit/assistant.test.ts`, then `pnpm test:ui --grep 'timeline overlap context menu|timeline audio separation'`. These cover visual span/icon state, exact-pair edits independent of selection, mouse/keyboard/touch menus, cancelled holds, locked/stale actions, shared recipes, history, reload and both static bases. The gesture/menu state adds no assistant API; authored transitions retain the existing shared operations and discovery. Native media/inference owners are unchanged.
+
 For audio separation, groups and transition recipes, run `pnpm test tests/unit/timeline-features.test.ts`. The production scenario `pnpm test:ui --grep 'timeline audio|native separated'` covers selection and grouping, all template previews, native audio equivalence, MP4/WebM outputs, persistence and both static paths.
 
 For workspace changes, use `pnpm dev` for interactive work, then run the matching production UI scenario:
@@ -269,6 +271,15 @@ Use `pnpm test tests/unit/audio-effects-window.test.ts tests/unit/creative-effec
 For named OPFS folders, library revisions and assistant scope, start with `pnpm test tests/unit/media-library.test.ts tests/unit/assistant.test.ts`. Run `pnpm test:ui --grep 'workspace media folders upload|folder drop traversal|media select-all'` for directory picker hierarchy, empty directory drop, folder navigation, pointer moves, focused media select-all/clearing and native input guards, rename, folder download, Trash/Restore, narrow layout, reload and independence from timeline references at both bases. After current production builds, run `pnpm test:browser tests/browser/media-folders.spec.ts tests/browser/project-media-roots.spec.ts` for project isolation/migration and actual OPFS readback, recursive copy/move/rename, collisions/invalid paths, stale/concurrent changes, journal recovery and retained native preview/MP4 sources. These checks exercise local organization; no provider/native computer-folder access is involved.
 
 ## OpenRouter context checks
+
+For request session IDs, attribution and accounting, run:
+
+```sh
+pnpm test tests/unit/openrouter.test.ts tests/unit/openrouter-protocol.test.ts tests/unit/openrouter-auth.test.ts tests/unit/openrouter-credentials.test.ts tests/unit/providers.test.ts tests/unit/assistant.test.ts tests/unit/chat-title.test.ts tests/unit/chat-persistence.test.ts tests/unit/asset-index-provider.test.ts tests/unit/asset-indexer-capture.test.ts tests/unit/speech.test.ts
+pnpm test:ui --grep 'chat continuation remembers|chat title runs|chat readiness|TTS connector|text to speech queues retries'
+```
+
+These cover stable chat/tool/title identities, independent forks and direct operations, queued speech ownership, local reload, index-run grouping, invalid-ID rejection, multipart headers, app attribution, generation IDs, detailed accounting and existing auth/cancellation boundaries. Provider interception establishes transport, not live OpenRouter receipt or cache savings. The [documentation audit](ai.md#request-management-and-documentation-audit) records adopted and deferred recommendations. No local transcription preparation, PCM or rendering owner changes; their native gates remain separate.
 
 For connection terms, automatic context sharing and legacy chat migration:
 

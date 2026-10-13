@@ -35,6 +35,8 @@ export type ChatMessage =
   | AssistantMessage
   | { role: 'tool'; content: string; tool_call_id: string };
 export interface ChatRequest {
+  /** Opaque workflow identity for OpenRouter grouping and sticky routing (max 256 characters). */
+  sessionId?: string;
   model: string;
   messages: ChatMessage[];
   tools: ToolDefinition[];
@@ -46,6 +48,9 @@ export interface Usage {
   completionTokens: number;
   totalTokens: number;
   cost?: number;
+  cachedTokens?: number;
+  cacheWriteTokens?: number;
+  reasoningTokens?: number;
 }
 export type ProviderEvent =
   | { type: 'text'; text: string }
@@ -54,6 +59,7 @@ export type ProviderEvent =
       message: AssistantMessage;
       usage?: Usage;
       model?: string;
+      generationId?: string;
     };
 export interface OpenRouterModel {
   id: string;
@@ -82,6 +88,7 @@ export interface SpeechReference {
   transcript: string;
 }
 export interface SpeechRequest {
+  sessionId?: string;
   model: string;
   script: string;
   voice: string;
@@ -115,7 +122,12 @@ export interface OpenRouterClient {
   ): Promise<SpeechAudio>;
   /** Optional timestamp-capable OpenRouter STT, explicitly selected. */
   transcribeSpeech?(
-    request: { model: string; audio: Float32Array; language?: string },
+    request: {
+      model: string;
+      audio: Float32Array;
+      language?: string;
+      sessionId?: string;
+    },
     signal: AbortSignal,
   ): Promise<{ text: string; timestamp: [number, number] }[]>;
   stream(
@@ -148,6 +160,7 @@ export interface OpenRouter extends OpenRouterClient {
   ): Promise<ConnectionStatus & { sanitizedCallbackUrl: string }>;
 }
 export interface IndexLabelRequest {
+  sessionId?: string;
   model: string;
   prompt: string;
   media: { type: 'image/jpeg' | 'video/mp4' | 'audio/wav'; data: string }[];
@@ -158,6 +171,7 @@ export interface IndexLabelResult {
   text: string;
   model?: string;
   usage?: Usage;
+  generationId?: string;
 }
 export interface OpenRouterOptions {
   fetch?: typeof fetch;

@@ -192,7 +192,10 @@ describe('OpenRouter speech', () => {
   });
   it('reuses credentials and sends the verbatim script with multilingual delivery separately', async () => {
     const { client, fetch } = setup();
-    const audio = await client.synthesizeSpeech(request(), signal());
+    const audio = await client.synthesizeSpeech(
+      { ...request(), sessionId: 'speech-task-1' },
+      signal(),
+    );
     expect(audio.samples.length).toBe(24000);
     const [url, init] = fetch.mock.calls.at(-1)!;
     expect(url).toBe('https://openrouter.ai/api/v1/audio/speech');
@@ -202,7 +205,10 @@ describe('OpenRouter speech', () => {
       referrerPolicy: 'no-referrer',
     });
     expect(init?.headers).toMatchObject({
-      Authorization: 'Bearer synthetic-private-key',
+      authorization: 'Bearer synthetic-private-key',
+      'x-session-id': 'speech-task-1',
+      'HTTP-Referer': 'https://wilsonle.github.io/LocalCut/',
+      'X-OpenRouter-Title': 'LocalCut',
     });
     const body = JSON.parse(String(init?.body));
     expect(body).toEqual({

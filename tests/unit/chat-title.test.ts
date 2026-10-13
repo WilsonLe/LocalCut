@@ -31,12 +31,14 @@ describe('chat title generation', () => {
         provider: client,
         model: 'configured/model',
         message: 'Edit my beach trip',
+        sessionId: 'chat-1',
         signal,
       }),
     ).resolves.toBe('Beach trip highlights');
     expect(client.stream).toHaveBeenCalledWith(
       expect.objectContaining({
         model: 'configured/model',
+        sessionId: 'chat-1',
         tools: [],
         messages: [
           { role: 'system', content: expect.any(String) },
