@@ -112,7 +112,17 @@ for (const base of ['/', '/LocalCut/']) {
     await expect.poll(position).toBeCloseTo(boundary, 0);
     await left.click();
     await expect.poll(position).toBe(0);
+    await expect(left).toHaveCount(0);
+    // Removing the focused arrow schedules Base UI's popup focus on the next
+    // frame. Let that restoration finish before assigning keyboard ownership.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
     await region.focus();
+    await expect(region).toBeFocused();
     await page.keyboard.press('ArrowRight');
     await expect.poll(position).toBeGreaterThan(0);
     const bounds = (await pages.boundingBox())!;
