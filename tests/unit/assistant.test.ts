@@ -2086,7 +2086,7 @@ describe('headless assistant boundaries', () => {
     });
     expect(f.editor.assets.inspect).not.toHaveBeenCalled();
     expect(a.snapshot().proposals).toEqual([]);
-    expect(a.snapshot().historyTurns).toBe(0);
+    expect(a.snapshot().historyTurns).toBe(1);
     await a.dispose();
   });
   it.each(['cancelled', 'incomplete'] as const)(
@@ -7391,6 +7391,91 @@ describe('immutable conversation continuity', () => {
       await a.dispose();
     }
   });
+
+  it.each([
+    'INSUFFICIENT_CREDITS',
+    'PROVIDER_REFUSAL',
+    'INVALID_RESPONSE',
+    'CONTEXT_LIMIT',
+    'TOOL_LIMIT',
+    'RESPONSE_LIMIT',
+  ] as const)(
+    'preserves supplied context and successful reads after terminal %s through Send and reload',
+    async (code) => {
+      const f = fixture();
+      const requests: ChatRequest[] = [];
+      let round = 0;
+      const p = {
+        async *stream(request: ChatRequest) {
+          requests.push(structuredClone(request));
+          if (round++ === 0) yield final('', [call('inspect_project', {})]);
+          else if (round === 2) throw new AiError(code, 'Terminal failure');
+          else yield final('Recovered with the original inspection');
+        },
+      };
+      const a = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test/model',
+        execution: 'requested',
+      });
+      const events: AssistantEvent[] = [];
+      a.subscribe((event) => events.push(event));
+      let reloaded: ReturnType<typeof createAssistant> | undefined;
+      try {
+        const prompt = 'Inspect this project before choosing the next edit';
+        const turn = a.run(prompt);
+        await expect(turn.completion).rejects.toMatchObject({ code });
+        const continuation = events.find(
+          (event) => event.type === 'continuation',
+        );
+        expect(continuation?.type).toBe('continuation');
+        if (continuation?.type !== 'continuation')
+          throw new Error('Missing history');
+        const frozen = structuredClone(continuation.context.exchange!);
+        const originalReply = requests[1]!.messages.find(
+          (message) => message.role === 'tool',
+        )!;
+        expect(frozen).toContainEqual(originalReply);
+        expect(frozen).toContainEqual(requests[0]!.messages[1]);
+        expect(frozen).toContainEqual(requests[1]!.messages[1]);
+        expect(frozen).toContainEqual({ role: 'user', content: prompt });
+        const saved = savedInterruptedTurn(
+          events,
+          turn.id,
+          prompt,
+          a.snapshot(),
+        );
+        saved.content.messages[1]!.status = 'failed';
+        await a.run('Now continue with the inspection').completion;
+        expect(requests.at(-1)!.messages.slice(2, 2 + frozen.length)).toEqual(
+          frozen,
+        );
+        const reloadProvider = provider([[final('Still remembered')]], false);
+        reloaded = createAssistant({
+          editor: f.editor,
+          provider: reloadProvider,
+          projectId: f.project().id,
+          model: 'test/model',
+          execution: 'requested',
+          restoredTurns: restoredChatTurns(saved.content.messages),
+        });
+        await reloaded.run('Continue after reload').completion;
+        expect(
+          reloadProvider.requests[0]!.messages.slice(2, 2 + frozen.length),
+        ).toEqual(frozen);
+        expect(
+          JSON.parse(reloadProvider.requests[0]!.messages[1]!.content!)
+            .capabilityMap.loadedSkills,
+        ).toEqual([]);
+        expect(f.editor.commands.apply).not.toHaveBeenCalled();
+      } finally {
+        await reloaded?.dispose();
+        await a.dispose();
+      }
+    },
+  );
 
   it('rejects malformed historical protocol without executing or restoring tool authority', () => {
     const f = fixture();

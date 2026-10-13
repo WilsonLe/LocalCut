@@ -1808,18 +1808,7 @@ export function createAssistant(options: AssistantOptions) {
         const safe = signal.aborted
           ? new AiError('CANCELLED', 'Assistant turn cancelled.')
           : localError(error);
-        if (
-          !disposed &&
-          ([
-            'CANCELLED',
-            'NETWORK_ERROR',
-            'TIMEOUT',
-            'RATE_LIMITED',
-            'PROVIDER_UNAVAILABLE',
-            'RESPONSE_INCOMPLETE',
-          ].includes(safe.code) ||
-            staged.some((proposal) => proposals.get(proposal.id)?.result))
-        ) {
+        if (!disposed) {
           // Preserve supplied messages and close unfinished calls. A commit can
           // win before its tool reply arrives; append its confirmed receipt.
           const completed = staged.flatMap((proposal) => {
