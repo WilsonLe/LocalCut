@@ -225,9 +225,12 @@ for (const base of ['/', '/LocalCut/']) {
           await page.locator('.timeline-clip[aria-pressed="true"]').count(),
         ).toBe(selected);
         await playhead.focus();
+        // Playback can reach the endpoint under load. Seek from a known frame.
+        await page.keyboard.press('Home');
+        await expect(playhead).toHaveAttribute('aria-valuenow', '0');
         await page.keyboard.press('End');
         const scrubbed = await playhead.getAttribute('aria-valuenow');
-        expect(Number(scrubbed)).toBeGreaterThan(Number(stopped));
+        expect(Number(scrubbed)).toBeGreaterThan(0);
         await page
           .getByRole('button', { name: 'Open project', exact: true })
           .click();
