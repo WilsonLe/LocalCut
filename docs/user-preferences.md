@@ -2,11 +2,18 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Plain text goals, to-dos and reviews — 14 October 2026
+
+- Return and retain goals, to-dos and completion assessments as ordinary text values. Do not enforce headings, checkbox syntax, JSON shapes, completion keywords or extract meaning from their content in application code. Formatting belongs in agent instructions and is advisory.
+- Pass those texts verbatim into the main agent runtime. Let the main agent use them to decide what to do or whether to finish; keep action authority, cancellation, caller budgets and receipt preservation in their existing owners.
+- Display the text in session popovers, history and completion details. Markdown rendering belongs only to the client; ordinary prose and literal markup must remain readable. Preserve the same strings through reload, forks and exports.
+- This supersedes cleared-checklist gating, the FULFILLED completion marker and format-specific validation/repair. Retain the bounded completion-review lifecycle, without claiming a code-verified verdict from text.
+
 ## Persistent session goals, to-dos and quiet activity — 14 October 2026
 
 - Maintain one goal per chat session. Before each submitted message, a separate read-only agent updates the existing goal with the newest information; retain prior intent unless the user changes it. This supersedes defining a new goal for every request.
-- Use Markdown sections Goal, Success conditions and Stop conditions. Generate a Markdown task checklist after the first goal, refresh it asynchronously after every execution iteration, and revisit both at the next iteration and before stopping. Pursue the goal and a cleared checklist while retaining cancellation, real blockers and the existing completion-check safeguard.
-- Persist current goal/checklist and historical snapshots with the chat, including reload and forks. Render them as Markdown in the history and in two icon-only chat-header popovers.
+- Suggest Markdown sections Goal, Success conditions and Stop conditions. Generate task notes after the first goal, refresh it asynchronously after every execution iteration, and revisit both at the next iteration and before stopping. Pursue the goal and required tasks while retaining cancellation, real blockers and the existing completion-check safeguard.
+- Persist current goal/checklist and historical snapshots with the chat, including reload and forks. Render Markdown when supplied, and otherwise display ordinary text, in the history and in two icon-only chat-header popovers.
 - Keep activity compact: defer sharing and action diagnostics to details, show loading with an icon and playful tooltip/accessibility wording, and retain cancellation and actionable errors.
 
 ## Immutable chat continuity — 13 October 2026

@@ -61,14 +61,9 @@ for (const base of behaviorBases) {
       review: [],
     };
     const contract =
-      '## Goal\nAdd overlay track and closing title.\n## Success conditions\n- The track contains the closing title.\n## Stop conditions\n- None';
+      'Add overlay track and closing title.\nSuccess means the title is present. Keep <direction> literal.';
     const updates: Record<string, unknown>[] = [];
     let todoUpdates = 0;
-    const todoRepairs: {
-      session_id: string;
-      messages: { content: string }[];
-    }[] = [];
-    let repairedAfterEdit = false;
     const payloads: Record<string, unknown>[] = [];
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
@@ -86,35 +81,11 @@ for (const base of behaviorBases) {
           sessions.review.push(request.session_id);
           expect(request.tool_choice).toBe('none');
           expect(request.tools).toBeUndefined();
-          if (parses === 1) {
-            await reply(
-              route,
-              '<｜DSML｜ calls><｜DSML｜ invoke name="inspect_capabilities"></｜DSML｜ calls>',
-            );
-            return;
-          }
           await reply(route, contract);
           return;
         }
         if (instruction.startsWith('LocalCut session to-dos:')) {
           todoUpdates++;
-          if (todoUpdates <= 2) {
-            todoRepairs.push(request);
-            if (todoUpdates === 1) {
-              await reply(route, 'I will add the requested overlay and title.');
-              return;
-            }
-            expect(request.messages.slice(0, 2)).toEqual(
-              todoRepairs[0]!.messages,
-            );
-            expect(request.session_id).toBe(todoRepairs[0]!.session_id);
-            expect(request.messages[2].content).toContain(
-              'Markdown task checklist',
-            );
-            expect(JSON.stringify(request)).not.toContain(
-              'I will add the requested overlay and title.',
-            );
-          }
           if (rejectTodos) {
             await route.fulfill({
               headers: cors,
@@ -129,6 +100,13 @@ for (const base of behaviorBases) {
             });
             return;
           }
+          if (exhausted) {
+            await reply(
+              route,
+              '## To-dos\n- [ ] Task notes: add the overlay track and closing title.',
+            );
+            return;
+          }
           expect(request.tool_choice).toBe('none');
           const data = JSON.parse(request.messages[1].content);
           const met =
@@ -138,14 +116,11 @@ for (const base of behaviorBases) {
                 track.id === 'checked-overlay' &&
                 track.clips.some((clip) => clip.id === 'checked-title'),
             );
-          if (met && !repairedAfterEdit) {
-            repairedAfterEdit = true;
-            await reply(route, 'The overlay and title are complete.');
-            return;
-          }
           await reply(
             route,
-            `## To-dos\n1. [${met ? 'x' : ' '}] Add overlay track and closing title`,
+            met
+              ? 'The overlay and title are complete. No checklist syntax.'
+              : 'Task notes: add the overlay track and closing title.',
           );
           return;
         }
@@ -180,12 +155,23 @@ for (const base of behaviorBases) {
           await reply(
             route,
             met
-              ? 'FULFILLED\nPersisted project and edit receipt show the overlay'
+              ? 'The persisted project and edit receipt support the requested outcome.'
               : `The overlay track is still missing.${exhausted ? '\nMissing required user information' : ''}`,
           );
           return;
         }
-        if (await fulfillChatTitle(route)) return;
+        if (
+          instruction.startsWith('Name this video-editing chat') &&
+          (await fulfillChatTitle(route))
+        )
+          return;
+        const context = JSON.parse(request.messages[1].content);
+        if (exhausted && context.completionDecision) {
+          await reply(route, undefined, [
+            { name: 'inspect_project', arguments: '{}' },
+          ]);
+          return;
+        }
         sessions.execution.push(request.session_id);
         executionRounds++;
         if (exhausted || executionRounds === 1) {
@@ -195,7 +181,6 @@ for (const base of behaviorBases) {
           );
           return;
         }
-        const context = JSON.parse(request.messages[1].content);
         expect(
           request.messages.some(
             (message: { role: string; content: string }) =>
@@ -338,12 +323,18 @@ for (const base of behaviorBases) {
     );
     await expect(
       response.getByRole('button', {
-        name: 'Completion verified · 2',
+        name: 'Completion reviewed · 2',
         exact: true,
       }),
     ).toBeVisible();
     expect(checks).toBe(2);
-    expect(parses).toBe(2);
+    expect(parses).toBe(1);
+    await expect(
+      page
+        .getByRole('article', { name: 'Assistant response' })
+        .last()
+        .getByRole('button', { name: 'Copy response', exact: true }),
+    ).toBeVisible();
     expect(editCalls).toBe(1);
     expect(titleCalls).toBe(1);
     expect(new Set(sessions.review).size).toBe(1);
@@ -356,7 +347,7 @@ for (const base of behaviorBases) {
       expect.arrayContaining([expect.objectContaining({ status: 'applied' })]),
     );
     await response
-      .getByRole('button', { name: 'Completion verified · 2', exact: true })
+      .getByRole('button', { name: 'Completion reviewed · 2', exact: true })
       .click();
     await expect(
       response.getByText('Session goal · completed', {
@@ -369,17 +360,17 @@ for (const base of behaviorBases) {
     await page
       .getByRole('button', { name: 'Session goal', exact: true })
       .click();
-    await expect(
-      page.locator('[data-slot="popover-content"] h4').first(),
-    ).toHaveText('Goal');
+    await expect(page.locator('[data-slot="popover-content"]')).toContainText(
+      contract,
+    );
     await page.keyboard.press('Escape');
     await expect(
       page.getByRole('button', { name: 'Session goal', exact: true }),
     ).toBeFocused();
     await page.getByRole('button', { name: 'To-dos', exact: true }).click();
-    await expect(
-      page.locator('[data-slot="popover-content"] input[type="checkbox"]'),
-    ).toBeChecked();
+    await expect(page.locator('[data-slot="popover-content"]')).toContainText(
+      'The overlay and title are complete. No checklist syntax.',
+    );
     await page.keyboard.press('Escape');
     await page.screenshot({
       path: testInfo.outputPath('completion-review.png'),
@@ -413,21 +404,18 @@ for (const base of behaviorBases) {
       .last();
     await expect(
       restored.getByRole('button', {
-        name: 'Completion verified · 2',
+        name: 'Completion reviewed · 2',
         exact: true,
       }),
     ).toBeVisible();
     await restored
-      .getByRole('button', { name: 'Completion verified · 2', exact: true })
+      .getByRole('button', { name: 'Completion reviewed · 2', exact: true })
       .click();
     await expect(restored.locator('[data-completion-review]')).toContainText(
       'Add overlay track and closing title.',
     );
     await expect(restored.locator('[data-completion-review]')).toContainText(
-      'FULFILLED',
-    );
-    await expect(restored.locator('[data-completion-review]')).toContainText(
-      'Persisted project and edit receipt show the overlay',
+      'The persisted project and edit receipt support the requested outcome.',
     );
     await page
       .getByRole('button', { name: 'Session goal', exact: true })
@@ -437,7 +425,7 @@ for (const base of behaviorBases) {
     );
     await page.keyboard.press('Escape');
     expect(checks).toBe(2);
-    expect(parses).toBe(2);
+    expect(parses).toBe(1);
     exhausted = true;
     checks = 0;
     await page
@@ -448,26 +436,24 @@ for (const base of behaviorBases) {
       .click();
     await expect(
       page.getByRole('article', { name: 'Assistant response' }).last(),
-    ).toContainText('Request unfinished after 3 completion checks');
+    ).toContainText('Request stopped after 3 completion checks');
     await expect(
       page.getByRole('button', {
-        name: 'Completion unfinished · 3',
+        name: 'Completion reviewed · 3',
         exact: true,
       }),
     ).toBeVisible();
     expect(checks).toBe(3);
-    expect(parses).toBe(3);
+    expect(parses).toBe(2);
     expect(updates.at(-1)?.existingGoal).toBe(contract);
     expect(todoUpdates).toBeGreaterThan(executionRounds);
-    expect(todoRepairs).toHaveLength(2);
-    expect(repairedAfterEdit).toBe(true);
     await page.setViewportSize({ width: 390, height: 844 });
     await page
       .getByRole('navigation', { name: 'Workspace sections' })
       .getByRole('button', { name: 'Chat', exact: true })
       .click();
     await page
-      .getByRole('button', { name: 'Completion unfinished · 3', exact: true })
+      .getByRole('button', { name: 'Completion reviewed · 3', exact: true })
       .click();
     await expect(
       page
@@ -477,6 +463,9 @@ for (const base of behaviorBases) {
     ).toContainText('Missing required user information');
     await page.getByRole('button', { name: 'To-dos', exact: true }).click();
     const popup = page.locator('[data-slot="popover-content"]');
+    await expect(popup).toContainText(
+      'Task notes: add the overlay track and closing title.',
+    );
     await expect(popup.locator('input[type="checkbox"]')).not.toBeChecked();
     const box = await popup.boundingBox();
     expect(box!.x).toBeGreaterThanOrEqual(0);
@@ -540,7 +529,7 @@ for (const base of behaviorBases) {
       .getByRole('article', { name: 'Assistant response' })
       .last();
     await legacy
-      .getByRole('button', { name: 'Completion verified · 3', exact: true })
+      .getByRole('button', { name: 'Completion reviewed · 3', exact: true })
       .click();
     await expect(legacy.locator('[data-completion-review]')).toContainText(
       'Legacy overlay goal',
@@ -552,7 +541,7 @@ for (const base of behaviorBases) {
       'Legacy persisted receipt',
     );
     expect(checks).toBe(3);
-    expect(parses).toBe(3);
+    expect(parses).toBe(2);
 
     // A provider completion rejection preserves the generated answer and edit;
     // reload and primary Retry resume the same request without applying again.
@@ -607,7 +596,13 @@ for (const base of behaviorBases) {
       page
         .getByRole('article', { name: 'Assistant response' })
         .last()
-        .getByRole('button', { name: 'Completion verified · 1', exact: true }),
+        .getByRole('button', { name: 'Completion reviewed · 1', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole('article', { name: 'Assistant response' })
+        .last()
+        .getByRole('button', { name: 'Copy response', exact: true }),
     ).toBeVisible();
     expect(editCalls).toBe(1);
     expect(titleCalls).toBe(1);
@@ -652,7 +647,13 @@ for (const base of behaviorBases) {
       page
         .getByRole('article', { name: 'Assistant response' })
         .last()
-        .getByRole('button', { name: 'Completion verified · 1', exact: true }),
+        .getByRole('button', { name: 'Completion reviewed · 1', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole('article', { name: 'Assistant response' })
+        .last()
+        .getByRole('button', { name: 'Copy response', exact: true }),
     ).toBeVisible();
     expect(editCalls).toBe(1);
     expect(executionRejections).toBe(1);
@@ -692,7 +693,13 @@ for (const base of behaviorBases) {
       page
         .getByRole('article', { name: 'Assistant response' })
         .last()
-        .getByRole('button', { name: 'Completion verified · 1', exact: true }),
+        .getByRole('button', { name: 'Completion reviewed · 1', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole('article', { name: 'Assistant response' })
+        .last()
+        .getByRole('button', { name: 'Copy response', exact: true }),
     ).toBeVisible();
     expect(editCalls).toBe(1);
   });

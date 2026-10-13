@@ -344,7 +344,10 @@ for (const base of behaviorBases) {
     expect(result.outcomes).toEqual(
       ['long', 'rounds', 'calls', 'overflow'].map((scenario) => ({
         scenario,
-        text: 'Track pending approval. Request the next step when ready.',
+        text:
+          scenario === 'long'
+            ? 'Track pending approval. Request the next step when ready.'
+            : 'Request stopped after 1 completion check. The scripted outcome is supported by the supplied evidence.',
         proposals: 1,
         status: 'pending',
         operations: scenario === 'long' ? 1001 : 1,

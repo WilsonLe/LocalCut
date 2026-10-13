@@ -1730,6 +1730,9 @@ describe('headless assistant boundaries', () => {
       'session_goal',
       'tool',
       'tool',
+      'tool',
+      'tool',
+      'session_goal',
       'completed',
       'state',
     ]);
@@ -6022,8 +6025,8 @@ describe('requested chat execution', () => {
     });
     const result = await a.run('Index').completion;
     expect(result.completion).toMatchObject({
-      status: 'unfulfilled',
-      checks: 3,
+      status: 'reviewed',
+      checks: 1,
     });
     expect(execute).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(p.requests.at(-1))).toContain(
@@ -7670,7 +7673,7 @@ describe('request completion review sessions', () => {
     status: 'met' | 'unmet' | 'unknown',
     stopReason: string | null = null,
   ) =>
-    `${status === 'met' ? 'FULFILLED' : 'Remaining work'}\n${status === 'met' ? 'Current state and confirmed receipt match' : 'Requested work is missing: Move video to one second and answer the request.'}${stopReason ? `\n${stopReason}` : ''}`;
+    `${status === 'met' ? 'The supplied evidence supports the outcome.' : 'Remaining work'}\n${status === 'met' ? 'Current state and confirmed receipt match' : 'Requested work is missing: Move video to one second and answer the request.'}${stopReason ? `\n${stopReason}` : ''}`;
   function reviewedProvider(
     execution: ProviderEvent[][],
     reviews: string[] = [verdict('met')],
@@ -7704,7 +7707,23 @@ describe('request completion review sessions', () => {
           };
         else if (instruction.startsWith('LocalCut completion review:'))
           yield final(reviews.shift() ?? verdict('unknown'));
-        else yield* execution.shift() ?? [final('Done')];
+        else {
+          const context = JSON.parse(request.messages[1]!.content!);
+          const next = execution[0]?.find((event) => event.type === 'complete');
+          if (
+            context.completionDecision &&
+            !(next?.type === 'complete' && next.message.tool_calls?.length)
+          ) {
+            yield final(
+              [...request.messages]
+                .reverse()
+                .find(
+                  (message) =>
+                    message.role === 'assistant' && !message.tool_calls?.length,
+                )?.content ?? 'Done',
+            );
+          } else yield* execution.shift() ?? [final('Done')];
+        }
       },
     };
     return p;
@@ -7754,7 +7773,11 @@ describe('request completion review sessions', () => {
           kind(p, 'LocalCut request contract:')[1]!.messages[1]!.content!,
         ).existingGoal,
       ).toBe(firstGoal.goal);
-      const executions = p.requests.filter((r) => r.tools.length);
+      const executions = p.requests.filter(
+        (r) =>
+          r.tools.length &&
+          !JSON.parse(r.messages[1]!.content!).completionDecision,
+      );
       expect(JSON.parse(executions[1]!.messages[1]!.content!)).toMatchObject({
         requestContract: expect.stringContaining('Persistent goal 2'),
         sessionTodos: expect.stringContaining('- [ ]'),
@@ -7794,15 +7817,11 @@ describe('request completion review sessions', () => {
     }
   });
 
-  it('joins asynchronous checklist updates before the next iteration and refuses fulfilled reviews with unchecked work', async () => {
-    const p = reviewedProvider(
-      [
-        [final('', [call('inspect_project', {})])],
-        [final('Premature')],
-        [final('Complete')],
-      ],
-      [verdict('met'), verdict('met')],
-    );
+  it('joins asynchronous to-do text before the next iteration without requiring checkboxes', async () => {
+    const p = reviewedProvider([
+      [final('', [call('inspect_project', {})])],
+      [final('Complete')],
+    ]);
     const original = p.stream;
     const entered = deferred<void>();
     const gate = deferred<void>();
@@ -7812,136 +7831,92 @@ describe('request completion review sessions', () => {
         request.messages[0]?.content?.startsWith('LocalCut session to-dos:')
       ) {
         p.requests.push(structuredClone(request));
-        const iteration = ++updates;
-        if (iteration === 2) {
+        if (++updates === 2) {
           entered.resolve();
           await gate.promise;
         }
         yield final(
-          `## To-dos\n- [${iteration >= 4 ? 'x' : ' '}] Finish required work`,
+          'Task notes: inspect current state and answer. No checkbox syntax.',
         );
       } else yield* original(request);
     };
     const f = make(p);
     try {
-      const turn = f.assistant.run('Inspect and complete required work');
+      const turn = f.assistant.run('Inspect and answer');
       await entered.promise;
       expect(p.requests.filter((r) => r.tools.length)).toHaveLength(1);
       gate.resolve();
       const result = await turn.completion;
       expect(result.text).toBe('Complete');
-      expect(result.completion.checks).toBe(2);
-      expect(kind(p, 'LocalCut completion review:')).toHaveLength(2);
-      const correction = p.requests.filter((r) => r.tools.length).at(-1)!;
-      expect(
-        JSON.parse(correction.messages[1]!.content!).completionReview,
-      ).toContain('Required to-dos remain unchecked');
-      expect(f.assistant.snapshot().sessionGoal?.todos).toContain('- [x]');
+      expect(result.completion).toMatchObject({
+        status: 'reviewed',
+        checks: 1,
+      });
+      const execution = p.requests.filter((r) => r.tools.length);
+      expect(JSON.parse(execution[1]!.messages[1]!.content!).sessionTodos).toBe(
+        'Task notes: inspect current state and answer. No checkbox syntax.',
+      );
+      expect(f.assistant.snapshot().sessionGoal?.todos).toBe(
+        'Task notes: inspect current state and answer. No checkbox syntax.',
+      );
     } finally {
       gate.resolve();
       await f.assistant.dispose();
     }
   });
 
-  it.each(['initial', 'after edit'])(
-    'repairs a missing checklist %s without replaying edits',
-    async (phase) => {
-      const p = reviewedProvider([
-        [final('', [call('load_skill', { skillId: 'editing' })])],
-        [proposal()],
-        [final('Moved and answered')],
-      ]);
-      const original = p.stream;
-      const attempts: ChatRequest[] = [];
-      let repaired = false;
-      p.stream = async function* (request) {
-        if (
-          request.messages[0]?.content?.startsWith(
-            'LocalCut session to-dos:',
-          ) &&
-          (phase === 'initial' || f.project().revision > 0) &&
-          !repaired
-        ) {
-          attempts.push(structuredClone(request));
-          if (attempts.length === 1) {
-            yield final('The requested work has been considered.');
-            return;
-          }
-          repaired = true;
-        }
-        yield* original(request);
-      };
-      const f = make(p);
-      const events: AssistantEvent[] = [];
-      f.assistant.subscribe((event) => events.push(event));
-      try {
-        const result = await f.assistant.run('Move and answer').completion;
-        expect(result.completion.status).toBe('fulfilled');
-        expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
-        expect(attempts).toHaveLength(2);
-        expect(attempts[1]!.messages.slice(0, 2)).toEqual(
-          attempts[0]!.messages,
-        );
-        expect(attempts[1]!.sessionId).toBe(attempts[0]!.sessionId);
-        expect(attempts[1]!.tools).toEqual([]);
-        expect(JSON.stringify(attempts[1])).not.toContain(
-          'The requested work has been considered.',
-        );
-        expect(
-          events.filter(
-            (e) =>
-              e.type === 'tool' &&
-              e.name === 'session_todos' &&
-              e.phase === 'failed',
-          ),
-        ).toEqual([]);
-        expect(
-          events
-            .filter((e) => e.type === 'session_goal')
-            .map((e) => JSON.stringify(e))
-            .join('\n'),
-        ).not.toContain('The requested work has been considered.');
-      } finally {
-        await f.assistant.dispose();
-      }
-    },
-  );
-
-  it('exhausts malformed post-edit checklists with staged diagnostics and retains the last valid checklist', async () => {
+  it('passes goal, task and assessment text verbatim to the main agent, which can continue despite completion-looking text', async () => {
+    const goal = '  A goal without sections.\nKeep <direction> literal.\n';
+    const todos = 'Notes without checkboxes: move the clip, then explain.';
+    const assessment =
+      'FULFILLED\nThis token is ordinary text; the clip still needs moving.';
     const p = reviewedProvider([
+      [final('A premature answer')],
       [final('', [call('load_skill', { skillId: 'editing' })])],
       [proposal()],
-      [final('Must not run')],
+      [final('Moved and answered')],
     ]);
     const original = p.stream;
-    let attempts = 0;
-    let lastValid = '';
     p.stream = async function* (request) {
-      if (
-        request.messages[0]?.content?.startsWith('LocalCut session to-dos:')
-      ) {
+      const instruction = request.messages[0]?.content ?? '';
+      if (instruction.startsWith('LocalCut request contract:')) {
         p.requests.push(structuredClone(request));
-        if (f.project().revision > 0) {
-          lastValid = JSON.parse(request.messages[1]!.content!).existingTodos;
-          attempts++;
-          yield final('No checklist');
-        } else yield final('## To-dos\n- [ ] Move and answer');
+        yield final(goal);
+      } else if (instruction.startsWith('LocalCut session to-dos:')) {
+        p.requests.push(structuredClone(request));
+        yield final(todos);
+      } else if (instruction.startsWith('LocalCut completion review:')) {
+        p.requests.push(structuredClone(request));
+        yield final(assessment);
       } else yield* original(request);
     };
     const f = make(p);
+    const events: AssistantEvent[] = [];
+    f.assistant.subscribe((event) => events.push(event));
     try {
-      await expect(
-        f.assistant.run('Move and answer').completion,
-      ).rejects.toMatchObject({
-        code: 'INVALID_RESPONSE',
-        details: { stage: 'session_todos', reason: 'reviewer_checklist' },
+      const result = await f.assistant.run('Move and explain').completion;
+      expect(result.text).toBe('Moved and answered');
+      expect(result.completion).toMatchObject({
+        status: 'reviewed',
+        checks: 2,
+        contract: goal,
+        verdict: assessment,
       });
-      expect(attempts).toBe(3);
       expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
-      expect(lastValid).toContain('- [ ]');
-      expect(f.assistant.snapshot().sessionGoal?.todos).toBe(lastValid);
-      expect(p.requests.filter((r) => r.tools.length)).toHaveLength(2);
-      expect(kind(p, 'LocalCut completion review:')).toHaveLength(0);
+      const decision = p.requests.find(
+        (r) =>
+          !r.messages[0]?.content?.startsWith('LocalCut ') &&
+          JSON.parse(r.messages[1]!.content!).completionDecision,
+      )!;
+      expect(JSON.parse(decision.messages[1]!.content!)).toMatchObject({
+        requestContract: goal,
+        sessionTodos: todos,
+        completionReview: assessment,
+      });
+      expect(
+        events.filter((e) => e.type === 'tool' && e.phase === 'failed'),
+      ).toEqual([]);
+      expect(f.assistant.snapshot().sessionGoal).toEqual({ goal, todos });
     } finally {
       await f.assistant.dispose();
     }
@@ -7984,7 +7959,7 @@ describe('request completion review sessions', () => {
   });
 
   it.each(['contract', 'review'])(
-    'recovers tool markup in %s without replaying a completed edit',
+    'retains protocol-looking %s text without executing or repairing it',
     async (phase) => {
       const p = reviewedProvider([
         [final('', [call('load_skill', { skillId: 'editing' })])],
@@ -7992,8 +7967,8 @@ describe('request completion review sessions', () => {
         [final('Moved and answered')],
       ]);
       const original = p.stream;
-      let malformed = false;
       const attempts: ChatRequest[] = [];
+      const value = '<tool_call>inspect_capabilities</tool_call>';
       p.stream = async function* (request) {
         const marker =
           phase === 'contract'
@@ -8001,31 +7976,20 @@ describe('request completion review sessions', () => {
             : 'LocalCut completion review:';
         if (request.messages[0]?.content?.startsWith(marker)) {
           attempts.push(structuredClone(request));
-          if (!malformed) {
-            malformed = true;
-            yield final(
-              '<｜DSML｜ calls><｜DSML｜ invoke name="inspect_capabilities"></｜DSML｜ calls>',
-            );
-            return;
-          }
-        }
-        yield* original(request);
+          yield final(value);
+        } else yield* original(request);
       };
       const f = make(p);
       try {
         const result = await f.assistant.run('Move and answer').completion;
         expect(result.completion).toMatchObject({
-          status: 'fulfilled',
+          status: 'reviewed',
           checks: 1,
-          contract,
+          [phase === 'contract' ? 'contract' : 'verdict']: value,
         });
         expect(result.text).toBe('Moved and answered');
         expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
-        expect(attempts).toHaveLength(2);
-        expect(attempts[1]!.messages.slice(0, 2)).toEqual(
-          attempts[0]!.messages,
-        );
-        expect(JSON.stringify(attempts[1])).not.toContain('<｜DSML｜');
+        expect(attempts).toHaveLength(1);
       } finally {
         await f.assistant.dispose();
       }
@@ -8136,7 +8100,7 @@ describe('request completion review sessions', () => {
     }
   });
 
-  it('parses every request, uses a separate review identity, and stops at the first fulfilled check', async () => {
+  it('updates every goal and uses a separate assessment identity before main-agent finalization', async () => {
     const p = reviewedProvider(
       [[final('Answer')], [final('Next answer')]],
       [verdict('met'), verdict('met')],
@@ -8145,11 +8109,11 @@ describe('request completion review sessions', () => {
     const first = await f.assistant.run('Initial request').completion;
     const second = await f.assistant.run('Follow-up request').completion;
     expect(first.completion).toMatchObject({
-      status: 'fulfilled',
+      status: 'reviewed',
       checks: 1,
       contract,
     });
-    expect(second.completion.status).toBe('fulfilled');
+    expect(second.completion.status).toBe('reviewed');
     const parses = kind(p, 'LocalCut request contract:');
     const checks = kind(p, 'LocalCut completion review:');
     expect(parses).toHaveLength(2);
@@ -8192,7 +8156,7 @@ describe('request completion review sessions', () => {
       'Move the video to one second and explain the change',
     ).completion;
     expect(result.text).toBe('Moved and answered');
-    expect(result.completion).toMatchObject({ status: 'fulfilled', checks: 2 });
+    expect(result.completion).toMatchObject({ status: 'reviewed', checks: 2 });
     expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
     expect(f.project().revision).toBe(1);
     const checks = kind(p, 'LocalCut completion review:');
@@ -8300,7 +8264,7 @@ describe('request completion review sessions', () => {
     const result = await f.assistant.run(
       'Move the video to one second, fade it in and put the title at three seconds',
     ).completion;
-    expect(result.completion).toMatchObject({ status: 'fulfilled', checks: 2 });
+    expect(result.completion).toMatchObject({ status: 'reviewed', checks: 2 });
     expect(f.editor.commands.apply).toHaveBeenCalledTimes(3);
     expect(f.project().revision).toBe(3);
     expect(f.project().tracks[0]!.clips[0]).toMatchObject({
@@ -8324,7 +8288,7 @@ describe('request completion review sessions', () => {
         (request) =>
           JSON.parse(request.messages[1]!.content!).selectedProject.revision,
       ),
-    ).toEqual([0, 1, 2, 3]);
+    ).toEqual([0, 1, 2, 3, 3]);
     expect(
       execution.every(
         (request) =>
@@ -8354,8 +8318,8 @@ describe('request completion review sessions', () => {
     const result = await f.assistant.run('Move the video to one second')
       .completion;
     expect(result.completion).toMatchObject({
-      status: 'unfulfilled',
-      checks: 3,
+      status: 'reviewed',
+      checks: 2,
     });
     expect(f.editor.commands.apply).not.toHaveBeenCalled();
     expect(f.project().revision).toBe(0);
@@ -8365,9 +8329,15 @@ describe('request completion review sessions', () => {
     await f.assistant.dispose();
   });
 
-  it('yields an honest unfinished result after exactly three unsuccessful checks and retains it', async () => {
+  it('stops with the assessment after three checks while the main agent keeps choosing work', async () => {
     const p = reviewedProvider(
-      [[final('Done')], [final('Everything is done')], [final('All complete')]],
+      [
+        [final('Done')],
+        [final('', [call('inspect_project', {})])],
+        [final('Everything is done')],
+        [final('', [call('inspect_project', {})])],
+        [final('All complete')],
+      ],
       [
         verdict('unmet'),
         verdict('unknown'),
@@ -8379,12 +8349,10 @@ describe('request completion review sessions', () => {
     f.assistant.subscribe((e) => events.push(e));
     const result = await f.assistant.run('Move and answer').completion;
     expect(result.completion).toMatchObject({
-      status: 'unfulfilled',
+      status: 'limited',
       checks: 3,
     });
-    expect(result.text).toContain(
-      'Request unfinished after 3 completion checks',
-    );
+    expect(result.text).toContain('Request stopped after 3 completion checks');
     expect(result.text).toContain('Move video to one second');
     expect(result.text).not.toContain('All complete');
     expect(kind(p, 'LocalCut completion review:')).toHaveLength(3);
@@ -8411,7 +8379,7 @@ describe('request completion review sessions', () => {
     const f = make(p, { limits: { maxRounds: 1 } });
     const result = await f.assistant.run('Move the clip').completion;
     expect(result.completion).toMatchObject({
-      status: 'unfulfilled',
+      status: 'limited',
       checks: 1,
     });
     expect(result.text).toContain('Caller budget exhausted');
@@ -8459,26 +8427,33 @@ describe('request completion review sessions', () => {
   );
 
   it.each([
-    'The edit still needs work. Inspect the current track.',
-    '```text\nMore work is needed.\n```',
-    '{broken JSON is ordinary reviewer text',
-    'FULFILLED only after the missing edit is applied.',
+    'The current answer is supported.',
+    'No special verdict label.',
     'Not FULFILLED',
+    '{broken JSON is ordinary text',
+    '- [ ] User-owned Save remains',
   ])(
-    'accepts arbitrary review strings as feedback without format errors: %s',
+    'main agent consumes ordinary assessment text without host classification: %s',
     async (value) => {
-      const p = reviewedProvider([[final('Candidate')]], [value, value, value]);
+      const p = reviewedProvider([[final('Candidate')]], [value]);
       const f = make(p);
       try {
-        const result = await f.assistant.run('Move and answer').completion;
+        const result = await f.assistant.run('Answer').completion;
         expect(result.completion).toMatchObject({
-          status: 'unfulfilled',
-          checks: 3,
-          contract,
+          status: 'reviewed',
+          checks: 1,
           verdict: value,
         });
-        expect(result.text).toContain(value);
-        expect(kind(p, 'LocalCut completion review:')).toHaveLength(3);
+        expect(kind(p, 'LocalCut completion review:')).toHaveLength(1);
+        const decisions = p.requests.filter(
+          (r) =>
+            !r.messages[0]?.content?.startsWith('LocalCut ') &&
+            JSON.parse(r.messages[1]!.content!).completionDecision,
+        );
+        expect(decisions).toHaveLength(1);
+        expect(
+          JSON.parse(decisions[0]!.messages[1]!.content!).completionReview,
+        ).toBe(value);
         expect(f.editor.commands.apply).not.toHaveBeenCalled();
       } finally {
         await f.assistant.dispose();
@@ -8537,11 +8512,11 @@ describe('request completion review sessions', () => {
     f.assistant.subscribe((e) => events.push(e));
     const result = await f.assistant.run('Move and answer').completion;
     expect(result.usage).toMatchObject({
-      promptTokens: 10,
-      completionTokens: 15,
-      totalTokens: 25,
-      cost: 0.05,
-      cachedTokens: 5,
+      promptTokens: 14,
+      completionTokens: 21,
+      totalTokens: 35,
+      cost: 0.07,
+      cachedTokens: 7,
     });
     expect(
       events.some(
@@ -8557,6 +8532,7 @@ describe('request completion review sessions', () => {
       'session_todos',
       'session_todos',
       'completion_check',
+      'session_todos',
     ]);
     await f.assistant.dispose();
   });
@@ -8581,7 +8557,7 @@ describe('request completion review sessions', () => {
       const f = make(p);
       const result = await f.assistant.run('Move and answer').completion;
       expect(result.completion).toMatchObject({
-        status: 'fulfilled',
+        status: 'reviewed',
         checks: 1,
       });
       expect(attempts).toHaveLength(2);
@@ -8616,7 +8592,7 @@ describe('request completion review sessions', () => {
       try {
         const result = await f.assistant.run('Move and answer').completion;
         expect(result.completion).toMatchObject({
-          status: 'fulfilled',
+          status: 'reviewed',
           checks: 1,
           [phase === 'contract' ? 'contract' : 'verdict']: prose,
         });
@@ -8639,7 +8615,7 @@ describe('request completion review sessions', () => {
     },
   );
 
-  it('counts completed empty reviewer attempts and recovers with a frozen request', async () => {
+  it('accepts empty review text verbatim and accounts its single inference', async () => {
     const p = reviewedProvider([[final('Candidate')]]);
     const original = p.stream;
     const attempts: ChatRequest[] = [];
@@ -8663,23 +8639,23 @@ describe('request completion review sessions', () => {
     try {
       const result = await f.assistant.run('Move and answer').completion;
       expect(result.completion).toMatchObject({
-        status: 'fulfilled',
+        status: 'reviewed',
         checks: 1,
       });
-      expect(attempts).toHaveLength(2);
-      expect(attempts[1]).toEqual(attempts[0]);
+      expect(attempts).toHaveLength(1);
+      expect(result.completion.verdict).toBe('');
       expect(result.usage).toMatchObject({
-        promptTokens: 4,
-        completionTokens: 6,
-        totalTokens: 10,
-        cost: 0.02,
+        promptTokens: 2,
+        completionTokens: 3,
+        totalTokens: 5,
+        cost: 0.01,
       });
     } finally {
       await f.assistant.dispose();
     }
   });
 
-  it('cancels empty-response backoff without another reviewer request', async () => {
+  it('cancels transient inference backoff without another reviewer request', async () => {
     vi.useFakeTimers();
     const p = reviewedProvider([[final('Candidate')]]);
     const original = p.stream;
@@ -8690,8 +8666,8 @@ describe('request completion review sessions', () => {
         request.messages[0]?.content?.startsWith('LocalCut completion review:')
       ) {
         attempts++;
-        yield final('');
         returned.resolve();
+        throw new AiError('RATE_LIMITED', 'Transient');
       } else yield* original(request);
     };
     const f = make(p);
@@ -8722,12 +8698,12 @@ describe('request completion review sessions', () => {
         yield final('x'.repeat(600));
       } else yield* original(request);
     };
-    const f = make(p, { limits: { maxOutputBytes: 1200 } });
+    const f = make(p, { limits: { maxOutputBytes: 700 } });
     try {
       await expect(
         f.assistant.run('Move and answer').completion,
       ).rejects.toMatchObject({ code: 'RESPONSE_LIMIT' });
-      expect(attempts).toBe(2);
+      expect(attempts).toBe(1);
     } finally {
       await f.assistant.dispose();
     }
@@ -8777,7 +8753,7 @@ describe('request completion review sessions', () => {
       expect(result.completion.contract).toBe(
         'Move and explain, asking for details if needed.',
       );
-      expect(result.completion.status).toBe('fulfilled');
+      expect(result.completion.status).toBe('reviewed');
     } finally {
       await f.assistant.dispose();
     }
@@ -8829,7 +8805,7 @@ describe('request completion review sessions', () => {
     ).toBe(false);
     await assistant.dispose();
   });
-  it('invalidates a fulfilled verdict when the project changes during its check', async () => {
+  it('requires a fresh assessment when the project changes during review', async () => {
     const p = reviewedProvider(
       [[final('Candidate')], [final('Current answer')]],
       [verdict('met'), verdict('met')],
@@ -8863,7 +8839,7 @@ describe('request completion review sessions', () => {
     const events: AssistantEvent[] = [];
     f.assistant.subscribe((e) => events.push(e));
     const result = await f.assistant.run('Move and answer').completion;
-    expect(result.completion).toMatchObject({ status: 'fulfilled', checks: 2 });
+    expect(result.completion).toMatchObject({ status: 'reviewed', checks: 2 });
     const first = events.find(
       (e) =>
         e.type === 'tool' &&
@@ -8874,9 +8850,7 @@ describe('request completion review sessions', () => {
       input: { contextChanged: true },
       result: verdict('met'),
     });
-    expect(JSON.stringify(p.requests)).toContain(
-      'Project or permitted source context changed during review.',
-    );
+    expect(JSON.stringify(p.requests)).toContain('reviewContextChanged');
     expect(result.text).toBe('Current answer');
     expect(f.project().tracks[0]!.clips[0]!.startUs).toBe(1e6);
     await f.assistant.dispose();
@@ -8972,7 +8946,7 @@ describe('request completion review sessions', () => {
       const result = await assistant.run('Rename the empty folder Shots')
         .completion;
       expect(result.completion).toMatchObject({
-        status: 'fulfilled',
+        status: 'reviewed',
         checks: 2,
       });
       expect(state.entries[0]!.name).toBe('Shots');

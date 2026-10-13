@@ -1,10 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  goalEvidence,
-  goalResponse,
-  clearedTodos,
-  validateTodos,
-} from '../../src/ai/goal-review';
+import { goalEvidence, goalResponse } from '../../src/ai/goal-review';
 import { AiError } from '../../src/ai/errors';
 import type { ChatRequest, ProviderEvent } from '../../src/ai/types';
 
@@ -49,78 +44,61 @@ function options(responses: (string | AiError | ProviderEvent)[]) {
   };
 }
 
-describe('tool-free reviewer boundary', () => {
+describe('text-only auxiliary responses', () => {
   it.each([
-    '<｜DSML｜ calls>\n<｜DSML｜ invoke name="inspect_capabilities">\n</｜DSML｜ calls>',
-    '<|tool_calls_section_begin|><|tool_call_begin|>functions.inspect_project',
+    'Just ordinary prose with no headings or checklist.',
+    '  ## Goal\nPreserve the entire response.\n- [ ] A note\n',
+    '{"tasks":["Finish"]}',
+    '```text\nNo particular verdict label.\n```',
     '<tool_call>{"name":"inspect_project"}</tool_call>',
-    'FULFILLED\n<function_call name="propose_edits">',
+    '<｜DSML｜ calls>historical looking text</｜DSML｜ calls>',
+    'FULFILLED only appears here as ordinary text.',
+    '',
+    ' \n ',
   ])(
-    'repairs serialized tool protocol without forwarding it: %s',
-    async (bad) => {
-      const o = options([bad, 'Goal: Continue the unfinished work.']);
-      expect(await goalResponse(o)).toBe('Goal: Continue the unfinished work.');
-      expect(o.requests).toHaveLength(2);
-      expect(o.requests[1]!.messages.slice(0, 2)).toEqual(request.messages);
-      expect(JSON.stringify(o.requests[1])).not.toContain(bad);
-      expect(o.requests[1]!.tools).toEqual([]);
-      expect(o.requests[1]!.sessionId).toBe(request.sessionId);
-      expect(o.accountUsage).toHaveBeenCalledTimes(2);
-      expect(request.messages).toHaveLength(2);
+    'returns text verbatim without content validation or repair: %s',
+    async (value) => {
+      const o = options([value]);
+      expect(await goalResponse(o)).toBe(value);
+      expect(o.requests).toHaveLength(1);
+      expect(o.requests[0]).toEqual(request);
+      expect(o.accountUsage).toHaveBeenCalledTimes(1);
     },
   );
 
-  it('repairs actual calls privately and stops after three attempts', async () => {
-    const call: ProviderEvent = {
-      type: 'complete',
-      message: {
-        role: 'assistant',
-        content: null,
-        tool_calls: [
-          {
-            id: 'bad',
-            type: 'function',
-            function: { name: 'apply', arguments: '{}' },
-          },
-        ],
+  it('rejects actual tool calls at the transport boundary without executing or content repair', async () => {
+    const o = options([
+      {
+        type: 'complete',
+        message: {
+          role: 'assistant',
+          content: 'Note',
+          tool_calls: [
+            {
+              id: 'bad',
+              type: 'function',
+              function: { name: 'apply', arguments: '{}' },
+            },
+          ],
+        },
       },
-    };
-    const o = options([call, call, call]);
+    ]);
     await expect(goalResponse(o)).rejects.toMatchObject({
       code: 'INVALID_RESPONSE',
-      details: { reason: 'reviewer_protocol' },
     });
-    expect(o.requests).toHaveLength(3);
-    expect(o.requests[1]).toEqual(o.requests[2]);
-    expect(
-      o.requests.every((r) => r.messages.every((m) => m.role !== 'tool')),
-    ).toBe(true);
+    expect(o.requests).toHaveLength(1);
+    expect(o.accountUsage).toHaveBeenCalledTimes(1);
   });
 
-  it('preserves arbitrary plain prose and Markdown without a JSON schema', async () => {
-    const prose =
-      '  ## Goal\nExplain why a tool failed.\n- Preserve the draft.\n';
-    expect(await goalResponse(options([prose]))).toBe(prose);
-  });
-
-  it('keeps malformed historical control tokens lossless but inert in reviewer evidence', () => {
-    const data = {
-      previousConversation: [
-        {
-          role: 'assistant',
-          content: '<｜DSML｜ calls> private historical observation',
-        },
-      ],
-      text: '<h1>Title</h1>',
-    };
-    const frozen = structuredClone(data);
+  it('keeps historical control tokens lossless but inert in reviewer evidence', () => {
+    const data = { text: '<h1>Title</h1>', observation: '<｜DSML｜ calls>' };
     const encoded = goalEvidence(data);
     expect(encoded).not.toContain('<');
-    expect(JSON.parse(encoded)).toEqual(frozen);
-    expect(data).toEqual(frozen);
+    expect(JSON.parse(encoded)).toEqual(data);
+    expect(data.text).toBe('<h1>Title</h1>');
   });
 
-  it('does not retry permanent HTTP errors and preserves safe diagnostics', async () => {
+  it('does not retry permanent provider errors', async () => {
     const o = options([
       new AiError('INVALID_REQUEST', 'Rejected', {
         status: 400,
@@ -133,8 +111,8 @@ describe('tool-free reviewer boundary', () => {
     expect(o.requests).toHaveLength(1);
   });
 
-  it('checks cancellation and caller context budgets before a repair request', async () => {
-    const cancelled = options(['<tool_call>inspect</tool_call>', 'Unused']);
+  it('honors cancellation and caller budgets without interpreting text', async () => {
+    const cancelled = options(['Ordinary text']);
     cancelled.accountUsage.mockImplementation(() =>
       cancelled.controller.abort(),
     );
@@ -142,111 +120,15 @@ describe('tool-free reviewer boundary', () => {
       code: 'CANCELLED',
     });
     expect(cancelled.requests).toHaveLength(1);
-    const bounded = options(['<tool_call>inspect</tool_call>', 'Unused']);
+    const bounded = options(['Unused']);
     await expect(
       goalResponse({
         ...bounded,
-        checkRequest: (r) => {
-          if (r.messages.length > 2)
-            throw new AiError('CONTEXT_LIMIT', 'Caller budget');
+        checkRequest: () => {
+          throw new AiError('CONTEXT_LIMIT', 'Caller budget');
         },
       }),
     ).rejects.toMatchObject({ code: 'CONTEXT_LIMIT' });
-    expect(bounded.requests).toHaveLength(1);
+    expect(bounded.requests).toHaveLength(0);
   });
-});
-
-it('only clears a nonempty task list when every item is checked', () => {
-  expect(clearedTodos('## To-dos\n- [x] First\n- [X] Second')).toBe(true);
-  for (const text of [
-    '',
-    'All done',
-    '## To-dos',
-    '- [x] First\n- [ ] Blocked',
-    '- [ ] Needs Save',
-  ])
-    expect(clearedTodos(text)).toBe(false);
-});
-
-describe('private checklist repair', () => {
-  it.each(['All done', '## To-dos', '{"tasks":["Finish"]}', '- [x]'])(
-    'repairs missing task output: %s',
-    async (bad) => {
-      const o = options([bad, '## To-dos\n- [ ] Required work']);
-      expect(
-        await goalResponse({ ...o, validateResponse: validateTodos }),
-      ).toBe('## To-dos\n- [ ] Required work');
-      expect(o.requests).toHaveLength(2);
-      expect(o.requests[1]!.messages.slice(0, 2)).toEqual(request.messages);
-      expect(o.requests[1]!.messages.at(-1)!.content).toContain(
-        'Markdown task checklist',
-      );
-      expect(o.requests[1]!.tools).toEqual([]);
-      expect(o.requests[1]!.sessionId).toBe(request.sessionId);
-      expect(o.accountUsage).toHaveBeenCalledTimes(2);
-      expect(request.messages).toHaveLength(2);
-    },
-  );
-
-  it('shares the three-attempt ceiling with protocol repair and accounts for all attempts', async () => {
-    const o = options([
-      'All done',
-      '<tool_call>inspect</tool_call>',
-      'Still no tasks',
-    ]);
-    await expect(
-      goalResponse({ ...o, validateResponse: validateTodos }),
-    ).rejects.toMatchObject({
-      code: 'INVALID_RESPONSE',
-      details: { reason: 'reviewer_checklist' },
-    });
-    expect(o.requests).toHaveLength(3);
-    expect(o.accountUsage).toHaveBeenCalledTimes(3);
-    for (const r of o.requests) {
-      expect(r.messages.slice(0, 2)).toEqual(request.messages);
-      expect(r.tools).toEqual([]);
-      expect(r.messages.length).toBeLessThanOrEqual(3);
-    }
-  });
-
-  it('honors cancellation and context budgets before checklist repair', async () => {
-    const cancelled = options(['All done']);
-    cancelled.accountUsage.mockImplementation(() =>
-      cancelled.controller.abort(),
-    );
-    await expect(
-      goalResponse({ ...cancelled, validateResponse: validateTodos }),
-    ).rejects.toMatchObject({ code: 'CANCELLED' });
-    expect(cancelled.requests).toHaveLength(1);
-    const bounded = options(['All done']);
-    await expect(
-      goalResponse({
-        ...bounded,
-        validateResponse: validateTodos,
-        checkRequest: (r) => {
-          if (r.messages.length > 2)
-            throw new AiError('CONTEXT_LIMIT', 'Caller budget');
-        },
-      }),
-    ).rejects.toMatchObject({ code: 'CONTEXT_LIMIT' });
-    expect(bounded.requests).toHaveLength(1);
-  });
-
-  it.each([
-    '- [x] First\n+ [X] Second',
-    '1. [x] First\n2) [X] Second',
-    '*   [x]   First\n\t+\t[X]\tSecond',
-  ])(
-    'accepts Markdown task list styles verbatim without overlooking unchecked siblings: %s',
-    async (list) => {
-      const o = options([list]);
-      expect(
-        await goalResponse({ ...o, validateResponse: validateTodos }),
-      ).toBe(list);
-      expect(o.requests).toHaveLength(1);
-      expect(clearedTodos(list)).toBe(true);
-      expect(clearedTodos(`${list}\n+ [ ] Blocked`)).toBe(false);
-      expect(clearedTodos(`${list}\n3. [ ] Await Save`)).toBe(false);
-    },
-  );
 });
