@@ -4,6 +4,7 @@ import type {
   Editor,
   Job,
   Project,
+  Asset,
   SpeechTranscript,
   SpeechMetadata,
 } from '../editor';
@@ -49,6 +50,7 @@ import {
   ComboboxValue,
 } from '../components/ui/combobox';
 import { SettingsSelect } from './SettingsSelect';
+import { speechLengthEstimate, speechVoiceLabel } from './speech-form';
 import { Tooltip } from '../components/ui/tooltip';
 import { speechTaskKind, speechRoute, speechTimingRoute } from './speech-tasks';
 import type {
@@ -190,6 +192,17 @@ export default function SpeechDialog({
   const [error, setError] = useState<string | null>(null);
   const active = useRef(false);
   const [generation, setGeneration] = useState<string>();
+  const [generationSelection, setGenerationSelection] = useState(0);
+  const selectionEpoch = useRef(0);
+  const [generations, setGenerations] = useState<
+    { id: string; label: string }[]
+  >([]);
+  const savedTake = useRef<{
+    rendered: RenderedSpeech;
+    asset: Asset;
+    transcriptId: string;
+  } | null>(null);
+  const [assetSaved, setAssetSaved] = useState(false);
   const [restoreSaved, setRestoreSaved] = useState(true);
   const generated = useRef<Job<SpeechTaskResult> | null>(null);
   const loadedSource = useRef<string | undefined>(undefined);
@@ -201,6 +214,7 @@ export default function SpeechDialog({
     previewUrl.current = result ? URL.createObjectURL(result.file) : '';
     setUrl(previewUrl.current);
     setRendered(result);
+    setAssetSaved(savedTake.current?.rendered === result && !!result);
   };
   const controller = useRef<AbortController | null>(null);
   const pending = useRef<Promise<void> | null>(null);
@@ -467,12 +481,18 @@ export default function SpeechDialog({
   }, []);
   const loadSource = useCallback(
     async (id: string) => {
+      const epoch = selectionEpoch.current;
       if (loadedSource.current === id) return;
       const source = (await editor.tasks.checkpoint(id)) as
         SpeechCheckpoint | undefined;
       if (!source) return;
       const input = (await editor.tasks.input(id)) as SpeechTaskInput;
-      if (!active.current || selection.current !== id) return;
+      if (
+        !active.current ||
+        selection.current !== id ||
+        selectionEpoch.current !== epoch
+      )
+        return;
       loadedSource.current = id;
       restoreRequest(input, id);
       setAudio(source);
@@ -494,10 +514,16 @@ export default function SpeechDialog({
   );
   const loadResult = useCallback(
     async (id: string) => {
+      const epoch = selectionEpoch.current;
       if (loadedResult.current === id) return;
       const result = await editor.tasks.result<SpeechTaskResult>(id);
       const input = (await editor.tasks.input(id)) as SpeechTaskInput;
-      if (!active.current || selection.current !== id) return;
+      if (
+        !active.current ||
+        selection.current !== id ||
+        selectionEpoch.current !== epoch
+      )
+        return;
       loadedResult.current = id;
       setAudio(result.audio);
       setTranscript(result.transcript);
@@ -510,18 +536,25 @@ export default function SpeechDialog({
   );
   useEffect(() => {
     if (!open) return;
+    const isCurrent = () =>
+      active.current &&
+      selection.current === generation &&
+      selectionEpoch.current === generationSelection;
     const stop = editor.tasks.subscribe((task) => {
-      if (task.id !== generation || !active.current) return;
+      if (task.id !== generation || !isCurrent()) return;
       if (task.state === 'completed')
-        void loadResult(task.id).catch(() =>
-          setError('Saved speech could not be opened.'),
-        );
+        void loadResult(task.id).catch(() => {
+          if (isCurrent()) {
+            setBusy(null);
+            setError('Saved speech could not be opened.');
+          }
+        });
       else if (['failed', 'interrupted', 'cancelled'].includes(task.state)) {
         setBusy(null);
         if (task.error) setError(task.error.message + ' ' + task.error.action);
-        void loadSource(task.id).catch(() =>
-          setError('Saved speech source could not be opened.'),
-        );
+        void loadSource(task.id).catch(() => {
+          if (isCurrent()) setError('Saved speech source could not be opened.');
+        });
       } else setBusy(task.state === 'queued' ? 'Speech queued…' : task.stage);
     });
     if (!generation && restoreSaved)
@@ -536,38 +569,150 @@ export default function SpeechDialog({
             )
             .at(-1);
           if (saved && active.current && selection.current === undefined) {
+            const epoch = ++selectionEpoch.current;
             selection.current = saved.id;
+            setGenerationSelection(epoch);
             setGeneration(saved.id);
-            if (saved.state === 'completed') void loadResult(saved.id);
           }
         })
-        .catch(() =>
-          setError('Speech queue could not be read. Allow browser storage.'),
-        );
+        .catch(() => {
+          if (active.current && selectionEpoch.current === generationSelection)
+            setError('Speech queue could not be read. Allow browser storage.');
+        });
     else if (generation)
-      void editor.tasks.get(generation).then((task) => {
-        if (task?.state === 'completed') void loadResult(task.id);
-        else if (task && ['queued', 'running', 'retrying'].includes(task.state))
-          setBusy(task.stage);
-        else if (task?.error) {
-          setBusy(null);
-          setError(task.error.message + ' ' + task.error.action);
-          void loadSource(task.id).catch(() =>
-            setError('Saved speech source could not be opened.'),
-          );
-        }
-      });
+      void editor.tasks
+        .get(generation)
+        .then(async (task) => {
+          if (!isCurrent()) return;
+          if (!task) throw new Error('Saved speech is unavailable.');
+          if (task.state === 'completed') await loadResult(task.id);
+          else if (['queued', 'running', 'retrying'].includes(task.state))
+            setBusy(task.stage);
+          else {
+            setBusy(null);
+            if (task.error)
+              setError(task.error.message + ' ' + task.error.action);
+            await loadSource(task.id);
+          }
+        })
+        .catch(() => {
+          if (isCurrent()) {
+            setBusy(null);
+            setError('Saved speech could not be opened.');
+          }
+        });
     return stop;
   }, [
     open,
     editor,
     connection,
     generation,
+    generationSelection,
     project.id,
     loadResult,
     loadSource,
     restoreSaved,
   ]);
+  useEffect(() => {
+    if (!open) return;
+    let disposed = false;
+    let revision = 0;
+    const labels = new Map<string, string>();
+    const refreshHistory = async () => {
+      const current = ++revision;
+      try {
+        const tasks = (await editor.tasks.list()).filter(
+          (task) =>
+            task.kind === speechTaskKind(connection) &&
+            task.projectId === project.id,
+        );
+        const items = await Promise.all(
+          tasks.reverse().map(async (task) => {
+            let label = labels.get(task.id);
+            if (!label) {
+              const input = (await editor.tasks.input(
+                task.id,
+              )) as SpeechTaskInput;
+              label = `${new Date(task.createdAt).toLocaleString()} · ${input.request.script} · ${input.request.voice} · ${input.request.model}`;
+              labels.set(task.id, label);
+            }
+            return { id: task.id, label: `${label} · ${task.state}` };
+          }),
+        );
+        if (!disposed && current === revision) setGenerations(items);
+      } catch {
+        if (!disposed && current === revision)
+          setError(
+            'Previous generations could not be read. Allow browser storage and reopen the dialog.',
+          );
+      }
+    };
+    void refreshHistory();
+    const stop = editor.tasks.subscribe((task) => {
+      if (
+        task.kind === speechTaskKind(connection) &&
+        task.projectId === project.id
+      )
+        void refreshHistory();
+    });
+    return () => {
+      disposed = true;
+      stop();
+    };
+  }, [open, editor, connection, project.id]);
+  const selectGeneration = (id: string) => {
+    const epoch = ++selectionEpoch.current;
+    setGenerationSelection(epoch);
+    generated.current = null;
+    selection.current = id;
+    loadedSource.current = undefined;
+    loadedResult.current = undefined;
+    setRestoreSaved(false);
+    invalidate();
+    setPresetId('');
+    setPresetName('');
+    setPresetError(null);
+    setDraftReference(undefined);
+    if (id === 'new') {
+      setGeneration(undefined);
+      setScript('');
+      setBusy(null);
+    } else {
+      setGeneration(id);
+      setBusy('Opening saved speech…');
+      void editor.tasks
+        .input(id)
+        .then((input) => {
+          if (
+            active.current &&
+            selection.current === id &&
+            selectionEpoch.current === epoch
+          )
+            restoreRequest(input as SpeechTaskInput, id);
+        })
+        .catch(() => {
+          if (
+            active.current &&
+            selection.current === id &&
+            selectionEpoch.current === epoch
+          ) {
+            setBusy(null);
+            setError('Saved speech could not be opened.');
+          }
+        });
+    }
+  };
+  const generationOptions = [
+    { id: 'new', label: 'New generation' },
+    ...generations,
+  ];
+  const selectedGeneration = generationOptions.find(
+    (item) => item.id === generation,
+  );
+  const lengthEstimate = speechLengthEstimate(script);
+  const originalSeconds = audio
+    ? audio.samples.length / audio.sampleRate
+    : undefined;
   const generate = () => {
     run('Preparing speech…', async (signal) => {
       try {
@@ -624,12 +769,18 @@ export default function SpeechDialog({
           { label: 'Generating speech', projectId: project.id },
         );
         generated.current = job;
+        const epoch = ++selectionEpoch.current;
+        setGenerationSelection(epoch);
         selection.current = job.id;
         setGeneration(job.id);
         setBusy('Speech queued…');
         void job.completion.then(
           (result) => {
-            if (active.current && generated.current?.id === job.id) {
+            if (
+              active.current &&
+              selection.current === job.id &&
+              generated.current?.id === job.id
+            ) {
               loadedResult.current = job.id;
               setAudio(result.audio);
               setTranscript(result.transcript);
@@ -646,7 +797,11 @@ export default function SpeechDialog({
             }
           },
           (error) => {
-            if (active.current && generated.current?.id === job.id) {
+            if (
+              active.current &&
+              selection.current === job.id &&
+              generated.current?.id === job.id
+            ) {
               setBusy(null);
               setError(errorText(error));
             }
@@ -661,52 +816,68 @@ export default function SpeechDialog({
       }
     });
   };
-  const add = () => {
+  const add = (toTimeline: boolean) => {
     if (!rendered || !audio || !transcript || !sourceMetadata) return;
     // Capture the authored project before asynchronous import; commands reject drift.
     const captured = project;
-    run('Adding speech to timeline…', async (signal) => {
-      const job = editor.assets.import(rendered.file);
-      importing.current = job;
-      const asset = await job.completion;
-      if (!active.current || signal.aborted) return;
-      const originalDurationUs = Math.round(
-        (audio.samples.length / audio.sampleRate) * 1e6,
-      );
-      const measured = retimeSpeechTranscript(
-        transcript,
-        originalDurationUs,
-        asset.durationUs,
-      );
-      const saved = await editor.transcription.attach(
-        asset.id,
-        padSpeechTranscript(measured, asset.durationUs),
-        {
-          ...sourceMetadata,
-          originalDurationUs,
-          measuredCues: measured.cues,
-          paddingUs: 80_000,
-        },
-      );
-      if (!active.current || signal.aborted) return;
-      const operations = appendAsset(captured, asset).map((operation) =>
-        operation.type === 'insertClip'
-          ? {
-              ...operation,
-              clip: { ...operation.clip, transcriptId: saved.id },
-            }
-          : operation,
-      );
-      await editor.commands.apply({
-        projectId: captured.id,
-        expectedRevision: captured.revision,
-        requestId: crypto.randomUUID(),
-        operations,
-      });
-      // A committed edit remains authoritative even if dismissal happens afterward.
-      await onApplied();
-      if (active.current) onClose();
-    });
+    run(
+      toTimeline ? 'Adding speech to timeline…' : 'Saving speech to assets…',
+      async (signal) => {
+        let take =
+          savedTake.current?.rendered === rendered ? savedTake.current : null;
+        if (!take) {
+          const job = editor.assets.import(rendered.file);
+          importing.current = job;
+          const asset = await job.completion;
+          if (!active.current || signal.aborted) return;
+          const originalDurationUs = Math.round(
+            (audio.samples.length / audio.sampleRate) * 1e6,
+          );
+          const measured = retimeSpeechTranscript(
+            transcript,
+            originalDurationUs,
+            asset.durationUs,
+          );
+          const saved = await editor.transcription.attach(
+            asset.id,
+            padSpeechTranscript(measured, asset.durationUs),
+            {
+              ...sourceMetadata,
+              originalDurationUs,
+              measuredCues: measured.cues,
+              paddingUs: 80_000,
+            },
+          );
+          if (!active.current || signal.aborted) return;
+          await editor.library.forProject(captured.id).place(asset.id, []);
+          take = { rendered, asset, transcriptId: saved.id };
+          savedTake.current = take;
+          if (active.current) setAssetSaved(true);
+        }
+        if (!toTimeline) {
+          await onApplied();
+          return;
+        }
+        if (!active.current || signal.aborted) return;
+        const operations = appendAsset(captured, take.asset).map((operation) =>
+          operation.type === 'insertClip'
+            ? {
+                ...operation,
+                clip: { ...operation.clip, transcriptId: take.transcriptId },
+              }
+            : operation,
+        );
+        await editor.commands.apply({
+          projectId: captured.id,
+          expectedRevision: captured.revision,
+          requestId: crypto.randomUUID(),
+          operations,
+        });
+        // A committed edit remains authoritative even if dismissal happens afterward.
+        await onApplied();
+        if (active.current) onClose();
+      },
+    );
   };
   const changedTiming = () => {
     publish(null);
@@ -719,414 +890,471 @@ export default function SpeechDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Text to speech</DialogTitle>
-          <DialogDescription className="sr-only">
-            Create and preview spoken narration.
-          </DialogDescription>
-        </DialogHeader>
-        {busy &&
-          !localBusy &&
-          generation &&
-          [
-            'Speech queued…',
-            'Generating speech…',
-            'Adjusting speech…',
-            'Measuring phrase timing…',
-            'Queued',
-            'Starting',
-            'Retry scheduled',
-          ].includes(busy) && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                generated.current = null;
-                selection.current = 'new-draft';
-                setGeneration(undefined);
-                setRestoreSaved(false);
-                setBusy(null);
-                invalidate();
-                setScript('');
-              }}
-            >
-              Queue another script
-            </Button>
-          )}
-        <fieldset disabled={!!busy} className="min-w-0 space-y-5">
-          <div className="space-y-2">
-            <Label>Voice preset</Label>
-            <SettingsSelect
-              label="Voice preset"
-              value={preset?.id ?? 'custom'}
-              selectedLabel={
-                preset
-                  ? preset.name + (presetModified ? ' (modified)' : '')
-                  : 'Custom settings'
-              }
-              options={[
-                { value: 'custom', label: 'Custom settings' },
-                ...presets
-                  .filter((item) => !item.archived)
-                  .map((item) => ({
-                    value: item.id,
-                    label:
-                      item.name +
-                      (item.referenceId ? '' : ' (settings only)') +
-                      (presetAvailable(item) ? '' : ' (unavailable)'),
-                  })),
-              ]}
-              disabled={!!busy}
-              onChange={(id) => {
-                if (id === 'custom') {
-                  setPresetId('');
-                  setDraftReference(undefined);
-                  return;
-                }
-                const item = presets.find(
-                  (item) => item.id === id && !item.archived,
-                );
-                if (!item) return;
-                if (!presetAvailable(item)) {
-                  setPresetError(
-                    'This preset’s model or voice is unavailable on the current connection.',
-                  );
-                  return;
-                }
-                invalidate();
-                setPresetError(null);
-                setPresetId(id);
-                setModel(item.model);
-                setVoice(item.voice);
-                setLanguages([...item.languages]);
-                setDelivery(item.instructions);
-                setDraftReference(undefined);
-              }}
-            />
-            <details className="space-y-3">
-              <summary className="cursor-pointer text-sm">
-                Manage voice presets
-              </summary>
-              {!audio && (
-                <p className="text-sm text-muted-foreground">
-                  Preview a generated take to save its voice.
-                </p>
-              )}
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="min-w-0 flex-1 space-y-1">
-                  <Label htmlFor="speech-preset-name">New preset name</Label>
-                  <Input
-                    id="speech-preset-name"
-                    value={presetName}
-                    maxLength={100}
-                    onChange={(event) => setPresetName(event.target.value)}
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  disabled={!canSavePreset || !presetName.trim()}
-                  onClick={saveFavorite}
-                >
-                  Save this voice
-                </Button>
-              </div>
-              {preset && (
-                <Button
-                  variant="outline"
-                  disabled={!canUpdatePreset || !presetModified}
-                  onClick={() =>
-                    managePreset(() => updatePreset(preset.id, voiceSettings))
-                  }
-                >
-                  Save preset changes
-                </Button>
-              )}
-              <div className="max-h-48 space-y-2 overflow-y-auto">
-                {presets.map((item) => (
-                  <VoicePresetRow
-                    key={item.id + item.name}
-                    preset={item}
-                    onRename={(name) =>
-                      managePreset(() => updatePreset(item.id, { name }))
-                    }
-                    onArchive={() =>
-                      managePreset(() => {
-                        updatePreset(item.id, { archived: !item.archived });
-                        if (presetId === item.id) {
-                          setPresetId('');
-                          setDraftReference(undefined);
-                        }
-                      })
-                    }
-                  />
-                ))}
-              </div>
-            </details>
-            {selected?.referenceVoice && (
-              <p className="text-sm text-muted-foreground">
-                Generate sends this saved recording and its transcript to Fish
-                Audio through OpenRouter to match the voice. Delivery may vary.
-              </p>
-            )}
-            {presetError && (
-              <p role="alert" className="text-sm text-destructive">
-                {presetError}
-              </p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="speech-script">Script</Label>
-            <Textarea
-              id="speech-script"
-              rows={6}
-              maxLength={5000}
-              value={script}
-              onChange={(event) => {
-                invalidate();
-                setScript(event.target.value);
-              }}
-              placeholder="Write your narration, including passages in different languages…"
-            />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>
-                Speech model{' '}
-                <Tooltip content="Generate and preview a take, then save this voice for future scripts. Saved voices use the same reference recording; delivery can vary. A seed does not lock a speaker across scripts.">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Voice consistency"
-                  >
-                    <Info />
-                  </Button>
-                </Tooltip>
-              </Label>
+      <DialogContent className="flex min-w-0 flex-col overflow-hidden sm:max-w-2xl">
+        <DialogHeader className="min-w-0 pr-8">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <DialogTitle className="shrink-0">Text to speech</DialogTitle>
+            <div className="min-w-0 flex-1 basis-56">
               <Combobox
-                items={models}
-                value={selected ?? null}
-                onValueChange={(item) => {
-                  if (item) {
-                    invalidate();
-                    setModel(item.id);
-                    setVoice('');
-                    setPresetId('');
-                    setDraftReference(undefined);
-                  }
-                }}
-                itemToStringLabel={(item) => item.name}
+                items={generationOptions}
+                value={selectedGeneration ?? generationOptions[0]}
+                itemToStringLabel={(item) => item.label}
                 itemToStringValue={(item) => item.id}
                 isItemEqualToValue={(item, value) => item.id === value.id}
+                onValueChange={(item) => {
+                  if (item) selectGeneration(item.id);
+                }}
               >
-                <ComboboxTrigger aria-label="Speech model" disabled={!!busy}>
-                  <ComboboxValue placeholder="Choose a model" />
+                <ComboboxTrigger
+                  aria-label="Speech generation"
+                  disabled={localBusy}
+                >
+                  <span className="truncate">
+                    {selectedGeneration?.label ??
+                      (generation ? 'Current generation' : 'New generation')}
+                  </span>
                 </ComboboxTrigger>
                 <ComboboxContent>
-                  <div className="flex gap-1 p-2">
+                  <div className="p-2">
                     <ComboboxInput
-                      aria-label="Search speech models"
-                      placeholder="Search models…"
+                      aria-label="Search previous generations"
+                      placeholder="Search script, voice or model…"
                     />
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      aria-label="Refresh speech models"
-                      disabled={!!busy}
-                      onClick={refresh}
-                    >
-                      <RefreshCw />
-                    </Button>
                   </div>
-                  <ComboboxEmpty>No matching speech models.</ComboboxEmpty>
+                  <ComboboxEmpty>No matching generations.</ComboboxEmpty>
                   <ComboboxList>
-                    {(item: SpeechModel) => (
+                    {(item: { id: string; label: string }) => (
                       <ComboboxItem key={item.id} value={item}>
-                        {item.name}
+                        <span className="line-clamp-2 break-words">
+                          {item.label}
+                        </span>
                       </ComboboxItem>
                     )}
                   </ComboboxList>
                 </ComboboxContent>
               </Combobox>
             </div>
-            {!selected?.referenceVoice && (
+          </div>
+          <DialogDescription className="sr-only">
+            Create and preview spoken narration.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="min-h-0 min-w-0 flex-1 space-y-5 overflow-y-auto">
+          <fieldset disabled={!!busy} className="min-w-0 space-y-5">
+            <div className="space-y-2">
+              <Label>Voice preset</Label>
+              <SettingsSelect
+                label="Voice preset"
+                value={preset?.id ?? 'custom'}
+                selectedLabel={
+                  preset
+                    ? preset.name + (presetModified ? ' (modified)' : '')
+                    : 'New voice preset'
+                }
+                options={[
+                  { value: 'custom', label: 'New voice preset' },
+                  ...presets
+                    .filter((item) => !item.archived)
+                    .map((item) => ({
+                      value: item.id,
+                      label:
+                        item.name +
+                        (item.referenceId ? '' : ' (settings only)') +
+                        (presetAvailable(item) ? '' : ' (unavailable)'),
+                    })),
+                ]}
+                disabled={!!busy}
+                onChange={(id) => {
+                  if (id === 'custom') {
+                    setPresetId('');
+                    setDraftReference(undefined);
+                    return;
+                  }
+                  const item = presets.find(
+                    (item) => item.id === id && !item.archived,
+                  );
+                  if (!item) return;
+                  if (!presetAvailable(item)) {
+                    setPresetError(
+                      'This preset’s model or voice is unavailable on the current connection.',
+                    );
+                    return;
+                  }
+                  invalidate();
+                  setPresetError(null);
+                  setPresetId(id);
+                  setModel(item.model);
+                  setVoice(item.voice);
+                  setLanguages([...item.languages]);
+                  setDelivery(item.instructions);
+                  setDraftReference(undefined);
+                }}
+              />
+              {!preset && (
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <Label htmlFor="speech-preset-name">New preset name</Label>
+                    <Input
+                      id="speech-preset-name"
+                      value={presetName}
+                      maxLength={100}
+                      onChange={(event) => setPresetName(event.target.value)}
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    disabled={!canSavePreset || !presetName.trim()}
+                    onClick={saveFavorite}
+                  >
+                    Save this voice
+                  </Button>
+                </div>
+              )}
+              <details className="space-y-3">
+                <summary className="cursor-pointer text-sm">
+                  Manage voice presets
+                </summary>
+                {preset && (
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <Label htmlFor="speech-preset-name">
+                        New preset name
+                      </Label>
+                      <Input
+                        id="speech-preset-name"
+                        value={presetName}
+                        maxLength={100}
+                        onChange={(event) => setPresetName(event.target.value)}
+                      />
+                    </div>
+                    <Button
+                      variant="outline"
+                      disabled={!canSavePreset || !presetName.trim()}
+                      onClick={saveFavorite}
+                    >
+                      Save this voice
+                    </Button>
+                  </div>
+                )}
+                {preset && (
+                  <Button
+                    variant="outline"
+                    disabled={!canUpdatePreset || !presetModified}
+                    onClick={() =>
+                      managePreset(() => updatePreset(preset.id, voiceSettings))
+                    }
+                  >
+                    Save preset changes
+                  </Button>
+                )}
+                <div className="max-h-48 space-y-2 overflow-y-auto">
+                  {presets.map((item) => (
+                    <VoicePresetRow
+                      key={item.id + item.name}
+                      preset={item}
+                      onRename={(name) =>
+                        managePreset(() => updatePreset(item.id, { name }))
+                      }
+                      onArchive={() =>
+                        managePreset(() => {
+                          updatePreset(item.id, { archived: !item.archived });
+                          if (presetId === item.id) {
+                            setPresetId('');
+                            setDraftReference(undefined);
+                          }
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+              </details>
+              {selected?.referenceVoice && (
+                <p className="text-sm text-muted-foreground">
+                  Generate sends this saved recording and its transcript to Fish
+                  Audio through OpenRouter to match the voice. Delivery may
+                  vary.
+                </p>
+              )}
+              {presetError && (
+                <p role="alert" className="text-sm text-destructive">
+                  {presetError}
+                </p>
+              )}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Voice</Label>
+                <Label className="h-8">
+                  Speech model{' '}
+                  <Tooltip content="Generate and preview a take, then save this voice for future scripts. Saved voices use the same reference recording; delivery can vary. A seed does not lock a speaker across scripts.">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Voice consistency"
+                    >
+                      <Info />
+                    </Button>
+                  </Tooltip>
+                </Label>
+                <Combobox
+                  items={models}
+                  value={selected ?? null}
+                  onValueChange={(item) => {
+                    if (item) {
+                      invalidate();
+                      setModel(item.id);
+                      setVoice('');
+                      setPresetId('');
+                      setDraftReference(undefined);
+                    }
+                  }}
+                  itemToStringLabel={(item) => item.name}
+                  itemToStringValue={(item) => item.id}
+                  isItemEqualToValue={(item, value) => item.id === value.id}
+                >
+                  <ComboboxTrigger aria-label="Speech model" disabled={!!busy}>
+                    <ComboboxValue placeholder="Choose a model" />
+                  </ComboboxTrigger>
+                  <ComboboxContent>
+                    <div className="flex gap-1 p-2">
+                      <ComboboxInput
+                        aria-label="Search speech models"
+                        placeholder="Search models…"
+                      />
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label="Refresh speech models"
+                        disabled={!!busy}
+                        onClick={refresh}
+                      >
+                        <RefreshCw />
+                      </Button>
+                    </div>
+                    <ComboboxEmpty>No matching speech models.</ComboboxEmpty>
+                    <ComboboxList>
+                      {(item: SpeechModel) => (
+                        <ComboboxItem key={item.id} value={item}>
+                          {item.name}
+                        </ComboboxItem>
+                      )}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
+              </div>
+              {!selected?.referenceVoice && (
+                <div className="space-y-2">
+                  <Label className="h-8">Voice</Label>
+                  <SettingsSelect
+                    label="Speech voice"
+                    value={voice || null}
+                    disabled={!!busy || !selected}
+                    placeholder="Choose a voice"
+                    selectedLabel={speechVoiceLabel(model, voice)}
+                    options={(selected?.voices ?? []).map((value) => ({
+                      value,
+                      label: speechVoiceLabel(model, value),
+                    }))}
+                    onChange={(value) => {
+                      invalidate();
+                      setVoice(value);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Languages in script</Label>
+              <Combobox
+                multiple
+                items={[
+                  ...new Set([
+                    ...languages,
+                    ...selectedLanguages,
+                    ...(languageQuery.trim()
+                      ? [languageQuery.trim().slice(0, 80)]
+                      : []),
+                  ]),
+                ]}
+                inputValue={languageQuery}
+                onInputValueChange={setLanguageQuery}
+                value={selectedLanguages}
+                onValueChange={(value) => {
+                  invalidate();
+                  setLanguages(value);
+                }}
+              >
+                <ComboboxTrigger
+                  aria-label="Languages in script"
+                  disabled={!!busy}
+                >
+                  {selectedLanguages.join(', ') || 'Choose languages'}
+                </ComboboxTrigger>
+                <ComboboxContent>
+                  <div className="p-2">
+                    <ComboboxInput
+                      aria-label="Search speech languages"
+                      placeholder="Search or enter a language…"
+                    />
+                  </div>
+                  <ComboboxEmpty>No matching languages.</ComboboxEmpty>
+                  <ComboboxList>
+                    {(language: string) => (
+                      <ComboboxItem
+                        key={language}
+                        value={language}
+                        disabled={
+                          !selectedLanguages.includes(language) &&
+                          selectedLanguages.length >= 8
+                        }
+                      >
+                        {language}
+                      </ComboboxItem>
+                    )}
+                  </ComboboxList>
+                </ComboboxContent>
+              </Combobox>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="speech-delivery">Delivery directions</Label>
+              <Input
+                id="speech-delivery"
+                value={delivery}
+                maxLength={1500}
+                disabled={selected?.referenceVoice}
+                onChange={(event) => {
+                  invalidate();
+                  setDelivery(event.target.value);
+                }}
+                placeholder="Natural and conversational; warm, calm, expressive…"
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Timing</Label>
                 <SettingsSelect
-                  label="Speech voice"
-                  value={voice || null}
-                  disabled={!!busy || !selected}
-                  placeholder="Choose a voice"
-                  selectedLabel={voice}
-                  options={(selected?.voices ?? []).map((value) => ({
-                    value,
-                    label: value,
-                  }))}
+                  label="Speech timing"
+                  value={mode}
+                  selectedLabel={
+                    mode === 'speed' ? 'Speaking speed' : 'Total length'
+                  }
+                  options={[
+                    { value: 'speed', label: 'Speaking speed' },
+                    { value: 'duration', label: 'Total length' },
+                  ]}
                   onChange={(value) => {
-                    invalidate();
-                    setVoice(value);
+                    changedTiming();
+                    setMode(value);
                   }}
                 />
               </div>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label>Languages in script</Label>
-            <Combobox
-              multiple
-              items={[
-                ...new Set([
-                  ...languages,
-                  ...selectedLanguages,
-                  ...(languageQuery.trim()
-                    ? [languageQuery.trim().slice(0, 80)]
-                    : []),
-                ]),
-              ]}
-              inputValue={languageQuery}
-              onInputValueChange={setLanguageQuery}
-              value={selectedLanguages}
-              onValueChange={(value) => {
-                invalidate();
-                setLanguages(value);
-              }}
-            >
-              <ComboboxTrigger
-                aria-label="Languages in script"
-                disabled={!!busy}
-              >
-                {selectedLanguages.join(', ') || 'Choose languages'}
-              </ComboboxTrigger>
-              <ComboboxContent>
-                <div className="p-2">
-                  <ComboboxInput
-                    aria-label="Search speech languages"
-                    placeholder="Search or enter a language…"
-                  />
-                </div>
-                <ComboboxEmpty>No matching languages.</ComboboxEmpty>
-                <ComboboxList>
-                  {(language: string) => (
-                    <ComboboxItem
-                      key={language}
-                      value={language}
-                      disabled={
-                        !selectedLanguages.includes(language) &&
-                        selectedLanguages.length >= 8
+              <div className="space-y-2">
+                {mode === 'speed' ? (
+                  <>
+                    <Label htmlFor="speech-speed">Speed (×)</Label>
+                    <Input
+                      id="speech-speed"
+                      type="number"
+                      min="0.5"
+                      max="2"
+                      step="0.05"
+                      value={speed}
+                      onChange={(event) => {
+                        changedTiming();
+                        setSpeed(event.target.value);
+                      }}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Label htmlFor="speech-duration">
+                      Total length (seconds)
+                    </Label>
+                    <Input
+                      id="speech-duration"
+                      type="number"
+                      min={
+                        originalSeconds === undefined
+                          ? 0.1
+                          : originalSeconds / 2
                       }
-                    >
-                      {language}
-                    </ComboboxItem>
-                  )}
-                </ComboboxList>
-              </ComboboxContent>
-            </Combobox>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="speech-delivery">Delivery directions</Label>
-            <Input
-              id="speech-delivery"
-              value={delivery}
-              maxLength={1500}
-              disabled={selected?.referenceVoice}
-              onChange={(event) => {
-                invalidate();
-                setDelivery(event.target.value);
-              }}
-              placeholder="Natural and conversational; warm, calm, expressive…"
-            />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+                      max={
+                        originalSeconds === undefined
+                          ? undefined
+                          : originalSeconds * 2
+                      }
+                      aria-describedby="speech-duration-guidance"
+                      step="0.01"
+                      value={duration}
+                      onChange={(event) => {
+                        changedTiming();
+                        setDuration(event.target.value);
+                      }}
+                    />
+                  </>
+                )}
+              </div>
+            </div>
+            {mode === 'duration' && (
+              <p
+                id="speech-duration-guidance"
+                className="text-xs text-muted-foreground"
+              >
+                {originalSeconds !== undefined
+                  ? `Minimum: ${(originalSeconds / 2).toFixed(2)}s · Maximum: ${(originalSeconds * 2).toFixed(2)}s for this ${originalSeconds.toFixed(2)}s take, preserving pitch.`
+                  : lengthEstimate.words
+                    ? `Estimated minimum: ${lengthEstimate.minSeconds.toFixed(1)}s · maximum: ${lengthEstimate.maxSeconds.toFixed(1)}s for ${lengthEstimate.words} words at 120–180 words/min. Actual limits depend on the generated take.`
+                    : 'Enter a script to estimate minimum and maximum length at 120–180 words/min.'}
+              </p>
+            )}
+            {audio && mode === 'speed' && (
+              <p className="text-xs text-muted-foreground">
+                Original: {originalSeconds!.toFixed(2)}s. Fit between{' '}
+                {(originalSeconds! / 2).toFixed(2)} and{' '}
+                {(originalSeconds! * 2).toFixed(2)}s while preserving pitch.
+              </p>
+            )}
             <div className="space-y-2">
-              <Label>Timing</Label>
-              <SettingsSelect
-                label="Speech timing"
-                value={mode}
-                selectedLabel={
-                  mode === 'speed' ? 'Speaking speed' : 'Total length'
-                }
-                options={[
-                  { value: 'speed', label: 'Speaking speed' },
-                  { value: 'duration', label: 'Total length' },
-                ]}
-                onChange={(value) => {
-                  changedTiming();
-                  setMode(value);
+              <Label htmlFor="speech-script">Script</Label>
+              <Textarea
+                id="speech-script"
+                rows={6}
+                maxLength={5000}
+                value={script}
+                onChange={(event) => {
+                  invalidate();
+                  setScript(event.target.value);
                 }}
+                placeholder="Write your narration, including passages in different languages…"
               />
             </div>
-            <div className="space-y-2">
-              {mode === 'speed' ? (
-                <>
-                  <Label htmlFor="speech-speed">Speed (×)</Label>
-                  <Input
-                    id="speech-speed"
-                    type="number"
-                    min="0.5"
-                    max="2"
-                    step="0.05"
-                    value={speed}
-                    onChange={(event) => {
-                      changedTiming();
-                      setSpeed(event.target.value);
-                    }}
-                  />
-                </>
-              ) : (
-                <>
-                  <Label htmlFor="speech-duration">
-                    Total length (seconds)
-                  </Label>
-                  <Input
-                    id="speech-duration"
-                    type="number"
-                    min="0.1"
-                    step="0.01"
-                    value={duration}
-                    onChange={(event) => {
-                      changedTiming();
-                      setDuration(event.target.value);
-                    }}
-                  />
-                </>
-              )}
-            </div>
-          </div>
-          {audio && (
-            <p className="text-xs text-muted-foreground">
-              Original: {(audio.samples.length / audio.sampleRate).toFixed(2)}s.
-              Fit between{' '}
-              {(audio.samples.length / audio.sampleRate / 2).toFixed(2)} and{' '}
-              {((audio.samples.length / audio.sampleRate) * 2).toFixed(2)}s
-              while preserving pitch.
+          </fieldset>
+          {busy && (
+            <p role="status" className="flex items-center gap-2">
+              <LoaderCircle className="size-4 motion-safe:animate-spin" />
+              {busy}
             </p>
           )}
-        </fieldset>
-        {busy && (
-          <p role="status" className="flex items-center gap-2">
-            <LoaderCircle className="size-4 motion-safe:animate-spin" />
-            {busy}
-          </p>
-        )}
-        {error && (
-          <p role="alert" className="text-destructive">
-            {error}
-          </p>
-        )}
-        {rendered && url && (
-          <div className="space-y-2">
-            <audio
-              controls
-              src={url}
-              aria-label="Generated speech preview"
-              className="w-full"
-            />
-            <p className="text-sm">
-              {(rendered.durationUs / 1e6).toFixed(2)} seconds ·{' '}
-              {rendered.speed.toFixed(2)}×
+          {error && (
+            <p role="alert" className="text-destructive">
+              {error}
             </p>
-          </div>
-        )}
+          )}
+          {rendered && url && (
+            <div className="space-y-2">
+              <audio
+                controls
+                src={url}
+                aria-label="Generated speech preview"
+                className="w-full"
+              />
+              <p className="text-sm">
+                {(rendered.durationUs / 1e6).toFixed(2)} seconds ·{' '}
+                {rendered.speed.toFixed(2)}×
+              </p>
+            </div>
+          )}
+        </div>
         <DialogFooter className="flex-wrap">
           {!timingReady &&
             connection.provider.transcriptionDisclosure.includes(
@@ -1257,7 +1485,21 @@ export default function SpeechDialog({
                   </Button>
                 )}
               {rendered && transcript && (
-                <Button onClick={add}>Add to timeline</Button>
+                <>
+                  {assetSaved ? (
+                    <span
+                      role="status"
+                      className="self-center text-xs text-muted-foreground"
+                    >
+                      Saved to assets
+                    </span>
+                  ) : (
+                    <Button variant="outline" onClick={() => add(false)}>
+                      Save to assets
+                    </Button>
+                  )}
+                  <Button onClick={() => add(true)}>Add to timeline</Button>
+                </>
               )}
             </>
           )}
