@@ -320,6 +320,7 @@ for (const base of ['/', '/LocalCut/']) {
           await route.fulfill({ headers: cors, body: '' });
           return;
         }
+        if (await fulfillChatTitle(route)) return;
         const requestTools = (
           route.request().postDataJSON() as {
             tools: { function: { name: string } }[];

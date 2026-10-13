@@ -555,7 +555,8 @@ data: [DONE]
     const naming: {
       session_id: string;
       model: string;
-      tools: unknown[];
+      tools?: unknown[];
+      tool_choice: string;
       messages: { role: string; content: string }[];
     }[] = [];
     const chatIds: string[] = [];
@@ -625,7 +626,8 @@ data: [DONE]
     expect(naming[0]!.model).toBe(model);
     expect(naming[0]!.session_id).toBe(chatIds[0]);
     expect(chatIds[0]).toMatch(/^[a-f\d-]{36}$/);
-    expect(naming[0]!.tools).toEqual([]);
+    expect(naming[0]!.tools).toBeUndefined();
+    expect(naming[0]!.tool_choice).toBe('none');
     expect(naming[0]!.messages).toHaveLength(2);
     expect(naming[0]!.messages[1]).toEqual({
       role: 'user',
