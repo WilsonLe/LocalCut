@@ -344,8 +344,9 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(retry).toHaveCount(0);
     await input.fill('');
     await expect(retry).toBeEnabled();
-    await page.setViewportSize({ width: 390, height: 844 });
+    // Blur while desktop Chat is still visible, before mobile defaults to Edit.
     await input.blur();
+    await page.setViewportSize({ width: 390, height: 844 });
     await page
       .getByRole('navigation', { name: 'Workspace sections' })
       .getByRole('button', { name: 'Chat', exact: true })

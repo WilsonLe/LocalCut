@@ -325,7 +325,8 @@ test('full-engine assistants queue by default and retry without nested queue dea
     let calls = 0;
     const provider = {
       async *stream() {
-        if (calls++ === 0)
+        // Exhaust the round's silent retries before testing explicit queue retry.
+        if (calls++ < 3)
           throw new AiError('RATE_LIMITED', 'private echo', { status: 429 });
         yield {
           type: 'complete',
@@ -347,10 +348,12 @@ test('full-engine assistants queue by default and retry without nested queue dea
         (record: { kind: string }) => record.kind === `assistant:${turn.id}`,
       );
       const before = await editor.tasks.get(task.id);
+      const callsBeforeRetry = calls;
       const retry = await editor.tasks.retry(task.id);
       const result = await retry.completion;
       return {
         before,
+        callsBeforeRetry,
         after: await editor.tasks.get(task.id),
         result,
         calls,
@@ -372,7 +375,8 @@ test('full-engine assistants queue by default and retry without nested queue dea
     text: 'Recovered reply.',
     proposalIds: [],
   });
-  expect(outcome.calls).toBe(2);
+  expect(outcome.callsBeforeRetry).toBe(3);
+  expect(outcome.calls).toBe(4);
   expect(outcome.revision).toBe(0);
-  expect(outcome.history).toBe(0);
+  expect(outcome.history).toBe(1);
 });
