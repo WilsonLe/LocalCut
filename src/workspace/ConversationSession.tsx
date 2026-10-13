@@ -776,41 +776,6 @@ ${resuming.prompt}`
                   </div>
                 </AccordionDisclosure>
               )}
-              {message.text && (
-                <Suspense
-                  fallback={
-                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                      {message.text}
-                    </p>
-                  }
-                >
-                  <ChatMarkdown text={message.text} />
-                </Suspense>
-              )}
-              {message.status === 'streaming' && (
-                <p
-                  role="status"
-                  className="flex items-center gap-2 text-xs text-muted-foreground"
-                >
-                  <LoaderCircle
-                    className="size-3 motion-safe:animate-spin"
-                    aria-hidden="true"
-                  />
-                  {activity} · Response in progress
-                </p>
-              )}
-              {(message.status === 'interrupted' ||
-                message.status === 'paused' ||
-                message.status === 'failed') && (
-                <p className="text-xs text-muted-foreground">
-                  {message.status === 'paused'
-                    ? 'Paused'
-                    : message.status === 'interrupted'
-                      ? 'Stopped'
-                      : 'Incomplete response'}{' '}
-                  · No pending changes
-                </p>
-              )}
               {Object.values(proposals)
                 .filter((proposal) => proposal.turnId === message.id)
                 .map((proposal) => {
@@ -910,6 +875,43 @@ ${resuming.prompt}`
                     </div>
                   );
                 })}
+              {message.text && (
+                <Suspense
+                  fallback={
+                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                      {message.text}
+                    </p>
+                  }
+                >
+                  <div data-chat-response-text>
+                    <ChatMarkdown text={message.text} />
+                  </div>
+                </Suspense>
+              )}
+              {message.status === 'streaming' && (
+                <p
+                  role="status"
+                  className="flex items-center gap-2 text-xs text-muted-foreground"
+                >
+                  <LoaderCircle
+                    className="size-3 motion-safe:animate-spin"
+                    aria-hidden="true"
+                  />
+                  {activity} · Response in progress
+                </p>
+              )}
+              {(message.status === 'interrupted' ||
+                message.status === 'paused' ||
+                message.status === 'failed') && (
+                <p className="text-xs text-muted-foreground">
+                  {message.status === 'paused'
+                    ? 'Paused'
+                    : message.status === 'interrupted'
+                      ? 'Stopped'
+                      : 'Incomplete response'}{' '}
+                  · No pending changes
+                </p>
+              )}
               {message.role === 'assistant' &&
                 message.status === 'complete' &&
                 message.text && (

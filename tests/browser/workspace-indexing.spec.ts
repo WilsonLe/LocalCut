@@ -127,6 +127,259 @@ async function image(page: Page) {
   await expect(page.locator('.media-item')).toHaveCount(1);
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`chat parallel indexing settles both assets before final response ${base}`, async ({
+    page,
+    context,
+  }, testInfo) => {
+    await catalog(context);
+    let round = 0;
+    let sceneRequests = 0;
+    let release!: () => void;
+    const bothStarted = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const ids: string[] = [];
+    await context.route(
+      'https://openrouter.ai/api/v1/chat/completions',
+      async (route) => {
+        if (route.request().method() === 'OPTIONS') {
+          await route.fulfill({ headers: cors });
+          return;
+        }
+        if (await fulfillChatTitle(route)) return;
+        const body = route.request().postDataJSON();
+        let reply: string | null = null;
+        let tool_calls: object[] | undefined;
+        const tools = (calls: { name: string; args: unknown }[]) =>
+          calls.map((call, index) => ({
+            index,
+            id: `round-${round}-${index}`,
+            type: 'function',
+            function: { name: call.name, arguments: JSON.stringify(call.args) },
+          }));
+        if (body.tools) {
+          round++;
+          if (round === 1)
+            tool_calls = tools([
+              { name: 'load_skill', args: { skillId: 'indexing' } },
+            ]);
+          else if (round === 2)
+            tool_calls = tools([{ name: 'inspect_library', args: {} }]);
+          else if (round === 3) {
+            const library = JSON.parse(body.messages.at(-1).content);
+            tool_calls = tools([
+              {
+                name: 'resolve_library_assets',
+                args: {
+                  folderId: null,
+                  recursive: true,
+                  expectedRevision: library.revision,
+                },
+              },
+            ]);
+          } else if (round === 4) {
+            const manifest = JSON.parse(body.messages.at(-1).content);
+            expect(manifest.assetCount).toBe(2);
+            ids.push(...manifest.assetIds);
+            tool_calls = tools(
+              ids.map((assetId) => ({
+                name: 'inspect_asset',
+                args: { assetId },
+              })),
+            );
+          } else if (round === 5) {
+            expect(
+              body.messages
+                .slice(-2)
+                .map(
+                  (message: { content: string }) =>
+                    JSON.parse(message.content).id,
+                ),
+            ).toEqual(ids);
+            tool_calls = tools(
+              ids.map((assetId) => ({
+                name: 'propose_action',
+                args: {
+                  summary: `Index asset ${assetId}`,
+                  action: { type: 'index_asset', assetId },
+                },
+              })),
+            );
+          } else if (round === 6) {
+            expect(sceneRequests).toBe(2);
+            // New saved indexes retire index-bearing exchanges; authoritative receipts survive in the completion ledger.
+            const ledger = body.messages.find(
+              (message: { role: string; content: string }) =>
+                message.role === 'system' &&
+                message.content.startsWith('Saved index context changed;'),
+            );
+            expect(ledger).toBeTruthy();
+            const receipts = JSON.parse(
+              ledger.content.slice(ledger.content.indexOf('[')),
+            );
+            expect(receipts).toHaveLength(2);
+            expect(
+              receipts.map(
+                (receipt: { result: { kind: string; assetId: string } }) =>
+                  receipt.result.kind,
+              ),
+            ).toEqual(['indexing', 'indexing']);
+            expect(
+              receipts
+                .map(
+                  (receipt: { result: { assetId: string } }) =>
+                    receipt.result.assetId,
+                )
+                .sort(),
+            ).toEqual([...ids].sort());
+            tool_calls = tools(
+              ids.map((assetId) => ({
+                name: 'read_asset_index',
+                args: { assetId },
+              })),
+            );
+          } else {
+            expect(round).toBe(7);
+            expect(
+              body.messages
+                .slice(-2)
+                .every((message: { content: string }) =>
+                  message.content.includes(label.summary),
+                ),
+            ).toBe(true);
+            reply = 'Both assets are indexed. Their saved evidence is ready.';
+          }
+        } else {
+          const parts = body.messages.at(-1).content;
+          const sceneId =
+            Array.isArray(parts) && parts.length > 1
+              ? /"sceneId":"(scene-\d+)"/.exec(String(parts[0].text))?.[1]
+              : undefined;
+          if (sceneId) {
+            sceneRequests++;
+            if (sceneRequests === 2) release();
+            // Neither first asset may finish until the second has reached its provider call.
+            await bothStarted;
+          }
+          reply = JSON.stringify(sceneId ? { sceneId, label } : label);
+        }
+        await route.fulfill({
+          headers: cors,
+          contentType: 'text/event-stream',
+          body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { ...(reply ? { content: reply } : {}), ...(tool_calls ? { tool_calls } : {}) }, finish_reason: tool_calls ? 'tool_calls' : 'stop' }], model })}\n\ndata: [DONE]\n\n`,
+        });
+      },
+    );
+    await page.goto(base);
+    await page
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .click();
+    await page.getByRole('menuitem', { name: 'Project', exact: true }).click();
+    await page
+      .getByRole('menuitem', { name: 'New project', exact: true })
+      .click();
+    await page
+      .getByLabel('Project name', { exact: true })
+      .fill('Parallel indexing');
+    await page
+      .getByRole('button', { name: 'Create project', exact: true })
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'Import media', exact: true }).first(),
+    ).toBeEnabled();
+    const bytes = await page.evaluate(async () => {
+      const canvas = new OffscreenCanvas(128, 72),
+        ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = 'red';
+      ctx.fillRect(0, 0, 128, 72);
+      return [
+        ...new Uint8Array(await (await canvas.convertToBlob()).arrayBuffer()),
+      ];
+    });
+    await page.getByLabel('Import media', { exact: true }).setInputFiles(
+      ['first.png', 'second.png'].map((name) => ({
+        name,
+        mimeType: 'image/png',
+        buffer: Buffer.from(bytes),
+      })),
+    );
+    await closeMediaImport(page);
+    await expect(page.locator('.media-item')).toHaveCount(2);
+    const dialog = await connect(page);
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await page
+      .getByRole('textbox', { name: 'Describe your edit' })
+      .fill('Index all assets in this project in parallel where independent.');
+    await page
+      .getByRole('button', { name: 'Send edit request', exact: true })
+      .click();
+    const response = page
+      .getByRole('article', { name: 'Assistant response', exact: true })
+      .last();
+    const text = 'Both assets are indexed. Their saved evidence is ready.';
+    await expect(response.locator('[data-chat-response-text]')).toHaveText(
+      text,
+    );
+    await expect(
+      response.getByLabel('Chat action', { exact: true }),
+    ).toHaveCount(2);
+    await expect(response.getByText('Completed', { exact: true })).toHaveCount(
+      2,
+    );
+    expect(
+      await response.evaluate((node) =>
+        [...node.querySelectorAll('[aria-label="Chat action"]')].every(
+          (action) =>
+            !!(
+              action.compareDocumentPosition(
+                node.querySelector('[data-chat-response-text]')!,
+              ) & Node.DOCUMENT_POSITION_FOLLOWING
+            ),
+        ),
+      ),
+    ).toBe(true);
+    await testInfo.attach('parallel index results above final text', {
+      body: await page.screenshot({
+        path: testInfo.outputPath('parallel-index.png'),
+      }),
+      contentType: 'image/png',
+    });
+    await page.reload();
+    await expect(response.locator('[data-chat-response-text]')).toHaveText(
+      text,
+    );
+    const persisted = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        return (await editor.assets.indexes.list()).map((run) => ({
+          assetId: run.assetId,
+          status: run.status,
+        }));
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    expect(persisted).toHaveLength(2);
+    expect(persisted.every((run) => run.status === 'complete')).toBe(true);
+    expect(persisted.map((run) => run.assetId).sort()).toEqual([...ids].sort());
+    expect(round).toBe(7);
+    expect(sceneRequests).toBe(2);
+    expect(
+      await response.evaluate((node) =>
+        [...node.querySelectorAll('[data-tool-call]')].every(
+          (tool) =>
+            !!(
+              tool.compareDocumentPosition(
+                node.querySelector('[data-chat-response-text]')!,
+              ) & Node.DOCUMENT_POSITION_FOLLOWING
+            ),
+        ),
+      ),
+    ).toBe(true);
+  });
   test(`chat indexing requested execution, saved results and automatic authorization ${base}`, async ({
     page,
     context,
@@ -344,6 +597,31 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByText(/Indexing sends generated stills.*may incur cost/),
     ).toBeVisible();
+    const assertResponseLast = async (text: string) => {
+      const article = page
+        .getByRole('article', { name: 'Assistant response', exact: true })
+        .last();
+      await expect(article.locator('[data-chat-response-text]')).toHaveText(
+        text,
+      );
+      expect(
+        await article.evaluate((node) => {
+          const response = node.querySelector('[data-chat-response-text]')!;
+          return [
+            ...node.querySelectorAll(
+              '[aria-label="Chat action"], [data-tool-call]',
+            ),
+          ].every(
+            (activity) =>
+              !!(
+                activity.compareDocumentPosition(response) &
+                Node.DOCUMENT_POSITION_FOLLOWING
+              ),
+          );
+        }),
+      ).toBe(true);
+    };
+    await assertResponseLast('Indexing failed. Send a new request to retry.');
     expect(evidenceRequests).toBe(2);
     await page.screenshot({
       path: test.info().outputPath('chat-indexing-requested.png'),
@@ -377,6 +655,7 @@ for (const base of ['/', '/LocalCut/']) {
         .last(),
     ).toContainText('Saved red image observations are available.');
     await expect(page.getByText('Completed', { exact: true })).toBeVisible();
+    await assertResponseLast('Saved red image observations are available.');
     expect(evidenceRequests).toBe(3);
     expect(sceneRequests).toBe(1);
     expect(await runs()).toEqual([

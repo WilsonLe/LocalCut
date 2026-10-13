@@ -187,6 +187,40 @@ const schemas = {
     .strict(),
 };
 export type ToolName = keyof typeof schemas;
+// Exhaustive classification: new tools must choose their scheduling contract.
+const toolScheduling = {
+  load_skill: 'serial',
+  resolve_library_assets: 'serial',
+  propose_edits: 'serial',
+  propose_action: 'action',
+  check_export: 'serial',
+  inspect_project: 'read',
+  inspect_library: 'read',
+  inspect_capabilities: 'read',
+  inspect_proposals: 'read',
+  inspect_storyboard: 'read',
+  inspect_timeline: 'read',
+  inspect_asset: 'read',
+  inspect_transcription: 'read',
+  read_transcript: 'read',
+  search_asset_index: 'read',
+  read_asset_index: 'read',
+  search_text_library: 'read',
+  validate_edits: 'read',
+} satisfies Record<ToolName, 'serial' | 'read' | 'action'>;
+
+/** Sibling calls express independence; stateful calls remain ordering barriers.
+ * No authority comes from this classification: execution still validates access. */
+export function toolSchedulingGroup(tool: ReturnType<typeof parseTool>) {
+  const mode = toolScheduling[tool.name];
+  if (mode === 'read') return { kind: 'read' as const };
+  if (mode === 'action') {
+    const action = tool.args.action as z.infer<typeof actionSchema>;
+    if (action.type === 'index_asset')
+      return { kind: 'index' as const, resource: action.assetId };
+  }
+  return { kind: 'serial' as const };
+}
 export const supportedEditOperations =
   batchSchema.shape.operations.element.options.map(
     (operation) => operation.shape.type.value,
