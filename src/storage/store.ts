@@ -1,3 +1,4 @@
+import { remapStoryboardAssets } from '../core/storyboard';
 import { openDB } from 'idb';
 import type { IDBPDatabase } from 'idb';
 import { asEditorError, EditorError, invariant } from '../core/errors';
@@ -328,6 +329,7 @@ export class Store {
     );
     const project = validateProject({
       ...backup.project,
+      storyboard: remapStoryboardAssets(backup.project.storyboard, assets),
       id: crypto.randomUUID(),
       revision: 0,
       tracks: backup.project.tracks.map((t) => ({
@@ -677,6 +679,16 @@ export class Store {
     for (const assetId of assetIds(project)) {
       const asset = await get(assetId);
       invariant(asset, 'MISSING_ASSET', 'Asset ' + assetId + ' missing');
+      if (
+        project.storyboard?.elements.some(
+          (e) => e.type === 'image' && e.fileId === assetId,
+        )
+      )
+        invariant(
+          asset.kind === 'image',
+          'INVALID_COMMAND',
+          'Storyboard source must be an image asset',
+        );
       for (const clip of project.tracks
         .flatMap((t) => t.clips)
         .filter((c) => c.assetId === assetId)) {

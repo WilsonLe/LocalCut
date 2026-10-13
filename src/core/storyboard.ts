@@ -28,7 +28,7 @@ const arrowhead = z
     'crowfoot_one_or_many',
   ])
   .nullable();
-/** Only local vector/text data; no files, embeds, URLs or arbitrary metadata. */
+/** Authored geometry and local asset references; no bytes, URLs or embeds. */
 export const storyboardElementSchema = z
   .object({
     id,
@@ -41,6 +41,7 @@ export const storyboardElementSchema = z
       'arrow',
       'freedraw',
       'frame',
+      'image',
     ]),
     x: number.default(0),
     y: number.default(0),
@@ -113,8 +114,42 @@ export const storyboardElementSchema = z
     endIsSpecial: z.boolean().nullable().optional(),
     pressures: z.array(z.number().min(0).max(1)).max(20000).optional(),
     simulatePressure: z.boolean().optional(),
+    fileId: id.optional(),
+    status: z.enum(['saved', 'error']).optional(),
+    scale: z
+      .tuple([
+        z.union([z.literal(-1), z.literal(1)]),
+        z.union([z.literal(-1), z.literal(1)]),
+      ])
+      .optional(),
+    crop: z
+      .object({
+        x: number.nonnegative(),
+        y: number.nonnegative(),
+        width: number.positive(),
+        height: number.positive(),
+        naturalWidth: number.positive(),
+        naturalHeight: number.positive(),
+      })
+      .strict()
+      .nullable()
+      .optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((e, ctx) => {
+    if (
+      e.type === 'image'
+        ? !e.fileId || !e.status || !e.scale
+        : e.fileId !== undefined ||
+          e.status !== undefined ||
+          e.scale !== undefined ||
+          e.crop !== undefined
+    )
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Image fields require a complete local image element',
+      });
+  });
 export const storyboardPatchSchema = z
   .object(
     Object.fromEntries(
@@ -148,6 +183,24 @@ export function validateStoryboard(scene: Storyboard) {
     'Duplicate storyboard element ID',
   );
   for (const element of scene.elements) {
+    invariant(
+      element.type === 'image'
+        ? !!element.fileId && !!element.status && !!element.scale
+        : element.fileId === undefined &&
+            element.status === undefined &&
+            element.scale === undefined &&
+            element.crop === undefined,
+      'INVALID_DOCUMENT',
+      'Storyboard images require a local image asset, status and scale',
+    );
+    if (element.type === 'image' && element.crop) {
+      const c = element.crop;
+      invariant(
+        c.x + c.width <= c.naturalWidth && c.y + c.height <= c.naturalHeight,
+        'INVALID_DOCUMENT',
+        'Image crop exceeds source bounds',
+      );
+    }
     if (element.type === 'text')
       invariant(
         typeof element.text === 'string',
@@ -226,4 +279,19 @@ export function removeStoryboard(scene: Storyboard, ids: string[]) {
           : {}),
       })),
   };
+}
+
+/** Remap local image references during project/workspace transfers. */
+export function remapStoryboardAssets(
+  scene: Storyboard | undefined,
+  assets: ReadonlyMap<string, string>,
+) {
+  return (
+    scene && {
+      ...scene,
+      elements: scene.elements.map((e) =>
+        e.type === 'image' ? { ...e, fileId: assets.get(e.fileId!)! } : e,
+      ),
+    }
+  );
 }

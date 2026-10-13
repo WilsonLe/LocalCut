@@ -1,3 +1,4 @@
+import { storyboardFiles } from './storyboard-images';
 import './storyboard-asset-path';
 import { invariant } from '../core/errors';
 import {
@@ -45,11 +46,17 @@ export async function renderStoryboard(
     'INVALID_COMMAND',
     'Draw something before exporting an image',
   );
+  const files = await storyboardFiles(store, scene, signal);
+  const identities = Object.values(files).map((file) => [
+    file.id,
+    file.dataURL,
+  ]);
   const { name, ...renderOptions } = options;
   const source = await taskCacheKey([
-    'storyboard-export-0.18.1-v2',
+    'storyboard-export-0.18.1-v3',
     scene,
     renderOptions,
+    identities,
   ]);
   const id = `storyboard-${source}`;
   const blob = await store.lock(
@@ -74,14 +81,14 @@ export async function renderStoryboard(
       let rendered: Blob;
       if (options.format === 'excalidraw') {
         rendered = new Blob(
-          [vendor.serializeAsJSON(elements, appState, {}, 'local')],
+          [vendor.serializeAsJSON(elements, appState, files, 'local')],
           { type: 'application/vnd.excalidraw+json' },
         );
       } else if (options.format === 'svg') {
         const svg = await vendor.exportToSvg({
           elements,
           appState,
-          files: {},
+          files,
           exportPadding: options.padding,
         });
         if (options.scale !== 1) {
@@ -101,7 +108,7 @@ export async function renderStoryboard(
         const canvas: HTMLCanvasElement = await vendor.exportToCanvas({
           elements,
           appState,
-          files: {},
+          files,
           exportPadding: options.padding,
           getDimensions: (width: number, height: number) => {
             invariant(

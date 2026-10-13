@@ -29,6 +29,10 @@ This is the project record of the user's durable product and workflow choices. U
 - Put a single searchable previous-generation picker in the dialog header, using persistent local generations. Offer Save to assets separately from Add to timeline.
 - Show minimum/maximum length guidance from the script word count and a reasonable narration pace; distinguish estimates from the measured take's exact timing limits.
 
+## Whiteboard images — 13 October 2026
+
+- Support actual images in the Excalidraw whiteboard through both the interface and agent. Source asset IDs in text notes are insufficient; keep the images local and reusable across reloads and exports.
+
 ## Storyboard exports and agent workflows — 13 October 2026
 
 - Enable local whiteboard exports and storing reusable renders as project Media assets. Provide comprehensive agent guidance for supported Excalidraw vector/text authoring, layout, grouping, layering, export and combinations with editing, evidence, transcripts, history and document handoff.

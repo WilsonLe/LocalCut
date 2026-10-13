@@ -14,8 +14,23 @@ import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import type { ExcalidrawElement } from '@excalidraw/excalidraw/element/types';
 import '@excalidraw/excalidraw/index.css';
 import { storyboardSchema } from '../core/storyboard';
-import type { Editor, Project, Storyboard as Scene } from '../editor';
+import type { Editor, Project, Storyboard as Scene, Asset } from '../editor';
 import { StoryboardSession } from './storyboard-session';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '../components/ui/dialog';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '../components/ui/select';
+import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Tooltip } from '../components/ui/tooltip';
 import { downloadFile } from './helpers';
@@ -56,11 +71,19 @@ export function Storyboard({
   const [exportScale, setExportScale] = useState(1);
   const exportJob = useRef<Job<unknown> | null>(null);
   const mounted = useRef(true);
+  const uploadInput = useRef<HTMLInputElement>(null);
+  const [imagePicker, setImagePicker] = useState(false);
+  const [imageSources, setImageSources] = useState<Asset[]>([]);
+  const [imageSource, setImageSource] = useState<string | null>(null);
+  const [imageTime, setImageTime] = useState('0');
+  const [inserting, setInserting] = useState(false);
+  const imageJob = useRef<Job<unknown> | null>(null);
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
       exportJob.current?.cancel();
+      imageJob.current?.cancel();
     };
   }, []);
   const [session] = useState(
@@ -96,6 +119,19 @@ export function Storyboard({
     );
     api.history.clear();
   }, [reset, api, session]);
+  useEffect(() => {
+    if (!api) return;
+    const controller = new AbortController();
+    void editor.storyboard
+      .files(project, controller.signal)
+      .then((files) => {
+        if (!controller.signal.aborted) api.addFiles(Object.values(files));
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) onError(error);
+      });
+    return () => controller.abort();
+  }, [api, editor, project, onError]);
   useEffect(() => {
     if (!active || readOnly) void session.flush();
   }, [active, readOnly, session]);
@@ -146,6 +182,86 @@ export function Storyboard({
     };
   }, [api]);
 
+  const insertImage = async (assetId: string, timeUs = 0) => {
+    if (readOnly || !active || imageJob.current) return;
+    setInserting(true);
+    try {
+      if (!(await session.flush()) || !mounted.current) return;
+      const latest = await editor.projects.snapshot(project.id);
+      const view = api?.getAppState();
+      const job = editor.storyboard.insertImage(
+        project.id,
+        {
+          assetId,
+          timeUs,
+          elementId: crypto.randomUUID(),
+          x: view ? -view.scrollX + 40 : 0,
+          y: view ? -view.scrollY + 40 : 0,
+        },
+        latest.revision,
+      );
+      imageJob.current = job;
+      await job.completion;
+      if (mounted.current) {
+        setImagePicker(false);
+        await onSaved();
+      }
+    } catch (error) {
+      if (mounted.current) onError(error);
+    } finally {
+      imageJob.current = null;
+      if (mounted.current) setInserting(false);
+    }
+  };
+  const openImagePicker = async () => {
+    try {
+      const library = await editor.library.forProject(project.id).list();
+      const byId = new Map(library.entries.map((e) => [e.id, e]));
+      const ids = [
+        ...new Set(
+          library.entries
+            .filter((e) => {
+              let node: typeof e | undefined = e;
+              while (node) {
+                if (node.trashed) return false;
+                node = node.parentId ? byId.get(node.parentId) : undefined;
+              }
+              return !!e.assetId;
+            })
+            .map((e) => e.assetId!),
+        ),
+      ];
+      const sources = (
+        await Promise.all(ids.map((id) => editor.assets.inspect(id)))
+      ).filter(
+        (a) => a.status === 'ready' && ['image', 'video'].includes(a.kind),
+      );
+      if (!mounted.current) return;
+      setImageSources(sources);
+      setImageSource(sources[0]?.id ?? null);
+      setImageTime('0');
+      setImagePicker(true);
+    } catch (error) {
+      onError(error);
+    }
+  };
+  const uploadImage = async (file: File) => {
+    if (readOnly || !active || inserting || imageJob.current) return;
+    setInserting(true);
+    try {
+      const job = editor.assets.import(file);
+      imageJob.current = job;
+      const asset = await job.completion;
+      await editor.library.forProject(project.id).place(asset.id, [], null);
+      imageJob.current = null;
+      if (mounted.current) await insertImage(asset.id);
+    } catch (error) {
+      imageJob.current = null;
+      if (mounted.current) onError(error);
+    } finally {
+      if (mounted.current) setInserting(false);
+    }
+  };
   const history = async (redo = false) => {
     if (!(await session.flush())) return;
     try {
@@ -242,6 +358,74 @@ export function Storyboard({
         }
       }}
     >
+      <input
+        ref={uploadInput}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        aria-label="Upload storyboard image"
+        className="sr-only"
+        tabIndex={-1}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file) void uploadImage(file);
+        }}
+      />
+      <Dialog open={imagePicker} onOpenChange={setImagePicker}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Insert image from Media</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 py-4">
+            <Select
+              value={imageSource}
+              onValueChange={(value) => {
+                setImageSource(value);
+                setImageTime('0');
+              }}
+              items={imageSources.map((a) => ({ value: a.id, label: a.name }))}
+            >
+              <SelectTrigger aria-label="Image source" className="w-full">
+                <SelectValue placeholder="Select image or video" />
+              </SelectTrigger>
+              <SelectContent>
+                {imageSources.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {imageSources.find((a) => a.id === imageSource)?.kind ===
+              'video' && (
+              <label>
+                Video time (seconds)
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  value={imageTime}
+                  onChange={(event) => setImageTime(event.target.value)}
+                />
+              </label>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              disabled={!imageSource || inserting}
+              onClick={() =>
+                imageSource &&
+                void insertImage(
+                  imageSource,
+                  Math.round(Number(imageTime) * 1e6),
+                )
+              }
+            >
+              Insert image
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {exporting && (
         <span role="status" className="sr-only">
           Exporting storyboard
@@ -350,6 +534,24 @@ export function Storyboard({
         >
           <MainMenu>
             <MainMenu.DefaultItems.ChangeCanvasBackground />
+            {!readOnly && (
+              <MainMenu.Group title="Storyboard images">
+                <MainMenu.Item
+                  icon={<ImagePlus />}
+                  disabled={inserting || !active}
+                  onSelect={() => uploadInput.current?.click()}
+                >
+                  Upload image
+                </MainMenu.Item>
+                <MainMenu.Item
+                  icon={<ImagePlus />}
+                  disabled={inserting || !active}
+                  onSelect={() => void openImagePicker()}
+                >
+                  Insert image from Media
+                </MainMenu.Item>
+              </MainMenu.Group>
+            )}
             {!readOnly && (
               <MainMenu.Group title="Storyboard export">
                 <MainMenu.Item

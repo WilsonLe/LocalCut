@@ -93,6 +93,8 @@ Start with `pnpm test tests/unit/assistant.test.ts` for schema/operation/propert
 
 ## One edit, one focused check
 
+For whiteboard image insertion, run `pnpm test tests/unit/storyboard.test.ts tests/unit/storyboard-export.test.ts tests/unit/assistant.test.ts tests/unit/workspace-backup.test.ts`, then `pnpm test:ui --grep 'storyboard images insert'`. This covers agent discovery/scope/review/requested execution, image geometry and asset remapping, local canvas/export pixels, native video stills, reload, shared history, cancellation/stale timestamps and original-inclusive backup transfer at both bases. Media inference/export algorithms remain unchanged.
+
 For appearance font choices/loading, run `pnpm test tests/unit/appearance-fonts.test.ts tests/unit/font-cache.test.ts tests/unit/workspace-settings.test.ts`, then `pnpm test:ui --grep 'workspace appearance searches|workspace appearance previews the actual app'`. These cover the shared catalog, selected local faces, inheritance, reload/cross-tab persistence, checksum failure/retry and superseded loads. After shared-loader changes, retain `pnpm test:browser tests/browser/text-fonts.spec.ts` on current builds for authored text and native exports. Run both builds and `pnpm check:bundle` to verify lazy startup and font packaging.
 
 Choose the smallest test that exercises the changed behavior, then run the cheap static checks. For a preview scheduling change:

@@ -1,3 +1,4 @@
+import type { StoryboardImageOptions } from '../core/storyboard-image';
 import type { LibraryOperation } from '../core/media-library';
 import type { EditReceipt } from '../core/commands';
 import type { Editor } from '../editor';
@@ -14,6 +15,7 @@ export type AssistantAction =
   | { type: 'export'; options: ExportOptions }
   | { type: 'export_storyboard'; options: StoryboardExportOptions }
   | { type: 'store_storyboard'; options: StoryboardStoreOptions }
+  | { type: 'insert_storyboard_image'; options: StoryboardImageOptions }
   | {
       type: 'transcribe';
       assetId: string;
@@ -25,6 +27,14 @@ export type AssistantAction =
 
 export type AssistantActionResult =
   | { kind: 'edit' | 'history'; receipt: EditReceipt }
+  | {
+      kind: 'storyboard_image';
+      projectId: string;
+      revision: number;
+      assetId: string;
+      elementId: string;
+      receipt: EditReceipt;
+    }
   | {
       kind: 'export';
       artifactId: string;
@@ -64,7 +74,9 @@ export type AssistantActionResult =
 
 /** An assistant may be embedded with just document editing, or the full engine. */
 export interface AssistantEditor {
-  storyboard?: Partial<Pick<Editor['storyboard'], 'export' | 'store'>>;
+  storyboard?: Partial<
+    Pick<Editor['storyboard'], 'export' | 'store' | 'insertImage'>
+  >;
   library?: {
     forProject(
       projectId: string,
@@ -86,6 +98,7 @@ export interface AssistantEditor {
 export interface AssistantCapabilities {
   storyboardExport?: boolean;
   storyboardStore?: boolean;
+  storyboardInsertImage?: boolean;
   /** Host support is discoverable even while permission blocks proposals. */
   indexingSupported?: boolean;
   indexing?: boolean;
@@ -105,6 +118,7 @@ export function assistantCapabilities(
   return {
     storyboardExport: !!editor.storyboard?.export,
     storyboardStore: !!editor.storyboard?.store,
+    storyboardInsertImage: !!editor.storyboard?.insertImage,
     maskTracking: !!editor.masks,
     library: !!editor.library,
     undo: !!editor.commands.undo,
