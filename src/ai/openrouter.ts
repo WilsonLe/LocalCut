@@ -8,6 +8,7 @@ import {
 import { AuthorizationFlow } from './auth.ts';
 import { speechModelsFrom, speechBody, readSpeechAudio } from './speech';
 import { AiError, aiInvariant, httpError } from './errors.ts';
+import { applicationHeaders, requestSessionId } from './request-metadata';
 import {
   parseChatStream,
   requestDeadline,
@@ -112,6 +113,7 @@ function modelsFrom(value: unknown): OpenRouterModel[] {
   return models;
 }
 export function validateRequest(request: ChatRequest): string {
+  const sessionId = requestSessionId(request.sessionId);
   aiInvariant(
     typeof request.model === 'string' && request.model.length > 0,
     'MODEL_REQUIRED',
@@ -220,6 +222,7 @@ export function validateRequest(request: ChatRequest): string {
   let json: string;
   try {
     json = JSON.stringify({
+      session_id: sessionId,
       model: request.model,
       messages: request.messages,
       tools: request.tools,
@@ -308,6 +311,10 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
           const response = await Promise.race([
             requestFetch(`${API}${path}`, {
               ...init,
+              headers: {
+                ...applicationHeaders,
+                ...Object.fromEntries(new Headers(init.headers)),
+              },
               signal: controller.signal,
               credentials: 'omit',
               redirect: 'error',
@@ -491,6 +498,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
       }
     },
     async synthesizeSpeech(request, signal) {
+      const sessionId = requestSessionId(request.sessionId);
       assertActive();
       aiInvariant(
         key !== undefined,
@@ -531,6 +539,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
             ...(key ? { Authorization: `Bearer ${key}` } : {}),
             'Content-Type': 'application/json',
             Accept: response_format === 'mp3' ? 'audio/mpeg' : 'audio/pcm',
+            'x-session-id': sessionId,
           },
           body,
         });
@@ -548,6 +557,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
       }
     },
     async transcribeSpeech(request, signal) {
+      const sessionId = requestSessionId(request.sessionId);
       assertActive();
       aiInvariant(
         key !== undefined,
@@ -559,7 +569,10 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
       try {
         const response = await op.fetch('/audio/transcriptions', {
           method: 'POST',
-          headers: key ? { Authorization: `Bearer ${key}` } : {},
+          headers: {
+            ...(key ? { Authorization: `Bearer ${key}` } : {}),
+            'x-session-id': sessionId,
+          },
           body,
         });
         const segments = transcriptionSegments(
@@ -575,6 +588,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
       }
     },
     async label(request, signal) {
+      const sessionId = requestSessionId(request.sessionId);
       assertActive();
       aiInvariant(
         key !== undefined,
@@ -653,6 +667,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         );
       }
       const body = JSON.stringify({
+        session_id: sessionId,
         model: request.model,
         messages: [
           {
@@ -703,6 +718,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
               text: event.message.content,
               model: event.model,
               usage: event.usage,
+              generationId: event.generationId,
             };
           }
         }

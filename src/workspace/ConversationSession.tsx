@@ -336,6 +336,7 @@ export default function ConversationSession({
     if (!assistant.current) {
       const indexRuns = new Map<string, string>();
       assistant.current = connection.api.createAssistant({
+        sessionId,
         editor,
         tasks: editor.tasks,
         branch: initialBranch?.checkpoint,
@@ -452,6 +453,7 @@ export default function ConversationSession({
         titleRequest.current = controller;
         void connection.api
           .generateChatTitle({
+            sessionId,
             provider: connection.provider,
             model,
             message: text,
