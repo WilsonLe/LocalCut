@@ -8,6 +8,12 @@ This is the project record of the user's durable product and workflow choices. U
 - Recompute fresh context for each turn. The assistant calls tools again when it needs current data. Historical results are observations at their captured state; current tool declarations, permissions and revision checks govern new actions.
 - Preserve this history through cancellation, reload and forks within the same project/model/sharing scope. This supersedes automatic retirement of index-bearing narration and text-only restoration. Explicit new chats, branches, clear-history actions and connection/scope isolation retain their existing ownership.
 
+## Request completion checks — 13 October 2026
+
+- Parse the initial goal, observable success conditions and stop conditions for every editing-assistant request. When execution proposes to stop, use a separate read-only LLM session through the selected provider/model to check fulfillment against current state and authoritative receipts.
+- If unfinished, continue the same turn without replaying completed actions. Return after fulfillment, or report remaining work after three unsuccessful completion checks. Explicit cancellation, refusals and caller budgets still stop work; completion feedback does not authorize failed paid-action retries or bypass user-owned actions.
+- Show the review session subtly through an expandable goal/check trace, outside normal tool activity. Retain the trace locally with the chat.
+
 ## Silent chat retries — 13 October 2026
 
 - When a chat error escalates, show a play-icon Retry response button in the primary Send position. Retry the captured request without retyping; preserve completed actions. A new draft takes precedence as Send, and clearing it restores Retry.

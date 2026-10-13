@@ -1,3 +1,4 @@
+import { fulfillGoalReview } from './chat-title-fixture';
 import { selectAISettingsTab } from './workspace-settings-helper';
 import { closeMediaImport } from './workspace-import-helper';
 import { dismissNotifications } from './workspace-notifications-helper';
@@ -87,6 +88,7 @@ for (const base of ['/', '/LocalCut/']) {
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
+        if (await fulfillGoalReview(route)) return;
         const body = route
           .request()
           .postDataJSON() as (typeof requests)[number];
@@ -225,6 +227,7 @@ data: [DONE]
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
+        if (await fulfillGoalReview(route)) return;
         const body = route
           .request()
           .postDataJSON() as (typeof requests)[number];
@@ -396,6 +399,7 @@ data: [DONE]
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
+        if (await fulfillGoalReview(route)) return;
         const body = route
           .request()
           .postDataJSON() as (typeof requests)[number];
@@ -558,6 +562,7 @@ data: [DONE]
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
+        if (await fulfillGoalReview(route)) return;
         const body = route.request().postDataJSON() as (typeof naming)[number];
         if (!body.tools.length) {
           naming.push(body);
@@ -741,12 +746,12 @@ data: [DONE]
     await expect.poll(() => pending.length).toBe(1);
     pending.shift()!();
     await expect(trigger).toContainText('Beach trip highlights');
-    const reduced = await page.evaluate(
-      () =>
-        (window as unknown as { titleAnimations: { name: string }[] })
-          .titleAnimations,
-    );
-    expect(reduced.some((entry) => entry.name === 'none')).toBe(true);
+    // Assert the rendered replacement under reduced motion. Observer records
+    // can miss a short-lived node while completion/session updates settle.
+    await expect(
+      trigger.locator('.chat-session-title > span').last(),
+    ).toHaveCSS('animation-name', 'none');
+    await expect(trigger.locator('.chat-title-out')).toBeHidden();
     await create();
     await input.fill('Fail naming');
     await input.press('Enter');
@@ -854,6 +859,7 @@ data: [DONE]
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
+        if (await fulfillGoalReview(route)) return;
         const body = route
           .request()
           .postDataJSON() as (typeof requests)[number];
@@ -1143,7 +1149,8 @@ data: [DONE]
     }[] = [];
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
-      (route) => {
+      async (route) => {
+        if (await fulfillGoalReview(route)) return;
         const body = route
           .request()
           .postDataJSON() as (typeof requests)[number];

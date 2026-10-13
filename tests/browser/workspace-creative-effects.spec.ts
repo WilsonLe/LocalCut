@@ -1,4 +1,9 @@
+import { installGoalReviewFixture } from './goal-review-fixture';
 import { expect, test } from '@playwright/test';
+
+test.beforeEach(async ({ page }) => {
+  await installGoalReviewFixture(page);
+});
 
 for (const base of ['/', '/LocalCut/']) {
   test(`creative effects persist, render and export native pixels/audio ${base}`, async ({
@@ -558,7 +563,17 @@ for (const base of ['/', '/LocalCut/']) {
         }
         let round = 0;
         const provider = {
-          stream: async function* () {
+          stream: async function* (
+            request: import('../../src/ai').ChatRequest,
+          ) {
+            const reviewReply = await window.localcutGoalReviewReply({
+              messages: request.messages,
+              tools: request.tools,
+            });
+            if (reviewReply) {
+              yield { type: 'complete' as const, message: reviewReply };
+              return;
+            }
             round++;
             const call = (name: string, args: unknown) => ({
               id: 'call-' + round,

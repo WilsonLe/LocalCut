@@ -40,6 +40,41 @@ for (const base of ['/', '/LocalCut/']) {
         model: 'test/skills',
         provider: {
           async *stream(request) {
+            const instruction = request.messages[0]?.content ?? '';
+            if (instruction.startsWith('LocalCut request contract:')) {
+              yield {
+                type: 'complete' as const,
+                message: {
+                  role: 'assistant' as const,
+                  content: JSON.stringify({
+                    goal: 'Scripted skill request',
+                    successConditions: ['Fulfill scripted request'],
+                    stopConditions: [],
+                  }),
+                },
+              };
+              return;
+            }
+            if (instruction.startsWith('LocalCut completion review:')) {
+              yield {
+                type: 'complete' as const,
+                message: {
+                  role: 'assistant' as const,
+                  content: JSON.stringify({
+                    conditions: [
+                      {
+                        conditionIndex: 0,
+                        status: 'met',
+                        evidence: 'Scripted scenario receipts',
+                      },
+                    ],
+                    stopReason: null,
+                  }),
+                },
+              };
+              return;
+            }
+
             requests.push(structuredClone(request));
             const name = [
               'load_skill',
@@ -254,6 +289,41 @@ for (const base of ['/', '/LocalCut/']) {
         model: 'test/recovery',
         provider: {
           async *stream(request) {
+            const instruction = request.messages[0]?.content ?? '';
+            if (instruction.startsWith('LocalCut request contract:')) {
+              yield {
+                type: 'complete' as const,
+                message: {
+                  role: 'assistant' as const,
+                  content: JSON.stringify({
+                    goal: 'Scripted skill request',
+                    successConditions: ['Fulfill scripted request'],
+                    stopConditions: [],
+                  }),
+                },
+              };
+              return;
+            }
+            if (instruction.startsWith('LocalCut completion review:')) {
+              yield {
+                type: 'complete' as const,
+                message: {
+                  role: 'assistant' as const,
+                  content: JSON.stringify({
+                    conditions: [
+                      {
+                        conditionIndex: 0,
+                        status: 'met',
+                        evidence: 'Scripted scenario receipts',
+                      },
+                    ],
+                    stopReason: null,
+                  }),
+                },
+              };
+              return;
+            }
+
             requests.push(structuredClone(request));
             const scope = JSON.parse(request.messages[1]!.content!);
             let calls: import('../../src/ai').ToolCall[] | undefined;

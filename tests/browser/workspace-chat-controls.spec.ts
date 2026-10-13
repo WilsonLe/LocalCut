@@ -1,3 +1,4 @@
+import { fulfillGoalReview } from './chat-title-fixture';
 import { selectAISettingsTab } from './workspace-settings-helper';
 import {
   prepareOpenRouterKey,
@@ -82,8 +83,9 @@ for (const base of ['/', '/LocalCut/']) {
         );
         await context.route(
           'https://openrouter.ai/api/v1/chat/completions',
-          (route) =>
-            route.fulfill(
+          async (route) => {
+            if (await fulfillGoalReview(route)) return;
+            return route.fulfill(
               route.request().method() === 'OPTIONS'
                 ? { headers: cors, body: '' }
                 : {
@@ -91,7 +93,8 @@ for (const base of ['/', '/LocalCut/']) {
                     contentType: 'text/event-stream',
                     body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'Ready to edit.' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
                   },
-            ),
+            );
+          },
         );
         // Continue in the already-open app.
         await page

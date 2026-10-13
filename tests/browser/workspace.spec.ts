@@ -1,3 +1,4 @@
+import { fulfillGoalReview } from './chat-title-fixture';
 import {
   showOpenRouterTerms,
   selectAISettingsTab,
@@ -1044,6 +1045,7 @@ for (const base of ['/', '/LocalCut/']) {
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
+        if (await fulfillGoalReview(route)) return;
         if (route.request().method() === 'OPTIONS') {
           await route.fulfill({ headers: cors, body: '' });
           return;

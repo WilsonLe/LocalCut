@@ -1,4 +1,9 @@
+import { installGoalReviewFixture } from './goal-review-fixture';
 import { expect, test } from '@playwright/test';
+
+test.beforeEach(async ({ page }) => {
+  await installGoalReviewFixture(page);
+});
 
 for (const base of ['/', '/LocalCut/']) {
   test(`AI approved history and local export actions use production services ${base}`, async ({
@@ -36,6 +41,14 @@ for (const base of ['/', '/LocalCut/']) {
         assetIds: [asset.id],
         provider: {
           async *stream(request) {
+            const reviewReply = await window.localcutGoalReviewReply({
+              messages: request.messages,
+              tools: request.tools,
+            });
+            if (reviewReply) {
+              yield { type: 'complete' as const, message: reviewReply };
+              return;
+            }
             requests.push(structuredClone(request));
             const calls = next;
             if (

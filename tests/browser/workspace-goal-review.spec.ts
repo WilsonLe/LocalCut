@@ -1,0 +1,264 @@
+import { test, expect } from '@playwright/test';
+import type { Route } from '@playwright/test';
+import {
+  prepareOpenRouterKey,
+  openAISettings,
+  selectAISettingsTab,
+} from './workspace-settings-helper';
+import { fulfillChatTitle } from './chat-title-fixture';
+
+const cors = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-headers': 'authorization,content-type',
+  'access-control-allow-methods': 'GET,POST,OPTIONS',
+};
+const reply = (
+  route: Route,
+  content?: string,
+  calls?: { name: string; arguments: string }[],
+) =>
+  route.fulfill({
+    headers: cors,
+    contentType: 'text/event-stream',
+    body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: calls ? { tool_calls: calls.map((call, index) => ({ index, id: `goal-${index}`, type: 'function', function: call })) } : { content }, finish_reason: calls ? 'tool_calls' : 'stop' }] })}\n\ndata: [DONE]\n\n`,
+  });
+
+for (const base of ['/', '/LocalCut/']) {
+  test(`completion review corrects initial request and persists subtle trace ${base}`, async ({
+    page,
+    context,
+  }, testInfo) => {
+    await context.route('https://openrouter.ai/api/v1/models', (route) =>
+      route.fulfill({
+        headers: cors,
+        json: {
+          data: [
+            {
+              id: 'test/review',
+              name: 'Review test model',
+              context_length: 512000,
+              supported_parameters: ['tools', 'tool_choice'],
+            },
+          ],
+        },
+      }),
+    );
+    let checks = 0,
+      executionRounds = 0,
+      parses = 0;
+    let exhausted = false;
+    const sessions: { execution: string[]; review: string[] } = {
+      execution: [],
+      review: [],
+    };
+    const contract = {
+      goal: 'Add overlay track',
+      successConditions: ['A new overlay track exists'],
+      stopConditions: [],
+    };
+    const payloads: Record<string, unknown>[] = [];
+    await context.route(
+      'https://openrouter.ai/api/v1/chat/completions',
+      async (route) => {
+        if (route.request().method() === 'OPTIONS') {
+          await route.fulfill({ headers: cors, body: '' });
+          return;
+        }
+        const request = route.request().postDataJSON();
+        const instruction = request.messages[0]?.content ?? '';
+        if (instruction.startsWith('LocalCut request contract:')) {
+          parses++;
+          sessions.review.push(request.session_id);
+          await reply(route, JSON.stringify(contract));
+          return;
+        }
+        if (instruction.startsWith('LocalCut completion review:')) {
+          checks++;
+          sessions.review.push(request.session_id);
+          const data = JSON.parse(request.messages[1].content);
+          payloads.push(data);
+          const met =
+            !exhausted &&
+            data.currentContext.selectedProject.tracks.some(
+              (track: { id: string }) => track.id === 'checked-overlay',
+            );
+          await reply(
+            route,
+            JSON.stringify({
+              conditions: [
+                {
+                  conditionIndex: 0,
+                  status: met ? 'met' : 'unmet',
+                  evidence: met
+                    ? 'Persisted project and edit receipt show the overlay'
+                    : 'The overlay track is still missing',
+                },
+              ],
+              stopReason: exhausted
+                ? 'Missing required user information'
+                : null,
+            }),
+          );
+          return;
+        }
+        if (await fulfillChatTitle(route)) return;
+        sessions.execution.push(request.session_id);
+        executionRounds++;
+        if (exhausted || executionRounds === 1) {
+          await reply(route, 'Done');
+          return;
+        }
+        if (
+          !request.tools?.some(
+            (tool: { function: { name: string } }) =>
+              tool.function.name === 'propose_edits',
+          )
+        ) {
+          await reply(route, undefined, [
+            { name: 'load_skill', arguments: '{"skillId":"editing"}' },
+          ]);
+          return;
+        }
+        const context = JSON.parse(request.messages[1].content);
+        if (
+          !context.selectedProject.tracks.some(
+            (track: { id: string }) => track.id === 'checked-overlay',
+          )
+        ) {
+          await reply(route, undefined, [
+            {
+              name: 'propose_edits',
+              arguments: JSON.stringify({
+                summary: 'Add requested overlay',
+                operations: [
+                  {
+                    type: 'addTrack',
+                    track: { id: 'checked-overlay', kind: 'overlay' },
+                  },
+                ],
+              }),
+            },
+          ]);
+          return;
+        }
+        await reply(route, 'The overlay track is now added.');
+      },
+    );
+    await page.goto(base);
+    await page
+      .getByRole('button', { name: 'Workspace settings', exact: true })
+      .click();
+    await page.getByRole('menuitem', { name: 'Project', exact: true }).click();
+    await page
+      .getByRole('menuitem', { name: 'New project', exact: true })
+      .click();
+    await page.getByLabel('Project name').fill('Completion review');
+    await page
+      .getByRole('button', { name: 'Create project', exact: true })
+      .click();
+    await openAISettings(page);
+    await prepareOpenRouterKey(page);
+    const dialog = page.getByRole('dialog', {
+      name: 'AI connection',
+      exact: true,
+    });
+    await dialog
+      .getByLabel('OpenRouter API key')
+      .fill('synthetic-goal-review-key');
+    await dialog.getByRole('button', { name: 'Use API key' }).click();
+    await selectAISettingsTab(page, 'LLM - Chat');
+    await dialog
+      .getByRole('combobox', { name: 'AI model', exact: true })
+      .click();
+    await page
+      .getByRole('option', {
+        name: 'Review test model · test/review',
+        exact: true,
+      })
+      .click();
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await page
+      .getByLabel('Describe your edit', { exact: true })
+      .fill('Add an overlay track');
+    await page
+      .getByRole('button', { name: 'Send edit request', exact: true })
+      .click();
+    const response = page
+      .getByRole('article', { name: 'Assistant response' })
+      .last();
+    await expect(response).toContainText('The overlay track is now added.');
+    await expect(
+      response.getByRole('button', {
+        name: 'Completion verified · 2',
+        exact: true,
+      }),
+    ).toBeVisible();
+    expect(checks).toBe(2);
+    expect(parses).toBe(1);
+    expect(new Set(sessions.review).size).toBe(1);
+    expect(sessions.review[0]).not.toBe(sessions.execution[0]);
+    expect(payloads[0]!.initialRequest).toBe('Add an overlay track');
+    expect(payloads[1]!.actions).toEqual(
+      expect.arrayContaining([expect.objectContaining({ status: 'applied' })]),
+    );
+    await response
+      .getByRole('button', { name: 'Completion verified · 2', exact: true })
+      .click();
+    await expect(
+      response.getByText('Initial goal and conditions · completed', {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(response.locator('[data-completion-review]')).toContainText(
+      'The overlay track is still missing',
+    );
+    await page.screenshot({
+      path: testInfo.outputPath('completion-review.png'),
+    });
+    await page.reload();
+    const restored = page
+      .getByRole('article', { name: 'Assistant response' })
+      .last();
+    await expect(
+      restored.getByRole('button', {
+        name: 'Completion verified · 2',
+        exact: true,
+      }),
+    ).toBeVisible();
+    expect(checks).toBe(2);
+    expect(parses).toBe(1);
+    exhausted = true;
+    checks = 0;
+    await page
+      .getByLabel('Describe your edit', { exact: true })
+      .fill('Add another overlay, waiting for details');
+    await page
+      .getByRole('button', { name: 'Send edit request', exact: true })
+      .click();
+    await expect(
+      page.getByRole('article', { name: 'Assistant response' }).last(),
+    ).toContainText('Request unfinished after 3 completion checks');
+    await expect(
+      page.getByRole('button', {
+        name: 'Completion unfinished · 3',
+        exact: true,
+      }),
+    ).toBeVisible();
+    expect(checks).toBe(3);
+    expect(parses).toBe(2);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page
+      .getByRole('navigation', { name: 'Workspace sections' })
+      .getByRole('button', { name: 'Chat', exact: true })
+      .click();
+    await page
+      .getByRole('button', { name: 'Completion unfinished · 3', exact: true })
+      .click();
+    await expect(
+      page
+        .getByRole('article', { name: 'Assistant response' })
+        .last()
+        .locator('[data-completion-review]'),
+    ).toContainText('Missing required user information');
+  });
+}

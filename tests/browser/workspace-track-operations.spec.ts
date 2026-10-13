@@ -1,7 +1,13 @@
+import { installGoalReviewFixture } from './goal-review-fixture';
 import { expect, test } from '@playwright/test';
+
 import type { Page } from '@playwright/test';
 import { openVersions } from './workspace-settings-helper';
 import type { Project } from '../../src/editor';
+
+test.beforeEach(async ({ page }) => {
+  await installGoalReviewFixture(page);
+});
 async function snapshot(
   page: Page,
   base: string,
@@ -495,6 +501,14 @@ for (const base of ['/', '/LocalCut/']) {
           model: 'test/tracks',
           provider: {
             async *stream(request) {
+              const reviewReply = await window.localcutGoalReviewReply({
+                messages: request.messages,
+                tools: request.tools,
+              });
+              if (reviewReply) {
+                yield { type: 'complete' as const, message: reviewReply };
+                return;
+              }
               exposed += JSON.stringify(request.tools);
               const names =
                 round === 0
