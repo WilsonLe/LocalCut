@@ -199,7 +199,7 @@ async function configureSpeech(
   await dialog
     .getByRole('combobox', { name: 'Speech voice', exact: true })
     .click();
-  await page.getByRole('option', { name: 'Kore', exact: true }).click();
+  await page.getByRole('option', { name: 'Kore · Firm', exact: true }).click();
 }
 async function snapshot(page: Page, base: string): Promise<Project> {
   return page.evaluate(async (base) => {
@@ -218,6 +218,209 @@ async function snapshot(page: Page, base: string): Promise<Project> {
   }, base);
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`text to speech searches saved generations and saves to assets without timeline edits ${base}`, async ({
+    page,
+    context,
+  }) => {
+    const requests: Record<string, unknown>[] = [];
+    await context.route(
+      'https://openrouter.ai/api/v1/audio/speech',
+      async (route) => {
+        requests.push(route.request().postDataJSON());
+        await route.fulfill({
+          headers: cors,
+          contentType: 'audio/pcm',
+          body: tone(),
+        });
+      },
+    );
+    const dialog = await connect(page, context, base);
+    const preset = dialog.getByRole('combobox', {
+      name: 'Voice preset',
+      exact: true,
+    });
+    await expect(preset).toContainText('New voice preset');
+    await expect(dialog.getByLabel('New preset name')).toBeVisible();
+    await expect(
+      dialog.getByRole('combobox', { name: 'Speech generation', exact: true }),
+    ).toBeInViewport();
+    expect(await dialog.locator('details').getAttribute('open')).toBeNull();
+    const lastInput = dialog
+      .locator('fieldset input, fieldset textarea')
+      .last();
+    await expect(lastInput).toHaveAttribute('id', 'speech-script');
+    const modelBounds = (await dialog
+      .getByRole('combobox', { name: 'Speech model', exact: true })
+      .boundingBox())!;
+    const voiceBounds = (await dialog
+      .getByRole('combobox', { name: 'Speech voice', exact: true })
+      .boundingBox())!;
+    expect(Math.abs(modelBounds.y - voiceBounds.y)).toBeLessThan(2);
+    await expect(
+      dialog.getByRole('combobox', { name: 'Speech voice', exact: true }),
+    ).toContainText('Kore · Firm');
+    await dialog
+      .getByRole('combobox', { name: 'Speech timing', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'Total length', exact: true })
+      .click();
+    await expect(dialog.locator('#speech-duration-guidance')).toContainText(
+      'for 3 words at 120–180 words/min',
+    );
+    await dialog.getByLabel('Total length (seconds)').fill('1.5');
+    await dialog
+      .getByLabel('Script', { exact: true })
+      .fill('First saved narration');
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
+    await expect(dialog.locator('#speech-duration-guidance')).toContainText(
+      'Minimum: 1.00s · Maximum: 4.00s',
+    );
+    await expect(dialog.getByLabel('Total length (seconds)')).toHaveAttribute(
+      'min',
+      '1',
+    );
+    await expect(dialog.getByLabel('Total length (seconds)')).toHaveAttribute(
+      'max',
+      '4',
+    );
+    const before = await snapshot(page, base);
+    await dialog
+      .getByRole('button', { name: 'Save to assets', exact: true })
+      .click();
+    await expect(
+      dialog.getByRole('status').filter({ hasText: 'Saved to assets' }),
+    ).toBeVisible();
+    const after = await snapshot(page, base);
+    expect(after.tracks).toEqual(before.tracks);
+    expect(after.revision).toBe(before.revision);
+    const readSaved = async () =>
+      page.evaluate(async (base) => {
+        const { createEditor } = (await import(
+          base + 'editor.js'
+        )) as typeof import('../../src/editor');
+        const editor = await createEditor();
+        try {
+          const project = (await editor.projects.list()).find(
+            (item) => item.name === 'Speech project',
+          )!;
+          const library = await editor.library.forProject(project.id).list();
+          const assets = library.entries.filter(
+            (entry) => entry.kind === 'asset',
+          );
+          const transcripts = JSON.parse(
+            await editor.projects.exportJSON(project.id),
+          ).transcripts;
+          return { assets, transcripts };
+        } finally {
+          await editor.dispose();
+        }
+      }, base);
+    const saved = await readSaved();
+    expect(saved.assets).toHaveLength(1);
+    await dialog
+      .getByRole('button', { name: 'Add to timeline', exact: true })
+      .click();
+    await expect(dialog).not.toBeVisible();
+    const reused = await readSaved();
+    expect(reused.assets).toHaveLength(1);
+    expect(reused.transcripts[0].speech.script).toBe('First saved narration');
+    const placed = await snapshot(page, base);
+    expect(placed.tracks[0]!.clips[0]!.assetId).toBe(saved.assets[0]!.assetId);
+    await page.reload();
+    await page
+      .getByRole('button', { name: 'Text to speech', exact: true })
+      .click();
+    await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
+    await dialog
+      .getByRole('combobox', { name: 'Speech generation', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'New generation', exact: true })
+      .click();
+    await expect(dialog.getByLabel('Script', { exact: true })).toHaveValue('');
+    await expect(dialog.getByLabel('Generated speech preview')).toHaveCount(0);
+    await dialog
+      .getByLabel('Script', { exact: true })
+      .fill('Second saved narration');
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
+    expect(requests).toHaveLength(2);
+    await page.reload();
+    await page
+      .getByRole('button', { name: 'Text to speech', exact: true })
+      .click();
+    await expect(dialog.getByLabel('Script', { exact: true })).toHaveValue(
+      'Second saved narration',
+    );
+    const picker = dialog.getByRole('combobox', {
+      name: 'Speech generation',
+      exact: true,
+    });
+    await picker.click();
+    await page.getByLabel('Search previous generations').fill('First saved');
+    await expect(
+      page.getByRole('option', { name: /Second saved/ }),
+    ).toHaveCount(0);
+    await page.getByRole('option', { name: /First saved narration/ }).click();
+    await expect(dialog.getByLabel('Script', { exact: true })).toHaveValue(
+      'First saved narration',
+    );
+    await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
+    expect(requests).toHaveLength(2);
+    // Reselecting the same saved ID must discard local draft edits every time.
+    for (const draft of ['Edited saved script', 'Another local draft']) {
+      await dialog.getByLabel('Script', { exact: true }).fill(draft);
+      await expect(dialog.getByLabel('Generated speech preview')).toHaveCount(
+        0,
+      );
+      await picker.click();
+      await page.getByLabel('Search previous generations').fill('First saved');
+      await page.getByRole('option', { name: /First saved narration/ }).click();
+      await expect(dialog.getByLabel('Script', { exact: true })).toHaveValue(
+        'First saved narration',
+      );
+      await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
+      await expect(
+        dialog.getByRole('status').filter({ hasText: 'Opening saved speech' }),
+      ).toHaveCount(0);
+      expect(requests).toHaveLength(2);
+    }
+    await picker.click();
+    await page.getByLabel('Search previous generations').fill('Kore');
+    await expect(
+      page.getByRole('option', { name: /saved narration/ }),
+    ).toHaveCount(2);
+    await page.getByLabel('Search previous generations').fill('no such script');
+    await expect(page.getByText('No matching generations.')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(
+      page.getByLabel('Search previous generations'),
+    ).not.toBeVisible();
+    await expect(picker).toHaveAttribute('aria-expanded', 'false');
+    await page.setViewportSize({ width: 390, height: 844 });
+    const bounds = (await picker.boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+    await expect(picker).toBeInViewport();
+    await expect(
+      dialog.getByRole('button', { name: 'Save to assets', exact: true }),
+    ).toBeInViewport();
+    await picker.click();
+    await expect(picker).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByLabel('Search previous generations')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(
+      page.getByLabel('Search previous generations'),
+    ).not.toBeVisible();
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  });
   test(`retained speech dialog returns focus to each opener and keeps its draft ${base}`, async ({
     page,
     context,
@@ -372,7 +575,7 @@ for (const base of ['/', '/LocalCut/']) {
       page.getByRole('option', { name: 'Documentary', exact: true }),
     ).toHaveCount(0);
     await page
-      .getByRole('option', { name: 'Custom settings', exact: true })
+      .getByRole('option', { name: 'New voice preset', exact: true })
       .click();
     dialog = await reopenSpeech(page);
     await dialog.getByText('Manage voice presets', { exact: true }).click();
@@ -1231,7 +1434,10 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await expect.poll(() => calls).toBe(1);
     await dialog
-      .getByRole('button', { name: 'Queue another script', exact: true })
+      .getByRole('combobox', { name: 'Speech generation', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'New generation', exact: true })
       .click();
     await dialog.getByLabel('Script', { exact: true }).fill('Second script');
     await dialog
@@ -1320,13 +1526,17 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       dialog.getByRole('button', { name: 'Adjust timing', exact: true }),
     ).toBeVisible();
-    await expect(dialog).toContainText('Original: 2.00s');
+    await expect(dialog.locator('#speech-duration-guidance')).toContainText(
+      'Minimum: 1.00s · Maximum: 4.00s for this 2.00s take',
+    );
     expect(calls).toBe(1);
     dialog = await reopenSpeech(page);
     await expect(
       dialog.getByRole('button', { name: 'Adjust timing', exact: true }),
     ).toBeVisible();
-    await expect(dialog).toContainText('Original: 2.00s');
+    await expect(dialog.locator('#speech-duration-guidance')).toContainText(
+      'Minimum: 1.00s · Maximum: 4.00s for this 2.00s take',
+    );
     await dialog
       .getByLabel('Total length (seconds)', { exact: true })
       .fill('1.25');
