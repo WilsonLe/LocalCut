@@ -2,7 +2,6 @@ import { Button } from '../components/ui/button';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -21,13 +20,8 @@ export default function UpdateDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <DialogHeader>
+        <DialogHeader className="border-0 pb-0">
           <DialogTitle>Update available</DialogTitle>
-          <DialogDescription>
-            A newer version of LocalCut is ready. Finish active work before
-            updating. Saved projects and media stay on this device. Chat and
-            other session state reset.
-          </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
