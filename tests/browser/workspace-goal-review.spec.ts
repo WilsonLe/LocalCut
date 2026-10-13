@@ -57,7 +57,9 @@ for (const base of behaviorBases) {
       review: [],
     };
     const contract =
-      'Goal: Add overlay track and closing title.\nSuccess: The track contains the closing title.';
+      '## Goal\nAdd overlay track and closing title.\n## Success conditions\n- The track contains the closing title.\n## Stop conditions\n- None';
+    const updates: Record<string, unknown>[] = [];
+    let todoUpdates = 0;
     const payloads: Record<string, unknown>[] = [];
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
@@ -70,6 +72,7 @@ for (const base of behaviorBases) {
         const instruction = request.messages[0]?.content ?? '';
         if (instruction.startsWith('LocalCut request contract:')) {
           parses++;
+          updates.push(JSON.parse(request.messages[1].content));
           sessions.review.push(request.session_id);
           expect(request.tool_choice).toBe('none');
           expect(request.tools).toBeUndefined();
@@ -81,6 +84,23 @@ for (const base of behaviorBases) {
             return;
           }
           await reply(route, contract);
+          return;
+        }
+        if (instruction.startsWith('LocalCut session to-dos:')) {
+          todoUpdates++;
+          expect(request.tool_choice).toBe('none');
+          const data = JSON.parse(request.messages[1].content);
+          const met =
+            !exhausted &&
+            data.currentContext.selectedProject.tracks.some(
+              (track: { id: string; clips: { id: string }[] }) =>
+                track.id === 'checked-overlay' &&
+                track.clips.some((clip) => clip.id === 'checked-title'),
+            );
+          await reply(
+            route,
+            `## To-dos\n- [${met ? 'x' : ' '}] Add overlay track and closing title`,
+          );
           return;
         }
         if (instruction.startsWith('LocalCut completion review:')) {
@@ -278,13 +298,28 @@ for (const base of behaviorBases) {
       .getByRole('button', { name: 'Completion verified · 2', exact: true })
       .click();
     await expect(
-      response.getByText('Initial goal and conditions · completed', {
+      response.getByText('Session goal · completed', {
         exact: true,
       }),
     ).toBeVisible();
     await expect(response.locator('[data-completion-review]')).toContainText(
       'The overlay track is still missing',
     );
+    await page
+      .getByRole('button', { name: 'Session goal', exact: true })
+      .click();
+    await expect(
+      page.locator('[data-slot="popover-content"] h4').first(),
+    ).toHaveText('Goal');
+    await page.keyboard.press('Escape');
+    await expect(
+      page.getByRole('button', { name: 'Session goal', exact: true }),
+    ).toBeFocused();
+    await page.getByRole('button', { name: 'To-dos', exact: true }).click();
+    await expect(
+      page.locator('[data-slot="popover-content"] input[type="checkbox"]'),
+    ).toBeChecked();
+    await page.keyboard.press('Escape');
     await page.screenshot({
       path: testInfo.outputPath('completion-review.png'),
     });
@@ -325,7 +360,7 @@ for (const base of behaviorBases) {
       .getByRole('button', { name: 'Completion verified · 2', exact: true })
       .click();
     await expect(restored.locator('[data-completion-review]')).toContainText(
-      contract,
+      'Add overlay track and closing title.',
     );
     await expect(restored.locator('[data-completion-review]')).toContainText(
       'FULFILLED',
@@ -333,6 +368,13 @@ for (const base of behaviorBases) {
     await expect(restored.locator('[data-completion-review]')).toContainText(
       'Persisted project and edit receipt show the overlay',
     );
+    await page
+      .getByRole('button', { name: 'Session goal', exact: true })
+      .click();
+    await expect(page.locator('[data-slot="popover-content"]')).toContainText(
+      'Add overlay track and closing title.',
+    );
+    await page.keyboard.press('Escape');
     expect(checks).toBe(2);
     expect(parses).toBe(2);
     exhausted = true;
@@ -354,6 +396,8 @@ for (const base of behaviorBases) {
     ).toBeVisible();
     expect(checks).toBe(3);
     expect(parses).toBe(3);
+    expect(updates.at(-1)?.existingGoal).toBe(contract);
+    expect(todoUpdates).toBeGreaterThan(executionRounds);
     await page.setViewportSize({ width: 390, height: 844 });
     await page
       .getByRole('navigation', { name: 'Workspace sections' })
@@ -368,6 +412,17 @@ for (const base of behaviorBases) {
         .last()
         .locator('[data-completion-review]'),
     ).toContainText('Missing required user information');
+    await page.getByRole('button', { name: 'To-dos', exact: true }).click();
+    const popup = page.locator('[data-slot="popover-content"]');
+    await expect(popup.locator('input[type="checkbox"]')).not.toBeChecked();
+    const box = await popup.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+    await page.screenshot({ path: testInfo.outputPath('mobile-todos.png') });
+    await page.keyboard.press('Escape');
+    await expect(
+      page.getByRole('button', { name: 'To-dos', exact: true }),
+    ).toBeFocused();
     await page.setViewportSize({ width: 1920, height: 1080 });
     // Exercise an actual pre-string sidecar without rewriting it on restore.
     await page.evaluate(async () => {
@@ -391,7 +446,8 @@ for (const base of behaviorBases) {
                       successConditions: ['Legacy overlay outcome'],
                       stopConditions: [],
                     };
-                  else if (tool.name === 'completion_check')
+                  else if (tool.name === 'completion_check') {
+                    if (tool.input) delete tool.input.todosCleared;
                     tool.result = {
                       conditions: [
                         {
@@ -402,6 +458,7 @@ for (const base of behaviorBases) {
                       ],
                       stopReason: null,
                     };
+                  }
                 }
               }
               store.put(row);

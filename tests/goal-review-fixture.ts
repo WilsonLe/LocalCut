@@ -8,10 +8,17 @@ export function goalReviewReply(
   const instruction = request.messages[0]?.content;
   if (typeof instruction !== 'string' || request.tools?.length) return;
   if (instruction.startsWith('LocalCut request contract:')) {
+    return {
+      role: 'assistant',
+      content:
+        '## Goal\nFulfill the scripted request.\n## Success conditions\n- Scripted outcome completed.\n## Stop conditions\n- None',
+    };
+  }
+  if (instruction.startsWith('LocalCut session to-dos:')) {
     const data = JSON.parse(request.messages[1]!.content!);
     return {
       role: 'assistant',
-      content: `Goal: ${data.initialRequest}\nFulfill the user request.`,
+      content: `## To-dos\n- [${data.conversation?.length > 1 ? 'x' : ' '}] Fulfill the scripted request`,
     };
   }
   if (instruction.startsWith('LocalCut completion review:')) {

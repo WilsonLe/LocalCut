@@ -2,6 +2,13 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Persistent session goals, to-dos and quiet activity — 14 October 2026
+
+- Maintain one goal per chat session. Before each submitted message, a separate read-only agent updates the existing goal with the newest information; retain prior intent unless the user changes it. This supersedes defining a new goal for every request.
+- Use Markdown sections Goal, Success conditions and Stop conditions. Generate a Markdown task checklist after the first goal, refresh it asynchronously after every execution iteration, and revisit both at the next iteration and before stopping. Pursue the goal and a cleared checklist while retaining cancellation, real blockers and the existing completion-check safeguard.
+- Persist current goal/checklist and historical snapshots with the chat, including reload and forks. Render them as Markdown in the history and in two icon-only chat-header popovers.
+- Keep activity compact: defer sharing and action diagnostics to details, show loading with an icon and playful tooltip/accessibility wording, and retain cancellation and actionable errors.
+
 ## Immutable chat continuity — 13 October 2026
 
 - Keep conversation messages, supplied context snapshots and returned tool results immutable. Retain stale results rather than deleting, redacting or rewriting them; never clear conversation history because media scope or saved indexes changed.
@@ -18,7 +25,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Keep reviewer goal definitions and completion assessments as plain strings. Do not require JSON or a reviewer output schema. Preserve the text in the local trace; this supersedes structured reviewer output requirements.
 
-- Parse the initial goal, observable success conditions and stop conditions for every editing-assistant request. When execution proposes to stop, use a separate read-only LLM session through the selected provider/model to check fulfillment against current state and authoritative receipts.
+- Maintain the persistent session goal, observable success conditions and stop conditions as described above. When execution proposes to stop, use a separate read-only LLM session through the selected provider/model to check fulfillment against current state and authoritative receipts.
 - If unfinished, continue the same turn without replaying completed actions. Return after fulfillment, or report remaining work after three unsuccessful completion checks. Explicit cancellation, refusals and caller budgets still stop work; completion feedback does not authorize failed paid-action retries or bypass user-owned actions.
 - Show the review session subtly through an expandable goal/check trace, outside normal tool activity. Retain the trace locally with the chat.
 

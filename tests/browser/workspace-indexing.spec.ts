@@ -598,6 +598,13 @@ for (const base of behaviorBases) {
       .click();
     await expect(
       page.getByText(/Indexing sends generated stills.*may incur cost/),
+    ).toBeHidden();
+    await response
+      .locator('[aria-label="Chat action"]')
+      .getByRole('button', { name: 'Details', exact: true })
+      .click();
+    await expect(
+      page.getByText(/Indexing sends generated stills.*may incur cost/),
     ).toBeVisible();
     const assertResponseLast = async (text: string) => {
       const article = page

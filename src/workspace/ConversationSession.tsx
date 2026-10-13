@@ -85,10 +85,12 @@ const legacyGoalVerdictSchema = z.object({
 });
 
 export type Message = ChatExportMessage &
-  Pick<SavedChatMessage, 'continuation' | 'exchange'>;
+  Pick<SavedChatMessage, 'continuation' | 'exchange' | 'sessionGoal'>;
 type HistoricalTool = NonNullable<SavedChatMessage['tools']>[number];
 const isGoalReview = (tool: HistoricalTool) =>
-  tool.name === 'request_contract' || tool.name === 'completion_check';
+  tool.name === 'request_contract' ||
+  tool.name === 'completion_check' ||
+  tool.name === 'session_todos';
 function CompletionDetails({
   tools,
   streaming,
@@ -106,6 +108,7 @@ function CompletionDetails({
   const parsed = legacyGoalVerdictSchema.safeParse(last.result);
   const verified =
     last.input?.contextChanged !== true &&
+    last.input?.todosCleared !== false &&
     (typeof last.result === 'string'
       ? fulfilledGoal(last.result)
       : parsed.success &&
@@ -117,13 +120,17 @@ function CompletionDetails({
     last.phase === 'started'
       ? streaming
         ? last.name === 'request_contract'
-          ? 'Defining goal…'
-          : 'Checking completion…'
+          ? 'Plotting the course…'
+          : last.name === 'session_todos'
+            ? 'Tending the list…'
+            : 'Checking the landing…'
         : 'Completion check interrupted'
       : last.phase === 'failed'
         ? last.name === 'request_contract'
-          ? 'Initial goal check failed'
-          : 'Completion check failed'
+          ? 'Goal update failed'
+          : last.name === 'session_todos'
+            ? 'To-do update failed'
+            : 'Completion check failed'
         : checks.length
           ? `${verified ? 'Completion verified' : 'Completion unfinished'} · ${checks.length}`
           : 'Goal defined';
@@ -132,8 +139,21 @@ function CompletionDetails({
       <AccordionDisclosure
         summary={
           <span className="flex items-center gap-2">
-            <CheckCheck className="size-3.5" />
-            {label}
+            {last.phase === 'started' && streaming ? (
+              <Tooltip content={label}>
+                <span aria-label={label}>
+                  <LoaderCircle
+                    className="size-3.5 motion-safe:animate-spin"
+                    aria-hidden="true"
+                  />
+                </span>
+              </Tooltip>
+            ) : (
+              <>
+                <CheckCheck className="size-3.5" />
+                {label}
+              </>
+            )}
           </span>
         }
       >
@@ -142,8 +162,10 @@ function CompletionDetails({
             <div key={tool.callId} data-tool-name={tool.name}>
               <p className="mb-1 font-medium">
                 {tool.name === 'request_contract'
-                  ? 'Initial goal and conditions'
-                  : `Completion check ${String(tool.input?.check ?? '')}`}{' '}
+                  ? 'Session goal'
+                  : tool.name === 'session_todos'
+                    ? 'To-dos'
+                    : `Completion check ${String(tool.input?.check ?? '')}`}{' '}
                 · {tool.phase}
               </p>
               {tool.input?.contextChanged === true && (
@@ -153,9 +175,16 @@ function CompletionDetails({
                 </p>
               )}
               {tool.phase === 'completed' && typeof tool.result === 'string' ? (
-                <p className="whitespace-pre-wrap rounded-xl bg-muted p-3">
-                  {tool.result}
-                </p>
+                <Suspense
+                  fallback={
+                    <LoaderCircle
+                      className="size-3"
+                      aria-label="Opening notes…"
+                    />
+                  }
+                >
+                  <ChatMarkdown text={tool.result} />
+                </Suspense>
               ) : tool.name === 'request_contract' && contract.success ? (
                 <div className="space-y-2 rounded-xl bg-muted p-3">
                   <p>{contract.data.goal}</p>
@@ -193,9 +222,15 @@ function CompletionDetails({
                     : 'Completion check failed.'}
                 </p>
               ) : (
-                <p>
-                  {streaming ? 'Assessing the request…' : 'Check interrupted.'}
-                </p>
+                <span
+                  aria-label={streaming ? 'Pondering…' : 'Check interrupted.'}
+                >
+                  {streaming ? (
+                    <LoaderCircle className="size-3.5 motion-safe:animate-spin" />
+                  ) : (
+                    'Check interrupted.'
+                  )}
+                </span>
               )}
             </div>
           ))}
@@ -279,6 +314,7 @@ export interface ChatBranch {
   messages: Message[];
   historyTurnIds: string[];
   historyIndexScope?: string;
+  sessionGoal?: ChatContent['sessionGoal'];
 }
 interface SessionProps extends ConversationProps {
   sessionId: string;
@@ -328,6 +364,9 @@ export default function ConversationSession({
   active,
   exportRef,
 }: SessionProps) {
+  const [sessionGoal, setSessionGoal] = useState(
+    initialBranch?.sessionGoal ?? initialContent.sessionGoal,
+  );
   const [prompt, setPrompt] = useState(initialContent.prompt);
   const [messages, setMessages] = useState<Message[]>(
     initialBranch?.messages ??
@@ -362,7 +401,7 @@ export default function ConversationSession({
   );
   const [running, setRunning] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  const [activity, setActivity] = useState('Thinking…');
+  const [activity, setActivity] = useState('Pondering…');
   const [failure, setFailure] = useState<string | null>(null);
   const [recoveryRequest, setRecoveryRequest] =
     useState<RecoveryRequest | null>(() =>
@@ -440,6 +479,7 @@ export default function ConversationSession({
     saveRef.current(sessionId, {
       prompt,
       messages,
+      sessionGoal,
       attachmentIds: attachments.map((asset) => asset.id),
       historyTurnIds:
         assistant.current?.snapshot().historyTurnIds ??
@@ -452,6 +492,7 @@ export default function ConversationSession({
   }, [
     sessionId,
     messages,
+    sessionGoal,
     prompt,
     attachments,
     attachmentsReady,
@@ -525,6 +566,7 @@ export default function ConversationSession({
         restoredIndexScope: initialBranch
           ? undefined
           : initial.current.historyIndexScope,
+        restoredGoal: initial.current.sessionGoal,
         provider: connection.provider,
         projectId: project.id,
         model,
@@ -600,7 +642,7 @@ export default function ConversationSession({
     if ((!text && !resuming) || attaching || runningRef.current) return;
     runningRef.current = true;
     setFailure(null);
-    setActivity('Thinking…');
+    setActivity('Pondering…');
     setCancelling(false);
     setRunning(true);
     onBusy(true);
@@ -733,6 +775,16 @@ ${resuming.prompt}`
                 : message,
             ),
           );
+        if (event.type === 'session_goal') {
+          setSessionGoal(event.goal);
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === event.turnId
+                ? { ...message, sessionGoal: event.goal }
+                : message,
+            ),
+          );
+        }
         if (event.type === 'tool') {
           setMessages((current) =>
             current.map((message) =>
@@ -755,12 +807,14 @@ ${resuming.prompt}`
           setActivity(
             isGoalReview(event)
               ? event.name === 'request_contract'
-                ? 'Defining success conditions…'
-                : 'Checking request completion…'
+                ? 'Plotting the course…'
+                : event.name === 'session_todos'
+                  ? 'Tending the list…'
+                  : 'Checking the landing…'
               : event.name === 'propose_edits' ||
                   event.name === 'propose_action'
-                ? 'Performing requested action…'
-                : 'Inspecting project context…',
+                ? 'Making it happen…'
+                : 'Peeking around…',
           );
         }
       });
@@ -1012,29 +1066,25 @@ ${resuming.prompt}`
                       aria-label="Chat action"
                     >
                       <p className="text-sm font-medium">{proposal.summary}</p>
-                      {proposal.dataSharing && (
-                        <p className="text-sm text-muted-foreground">
-                          {proposal.dataSharing}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        {proposal.status === 'applied'
-                          ? proposal.receipt
-                            ? `Applied at revision ${proposal.receipt.appliedRevision}`
-                            : 'Completed'
-                          : proposal.status === 'discarded'
-                            ? 'Proposal discarded'
-                            : proposal.status === 'applying'
-                              ? !proposal.action ||
-                                proposal.action.type === 'undo' ||
-                                proposal.action.type === 'redo'
-                                ? 'Committing edit…'
-                                : 'Running action…'
+                      {proposal.status !== 'applying' && (
+                        <p className="text-xs text-muted-foreground">
+                          {proposal.status === 'applied'
+                            ? proposal.receipt
+                              ? `Applied at revision ${proposal.receipt.appliedRevision}`
+                              : 'Completed'
+                            : proposal.status === 'discarded'
+                              ? 'Proposal discarded'
                               : stale
                                 ? 'Project changed. Send a new request.'
                                 : 'Action failed. Send a new request to retry.'}
-                      </p>
-                      <AccordionDisclosure summary="Action details">
+                        </p>
+                      )}
+                      <AccordionDisclosure summary="Details">
+                        {proposal.dataSharing && (
+                          <p className="text-sm text-muted-foreground">
+                            {proposal.dataSharing}
+                          </p>
+                        )}
                         <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-all rounded bg-background p-3 text-xs">
                           {JSON.stringify(
                             proposal.action ?? proposal.batch.operations,
@@ -1045,26 +1095,31 @@ ${resuming.prompt}`
                       </AccordionDisclosure>
                       {proposal.status === 'applying' && (
                         <div className="flex items-center justify-between gap-2 text-xs">
-                          <span role="status">
-                            {proposal.progress?.stage ??
-                              (!proposal.action ||
-                              proposal.action.type === 'undo' ||
-                              proposal.action.type === 'redo'
-                                ? 'Committing'
-                                : 'Working')}
-                            {proposal.progress?.progress !== undefined
-                              ? ` · ${Math.round(proposal.progress.progress * 100)}%`
-                              : ''}
-                          </span>
+                          <Tooltip
+                            content={
+                              proposal.progress?.progress !== undefined
+                                ? `Making it happen… ${Math.round(proposal.progress.progress * 100)}%`
+                                : 'Making it happen…'
+                            }
+                          >
+                            <span role="status" aria-label="Making it happen…">
+                              <LoaderCircle
+                                className="size-3.5 motion-safe:animate-spin"
+                                aria-hidden="true"
+                              />
+                            </span>
+                          </Tooltip>
                           {proposal.action &&
                             proposal.action.type !== 'undo' &&
                             proposal.action.type !== 'redo' && (
                               <Button
                                 variant="ghost"
-                                size="sm"
                                 onClick={() => cancelAction(id)}
+                                size="icon-sm"
+                                aria-label="Cancel action"
+                                title="Cancel action"
                               >
-                                Cancel action
+                                <Square aria-hidden="true" />
                               </Button>
                             )}
                         </div>
@@ -1111,16 +1166,18 @@ ${resuming.prompt}`
                 </Suspense>
               )}
               {message.status === 'streaming' && (
-                <p
-                  role="status"
-                  className="flex items-center gap-2 text-xs text-muted-foreground"
-                >
-                  <LoaderCircle
-                    className="size-3 motion-safe:animate-spin"
-                    aria-hidden="true"
-                  />
-                  {activity} · Response in progress
-                </p>
+                <Tooltip content={activity}>
+                  <span
+                    role="status"
+                    aria-label={activity}
+                    className="inline-flex text-muted-foreground"
+                  >
+                    <LoaderCircle
+                      className="size-3 motion-safe:animate-spin"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </Tooltip>
               )}
               {(message.status === 'interrupted' ||
                 message.status === 'paused' ||
@@ -1180,6 +1237,7 @@ ${resuming.prompt}`
                                 );
                                 onBranch({
                                   checkpoint,
+                                  sessionGoal: message.sessionGoal,
                                   historyTurnIds: ensureAssistant()
                                     .snapshot()
                                     .historyTurnIds.filter((id) =>

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { goalEvidence, goalResponse } from '../../src/ai/goal-review';
+import {
+  goalEvidence,
+  goalResponse,
+  clearedTodos,
+} from '../../src/ai/goal-review';
 import { AiError } from '../../src/ai/errors';
 import type { ChatRequest, ProviderEvent } from '../../src/ai/types';
 
@@ -149,4 +153,16 @@ describe('tool-free reviewer boundary', () => {
     ).rejects.toMatchObject({ code: 'CONTEXT_LIMIT' });
     expect(bounded.requests).toHaveLength(1);
   });
+});
+
+it('only clears a nonempty task list when every item is checked', () => {
+  expect(clearedTodos('## To-dos\n- [x] First\n- [X] Second')).toBe(true);
+  for (const text of [
+    '',
+    'All done',
+    '## To-dos',
+    '- [x] First\n- [ ] Blocked',
+    '- [ ] Needs Save',
+  ])
+    expect(clearedTodos(text)).toBe(false);
 });

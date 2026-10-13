@@ -221,7 +221,12 @@ test('conversation cancellation rejects late proposals and can start a fresh tur
   await connect(page);
   await send(page, 'Add an overlay track.');
   await requestReceived;
-  await expect(page.getByText(/Response in progress/)).toBeVisible();
+  await expect(
+    page
+      .getByRole('article', { name: 'Assistant response' })
+      .last()
+      .getByRole('status'),
+  ).toBeVisible();
   await page
     .getByRole('button', { name: 'Cancel response', exact: true })
     .click();

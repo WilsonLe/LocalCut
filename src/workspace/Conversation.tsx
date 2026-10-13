@@ -63,6 +63,7 @@ const AIConnectionDialog = onDemandDialog(
 );
 const ChatSessionPicker = lazy(() => import('./ChatSessionPicker'));
 const ConversationSession = lazy(() => import('./ConversationSession'));
+const ChatGoalPopover = lazy(() => import('./ChatGoalPopover'));
 const SpeechDialog = onDemandDialog(
   () => import('./SpeechDialog'),
   ({ open, onClose }) => ({ open, title: 'Text to speech', onClose }),
@@ -1022,6 +1023,18 @@ export function Conversation(props: ConversationProps) {
                 </Button>
               </Tooltip>
             )}
+          {ready && chats.loaded && (
+            <Suspense fallback={null}>
+              <ChatGoalPopover
+                key={conversationNumber}
+                goal={
+                  chats.sessions.find(
+                    (session) => session.id === conversationNumber,
+                  )?.content.sessionGoal
+                }
+              />
+            </Suspense>
+          )}
           {props.headerActions}
         </PanelHeader>
         {!chats.saved && (
@@ -1079,6 +1092,7 @@ export function Conversation(props: ConversationProps) {
                           messages: branch.messages,
                           historyTurnIds: branch.historyTurnIds,
                           historyIndexScope: branch.historyIndexScope,
+                          sessionGoal: branch.sessionGoal,
                         },
                         `Branch of ${session.title}`,
                       );
