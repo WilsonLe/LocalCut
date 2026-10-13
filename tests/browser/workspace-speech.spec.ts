@@ -229,6 +229,97 @@ async function snapshot(page: Page, base: string): Promise<Project> {
   }, base);
 }
 for (const base of ['/', '/LocalCut/']) {
+  test(`speech provider controls hide unsupported Fish options and restore Gemini ${base}`, async ({
+    page,
+    context,
+  }, info) => {
+    const dialog = await connect(page, context, base);
+    await dialog
+      .getByLabel('Delivery directions')
+      .fill('Warm retained directions');
+    await dialog
+      .getByRole('combobox', { name: 'Speech model', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'Fish Audio: S2.1 Pro', exact: true })
+      .click();
+    for (const width of [1366, 375]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(dialog.getByLabel('Delivery directions')).toHaveCount(0);
+      await expect(
+        dialog.getByText('Languages in script', { exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        dialog.getByRole('combobox', { name: 'Speech voice', exact: true }),
+      ).toHaveCount(0);
+      await expect(dialog.getByLabel('Speed (×)')).toBeEnabled();
+      await page.screenshot({
+        path: info.outputPath(`fish-controls-${width}.png`),
+      });
+    }
+    await dialog
+      .getByRole('combobox', { name: 'Speech model', exact: true })
+      .click();
+    await page
+      .getByRole('option', {
+        name: 'Google: Gemini 3.8 Flash TTS',
+        exact: true,
+      })
+      .click();
+    await expect(dialog.getByLabel('Delivery directions')).toHaveValue(
+      'Warm retained directions',
+    );
+    await expect(
+      dialog.getByRole('combobox', {
+        name: 'Languages in script',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole('combobox', { name: 'Speech voice', exact: true }),
+    ).toBeVisible();
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await openAISettings(page);
+    const settings = page.getByRole('dialog', {
+      name: 'AI connection',
+      exact: true,
+    });
+    await selectAISettingsTab(page, 'TTS - Speech');
+    const picker = settings.getByRole('combobox', {
+      name: 'OpenRouter tts route model',
+      exact: true,
+    });
+    await expect(
+      settings.getByRole('combobox', {
+        name: 'OpenRouter TTS voice',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await picker.click();
+    await page
+      .getByRole('combobox', { name: 'Search models', exact: true })
+      .fill('fish');
+    await page.getByRole('option', { name: /Fish Audio/ }).click();
+    await expect(
+      settings.getByRole('combobox', {
+        name: 'OpenRouter TTS voice',
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await picker.click();
+    await page
+      .getByRole('combobox', { name: 'Search models', exact: true })
+      .fill('gemini');
+    await page.getByRole('option', { name: /Gemini/ }).click();
+    await expect(
+      settings.getByRole('combobox', {
+        name: 'OpenRouter TTS voice',
+        exact: true,
+      }),
+    ).toBeVisible();
+  });
+
   test(`text to speech searches saved generations and saves to assets without timeline edits ${base}`, async ({
     page,
     context,
@@ -522,6 +613,31 @@ for (const base of ['/', '/LocalCut/']) {
       },
     );
     let dialog = await connect(page, context, base);
+    await context.route(
+      'https://openrouter.ai/api/v1/audio/transcriptions',
+      (route) =>
+        route.fulfill({
+          headers: cors,
+          json: {
+            segments: [
+              { text: 'Last phrase.', start: 1, end: 3 },
+              { text: 'Empty span', start: 0.8, end: 0.8 },
+              { text: '', start: 2, end: 3 },
+              { text: 'First phrase.', start: 0.1, end: 0.9 },
+            ],
+          },
+        }),
+    );
+    await expect(dialog.getByLabel('Delivery directions')).toBeVisible();
+    await expect(
+      dialog.getByRole('combobox', {
+        name: 'Languages in script',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await dialog
+      .getByLabel('Delivery directions')
+      .fill('Warm retained directions');
     await dialog
       .getByLabel('Script', { exact: true })
       .fill('My original favorite voice sample.');
@@ -538,6 +654,14 @@ for (const base of ['/', '/LocalCut/']) {
       dialog.getByRole('combobox', { name: 'Voice preset', exact: true }),
     ).toContainText('Narrator');
     expect(requests).toHaveLength(1);
+    await expect(dialog.getByLabel('Delivery directions')).toHaveCount(0);
+    await expect(
+      dialog.getByText('Languages in script', { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      dialog.getByRole('combobox', { name: 'Speech voice', exact: true }),
+    ).toHaveCount(0);
+    await expect(dialog.getByLabel('Speed (×)')).toBeEnabled();
     await expect(
       dialog.getByText(/Generate sends this saved recording/),
     ).toBeVisible();
@@ -557,6 +681,57 @@ for (const base of ['/', '/LocalCut/']) {
     });
     expect(requests[1]).not.toHaveProperty('voice');
     expect(requests[1]).not.toHaveProperty('seed');
+    expect(requests[1]).not.toHaveProperty('instructions');
+    const measured = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const task = (await editor.tasks.list())
+          .filter((t) => t.label === 'Generating speech')
+          .at(-1)!;
+        const result = await editor.tasks.result<
+          import('../../src/workspace/speech-tasks').SpeechTaskResult
+        >(task.id);
+        return {
+          cues: result.transcript?.cues,
+          durationUs: Math.round(
+            (result.audio.samples.length / result.audio.sampleRate) * 1e6,
+          ),
+        };
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    expect(measured.cues?.map((c) => c.text)).toEqual([
+      'First phrase.',
+      'Last phrase.',
+    ]);
+    expect(measured.cues?.[1]?.endUs).toBe(measured.durationUs);
+    await dialog
+      .getByRole('combobox', { name: 'Speech model', exact: true })
+      .click();
+    await page
+      .getByRole('option', {
+        name: 'Google: Gemini 3.8 Flash TTS',
+        exact: true,
+      })
+      .click();
+    await expect(dialog.getByLabel('Delivery directions')).toBeEnabled();
+    await expect(
+      dialog.getByRole('combobox', {
+        name: 'Languages in script',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole('combobox', { name: 'Speech voice', exact: true }),
+    ).toBeVisible();
+    await dialog
+      .getByRole('combobox', { name: 'Voice preset', exact: true })
+      .click();
+    await page.getByRole('option', { name: 'Narrator', exact: true }).click();
     const reference = requests[1]!.input_references as {
       type: string;
       text?: string;
@@ -1485,8 +1660,8 @@ for (const base of ['/', '/LocalCut/']) {
         return route.fulfill({
           headers: cors,
           json:
-            alignment === 1
-              ? { text: 'Untimed output' }
+            alignment <= 2
+              ? { segments: [{ text: 'Invalid phrase', start: 1, end: 0.5 }] }
               : {
                   segments: [
                     { text: 'Hello!', start: 0.1, end: 0.9 },
@@ -1507,6 +1682,20 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
     expect(synthesis).toBe(1);
     expect(alignment).toBe(1);
+    await expect(dialog.getByRole('alert')).toContainText(
+      'Speech audio is saved, but phrase timing failed',
+    );
+    await dialog
+      .getByRole('button', { name: 'Retry timing', exact: true })
+      .click();
+    await expect(dialog.getByRole('alert')).toContainText(
+      'Speech audio is saved, but phrase timing failed',
+    );
+    await expect(
+      dialog.getByRole('button', { name: 'Retry timing', exact: true }),
+    ).toBeEnabled();
+    expect(synthesis).toBe(1);
+    expect(alignment).toBe(2);
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
     await page.getByRole('button', { name: 'Task queue', exact: true }).click();
     const queue = page.getByRole('dialog', { name: 'Task queue', exact: true });
@@ -1520,7 +1709,7 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await expect(failed.getByRole('status')).toContainText('completed');
     expect(synthesis).toBe(1);
-    expect(alignment).toBe(2);
+    expect(alignment).toBe(3);
     await queue.getByRole('button', { name: 'Close', exact: true }).click();
     await page
       .getByRole('button', { name: 'Text to speech', exact: true })
@@ -1579,7 +1768,7 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeEnabled();
     await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
     expect(synthesis).toBe(1);
-    expect(alignment).toBe(3);
+    expect(alignment).toBe(4);
     await page.reload();
     await page
       .getByRole('button', { name: 'Text to speech', exact: true })
@@ -1618,7 +1807,7 @@ for (const base of ['/', '/LocalCut/']) {
     expect(saved.cues[0].timeUs).toBe(20000);
     expect(saved.cues[0].endUs).toBe(saved.cues[1].timeUs);
     expect(synthesis).toBe(1);
-    expect(alignment).toBe(3);
+    expect(alignment).toBe(4);
   });
   test(`restored speech cancels its saved pending task ${base}`, async ({
     page,

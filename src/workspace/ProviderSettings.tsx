@@ -349,18 +349,16 @@ function ServiceModelPicker({
           );
         }}
       />
-      {service === 'tts' && (
+      {service === 'tts' && !selected?.referenceVoice && (
         <SettingsSelect
           label={label.replace('tts route model', 'TTS voice')}
           value={voice && availableVoices.includes(voice) ? voice : null}
           placeholder={
             loading
               ? 'Loading voices…'
-              : selected?.referenceVoice
-                ? 'Choose a saved voice in Text to speech'
-                : availableVoices.length
-                  ? 'Choose a voice'
-                  : 'No voices available'
+              : availableVoices.length
+                ? 'Choose a voice'
+                : 'No voices available'
           }
           options={availableVoices.map((value) => ({ value, label: value }))}
           disabled={disabled || loading || !availableVoices.length}

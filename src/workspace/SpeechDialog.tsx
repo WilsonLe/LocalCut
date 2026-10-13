@@ -52,7 +52,13 @@ import {
 import { SettingsSelect } from './SettingsSelect';
 import { speechLengthEstimate, speechVoiceLabel } from './speech-form';
 import { Tooltip } from '../components/ui/tooltip';
-import { speechTaskKind, speechRoute, speechTimingRoute } from './speech-tasks';
+import {
+  speechTaskKind,
+  speechRoute,
+  speechTimingRoute,
+  speechTaskError,
+  SPEECH_TIMING_FAILURE,
+} from './speech-tasks';
 import type {
   SpeechTaskInput,
   SpeechTaskResult,
@@ -234,16 +240,18 @@ export default function SpeechDialog({
           if (active.current && !abort.signal.aborted) {
             const code = errorCode(error);
             const message =
-              code === 'INVALID_REQUEST' ||
-              code === 'INVALID_RESPONSE' ||
-              code === 'MODEL_UNSUPPORTED' ||
-              code === 'RESPONSE_LIMIT'
-                ? error instanceof Error
-                  ? error.message
-                  : 'Speech could not be generated.'
-                : code === 'REVISION_CONFLICT'
-                  ? 'The project changed. Review the timeline and try adding again.'
-                  : errorText(error);
+              error instanceof Error && error.message === SPEECH_TIMING_FAILURE
+                ? SPEECH_TIMING_FAILURE
+                : code === 'INVALID_REQUEST' ||
+                    code === 'INVALID_RESPONSE' ||
+                    code === 'MODEL_UNSUPPORTED' ||
+                    code === 'RESPONSE_LIMIT'
+                  ? error instanceof Error
+                    ? error.message
+                    : 'Speech could not be generated.'
+                  : code === 'REVISION_CONFLICT'
+                    ? 'The project changed. Review the timeline and try adding again.'
+                    : errorText(error);
             setError(message);
           }
         } finally {
@@ -551,7 +559,7 @@ export default function SpeechDialog({
         });
       else if (['failed', 'interrupted', 'cancelled'].includes(task.state)) {
         setBusy(null);
-        if (task.error) setError(task.error.message + ' ' + task.error.action);
+        if (task.error) setError(speechTaskError(task.error));
         void loadSource(task.id).catch(() => {
           if (isCurrent()) setError('Saved speech source could not be opened.');
         });
@@ -590,8 +598,7 @@ export default function SpeechDialog({
             setBusy(task.stage);
           else {
             setBusy(null);
-            if (task.error)
-              setError(task.error.message + ' ' + task.error.action);
+            if (task.error) setError(speechTaskError(task.error));
             await loadSource(task.id);
           }
         })
@@ -796,14 +803,15 @@ export default function SpeechDialog({
               setBusy(null);
             }
           },
-          (error) => {
+          () => {
             if (
               active.current &&
               selection.current === job.id &&
               generated.current?.id === job.id
             ) {
               setBusy(null);
-              setError(errorText(error));
+              // The task subscription owns the saved speech failure and recovery
+              // message; a generic chat error would overwrite that diagnosis.
             }
           },
         );
@@ -1163,72 +1171,75 @@ export default function SpeechDialog({
                 </div>
               )}
             </div>
-            <div className="space-y-2">
-              <Label>Languages in script</Label>
-              <Combobox
-                multiple
-                items={[
-                  ...new Set([
-                    ...languages,
-                    ...selectedLanguages,
-                    ...(languageQuery.trim()
-                      ? [languageQuery.trim().slice(0, 80)]
-                      : []),
-                  ]),
-                ]}
-                inputValue={languageQuery}
-                onInputValueChange={setLanguageQuery}
-                value={selectedLanguages}
-                onValueChange={(value) => {
-                  invalidate();
-                  setLanguages(value);
-                }}
-              >
-                <ComboboxTrigger
-                  aria-label="Languages in script"
-                  disabled={!!busy}
-                >
-                  {selectedLanguages.join(', ') || 'Choose languages'}
-                </ComboboxTrigger>
-                <ComboboxContent>
-                  <div className="p-2">
-                    <ComboboxInput
-                      aria-label="Search speech languages"
-                      placeholder="Search or enter a language…"
-                    />
-                  </div>
-                  <ComboboxEmpty>No matching languages.</ComboboxEmpty>
-                  <ComboboxList>
-                    {(language: string) => (
-                      <ComboboxItem
-                        key={language}
-                        value={language}
-                        disabled={
-                          !selectedLanguages.includes(language) &&
-                          selectedLanguages.length >= 8
-                        }
-                      >
-                        {language}
-                      </ComboboxItem>
-                    )}
-                  </ComboboxList>
-                </ComboboxContent>
-              </Combobox>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="speech-delivery">Delivery directions</Label>
-              <Input
-                id="speech-delivery"
-                value={delivery}
-                maxLength={1500}
-                disabled={selected?.referenceVoice}
-                onChange={(event) => {
-                  invalidate();
-                  setDelivery(event.target.value);
-                }}
-                placeholder="Natural and conversational; warm, calm, expressive…"
-              />
-            </div>
+            {!selected?.referenceVoice && (
+              <>
+                <div className="space-y-2">
+                  <Label>Languages in script</Label>
+                  <Combobox
+                    multiple
+                    items={[
+                      ...new Set([
+                        ...languages,
+                        ...selectedLanguages,
+                        ...(languageQuery.trim()
+                          ? [languageQuery.trim().slice(0, 80)]
+                          : []),
+                      ]),
+                    ]}
+                    inputValue={languageQuery}
+                    onInputValueChange={setLanguageQuery}
+                    value={selectedLanguages}
+                    onValueChange={(value) => {
+                      invalidate();
+                      setLanguages(value);
+                    }}
+                  >
+                    <ComboboxTrigger
+                      aria-label="Languages in script"
+                      disabled={!!busy}
+                    >
+                      {selectedLanguages.join(', ') || 'Choose languages'}
+                    </ComboboxTrigger>
+                    <ComboboxContent>
+                      <div className="p-2">
+                        <ComboboxInput
+                          aria-label="Search speech languages"
+                          placeholder="Search or enter a language…"
+                        />
+                      </div>
+                      <ComboboxEmpty>No matching languages.</ComboboxEmpty>
+                      <ComboboxList>
+                        {(language: string) => (
+                          <ComboboxItem
+                            key={language}
+                            value={language}
+                            disabled={
+                              !selectedLanguages.includes(language) &&
+                              selectedLanguages.length >= 8
+                            }
+                          >
+                            {language}
+                          </ComboboxItem>
+                        )}
+                      </ComboboxList>
+                    </ComboboxContent>
+                  </Combobox>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="speech-delivery">Delivery directions</Label>
+                  <Input
+                    id="speech-delivery"
+                    value={delivery}
+                    maxLength={1500}
+                    onChange={(event) => {
+                      invalidate();
+                      setDelivery(event.target.value);
+                    }}
+                    placeholder="Natural and conversational; warm, calm, expressive…"
+                  />
+                </div>
+              </>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Timing</Label>

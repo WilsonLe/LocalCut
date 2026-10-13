@@ -5,7 +5,19 @@ import type {
   RenderedSpeech,
 } from '../ai';
 import type { Connection } from './Conversation';
-import type { SpeechTranscript } from '../editor';
+import type { SpeechTranscript, TaskRecord } from '../editor';
+
+export const SPEECH_TIMING_FAILURE =
+  'Speech audio is saved, but phrase timing failed. Retry timing to reuse this take without generating speech again.';
+
+export function speechTaskError(error: NonNullable<TaskRecord['error']>) {
+  // Only expose this exact locally authored diagnosis, never arbitrary provider
+  // diagnostics (which may contain transcript text or credentials).
+  return error.diagnostic?.message === SPEECH_TIMING_FAILURE
+    ? SPEECH_TIMING_FAILURE
+    : error.message + ' ' + error.action;
+}
+
 export interface SpeechTaskInput {
   request: SpeechRequest;
   timing: SpeechTiming;
