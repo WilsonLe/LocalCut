@@ -1,3 +1,4 @@
+import { fulfillGoalReview } from './chat-title-fixture';
 import { selectAISettingsTab } from './workspace-settings-helper';
 import {
   prepareOpenRouterKey,
@@ -74,8 +75,9 @@ test('long assistant replies scroll inside the conversation and keep the compose
   );
   await context.route(
     'https://openrouter.ai/api/v1/chat/completions',
-    (route) =>
-      route.fulfill(
+    async (route) => {
+      if (await fulfillGoalReview(route)) return;
+      return route.fulfill(
         route.request().method() === 'OPTIONS'
           ? { headers: cors, body: '' }
           : {
@@ -83,7 +85,8 @@ test('long assistant replies scroll inside the conversation and keep the compose
               contentType: 'text/event-stream',
               body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: reply }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
             },
-      ),
+      );
+    },
   );
   await page.goto('/LocalCut/');
   await createProject(page, 'Long conversation');

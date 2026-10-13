@@ -2,6 +2,12 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Request completion checks — 13 October 2026
+
+- Parse the initial goal, observable success conditions and stop conditions for every editing-assistant request. When execution proposes to stop, use a separate read-only LLM session through the selected provider/model to check fulfillment against current state and authoritative receipts.
+- If unfinished, continue the same turn without replaying completed actions. Return after fulfillment, or report remaining work after three unsuccessful completion checks. Explicit cancellation, refusals and caller budgets still stop work; completion feedback does not authorize failed paid-action retries or bypass user-owned actions.
+- Show the review session subtly through an expandable goal/check trace, outside normal tool activity. Retain the trace locally with the chat.
+
 ## Silent chat retries — 13 October 2026
 
 - When a chat error escalates, show a play-icon Retry response button in the primary Send position. Retry the captured request without retyping; preserve completed actions. A new draft takes precedence as Send, and clearing it restores Retry.

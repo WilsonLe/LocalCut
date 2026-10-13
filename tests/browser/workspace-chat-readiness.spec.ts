@@ -4,7 +4,7 @@ import {
   prepareOpenRouterKey,
   openAISettings,
 } from './workspace-settings-helper';
-import { fulfillChatTitle } from './chat-title-fixture';
+import { fulfillChatTitle, fulfillGoalReview } from './chat-title-fixture';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { SavedChatSession } from '../../src/storage/chats';
@@ -69,6 +69,7 @@ for (const base of ['/', '/LocalCut/']) {
         if (route.request().method() === 'OPTIONS')
           return route.fulfill({ headers: cors, body: '' });
         expect(route.request().postDataJSON().model).toBe('test/chat');
+        if (await fulfillGoalReview(route)) return;
         if (await fulfillChatTitle(route)) {
           titles++;
           return;

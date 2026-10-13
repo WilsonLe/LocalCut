@@ -1,4 +1,9 @@
+import { installGoalReviewFixture } from './goal-review-fixture';
 import { expect, test } from '@playwright/test';
+
+test.beforeEach(async ({ page }) => {
+  await installGoalReviewFixture(page);
+});
 test('task publication observes cancellation and preserves committed results', async ({
   page,
 }) => {
@@ -324,7 +329,15 @@ test('full-engine assistants queue by default and retry without nested queue dea
     const project = await editor.projects.create('retry');
     let calls = 0;
     const provider = {
-      async *stream() {
+      async *stream(request: import('../../src/ai').ChatRequest) {
+        const reviewReply = await window.localcutGoalReviewReply({
+          messages: request.messages,
+          tools: request.tools,
+        });
+        if (reviewReply) {
+          yield { type: 'complete' as const, message: reviewReply };
+          return;
+        }
         // Exhaust the round's silent retries before testing explicit queue retry.
         if (calls++ < 3)
           throw new AiError('RATE_LIMITED', 'private echo', { status: 429 });

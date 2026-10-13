@@ -1,4 +1,9 @@
+import { installGoalReviewFixture } from './goal-review-fixture';
 import { test, expect } from '@playwright/test';
+
+test.beforeEach(async ({ page }) => {
+  await installGoalReviewFixture(page);
+});
 for (const base of ['/', '/LocalCut/']) {
   test(`OPFS media folder operations, recovery and native sources ${base}`, async ({
     page,
@@ -311,6 +316,14 @@ for (const base of ['/', '/LocalCut/']) {
         execution: 'requested',
         provider: {
           async *stream(request) {
+            const reviewReply = await window.localcutGoalReviewReply({
+              messages: request.messages,
+              tools: request.tools,
+            });
+            if (reviewReply) {
+              yield { type: 'complete' as const, message: reviewReply };
+              return;
+            }
             shared.push(
               ...request.messages
                 .filter((message) => message.role === 'tool')

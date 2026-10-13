@@ -1,3 +1,4 @@
+import { fulfillGoalReview } from './chat-title-fixture';
 import { selectAISettingsTab } from './workspace-settings-helper';
 import { fulfillChatTitle } from './chat-title-fixture';
 import { dismissNotifications } from './workspace-notifications-helper';
@@ -393,6 +394,7 @@ for (const base of ['/', '/LocalCut/']) {
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
+        if (await fulfillGoalReview(route)) return;
         if (route.request().method() === 'OPTIONS') {
           await route.fulfill({ headers: cors });
           return;
@@ -734,6 +736,7 @@ for (const base of ['/', '/LocalCut/']) {
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
+        if (await fulfillGoalReview(route)) return;
         if (route.request().method() === 'OPTIONS') {
           await route.fulfill({ headers: cors });
           return;
@@ -918,6 +921,7 @@ for (const base of ['/', '/LocalCut/']) {
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
+        if (await fulfillGoalReview(route)) return;
         if (route.request().method() === 'OPTIONS') {
           await route.fulfill({ headers: cors });
           return;
@@ -1070,6 +1074,7 @@ for (const base of ['/', '/LocalCut/']) {
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
+        if (await fulfillGoalReview(route)) return;
         if (route.request().method() === 'OPTIONS') {
           await route.fulfill({ headers: cors });
           return;
@@ -1237,6 +1242,7 @@ for (const base of ['/', '/LocalCut/']) {
       await context.route(
         'https://openrouter.ai/api/v1/chat/completions',
         async (route) => {
+          if (await fulfillGoalReview(route)) return;
           if (route.request().method() === 'OPTIONS') {
             await route.fulfill({ headers: cors });
             return;
@@ -1388,6 +1394,7 @@ for (const base of ['/', '/LocalCut/']) {
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
+        if (await fulfillGoalReview(route)) return;
         if (route.request().method() === 'OPTIONS') {
           await route.fulfill({ headers: cors });
           return;

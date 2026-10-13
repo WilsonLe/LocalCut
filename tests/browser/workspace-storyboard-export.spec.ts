@@ -1,5 +1,11 @@
+import { installGoalReviewFixture } from './goal-review-fixture';
 import { test, expect } from '@playwright/test';
+
 import { dismissNotifications } from './workspace-notifications-helper';
+
+test.beforeEach(async ({ page }) => {
+  await installGoalReviewFixture(page);
+});
 
 for (const base of ['/', '/LocalCut/']) {
   test(`storyboard exports local formats, Media persistence and agent timeline reuse ${base}`, async ({
@@ -287,6 +293,14 @@ for (const base of ['/', '/LocalCut/']) {
             execution: 'requested',
             provider: {
               stream: async function* (request) {
+                const reviewReply = await window.localcutGoalReviewReply({
+                  messages: request.messages,
+                  tools: request.tools,
+                });
+                if (reviewReply) {
+                  yield { type: 'complete' as const, message: reviewReply };
+                  return;
+                }
                 requests.push(JSON.stringify(request));
                 const tools = [
                   [call('load_skill', { skillId: 'storyboard' })],
