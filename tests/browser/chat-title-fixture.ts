@@ -10,14 +10,18 @@ export async function fulfillChatTitle(
   if (await fulfillGoalReview(route)) return true;
   if (route.request().method() !== 'POST') return false;
   const body = route.request().postDataJSON();
-  if (body.tools?.length !== 0 || body.messages?.[0]?.role !== 'system')
+  if (
+    body.tools?.length ||
+    body.messages?.[0]?.role !== 'system' ||
+    !body.messages[0].content?.startsWith('Name this video-editing chat')
+  )
     return false;
   expect(body.messages).toHaveLength(2);
   expect(body.messages[1]).toMatchObject({
     role: 'user',
     content: expect.any(String),
   });
-  expect(body).not.toHaveProperty('tool_choice');
+  expect(body.tool_choice).toBe('none');
   await route.fulfill({
     headers: {
       'access-control-allow-origin': '*',

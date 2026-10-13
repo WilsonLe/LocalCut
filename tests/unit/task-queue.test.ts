@@ -977,6 +977,44 @@ it('retains safe HTTP metadata for actionable endpoint errors and removes privat
 });
 
 it.each([
+  [
+    'INVALID_REQUEST',
+    {
+      status: 400,
+      stage: 'completion_check',
+      providerReason: 'invalid_prompt',
+      parameter: 'messages',
+    },
+  ],
+  [
+    'INVALID_RESPONSE',
+    { reason: 'reviewer_protocol', stage: 'request_contract' },
+  ],
+  ['INVALID_REQUEST', { reason: 'attachment_unavailable' }],
+])(
+  'preserves safe recovery metadata through a queued %s failure',
+  async (code, details) => {
+    const q = queue();
+    q.register('review', {
+      lane: 'remote',
+      recovery: 'manual',
+      execute: async () => {
+        throw Object.assign(new Error('Safe failure'), {
+          code,
+          details: { ...details, body: 'private-body-marker' },
+        });
+      },
+    });
+    const job = q.enqueue('review', {}, { label: 'Review' });
+    await expect(job.completion).rejects.toMatchObject({ code, details });
+    const task = await q.get(job.id);
+    expect(task?.error?.details).toEqual(details);
+    expect(task?.attempts).toBe(1);
+    expect(JSON.stringify(task)).not.toContain('private-body-marker');
+  },
+);
+
+it.each([
   ['RESPONSE_INCOMPLETE', 'output_limit', { reason: 'output_limit' }],
   ['RESPONSE_INCOMPLETE', 'empty_response', { reason: 'empty_response' }],
   ['RESPONSE_INCOMPLETE', 'secret-token', undefined],

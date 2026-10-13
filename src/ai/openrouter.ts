@@ -7,12 +7,13 @@ import {
 } from './credentials';
 import { AuthorizationFlow } from './auth.ts';
 import { speechModelsFrom, speechBody, readSpeechAudio } from './speech';
-import { AiError, aiInvariant, httpError } from './errors.ts';
+import { AiError, aiInvariant } from './errors.ts';
 import { applicationHeaders, requestSessionId } from './request-metadata';
 import {
   parseChatStream,
   requestDeadline,
   readJson,
+  readHttpError,
   validateReasoningMetadata,
 } from './protocol.ts';
 import type {
@@ -225,12 +226,15 @@ export function validateRequest(request: ChatRequest): string {
       session_id: sessionId,
       model: request.model,
       messages: request.messages,
-      tools: request.tools,
       max_tokens: request.maxOutputTokens,
       stream: true,
       ...(request.tools.length
-        ? { tool_choice: 'auto', parallel_tool_calls: false }
-        : {}),
+        ? {
+            tools: request.tools,
+            tool_choice: 'auto',
+            parallel_tool_calls: false,
+          }
+        : { tool_choice: 'none' }),
       provider: { data_collection: 'deny', require_parameters: true },
     });
   } catch {
@@ -325,11 +329,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
           ]);
           check();
           if (!response.ok) {
-            void response.body?.cancel().catch(() => undefined);
-            throw httpError(
-              response.status,
-              response.headers.get('retry-after'),
-            );
+            throw await readHttpError(response, controller.signal);
           }
           return response;
         } finally {

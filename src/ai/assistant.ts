@@ -3,6 +3,7 @@ import { applyOperations } from '../core/commands';
 import type { EditOperation } from '../core/commands';
 import { inferenceRetryDelay } from './inference-retry';
 import {
+  goalEvidence,
   goalResponse,
   goalContractPrompt,
   goalReviewPrompt,
@@ -684,7 +685,7 @@ export function createAssistant(options: AssistantOptions) {
             maxOutputTokens: limits.maxOutputTokens,
             messages: [
               { role: 'system' as const, content: instruction },
-              { role: 'user' as const, content: JSON.stringify(data) },
+              { role: 'user' as const, content: goalEvidence(data) },
             ],
           };
           boundedContext(request, limits.maxContextBytes);
@@ -696,6 +697,8 @@ export function createAssistant(options: AssistantOptions) {
               check,
               interrupt: (promise) => interruptible(promise, signal),
               accountUsage: addUsage,
+              checkRequest: (value) =>
+                boundedContext(value, limits.maxContextBytes),
               accountBytes: (value) => {
                 outputBytes += byteLength(value);
                 aiInvariant(
@@ -724,6 +727,11 @@ export function createAssistant(options: AssistantOptions) {
             return value;
           } catch (error) {
             const safe = localError(error);
+            const stagedError = new AiError(safe.code, safe.message, {
+              ...safe.details,
+              stage: name,
+            });
+            stagedError.cause = safe;
             if (!signal.aborted)
               emit(
                 {
@@ -732,12 +740,12 @@ export function createAssistant(options: AssistantOptions) {
                   error: {
                     code: safe.code,
                     message: safe.message,
-                    details: safe.details,
+                    details: stagedError.details,
                   },
                 },
                 local,
               );
-            throw error;
+            throw stagedError;
           }
         };
         const prefix: ChatMessage[] = [

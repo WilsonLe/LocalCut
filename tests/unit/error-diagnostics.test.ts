@@ -1,8 +1,39 @@
 import { describe, expect, it } from 'vitest';
-import { errorDiagnostic } from '../../src/core/error-diagnostics';
+import {
+  errorDiagnostic,
+  safeRecoveryDetails,
+} from '../../src/core/error-diagnostics';
 import { asEditorError } from '../../src/core/errors';
 
 describe('local error diagnostics', () => {
+  it('keeps request categories and parameters in local reports while rejecting arbitrary recovery fields', () => {
+    const details = {
+      status: 400,
+      stage: 'completion_check',
+      providerReason: 'invalid_prompt',
+      parameter: 'messages',
+    };
+    expect(
+      errorDiagnostic(
+        Object.assign(new Error('Safe error'), {
+          code: 'INVALID_REQUEST',
+          details,
+        }),
+      ).details,
+    ).toEqual(details);
+    expect(
+      safeRecoveryDetails(
+        {
+          status: 400,
+          stage: 'SECRET',
+          providerReason: 'SECRET',
+          parameter: 'SECRET',
+          reason: 'SECRET',
+        },
+        'INVALID_REQUEST',
+      ),
+    ).toEqual({ status: 400 });
+  });
   it('preserves every frame and nested causes across editor normalization', () => {
     const original = new Error('Media decoding failed', {
       cause: new Error('Native decoder rejected'),

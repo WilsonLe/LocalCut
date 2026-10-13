@@ -92,7 +92,7 @@ for (const base of ['/', '/LocalCut/']) {
         const body = route
           .request()
           .postDataJSON() as (typeof requests)[number];
-        if (!body.tools.length) {
+        if (!body.tools?.length) {
           await route.fulfill({
             headers: cors,
             contentType: 'text/event-stream',
@@ -231,7 +231,7 @@ data: [DONE]
         const body = route
           .request()
           .postDataJSON() as (typeof requests)[number];
-        if (!body.tools.length) {
+        if (!body.tools?.length) {
           await route.fulfill({
             headers: cors,
             contentType: 'text/event-stream',
@@ -403,7 +403,7 @@ data: [DONE]
         const body = route
           .request()
           .postDataJSON() as (typeof requests)[number];
-        if (!body.tools.length) {
+        if (!body.tools?.length) {
           await route.fulfill({
             headers: cors,
             contentType: 'text/event-stream',
@@ -478,6 +478,9 @@ data: [DONE]
     await page
       .locator('.chat-composer')
       .screenshot({ path: info.outputPath('retry-primary-desktop.png') });
+    await page.reload();
+    await expect(retry).toBeEnabled();
+    expect(requests).toHaveLength(3); // Reload restores captured retry without inference.
     await input.fill('A different request');
     await expect(send).toBeEnabled();
     await expect(retry).toHaveCount(0);
@@ -552,7 +555,8 @@ data: [DONE]
     const naming: {
       session_id: string;
       model: string;
-      tools: unknown[];
+      tools?: unknown[];
+      tool_choice: string;
       messages: { role: string; content: string }[];
     }[] = [];
     const chatIds: string[] = [];
@@ -564,7 +568,7 @@ data: [DONE]
       async (route) => {
         if (await fulfillGoalReview(route)) return;
         const body = route.request().postDataJSON() as (typeof naming)[number];
-        if (!body.tools.length) {
+        if (!body.tools?.length) {
           naming.push(body);
           const first = body.messages.at(-1)!.content;
           if (first === 'Fail naming') {
@@ -622,7 +626,8 @@ data: [DONE]
     expect(naming[0]!.model).toBe(model);
     expect(naming[0]!.session_id).toBe(chatIds[0]);
     expect(chatIds[0]).toMatch(/^[a-f\d-]{36}$/);
-    expect(naming[0]!.tools).toEqual([]);
+    expect(naming[0]!.tools).toBeUndefined();
+    expect(naming[0]!.tool_choice).toBe('none');
     expect(naming[0]!.messages).toHaveLength(2);
     expect(naming[0]!.messages[1]).toEqual({
       role: 'user',

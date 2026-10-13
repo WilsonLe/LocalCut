@@ -1,4 +1,4 @@
-import { fulfillGoalReview } from './chat-title-fixture';
+import { fulfillChatTitle, fulfillGoalReview } from './chat-title-fixture';
 import {
   showOpenRouterTerms,
   selectAISettingsTab,
@@ -1051,6 +1051,7 @@ for (const base of ['/', '/LocalCut/']) {
           return;
         }
         const body = route.request().postDataJSON() as Record<string, unknown>;
+        if (await fulfillChatTitle(route)) return;
         const tools = body.tools as { function: { name: string } }[];
         if (!tools.some((tool) => tool.function.name === 'propose_edits')) {
           await route.fulfill({

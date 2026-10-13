@@ -34,6 +34,23 @@ async function collect(input: Response, abort = signal()) {
 }
 
 describe('OpenRouter SSE protocol', () => {
+  it('keeps the safe rejection category from SSE without exposing provider text', async () => {
+    const body = `data: ${JSON.stringify({ error: { code: 400, message: 'SECRET', metadata: { error_type: 'invalid_prompt', raw: 'SECRET' }, param: 'messages' } })}\n\n`;
+    try {
+      await collect(response(body));
+      expect.unreachable();
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: 'INVALID_REQUEST',
+        details: {
+          status: 400,
+          providerReason: 'invalid_prompt',
+          parameter: 'messages',
+        },
+      });
+      expect(JSON.stringify(error)).not.toContain('SECRET');
+    }
+  });
   it('retains generation identity and cache/reasoning usage from terminal accounting', async () => {
     const usage = {
       prompt_tokens: 10,

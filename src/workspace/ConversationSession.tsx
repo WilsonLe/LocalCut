@@ -61,6 +61,8 @@ import DictationButton from './DictationButton';
 import type { Asset } from '../editor';
 import type { AssistantBranch } from '../ai';
 import type { ChatContent, SavedChatMessage } from '../storage/chats';
+import { restoredChatRecovery } from '../storage/chats';
+import { AiError } from '../ai/errors';
 import { restoredChatTurns } from './chat-transcript';
 const ChatMarkdown = lazy(() => import('./ChatMarkdown'));
 
@@ -119,7 +121,9 @@ function CompletionDetails({
           : 'Checking completion…'
         : 'Completion check interrupted'
       : last.phase === 'failed'
-        ? 'Completion check failed'
+        ? last.name === 'request_contract'
+          ? 'Initial goal check failed'
+          : 'Completion check failed'
         : checks.length
           ? `${verified ? 'Completion verified' : 'Completion unfinished'} · ${checks.length}`
           : 'Goal defined';
@@ -183,7 +187,11 @@ function CompletionDetails({
                   }
                 />
               ) : tool.phase === 'failed' ? (
-                <p>{tool.error?.message ?? 'Completion check failed.'}</p>
+                <p>
+                  {tool.error
+                    ? errorText(tool.error)
+                    : 'Completion check failed.'}
+                </p>
               ) : (
                 <p>
                   {streaming ? 'Assessing the request…' : 'Check interrupted.'}
@@ -265,12 +273,7 @@ function ToolDetails({ tool }: { tool: HistoricalTool }) {
     </div>
   );
 }
-interface RecoveryRequest {
-  kind: 'paused' | 'retry';
-  turnId: string;
-  prompt: string;
-  assetIds: string[];
-}
+type RecoveryRequest = NonNullable<ChatContent['recovery']>;
 export interface ChatBranch {
   checkpoint: AssistantBranch;
   messages: Message[];
@@ -362,7 +365,12 @@ export default function ConversationSession({
   const [activity, setActivity] = useState('Thinking…');
   const [failure, setFailure] = useState<string | null>(null);
   const [recoveryRequest, setRecoveryRequest] =
-    useState<RecoveryRequest | null>(null);
+    useState<RecoveryRequest | null>(() =>
+      restoredChatRecovery({
+        ...initialContent,
+        messages: initialBranch?.messages ?? initialContent.messages,
+      }),
+    );
   const [following, setFollowing] = useState(true);
   const composer = useRef<HTMLTextAreaElement>(null);
   const assistant = useRef<Assistant | null>(null);
@@ -439,8 +447,17 @@ export default function ConversationSession({
       historyIndexScope:
         assistant.current?.snapshot().historyIndexScope ??
         initial.current.historyIndexScope,
+      recovery: recoveryRequest ?? undefined,
     });
-  }, [sessionId, messages, prompt, attachments, attachmentsReady, branchable]);
+  }, [
+    sessionId,
+    messages,
+    prompt,
+    attachments,
+    attachmentsReady,
+    branchable,
+    recoveryRequest,
+  ]);
   const selected = project.tracks
     .flatMap((track) => track.clips)
     .find((clip) => clip.id === selectedClipId);
@@ -601,8 +618,25 @@ export default function ConversationSession({
       await waitForRetired();
       if (!mounted.current || cancelBeforeRun.current) return;
       const session = ensureAssistant();
-      const assetIds =
-        resuming?.assetIds ?? attachments.map((asset) => asset.id);
+      const assetIds = resuming
+        ? await Promise.all(
+            resuming.assetIds.map(async (id) => {
+              try {
+                const asset = await editor.assets.inspect(id);
+                if (asset.kind === 'image' && asset.status === 'ready')
+                  return asset.id;
+              } catch {
+                /* Missing originals remain a user-owned recovery step. */
+              }
+              throw new AiError(
+                'INVALID_REQUEST',
+                'An attached image is unavailable.',
+                { reason: 'attachment_unavailable' },
+              );
+            }),
+          )
+        : attachments.map((asset) => asset.id);
+      if (!mounted.current || cancelBeforeRun.current) return;
       session.includeAssets(assetIds);
       const context =
         (selected ? `Selected clip ID: ${selected.id}.\n\n` : '') +
