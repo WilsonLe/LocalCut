@@ -142,6 +142,7 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
                   check(signal);
                   const result = await options.provider.label(
                     {
+                      sessionId: run.id,
                       model: options.model,
                       prompt,
                       media,

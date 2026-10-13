@@ -272,6 +272,15 @@ For named OPFS folders, library revisions and assistant scope, start with `pnpm 
 
 ## OpenRouter context checks
 
+For request session IDs, attribution and accounting, run:
+
+```sh
+pnpm test tests/unit/openrouter.test.ts tests/unit/openrouter-protocol.test.ts tests/unit/openrouter-auth.test.ts tests/unit/openrouter-credentials.test.ts tests/unit/providers.test.ts tests/unit/assistant.test.ts tests/unit/chat-title.test.ts tests/unit/chat-persistence.test.ts tests/unit/asset-index-provider.test.ts tests/unit/asset-indexer-capture.test.ts tests/unit/speech.test.ts
+pnpm test:ui --grep 'chat continuation remembers|chat title runs|chat readiness|TTS connector|text to speech queues retries'
+```
+
+These cover stable chat/tool/title identities, independent forks and direct operations, queued speech ownership, local reload, index-run grouping, invalid-ID rejection, multipart headers, app attribution, generation IDs, detailed accounting and existing auth/cancellation boundaries. Provider interception establishes transport, not live OpenRouter receipt or cache savings. The [documentation audit](ai.md#request-management-and-documentation-audit) records adopted and deferred recommendations. No local transcription preparation, PCM or rendering owner changes; their native gates remain separate.
+
 For connection terms, automatic context sharing and legacy chat migration:
 
 ```sh

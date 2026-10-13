@@ -79,6 +79,7 @@ for (const base of ['/', '/LocalCut/']) {
     context,
   }) => {
     const requests: {
+      session_id: string;
       tools: unknown[];
       messages: { role: string; content: string | null }[];
     }[] = [];
@@ -212,6 +213,10 @@ for (const base of ['/', '/LocalCut/']) {
             'Continuing your five-day Sydney storyboard.',
           );
           expect(
+            new Set(requests.map((request) => request.session_id)).size,
+          ).toBe(1);
+          expect(requests[0]!.session_id).toMatch(/^[a-f\d-]{36}$/);
+          expect(
             requests
               .at(-1)!
               .messages.filter((m) => m.role === 'user')
@@ -253,10 +258,12 @@ for (const base of ['/', '/LocalCut/']) {
     context,
   }, testInfo) => {
     const naming: {
+      session_id: string;
       model: string;
       tools: unknown[];
       messages: { role: string; content: string }[];
     }[] = [];
+    const chatIds: string[] = [];
     const pending: (() => void)[] = [];
     const reply = (text: string) =>
       `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: text }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`;
@@ -288,6 +295,7 @@ for (const base of ['/', '/LocalCut/']) {
             })
             .catch(() => {});
         } else {
+          chatIds.push(body.session_id);
           await route.fulfill({
             headers: cors,
             contentType: 'text/event-stream',
@@ -319,6 +327,8 @@ for (const base of ['/', '/LocalCut/']) {
     await expect.poll(() => pending.length).toBe(1);
     await expect(trigger).toContainText('Make a short video of my beach trip');
     expect(naming[0]!.model).toBe(model);
+    expect(naming[0]!.session_id).toBe(chatIds[0]);
+    expect(chatIds[0]).toMatch(/^[a-f\d-]{36}$/);
     expect(naming[0]!.tools).toEqual([]);
     expect(naming[0]!.messages).toHaveLength(2);
     expect(naming[0]!.messages[1]).toEqual({
@@ -394,6 +404,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(responses.last()).toContainText('Ready to edit.');
     expect(naming).toHaveLength(1);
     // Branches already own their inherited conversation and title.
+    expect(chatIds[1]).toBe(chatIds[0]);
     await responses.last().hover();
     await responses
       .last()
@@ -404,6 +415,7 @@ for (const base of ['/', '/LocalCut/']) {
     await input.press('Enter');
     await expect(responses.last()).toContainText('Ready to edit.');
     expect(naming).toHaveLength(1);
+    expect(chatIds[2]).not.toBe(chatIds[0]);
     await create();
     await input.fill('Second chat message');
     await input.press('Enter');
