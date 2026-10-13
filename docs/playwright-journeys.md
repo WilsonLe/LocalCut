@@ -111,7 +111,7 @@ The inventory below accounts for every Chrome/acceptance spec at this change. Th
 | [upgrade.spec.ts](../tests/browser/upgrade.spec.ts)                                                             | retain: no duplicated base matrix                                                        |
 | [versions.spec.ts](../tests/browser/versions.spec.ts)                                                           | deduplicate: path-independent behavior; deployment contracts covered separately          |
 | [workspace-ai-settings.spec.ts](../tests/browser/workspace-ai-settings.spec.ts)                                 | deduplicate: path-independent behavior; deployment contracts covered separately          |
-| [workspace-ai.spec.ts](../tests/browser/workspace-ai.spec.ts)                                                   | retain: distinct base-conditioned assertions or fixtures                                 |
+| [workspace-ai.spec.ts](../tests/browser/workspace-ai.spec.ts)                                                   | mixed: paired OAuth callbacks; saved-key behavior once                                   |
 | [workspace-appearance.spec.ts](../tests/browser/workspace-appearance.spec.ts)                                   | deduplicate: only output/screenshot names depend on base; preserve screenshot generation |
 | [workspace-asset-drop.spec.ts](../tests/browser/workspace-asset-drop.spec.ts)                                   | retain: distinct base-conditioned assertions or fixtures                                 |
 | [workspace-chat-controls.spec.ts](../tests/browser/workspace-chat-controls.spec.ts)                             | deduplicate: path-independent behavior; deployment contracts covered separately          |
@@ -128,7 +128,7 @@ The inventory below accounts for every Chrome/acceptance spec at this change. Th
 | [workspace-dialog-loading.spec.ts](../tests/browser/workspace-dialog-loading.spec.ts)                           | retain: distinct base-conditioned assertions or fixtures                                 |
 | [workspace-dialog-sizing.spec.ts](../tests/browser/workspace-dialog-sizing.spec.ts)                             | deduplicate: path-independent behavior; deployment contracts covered separately          |
 | [workspace-goal-review.spec.ts](../tests/browser/workspace-goal-review.spec.ts)                                 | deduplicate: path-independent behavior; deployment contracts covered separately          |
-| [workspace-indexing.spec.ts](../tests/browser/workspace-indexing.spec.ts)                                       | retain: distinct base-conditioned assertions or fixtures                                 |
+| [workspace-indexing.spec.ts](../tests/browser/workspace-indexing.spec.ts)                                       | deduplicate: path-independent behavior; screenshot filename only                         |
 | [workspace-input.spec.ts](../tests/browser/workspace-input.spec.ts)                                             | deduplicate: path-independent behavior; deployment contracts covered separately          |
 | [workspace-keyframes.spec.ts](../tests/browser/workspace-keyframes.spec.ts)                                     | deduplicate: path-independent behavior; deployment contracts covered separately          |
 | [workspace-layout-brand.spec.ts](../tests/browser/workspace-layout-brand.spec.ts)                               | deduplicate: path-independent behavior; deployment contracts covered separately          |
