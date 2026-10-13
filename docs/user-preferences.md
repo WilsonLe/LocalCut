@@ -13,6 +13,11 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Hide options unavailable to the selected speech provider instead of rendering disabled controls. Fish reference synthesis has no stock voice, language hint or delivery-directions control; keep supported local speed and length controls.
 
+## Voice configuration management — 13 October 2026
+
+- Make reusable voice management polished and usable, persisting model, voice, delivery, languages and timing/speed settings. Voice configuration is independent of transcript/script text; saving settings must not require or store a transcript.
+- Keep explicitly saved speaker-reference recordings and their matching transcript in the separate reference owner; generation history retains its own scripts and takes.
+
 ## Speech phrase timing — 13 October 2026
 
 - Always use the STT route configured in AI settings for generated-speech phrase timing. Remove the separate Phrase timing options section, including its heading, selector and explanatory/metadata text.

@@ -320,6 +320,265 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
   });
 
+  test(`text to speech voice configurations save settings independently of scripts ${base}`, async ({
+    page,
+    context,
+  }) => {
+    const requests: Record<string, unknown>[] = [];
+    await context.route(
+      'https://openrouter.ai/api/v1/audio/speech',
+      async (route) => {
+        requests.push(route.request().postDataJSON());
+        await route.fulfill({
+          headers: cors,
+          contentType: 'audio/pcm',
+          body: tone(),
+        });
+      },
+    );
+    let dialog = await connect(page, context, base);
+    await dialog.getByLabel('Script', { exact: true }).fill('');
+    await dialog.getByLabel('Speed (×)').fill('1.35');
+    await dialog.getByLabel('Delivery directions').fill('Warm and thoughtful');
+    await dialog
+      .getByRole('combobox', { name: 'Languages in script', exact: true })
+      .click();
+    await page.getByRole('option', { name: 'Vietnamese', exact: true }).click();
+    await page.keyboard.press('Escape');
+    await dialog.getByLabel('New preset name').fill('Warm narrator');
+    await dialog
+      .getByRole('button', { name: 'Save configuration', exact: true })
+      .click();
+    await expect(
+      dialog.getByRole('combobox', { name: 'Voice preset', exact: true }),
+    ).toContainText('Warm narrator');
+    const stored = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem('localcut.voice-presets.v1')!),
+    );
+    expect(stored.presets[0]).toMatchObject({
+      model,
+      voice: 'Kore',
+      languages: ['English', 'Vietnamese'],
+      instructions: 'Warm and thoughtful',
+      timing: { mode: 'speed', speed: 1.35 },
+    });
+    expect(stored.presets[0]).not.toHaveProperty('script');
+    expect(stored.presets[0]).not.toHaveProperty('transcript');
+    expect(stored.presets[0]).not.toHaveProperty('referenceId');
+    expect(requests).toHaveLength(0);
+    await dialog
+      .getByRole('combobox', { name: 'Speech voice', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'Puck · Upbeat', exact: true })
+      .click();
+    await expect(
+      dialog.getByRole('combobox', { name: 'Voice preset', exact: true }),
+    ).toContainText('Warm narrator');
+    await dialog
+      .getByRole('button', { name: 'Save preset changes', exact: true })
+      .click();
+    expect(
+      await page.evaluate(
+        () =>
+          JSON.parse(localStorage.getItem('localcut.voice-presets.v1')!)
+            .presets[0].voice,
+      ),
+    ).toBe('Puck');
+    await dialog
+      .getByRole('combobox', { name: 'Speech voice', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'Kore · Firm', exact: true })
+      .click();
+    await dialog
+      .getByRole('button', { name: 'Save preset changes', exact: true })
+      .click();
+    await dialog
+      .getByRole('button', { name: 'Save as new', exact: true })
+      .click();
+    await dialog.getByLabel('New preset name').fill('Short narrator');
+    await dialog
+      .getByRole('combobox', { name: 'Speech timing', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'Total length', exact: true })
+      .click();
+    await dialog.getByLabel('Total length (seconds)').fill('1.5');
+    await dialog
+      .getByRole('button', { name: 'Save configuration', exact: true })
+      .click();
+    await dialog.getByLabel('Total length (seconds)').fill('1.6');
+    await expect(
+      dialog.getByText('Unsaved changes', { exact: true }),
+    ).toBeVisible();
+    await dialog
+      .getByRole('button', { name: 'Save preset changes', exact: true })
+      .click();
+    await dialog.getByText('Manage voice presets', { exact: false }).click();
+    // Keyboard actions retain a useful successor after a row leaves the list.
+    await dialog
+      .getByRole('button', { name: 'Archive Warm narrator', exact: true })
+      .focus();
+    await page.keyboard.press('Enter');
+    await expect(
+      dialog.getByRole('button', {
+        name: 'Archive Short narrator',
+        exact: true,
+      }),
+    ).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(
+      dialog.getByRole('button', { name: 'Show archived', exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press('Enter');
+    await dialog
+      .getByRole('button', { name: 'Restore Warm narrator', exact: true })
+      .focus();
+    await page.keyboard.press('Enter');
+    await expect(
+      dialog.getByRole('button', {
+        name: 'Restore Short narrator',
+        exact: true,
+      }),
+    ).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(
+      dialog.getByRole('button', { name: 'Show active', exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press('Enter');
+    await dialog.getByLabel('Search managed voices').fill('Warm');
+    await dialog
+      .getByRole('button', { name: 'Edit name for Warm narrator', exact: true })
+      .click();
+    await dialog
+      .getByLabel('Rename Warm narrator', { exact: true })
+      .fill('Calm narrator');
+    await dialog
+      .getByLabel('Rename Warm narrator', { exact: true })
+      .press('Enter');
+    await expect(
+      dialog.getByRole('button', { name: 'Show archived', exact: true }),
+    ).toBeFocused();
+    await dialog.getByLabel('Search managed voices').fill('Calm');
+    await dialog
+      .getByRole('button', { name: 'Edit name for Calm narrator', exact: true })
+      .click();
+    await dialog
+      .getByLabel('Rename Calm narrator', { exact: true })
+      .fill('Warm narrator');
+    await dialog
+      .getByLabel('Rename Calm narrator', { exact: true })
+      .press('Enter');
+    await expect(
+      dialog.getByRole('button', { name: 'Show archived', exact: true }),
+    ).toBeFocused();
+    await dialog.getByLabel('Search managed voices').fill('Warm');
+    await expect(
+      dialog.getByRole('button', { name: 'Use Short narrator', exact: true }),
+    ).toHaveCount(0);
+    await dialog
+      .getByRole('button', { name: 'Use Warm narrator', exact: true })
+      .click();
+    await expect(dialog.getByLabel('Speed (×)')).toHaveValue('1.35');
+    await expect(dialog.getByLabel('Script', { exact: true })).toHaveValue('');
+    if (base === '/') {
+      await dialog.locator('fieldset').evaluate((element) => {
+        element.parentElement!.scrollTop = 0;
+      });
+      await page.screenshot({
+        path: 'docs/images/workspace-voice-configurations.png',
+      });
+      await page.setViewportSize({ width: 375, height: 812 });
+      await expect(dialog).toBeVisible();
+      expect((await dialog.boundingBox())!.width).toBeLessThanOrEqual(375);
+      expect(
+        await dialog.evaluate(
+          (element) => element.scrollWidth <= element.clientWidth,
+        ),
+      ).toBe(true);
+      await dialog.locator('fieldset').evaluate((element) => {
+        element.parentElement!.scrollTop = 0;
+      });
+      await page.screenshot({
+        path: 'docs/images/workspace-voice-configurations-narrow.png',
+      });
+      await page.setViewportSize({ width: 1366, height: 900 });
+    }
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(
+      page.getByRole('button', { name: 'Text to speech', exact: true }),
+    ).toBeFocused();
+    await page.reload();
+    await page
+      .getByRole('button', { name: 'Text to speech', exact: true })
+      .click();
+    dialog = page.getByRole('dialog', { name: 'Text to speech', exact: true });
+    await expect(dialog.getByText('Loading speech models…')).not.toBeVisible();
+    await dialog
+      .getByLabel('Script', { exact: true })
+      .fill('Independent new narration.');
+    await dialog
+      .getByRole('combobox', { name: 'Voice preset', exact: true })
+      .click();
+    await page.getByLabel('Search voice presets').fill('Short');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await expect(
+      dialog.getByRole('combobox', { name: 'Voice preset', exact: true }),
+    ).toContainText('Short narrator');
+    await expect(dialog.getByLabel('Total length (seconds)')).toHaveValue(
+      '1.6',
+    );
+    await expect(dialog.getByLabel('Delivery directions')).toHaveValue(
+      'Warm and thoughtful',
+    );
+    await expect(dialog.getByLabel('Script', { exact: true })).toHaveValue(
+      'Independent new narration.',
+    );
+    expect(requests).toHaveLength(0);
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      model,
+      voice: 'Kore',
+      input: 'Independent new narration.',
+    });
+    expect(requests[0]).not.toHaveProperty('input_references');
+    await expect(
+      dialog.getByLabel('Generated speech preview'),
+    ).toHaveJSProperty('duration', 1.6);
+    await page.evaluate(() => {
+      const write = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === 'localcut.voice-presets.v1')
+          throw new DOMException('Full', 'QuotaExceededError');
+        write.call(this, key, value);
+      };
+    });
+    await dialog
+      .getByRole('button', { name: 'Save as new', exact: true })
+      .click();
+    await dialog.getByLabel('New preset name').fill('Unsaved configuration');
+    await dialog
+      .getByRole('button', { name: 'Save configuration', exact: true })
+      .click();
+    await expect(dialog.getByRole('alert')).toContainText(
+      'Allow browser storage',
+    );
+    expect(requests).toHaveLength(1);
+    expect(
+      await page.evaluate(
+        () =>
+          JSON.parse(localStorage.getItem('localcut.voice-presets.v1')!).presets
+            .length,
+      ),
+    ).toBe(2);
+  });
+
   test(`text to speech searches saved generations and saves to assets without timeline edits ${base}`, async ({
     page,
     context,
@@ -645,10 +904,13 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('button', { name: 'Generate speech', exact: true })
       .click();
     await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
-    await dialog.getByText('Manage voice presets', { exact: true }).click();
-    await dialog.getByLabel('New preset name').fill('Narrator');
+    await dialog.getByText('Manage voice presets', { exact: false }).click();
     await dialog
-      .getByRole('button', { name: 'Save this voice', exact: true })
+      .getByText('Save speaker reference from this take', { exact: true })
+      .click();
+    await dialog.getByLabel('Speaker reference name').fill('Narrator');
+    await dialog
+      .getByRole('button', { name: 'Save speaker reference', exact: true })
       .click();
     await expect(
       dialog.getByRole('combobox', { name: 'Voice preset', exact: true }),
@@ -746,6 +1008,19 @@ for (const base of ['/', '/LocalCut/']) {
     expect(wav.readUInt32LE(24)).toBe(24000);
     expect(wav.readUInt32LE(40)).toBe(48000 * 2); // Original 2s, not timing-adjusted.
     await dialog
+      .getByRole('button', { name: 'Edit name for Narrator', exact: true })
+      .click();
+    await dialog.getByLabel('Rename Narrator', { exact: true }).press('Escape');
+    await expect(
+      dialog.getByRole('button', {
+        name: 'Edit name for Narrator',
+        exact: true,
+      }),
+    ).toBeFocused();
+    await dialog
+      .getByRole('button', { name: 'Edit name for Narrator', exact: true })
+      .click();
+    await dialog
       .getByLabel('Rename Narrator', { exact: true })
       .fill('Documentary');
     await dialog
@@ -764,9 +1039,15 @@ for (const base of ['/', '/LocalCut/']) {
       .getByRole('option', { name: 'New voice preset', exact: true })
       .click();
     dialog = await reopenSpeech(page);
-    await dialog.getByText('Manage voice presets', { exact: true }).click();
+    await dialog.getByText('Manage voice presets', { exact: false }).click();
+    await dialog
+      .getByRole('button', { name: 'Show archived', exact: true })
+      .click();
     await dialog
       .getByRole('button', { name: 'Restore Documentary', exact: true })
+      .click();
+    await dialog
+      .getByRole('button', { name: 'Show active', exact: true })
       .click();
     await dialog
       .getByRole('combobox', { name: 'Voice preset', exact: true })
@@ -783,7 +1064,10 @@ for (const base of ['/', '/LocalCut/']) {
       localStorage.setItem(key, JSON.stringify(record));
     });
     await expect(
-      dialog.getByLabel('Rename Updated in another tab', { exact: true }),
+      dialog.getByRole('button', {
+        name: 'Edit name for Updated in another tab',
+        exact: true,
+      }),
     ).toBeVisible();
     await other.close();
     if (base === '/') {
@@ -854,7 +1138,7 @@ for (const base of ['/', '/LocalCut/']) {
     expect(requests).toHaveLength(3);
     expect(requests[2]!.input_references).toEqual(reference);
     // Storage failures preserve the old preset and do not trigger synthesis.
-    await dialog.getByText('Manage voice presets', { exact: true }).click();
+    await dialog.getByText('Manage voice presets', { exact: false }).click();
     await page.evaluate(() => {
       const write = Storage.prototype.setItem;
       Storage.prototype.setItem = function (key, value) {
@@ -863,15 +1147,21 @@ for (const base of ['/', '/LocalCut/']) {
         write.call(this, key, value);
       };
     });
-    await dialog.getByLabel('New preset name').fill('Unsaved');
     await dialog
-      .getByRole('button', { name: 'Save this voice', exact: true })
+      .getByText('Save speaker reference from this take', { exact: true })
+      .click();
+    await dialog.getByLabel('Speaker reference name').fill('Unsaved');
+    await dialog
+      .getByRole('button', { name: 'Save speaker reference', exact: true })
       .click();
     await expect(dialog.getByRole('alert')).toContainText(
       'Allow browser storage',
     );
     await expect(
-      dialog.getByLabel('Rename Unsaved', { exact: true }),
+      dialog.getByRole('button', {
+        name: 'Edit name for Unsaved',
+        exact: true,
+      }),
     ).toHaveCount(0);
     expect(requests).toHaveLength(3);
     await page.evaluate(async () => {
