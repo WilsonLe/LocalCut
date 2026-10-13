@@ -26,6 +26,7 @@ import {
   Square,
   Play,
   Terminal,
+  CheckCheck,
 } from 'lucide-react';
 import { toast } from './notifications';
 import { Tooltip } from '../components/ui/tooltip';
@@ -53,6 +54,7 @@ import { AccordionDisclosure } from '../components/ui/accordion';
 import { downloadFile, MEDIA_DRAG_EVENT } from './helpers';
 import type { MediaDragDetail } from './helpers';
 import { errorCode, errorText } from './conversation-errors';
+import { goalContractSchema, goalVerdictSchema } from '../ai/goal-review';
 import DictationButton from './DictationButton';
 import type { Asset } from '../editor';
 import type { AssistantBranch } from '../ai';
@@ -63,6 +65,127 @@ const ChatMarkdown = lazy(() => import('./ChatMarkdown'));
 export type Message = ChatExportMessage &
   Pick<SavedChatMessage, 'continuation'>;
 type HistoricalTool = NonNullable<SavedChatMessage['tools']>[number];
+const isGoalReview = (tool: HistoricalTool) =>
+  tool.name === 'request_contract' || tool.name === 'completion_check';
+function CompletionDetails({
+  tools,
+  streaming,
+}: {
+  tools: HistoricalTool[];
+  streaming: boolean;
+}) {
+  const reviews = tools.filter(isGoalReview);
+  if (!reviews.length) return null;
+  const contract = goalContractSchema.safeParse(
+    reviews.find((tool) => tool.name === 'request_contract')?.result,
+  );
+  const checks = reviews.filter((tool) => tool.name === 'completion_check');
+  const last = checks.at(-1) ?? reviews.at(-1)!;
+  const parsed = goalVerdictSchema.safeParse(last.result);
+  const verified =
+    parsed.success &&
+    parsed.data.conditions.length > 0 &&
+    parsed.data.conditions.every((condition) => condition.status === 'met');
+  const label =
+    last.phase === 'started'
+      ? streaming
+        ? last.name === 'request_contract'
+          ? 'Defining goal…'
+          : 'Checking completion…'
+        : 'Completion check interrupted'
+      : last.phase === 'failed'
+        ? 'Completion check failed'
+        : checks.length
+          ? `${verified ? 'Completion verified' : 'Completion unfinished'} · ${checks.length}`
+          : 'Goal defined';
+  return (
+    <div className="text-xs text-muted-foreground" data-completion-review>
+      <AccordionDisclosure
+        summary={
+          <span className="flex items-center gap-2">
+            <CheckCheck className="size-3.5" />
+            {label}
+          </span>
+        }
+      >
+        <div className="space-y-2 border-l pl-3">
+          {reviews.map((tool) => (
+            <div key={tool.callId} data-tool-name={tool.name}>
+              <p className="mb-1 font-medium">
+                {tool.name === 'request_contract'
+                  ? 'Initial goal and conditions'
+                  : `Completion check ${String(tool.input?.check ?? '')}`}{' '}
+                · {tool.phase}
+              </p>
+              {tool.name === 'request_contract' && contract.success ? (
+                <div className="space-y-2 rounded-xl bg-muted p-3">
+                  <p>{contract.data.goal}</p>
+                  <p className="font-medium">Success conditions</p>
+                  <ul className="list-disc space-y-1 pl-4">
+                    {contract.data.successConditions.map((condition, index) => (
+                      <li key={index}>{condition}</li>
+                    ))}
+                  </ul>
+                  {!!contract.data.stopConditions.length && (
+                    <>
+                      <p className="font-medium">Stop conditions</p>
+                      <ul className="list-disc space-y-1 pl-4">
+                        {contract.data.stopConditions.map(
+                          (condition, index) => (
+                            <li key={index}>{condition}</li>
+                          ),
+                        )}
+                      </ul>
+                    </>
+                  )}
+                </div>
+              ) : tool.name === 'completion_check' &&
+                goalVerdictSchema.safeParse(tool.result).success ? (
+                <CompletionVerdict
+                  result={tool.result}
+                  conditions={
+                    contract.success ? contract.data.successConditions : []
+                  }
+                />
+              ) : tool.phase === 'failed' ? (
+                <p>{tool.error?.message ?? 'Completion check failed.'}</p>
+              ) : (
+                <p>
+                  {streaming ? 'Assessing the request…' : 'Check interrupted.'}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      </AccordionDisclosure>
+    </div>
+  );
+}
+function CompletionVerdict({
+  result,
+  conditions,
+}: {
+  result: unknown;
+  conditions: string[];
+}) {
+  const verdict = goalVerdictSchema.safeParse(result);
+  if (!verdict.success) return null;
+  return (
+    <div className="space-y-2 rounded-xl bg-muted p-3">
+      {verdict.data.conditions.map((condition) => (
+        <div key={condition.conditionIndex}>
+          <p className="font-medium">
+            {conditions[condition.conditionIndex] ??
+              `Condition ${condition.conditionIndex + 1}`}{' '}
+            · {condition.status}
+          </p>
+          <p>{condition.evidence}</p>
+        </div>
+      ))}
+      {verdict.data.stopReason && <p>{verdict.data.stopReason}</p>}
+    </div>
+  );
+}
 function toolLabel(tool: HistoricalTool, includeSkill = false): string {
   if (tool.name !== 'load_skill') return tool.name.replaceAll('_', ' ');
   const skillId = tool.input?.skillId;
@@ -547,9 +670,14 @@ ${resuming.prompt}`
             ),
           );
           setActivity(
-            event.name === 'propose_edits' || event.name === 'propose_action'
-              ? 'Performing requested action…'
-              : 'Inspecting project context…',
+            isGoalReview(event)
+              ? event.name === 'request_contract'
+                ? 'Defining success conditions…'
+                : 'Checking request completion…'
+              : event.name === 'propose_edits' ||
+                  event.name === 'propose_action'
+                ? 'Performing requested action…'
+                : 'Inspecting project context…',
           );
         }
       });
@@ -740,42 +868,52 @@ ${resuming.prompt}`
                   : 'group/response space-y-3 text-sm leading-relaxed'
               }
             >
-              {!!message.tools?.length && (
+              {!!message.tools?.filter((tool) => !isGoalReview(tool))
+                .length && (
                 <AccordionDisclosure
                   summary={
                     <span className="flex items-center gap-2">
                       <Terminal className="size-3.5" />
-                      {message.tools.length === 1
-                        ? toolLabel(message.tools[0]!)
-                        : `${message.tools.filter((tool) => tool.phase === 'completed').length} of ${message.tools.length} tools completed`}
+                      {message.tools.filter((tool) => !isGoalReview(tool))
+                        .length === 1
+                        ? toolLabel(
+                            message.tools.find((tool) => !isGoalReview(tool))!,
+                          )
+                        : `${message.tools.filter((tool) => !isGoalReview(tool) && tool.phase === 'completed').length} of ${message.tools.filter((tool) => !isGoalReview(tool)).length} tools completed`}
                     </span>
                   }
                 >
                   <div className="space-y-2 border-l pl-3">
-                    {message.tools.map((tool) => (
-                      <div
-                        key={tool.callId}
-                        data-tool-call={tool.callId}
-                        data-tool-name={tool.name}
-                      >
-                        <AccordionDisclosure
-                          summary={`${toolLabel(tool, true)} · ${
-                            tool.phase === 'started'
-                              ? message.status === 'streaming'
-                                ? 'Running'
-                                : 'Interrupted'
-                              : tool.phase === 'completed'
-                                ? 'Completed'
-                                : 'Failed'
-                          }`}
+                    {message.tools
+                      .filter((tool) => !isGoalReview(tool))
+                      .map((tool) => (
+                        <div
+                          key={tool.callId}
+                          data-tool-call={tool.callId}
+                          data-tool-name={tool.name}
                         >
-                          <ToolDetails tool={tool} />
-                        </AccordionDisclosure>
-                      </div>
-                    ))}
+                          <AccordionDisclosure
+                            summary={`${toolLabel(tool, true)} · ${
+                              tool.phase === 'started'
+                                ? message.status === 'streaming'
+                                  ? 'Running'
+                                  : 'Interrupted'
+                                : tool.phase === 'completed'
+                                  ? 'Completed'
+                                  : 'Failed'
+                            }`}
+                          >
+                            <ToolDetails tool={tool} />
+                          </AccordionDisclosure>
+                        </div>
+                      ))}
                   </div>
                 </AccordionDisclosure>
               )}
+              <CompletionDetails
+                tools={message.tools ?? []}
+                streaming={message.status === 'streaming'}
+              />
               {Object.values(proposals)
                 .filter((proposal) => proposal.turnId === message.id)
                 .map((proposal) => {

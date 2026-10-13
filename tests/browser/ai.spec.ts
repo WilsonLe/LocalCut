@@ -1,3 +1,4 @@
+import { fulfillGoalReview } from './chat-title-fixture';
 import { expect, test } from '@playwright/test';
 import type { BrowserContext } from '@playwright/test';
 import type { OpenRouter, Assistant } from '../../src/ai';
@@ -200,6 +201,7 @@ for (const base of ['/', '/LocalCut/']) {
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
+        if (await fulfillGoalReview(route)) return;
         const body = route.request().postDataJSON();
         const prompt = body.messages.findLast(
           (message: { role: string }) => message.role === 'user',
@@ -398,6 +400,7 @@ for (const base of ['/', '/LocalCut/']) {
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
+        if (await fulfillGoalReview(route)) return;
         const body = route.request().postDataJSON() as Record<string, unknown>;
         const requestTools = (
           route.request().postDataJSON() as {
@@ -775,6 +778,7 @@ test('explicitly selected library media can be proposed; stale batches cannot co
   await context.route(
     'https://openrouter.ai/api/v1/chat/completions',
     async (route) => {
+      if (await fulfillGoalReview(route)) return;
       const requestTools = (
         route.request().postDataJSON() as {
           tools: { function: { name: string } }[];

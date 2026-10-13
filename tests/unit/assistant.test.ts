@@ -1,6 +1,23 @@
 import { captureFixture } from '../capture-metadata-fixture';
 import { describe, expect, it, vi } from 'vitest';
-import { createAssistant } from '../../src/ai/assistant';
+import { createAssistant as createRealAssistant } from '../../src/ai/assistant';
+import { goalReviewReply } from '../goal-review-fixture';
+function createAssistant(options: Parameters<typeof createRealAssistant>[0]) {
+  const provider = options.provider;
+  return createRealAssistant({
+    ...options,
+    provider: {
+      async *stream(request, signal) {
+        const reply = goalReviewReply(request);
+        if (reply) {
+          yield { type: 'complete' as const, message: reply };
+          return;
+        }
+        yield* provider.stream(request, signal);
+      },
+    },
+  });
+}
 import type { AssistantEditor, AssistantEvent } from '../../src/ai/assistant';
 import type { ChatRequest, ProviderEvent, ToolCall } from '../../src/ai/types';
 import { AiError } from '../../src/ai/errors';
@@ -826,7 +843,11 @@ describe('headless assistant boundaries', () => {
     });
     await f.assistant.run('Inspect and validate').completion;
     const starts = events.filter(
-      (event) => event.phase === 'started' && event.name !== 'load_skill',
+      (event) =>
+        event.phase === 'started' &&
+        !['load_skill', 'request_contract', 'completion_check'].includes(
+          event.name,
+        ),
     );
     expect(starts).toHaveLength(4);
     expect(new Set(starts.map((event) => event.callId)).size).toBe(4);
@@ -836,7 +857,11 @@ describe('headless assistant boundaries', () => {
       ).toHaveLength(2);
     }
     const inspections = events.filter(
-      (event) => event.phase === 'completed' && event.name !== 'load_skill',
+      (event) =>
+        event.phase === 'completed' &&
+        !['load_skill', 'request_contract', 'completion_check'].includes(
+          event.name,
+        ),
     );
     expect(inspections).toHaveLength(2);
     expect(inspections[0]!.result).toMatchObject({
@@ -899,7 +924,11 @@ describe('headless assistant boundaries', () => {
       if (event.type === 'tool') events.push(event);
     });
     await assistant.run('Inspect repeatedly').completion;
-    const completed = events.filter((event) => event.phase === 'completed');
+    const completed = events.filter(
+      (event) =>
+        event.phase === 'completed' &&
+        !['request_contract', 'completion_check'].includes(event.name),
+    );
     expect(completed).toHaveLength(7);
     expect(completed.some((event) => event.resultOmitted)).toBe(false);
     expect(completed.some((event) => event.result !== undefined)).toBe(true);
@@ -1672,8 +1701,12 @@ describe('headless assistant boundaries', () => {
     expect(result.usage.totalTokens).toBe(8);
     expect(events.map((e) => e.type)).toEqual([
       'state',
+      'tool',
+      'tool',
       'text',
       'usage',
+      'tool',
+      'tool',
       'completed',
       'state',
     ]);
@@ -1824,9 +1857,7 @@ describe('headless assistant boundaries', () => {
     await expect(
       make({ maxContextBytes: 100 }).run('Context').completion,
     ).rejects.toMatchObject({ code: 'CONTEXT_LIMIT' });
-    p.stream.mockImplementationOnce(async function* () {
-      yield { type: 'text', text: 'too large' };
-    });
+    // The caller's output budget also covers the contract/review session.
     await expect(
       make({ maxOutputBytes: 1 }).run('Output').completion,
     ).rejects.toMatchObject({ code: 'RESPONSE_LIMIT' });
@@ -5927,9 +5958,34 @@ describe('requested chat execution', () => {
       ],
       false,
     );
-    const a = createAssistant({
+    const a = createRealAssistant({
       editor: f.editor,
-      provider: p,
+      provider: {
+        async *stream(request) {
+          const auxiliary = goalReviewReply(request);
+          if (auxiliary) {
+            if (
+              request.messages[0]?.content?.startsWith(
+                'LocalCut completion review:',
+              )
+            ) {
+              auxiliary.content = JSON.stringify({
+                conditions: [
+                  {
+                    conditionIndex: 0,
+                    status: 'unmet',
+                    evidence: 'Indexing failed; retry needs a new user request',
+                  },
+                ],
+                stopReason: 'Failed paid action requires explicit retry',
+              });
+            }
+            yield { type: 'complete' as const, message: auxiliary };
+            return;
+          }
+          yield* p.stream(request);
+        },
+      },
       projectId: f.project().id,
       model: 'test/model',
       execution: 'requested',
@@ -5940,7 +5996,11 @@ describe('requested chat execution', () => {
         disclosure: 'Generated stills; may incur cost.',
       },
     });
-    await a.run('Index').completion;
+    const result = await a.run('Index').completion;
+    expect(result.completion).toMatchObject({
+      status: 'unfulfilled',
+      checks: 3,
+    });
     expect(execute).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(p.requests.at(-1))).toContain(
       'explicit retry in a new turn',
@@ -7205,4 +7265,456 @@ describe('canonical storyboard image scope', () => {
       await a.dispose();
     },
   );
+});
+describe('request completion review sessions', () => {
+  const contract = {
+    goal: 'Move the clip and answer',
+    successConditions: ['Move video to one second', 'Answer the request'],
+    stopConditions: ['Wait for missing information'],
+  };
+  const verdict = (
+    status: 'met' | 'unmet' | 'unknown',
+    stopReason: string | null = null,
+  ) => ({
+    conditions: contract.successConditions.map((_, conditionIndex) => ({
+      conditionIndex,
+      status,
+      evidence:
+        status === 'met'
+          ? 'Current state and confirmed receipt match'
+          : 'Requested work is missing',
+    })),
+    stopReason,
+  });
+  const json = (value: unknown) => final(JSON.stringify(value));
+  function reviewedProvider(
+    execution: ProviderEvent[][],
+    reviews: unknown[] = [verdict('met')],
+  ) {
+    const requests: ChatRequest[] = [];
+    const p = {
+      requests,
+      async *stream(request: ChatRequest): AsyncIterable<ProviderEvent> {
+        requests.push(structuredClone(request));
+        const instruction = request.messages[0]?.content ?? '';
+        if (instruction.startsWith('LocalCut request contract:'))
+          yield json(contract);
+        else if (instruction.startsWith('LocalCut completion review:'))
+          yield json(reviews.shift());
+        else yield* execution.shift() ?? [final('Done')];
+      },
+    };
+    return p;
+  }
+  function make(
+    p: Parameters<typeof createRealAssistant>[0]['provider'],
+    extra: Partial<Parameters<typeof createRealAssistant>[0]> = {},
+  ) {
+    const f = fixture();
+    const assistant = createRealAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      execution: 'requested',
+      ...extra,
+    });
+    return { ...f, assistant };
+  }
+  const kind = (p: ReturnType<typeof reviewedProvider>, marker: string) =>
+    p.requests.filter((r) => r.messages[0]?.content?.startsWith(marker));
+
+  it('parses every request, uses a separate review identity, and stops at the first fulfilled check', async () => {
+    const p = reviewedProvider(
+      [[final('Answer')], [final('Next answer')]],
+      [verdict('met'), verdict('met')],
+    );
+    const f = make(p, { sessionId: 'execution-chat' });
+    const first = await f.assistant.run('Initial request').completion;
+    const second = await f.assistant.run('Follow-up request').completion;
+    expect(first.completion).toMatchObject({
+      status: 'fulfilled',
+      checks: 1,
+      contract,
+    });
+    expect(second.completion.status).toBe('fulfilled');
+    const parses = kind(p, 'LocalCut request contract:');
+    const checks = kind(p, 'LocalCut completion review:');
+    expect(parses).toHaveLength(2);
+    expect(checks).toHaveLength(2);
+    expect(parses[0]!.sessionId).toBe(checks[0]!.sessionId);
+    expect(parses[1]!.sessionId).toBe(checks[1]!.sessionId);
+    expect(parses[0]!.sessionId).not.toBe(parses[1]!.sessionId);
+    expect(
+      parses.every(
+        (r) =>
+          r.sessionId !== 'execution-chat' &&
+          r.model === 'test/model' &&
+          r.tools.length === 0,
+      ),
+    ).toBe(true);
+    expect(
+      JSON.parse(parses[1]!.messages[1]!.content!).previousConversation,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ content: 'Initial request' }),
+      ]),
+    );
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+    await f.assistant.dispose();
+  });
+
+  it('corrects an unmet initial goal within the same turn without replaying committed edits', async () => {
+    const p = reviewedProvider(
+      [
+        [final('', [call('load_skill', { skillId: 'editing' })])],
+        [proposal()],
+        [final('Moved, but no answer yet')],
+        [final('', [call('inspect_project', {})])],
+        [final('Moved and answered')],
+      ],
+      [verdict('unmet'), verdict('met')],
+    );
+    const f = make(p);
+    const result = await f.assistant.run(
+      'Move the video to one second and explain the change',
+    ).completion;
+    expect(result.text).toBe('Moved and answered');
+    expect(result.completion).toMatchObject({ status: 'fulfilled', checks: 2 });
+    expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
+    expect(f.project().revision).toBe(1);
+    const checks = kind(p, 'LocalCut completion review:');
+    expect(checks).toHaveLength(2);
+    const data = JSON.parse(checks[0]!.messages[1]!.content!);
+    expect(data.initialRequest).toBe(
+      'Move the video to one second and explain the change',
+    );
+    expect(data.actions[0]).toMatchObject({
+      status: 'applied',
+      result: { kind: 'edit' },
+    });
+    expect(data.currentContext.selectedProject.revision).toBe(1);
+    const correction = p.requests.find((r) =>
+      r.messages.some(
+        (m) => m.role === 'system' && m.content.includes('"completionReview"'),
+      ),
+    )!;
+    expect(JSON.stringify(correction)).toContain('Requested work is missing');
+    expect(JSON.stringify(checks)).not.toContain('Private client project');
+    expect(JSON.stringify(checks)).not.toContain('Private overlay text');
+    await f.assistant.dispose();
+  });
+
+  it('yields an honest unfinished result after exactly three unsuccessful checks and retains it', async () => {
+    const p = reviewedProvider(
+      [[final('Done')], [final('Everything is done')], [final('All complete')]],
+      [
+        verdict('unmet'),
+        verdict('unknown'),
+        verdict('unmet', 'Missing required details'),
+      ],
+    );
+    const f = make(p);
+    const events: AssistantEvent[] = [];
+    f.assistant.subscribe((e) => events.push(e));
+    const result = await f.assistant.run('Move and answer').completion;
+    expect(result.completion).toMatchObject({
+      status: 'unfulfilled',
+      checks: 3,
+    });
+    expect(result.text).toContain(
+      'Request unfinished after 3 completion checks',
+    );
+    expect(result.text).toContain('Move video to one second');
+    expect(result.text).not.toContain('All complete');
+    expect(kind(p, 'LocalCut completion review:')).toHaveLength(3);
+    expect(events.filter((e) => e.type === 'completed')).toHaveLength(1);
+    expect(
+      events.filter(
+        (e) =>
+          e.type === 'tool' &&
+          e.name === 'completion_check' &&
+          e.phase === 'completed',
+      ),
+    ).toHaveLength(3);
+    await f.assistant.dispose();
+  });
+
+  it('checks a caller-budget stop without extending the caller tool budget', async () => {
+    const p = reviewedProvider(
+      [
+        [final('', [call('inspect_project', {})])],
+        [final('Stopped at budget')],
+      ],
+      [verdict('unmet', 'Caller budget exhausted')],
+    );
+    const f = make(p, { limits: { maxRounds: 1 } });
+    const result = await f.assistant.run('Move the clip').completion;
+    expect(result.completion).toMatchObject({
+      status: 'unfulfilled',
+      checks: 1,
+    });
+    expect(result.text).toContain('Caller budget exhausted');
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+    await f.assistant.dispose();
+  });
+
+  it.each(['contract', 'review'])(
+    'cancels a non-cooperative %s session without late completion',
+    async (phase) => {
+      const gate = deferred<ProviderEvent>();
+      const entered = deferred<void>();
+      const f = make({
+        async *stream(request) {
+          const instruction = request.messages[0]?.content ?? '';
+          if (instruction.startsWith('LocalCut request contract:')) {
+            if (phase === 'contract') {
+              entered.resolve();
+              yield await gate.promise;
+            } else yield json(contract);
+          } else if (instruction.startsWith('LocalCut completion review:')) {
+            entered.resolve();
+            yield await gate.promise;
+          } else yield final('Candidate');
+        },
+      });
+      const events: AssistantEvent[] = [];
+      f.assistant.subscribe((e) => events.push(e));
+      const turn = f.assistant.run('Move and answer');
+      await entered.promise;
+      turn.cancel();
+      await expect(turn.completion).rejects.toMatchObject({
+        code: 'CANCELLED',
+      });
+      gate.resolve(json(phase === 'contract' ? contract : verdict('met')));
+      await Promise.resolve();
+      expect(events.some((e) => e.type === 'completed')).toBe(false);
+      await f.assistant.dispose();
+    },
+  );
+
+  it.each([
+    {
+      conditions: [
+        {
+          conditionIndex: 0,
+          status: 'met',
+          evidence: 'Missing second condition',
+        },
+      ],
+      stopReason: null,
+    },
+    {
+      conditions: [
+        { conditionIndex: 0, status: 'met', evidence: 'a' },
+        { conditionIndex: 0, status: 'met', evidence: 'b' },
+      ],
+      stopReason: null,
+    },
+    {
+      conditions: [
+        { conditionIndex: 2, status: 'met', evidence: 'a' },
+        { conditionIndex: 3, status: 'met', evidence: 'b' },
+      ],
+      stopReason: null,
+    },
+    { fulfilled: 'true' },
+  ])('rejects incomplete or malformed check verdicts', async (value) => {
+    const f = make(reviewedProvider([[final('Candidate')]], [value]));
+    await expect(
+      f.assistant.run('Move and answer').completion,
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    expect(f.assistant.snapshot().historyTurns).toBe(0);
+    await f.assistant.dispose();
+  });
+
+  it('does not execute tools emitted by the reviewer or hide provider failures', async () => {
+    const p = reviewedProvider([[final('Candidate')]]);
+    const original = p.stream;
+    p.stream = async function* (request) {
+      if (
+        request.messages[0]?.content?.startsWith('LocalCut completion review:')
+      )
+        yield proposal();
+      else yield* original(request);
+    };
+    const f = make(p);
+    await expect(
+      f.assistant.run('Move and answer').completion,
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+    await f.assistant.dispose();
+    const broken = make({
+      async *stream() {
+        throw new AiError('PROVIDER_REFUSAL', 'Refused');
+        yield final();
+      },
+    });
+    await expect(
+      broken.assistant.run('Move and answer').completion,
+    ).rejects.toMatchObject({ code: 'PROVIDER_REFUSAL' });
+    await broken.assistant.dispose();
+  });
+
+  it('accounts for parse, execution and reviewer usage together and keeps the review trace', async () => {
+    const p = reviewedProvider([[final('Candidate')]]);
+    const original = p.stream;
+    p.stream = async function* (request) {
+      for await (const event of original(request))
+        yield event.type === 'complete'
+          ? {
+              ...event,
+              usage: {
+                promptTokens: 2,
+                completionTokens: 3,
+                totalTokens: 5,
+                cost: 0.01,
+                cachedTokens: 1,
+              },
+            }
+          : event;
+    };
+    const f = make(p);
+    const events: AssistantEvent[] = [];
+    f.assistant.subscribe((e) => events.push(e));
+    const result = await f.assistant.run('Move and answer').completion;
+    expect(result.usage).toMatchObject({
+      promptTokens: 6,
+      completionTokens: 9,
+      totalTokens: 15,
+      cost: 0.03,
+      cachedTokens: 3,
+    });
+    expect(
+      events.some(
+        (e) => e.type === 'text' && e.text.includes('successConditions'),
+      ),
+    ).toBe(false);
+    expect(
+      events
+        .filter((e) => e.type === 'tool' && e.phase === 'completed')
+        .map((e) => (e.type === 'tool' ? e.name : '')),
+    ).toEqual(['request_contract', 'completion_check']);
+    await f.assistant.dispose();
+  });
+  it.each(['contract', 'review'])(
+    'silently retries transient %s inference with a frozen request',
+    async (phase) => {
+      const p = reviewedProvider([[final('Candidate')]]);
+      const original = p.stream;
+      const attempts: ChatRequest[] = [];
+      p.stream = async function* (request) {
+        const marker =
+          phase === 'contract'
+            ? 'LocalCut request contract:'
+            : 'LocalCut completion review:';
+        if (request.messages[0]?.content?.startsWith(marker)) {
+          attempts.push(structuredClone(request));
+          if (attempts.length === 1)
+            throw new AiError('RATE_LIMITED', 'Transient');
+        }
+        yield* original(request);
+      };
+      const f = make(p);
+      const result = await f.assistant.run('Move and answer').completion;
+      expect(result.completion).toMatchObject({
+        status: 'fulfilled',
+        checks: 1,
+      });
+      expect(attempts).toHaveLength(2);
+      expect(attempts[1]).toEqual(attempts[0]);
+      await f.assistant.dispose();
+    },
+  );
+
+  it('reparses unfinished restored intent without restoring historical checker authority', async () => {
+    const p = reviewedProvider([[final('Candidate')]]);
+    const f = make(p, {
+      restoredTurns: [
+        {
+          id: 'old',
+          user: 'Move video and answer',
+          assistant: 'Request unfinished; missing movement',
+          interrupted: true,
+        },
+      ],
+    });
+    await f.assistant.run('Continue').completion;
+    const parse = kind(p, 'LocalCut request contract:')[0]!;
+    expect(
+      JSON.parse(parse.messages[1]!.content!).previousConversation,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: 'user',
+          content: 'Move video and answer',
+        }),
+      ]),
+    );
+    expect(kind(p, 'LocalCut completion review:')).toHaveLength(1);
+    await f.assistant.dispose();
+  });
+
+  it('rejects a malformed initial contract before running execution', async () => {
+    let requests = 0;
+    const f = make({
+      async *stream() {
+        requests++;
+        yield json({ goal: 'Move', successConditions: [], stopConditions: [] });
+      },
+    });
+    await expect(
+      f.assistant.run('Move and answer').completion,
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    expect(requests).toBe(1);
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+    await f.assistant.dispose();
+  });
+  it('retires a parallel contract request when context preparation fails', async () => {
+    const gate = deferred<ProviderEvent>();
+    const f = fixture();
+    vi.mocked(f.editor.projects.snapshot)
+      .mockResolvedValueOnce(f.project())
+      .mockRejectedValueOnce(
+        new AiError('REVISION_CONFLICT', 'Context failed'),
+      );
+    let parses = 0;
+    const p = reviewedProvider([[final('Candidate')]]);
+    const original = p.stream;
+    p.stream = async function* (request) {
+      if (
+        request.messages[0]?.content?.startsWith(
+          'LocalCut request contract:',
+        ) &&
+        parses++ === 0
+      )
+        yield await gate.promise;
+      else yield* original(request);
+    };
+    const assistant = createRealAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    const events: AssistantEvent[] = [];
+    assistant.subscribe((e) => events.push(e));
+    const failed = assistant.run('Initial request');
+    await expect(failed.completion).rejects.toMatchObject({
+      code: 'REVISION_CONFLICT',
+    });
+    await assistant.run('New request').completion;
+    gate.resolve(json(contract));
+    await Promise.resolve();
+    expect(
+      events.some(
+        (e) =>
+          e.type === 'tool' &&
+          e.turnId === failed.id &&
+          e.name === 'request_contract' &&
+          e.phase === 'completed',
+      ),
+    ).toBe(false);
+    await assistant.dispose();
+  });
 });
