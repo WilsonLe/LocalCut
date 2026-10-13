@@ -20,6 +20,7 @@ export type {
 import { EditorError } from '../core/errors';
 import { TRANSITION_TEMPLATES } from '../core/timeline';
 import { AiError, aiInvariant } from './errors';
+import { requestSessionId } from './request-metadata';
 import type { AiErrorCode } from './errors';
 import {
   assetContext,
@@ -94,6 +95,8 @@ export interface RestoredChatTurn {
   interrupted?: boolean;
 }
 export interface AssistantOptions {
+  /** Stable opaque chat identity; omit for a fresh headless session. */
+  sessionId?: string;
   /** Text-only exchanges from the caller's matching local chat scope.
    * Never hydrate protocol tools, proposals, skills, approvals or sharing consent. */
   restoredTurns?: readonly RestoredChatTurn[];
@@ -254,6 +257,7 @@ async function interruptible<T>(
 
 /** No network, storage, worker, or engine mutation occurs during construction. */
 export function createAssistant(options: AssistantOptions) {
+  const sessionId = requestSessionId(options.sessionId);
   aiInvariant(
     options.projectId.trim() && options.model.trim(),
     'INVALID_REQUEST',
@@ -1198,6 +1202,7 @@ export function createAssistant(options: AssistantOptions) {
           messages = compacted.messages;
           boundedContext({ messages, tools }, limits.maxContextBytes);
           const request = {
+            sessionId,
             model,
             messages: structuredClone(messages),
             tools,
@@ -1267,6 +1272,20 @@ export function createAssistant(options: AssistantOptions) {
                 'Invalid token usage.',
               );
               usage[key] += value;
+            }
+            for (const key of [
+              'cachedTokens',
+              'cacheWriteTokens',
+              'reasoningTokens',
+            ] as const) {
+              const value = completed.usage[key];
+              if (value === undefined) continue;
+              aiInvariant(
+                Number.isSafeInteger(value) && value >= 0,
+                'INVALID_RESPONSE',
+                'Invalid token usage.',
+              );
+              usage[key] = (usage[key] ?? 0) + value;
             }
             if (completed.usage.cost !== undefined) {
               aiInvariant(
@@ -1606,6 +1625,7 @@ export function createAssistant(options: AssistantOptions) {
             );
             const replay = createAssistant({
               ...options,
+              sessionId,
               tasks: undefined,
               editor: { ...options.editor, tasks: undefined },
               branch: retryBranch,

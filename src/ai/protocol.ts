@@ -280,6 +280,24 @@ function parseUsage(value: unknown): Usage {
       return invalid();
     usage.cost = value.cost;
   }
+  for (const [field, detail, key] of [
+    ['cachedTokens', 'prompt_tokens_details', 'cached_tokens'],
+    ['cacheWriteTokens', 'prompt_tokens_details', 'cache_write_tokens'],
+    ['reasoningTokens', 'completion_tokens_details', 'reasoning_tokens'],
+  ] as const) {
+    const details = value[detail];
+    if (details === undefined || details === null) continue;
+    if (!object(details)) return invalid();
+    const tokens = details[key];
+    if (tokens === undefined || tokens === null) continue;
+    if (
+      typeof tokens !== 'number' ||
+      !Number.isSafeInteger(tokens) ||
+      tokens < 0
+    )
+      return invalid();
+    usage[field] = tokens;
+  }
   return usage;
 }
 
@@ -360,6 +378,7 @@ export async function* parseChatStream(
   let content = '';
   let usage: Usage | undefined;
   let model: string | undefined;
+  let generationId: string | undefined;
   let finish: 'stop' | 'tool_calls' | undefined;
   const calls = new Map<number, ToolCall>();
   const reasoning = new ReasoningAccumulator();
@@ -401,6 +420,7 @@ export async function* parseChatStream(
         message,
         ...(usage ? { usage } : {}),
         ...(model ? { model } : {}),
+        ...(generationId ? { generationId } : {}),
       };
       return;
     }
@@ -411,6 +431,15 @@ export async function* parseChatStream(
       return invalid();
     }
     if (!object(frame)) return invalid();
+    if (frame.id !== undefined) {
+      if (
+        typeof frame.id !== 'string' ||
+        !/^[A-Za-z0-9._:-]{1,256}$/.test(frame.id) ||
+        (generationId && generationId !== frame.id)
+      )
+        return invalid();
+      generationId = frame.id;
+    }
     if (frame.error !== undefined) {
       const code = object(frame.error) ? frame.error.code : undefined;
       throw typeof code === 'number'

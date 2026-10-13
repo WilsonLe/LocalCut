@@ -322,6 +322,86 @@ function setup(rounds: ProviderEvent[][] = [[proposal()], [final()]]) {
 }
 
 describe('headless assistant boundaries', () => {
+  it('keeps an opaque session across tool rounds and turns, with independent forks', async () => {
+    const f = setup();
+    try {
+      await f.assistant.run('Move the clip').completion;
+      const result = await f.assistant.run('Continue').completion;
+      const ids = f.provider.requests.map((request) => request.sessionId);
+      expect(new Set(ids).size).toBe(1);
+      expect(ids[0]).toMatch(/^[a-f\d-]{36}$/);
+      const branch = f.assistant.branch(result.id);
+      const fork = createAssistant({
+        editor: f.editor,
+        provider: f.provider,
+        projectId: f.project().id,
+        model: 'test/model',
+        branch,
+      });
+      try {
+        await fork.run('Continue this fork').completion;
+        expect(f.provider.requests.at(-1)?.sessionId).not.toBe(ids[0]);
+      } finally {
+        await fork.dispose();
+      }
+    } finally {
+      await f.assistant.dispose();
+    }
+  });
+  it('uses the host session and totals cache/reasoning usage across rounds', async () => {
+    const f = fixture();
+    const p = provider(
+      [
+        [
+          {
+            ...final('', [call('inspect_project', {})]),
+            usage: {
+              promptTokens: 10,
+              completionTokens: 5,
+              totalTokens: 15,
+              cachedTokens: 8,
+              cacheWriteTokens: 2,
+              reasoningTokens: 3,
+            },
+          } as ProviderEvent,
+        ],
+        [
+          {
+            ...final(),
+            usage: {
+              promptTokens: 12,
+              completionTokens: 7,
+              totalTokens: 19,
+              cachedTokens: 10,
+              reasoningTokens: 4,
+            },
+          } as ProviderEvent,
+        ],
+      ],
+      false,
+    );
+    const assistant = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      sessionId: 'saved-chat-1',
+    });
+    try {
+      const result = await assistant.run('Inspect').completion;
+      expect(p.requests.map((request) => request.sessionId)).toEqual([
+        'saved-chat-1',
+        'saved-chat-1',
+      ]);
+      expect(result.usage).toMatchObject({
+        cachedTokens: 18,
+        cacheWriteTokens: 2,
+        reasoningTokens: 7,
+      });
+    } finally {
+      await assistant.dispose();
+    }
+  });
   it('does not start work on creation and requires explicit proposal application', async () => {
     const f = setup();
     expect(f.provider.stream).not.toHaveBeenCalled();

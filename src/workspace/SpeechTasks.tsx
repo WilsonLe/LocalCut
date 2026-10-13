@@ -39,7 +39,7 @@ export default function SpeechTasks({
         if (!audio) {
           context.progress({ stage: 'Generating speech…' });
           audio = await connection.provider.synthesizeSpeech(
-            task.request,
+            { ...task.request, sessionId: context.id },
             context.signal,
           );
           await editor.tasks.saveCheckpoint(context.id, audio);
