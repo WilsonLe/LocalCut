@@ -86,6 +86,39 @@ describe('voice preset persistence', () => {
     // Legacy settings survive; they are not upgraded to a fictional voice profile.
     expect(parseVoicePresets(record([preset]))).toEqual([preset]);
   });
+  it('retains timing independently of transcripts and strips nested content', () => {
+    for (const timing of [
+      { mode: 'speed', speed: 1.35 },
+      { mode: 'duration', durationSeconds: 12.5 },
+    ]) {
+      const saved = { ...preset, timing };
+      expect(
+        parseVoicePresets(
+          record([
+            {
+              ...saved,
+              transcript: 'private',
+              script: 'private',
+              audio: 'bytes',
+              timing: { ...timing, script: 'private', transcript: 'private' },
+            },
+          ]),
+        ),
+      ).toEqual([saved]);
+    }
+    for (const timing of [
+      null,
+      {},
+      { mode: 'speed', speed: 0.4 },
+      { mode: 'speed', speed: 2.1 },
+      { mode: 'speed', speed: '1' },
+      { mode: 'duration', durationSeconds: 0 },
+      { mode: 'duration', durationSeconds: -2 },
+      { mode: 'duration', durationSeconds: '12' },
+    ]) {
+      expect(parseVoicePresets(record([{ ...preset, timing }]))).toEqual([]);
+    }
+  });
   it('fails visibly on denied reads or writes without silently replacing records', () => {
     const write = vi.fn(() => {
       throw new Error('QuotaExceededError');

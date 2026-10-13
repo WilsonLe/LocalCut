@@ -63,7 +63,8 @@ import {
   useVoicePresets,
   validVoiceSettings,
 } from './voice-presets';
-import type { VoicePreset } from './voice-presets';
+import type { VoicePreset, VoiceTiming } from './voice-presets';
+import { VoicePresetManager } from './VoicePresetManager';
 
 const languages = [
   'Arabic',
@@ -104,49 +105,6 @@ interface Props {
   registerSession: (cleanup: () => Promise<void>) => () => void;
 }
 
-function VoicePresetRow({
-  preset,
-  onRename,
-  onArchive,
-}: {
-  preset: VoicePreset;
-  onRename: (name: string) => void;
-  onArchive: () => void;
-}) {
-  const [name, setName] = useState(preset.name);
-  return (
-    <div className="flex flex-wrap items-center gap-2 rounded border p-2">
-      <Input
-        className="min-w-0 flex-1"
-        aria-label={`Rename ${preset.name}`}
-        maxLength={100}
-        value={name}
-        onChange={(event) => setName(event.target.value)}
-      />
-      {preset.archived && (
-        <span className="text-xs text-muted-foreground">Archived</span>
-      )}
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={!name.trim() || name.trim() === preset.name}
-        aria-label={`Save name for ${preset.name}`}
-        onClick={() => onRename(name.trim())}
-      >
-        Rename
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        aria-label={`${preset.archived ? 'Restore' : 'Archive'} ${preset.name}`}
-        onClick={onArchive}
-      >
-        {preset.archived ? 'Restore' : 'Archive'}
-      </Button>
-    </div>
-  );
-}
-
 export default function SpeechDialog({
   open,
   connection,
@@ -169,6 +127,8 @@ export default function SpeechDialog({
   const presets = useVoicePresets();
   const [presetId, setPresetId] = useState('');
   const [presetName, setPresetName] = useState('');
+  const [savingAsNew, setSavingAsNew] = useState(false);
+  const [referenceName, setReferenceName] = useState('');
   const [presetError, setPresetError] = useState<string | null>(null);
   const [mode, setMode] = useState('speed');
   const [speed, setSpeed] = useState('1');
@@ -316,20 +276,28 @@ export default function SpeechDialog({
     voice,
     languages: selectedLanguages,
     instructions: delivery,
+    timing:
+      mode === 'speed'
+        ? { mode: 'speed' as const, speed: Number(speed) }
+        : { mode: 'duration' as const, durationSeconds: Number(duration) },
   };
   const canSavePreset =
     !!audio &&
     !!sourceScript &&
     !!transcript &&
-    models.some((item) => item.referenceVoice);
+    models.some((item) => item.referenceVoice) &&
+    validVoiceSettings(voiceSettings);
   const canUpdatePreset =
-    !!selected?.voices.includes(voice) && validVoiceSettings(voiceSettings);
+    !!selected?.voices.includes(voice) &&
+    validVoiceSettings(voiceSettings) &&
+    (!selected.referenceVoice || !!preset?.referenceId);
   const presetModified =
     preset &&
     (preset.model !== model ||
       preset.voice !== voice ||
       preset.instructions !== delivery ||
-      JSON.stringify(preset.languages) !== JSON.stringify(selectedLanguages));
+      JSON.stringify(preset.languages) !== JSON.stringify(selectedLanguages) ||
+      JSON.stringify(preset.timing) !== JSON.stringify(voiceSettings.timing));
   const presetAvailable = (item: VoicePreset) =>
     models.some(
       (model) => model.id === item.model && model.voices.includes(item.voice),
@@ -338,22 +306,25 @@ export default function SpeechDialog({
     try {
       operation();
       setPresetError(null);
+      return true;
     } catch (error) {
       setPresetError(
         error instanceof Error
           ? error.message
           : 'Voice preset could not be saved.',
       );
+      return false;
     }
   };
   const saveFavorite = () => {
-    if (!audio || !sourceScript || !transcript || !presetName.trim()) return;
+    if (!audio || !sourceScript || !transcript || !referenceName.trim()) return;
     const captured = {
       audio,
       transcript: sourceScript,
-      timing: transcript,
-      name: presetName.trim(),
+      phraseTiming: transcript,
+      name: referenceName.trim(),
       languages: [...selectedLanguages],
+      timing: voiceSettings.timing,
     };
     run('Saving voice…', async (signal) => {
       if (captured.audio.samples.length * 2 + 44 > SPEECH_REFERENCE_BYTES)
@@ -377,7 +348,7 @@ export default function SpeechDialog({
         await saveVoiceReference(id, {
           file: result.file,
           transcript: captured.transcript,
-          ...(captured.timing ? { timing: captured.timing } : {}),
+          ...(captured.phraseTiming ? { timing: captured.phraseTiming } : {}),
         });
         if (signal.aborted) {
           await removeVoiceReference(id);
@@ -394,6 +365,7 @@ export default function SpeechDialog({
             voice: 'reference',
             languages: captured.languages,
             instructions: '',
+            timing: captured.timing,
           },
         ]);
       } catch {
@@ -410,7 +382,9 @@ export default function SpeechDialog({
         setVoice('reference');
         setDelivery('');
         setDraftReference(undefined);
+        setReferenceName('');
         setPresetName('');
+        setSavingAsNew(false);
         setPresetError(null);
       }
     });
@@ -422,6 +396,59 @@ export default function SpeechDialog({
       return items.map((item) =>
         item.id === id ? { ...item, ...patch } : item,
       );
+    });
+  const restoreTiming = (value?: VoiceTiming) => {
+    if (!value) return; // Legacy presets never guessed a timing preference.
+    setMode(value.mode);
+    if (value.mode === 'speed') setSpeed(String(value.speed));
+    else setDuration(String(value.durationSeconds));
+  };
+  const selectPreset = (id: string) => {
+    if (id === 'custom') {
+      setPresetId('');
+      setPresetName('');
+      setSavingAsNew(false);
+      setPresetError(null);
+      setDraftReference(undefined);
+      return;
+    }
+    const item = presets.find((item) => item.id === id && !item.archived);
+    if (!item) return;
+    if (!presetAvailable(item)) {
+      setPresetError(
+        'This preset’s model or voice is unavailable on the current connection. Choose an available model and save changes.',
+      );
+    } else setPresetError(null);
+    invalidate();
+    setPresetId(id);
+    setPresetName('');
+    setSavingAsNew(false);
+    setModel(item.model);
+    setVoice(item.voice);
+    setLanguages([...item.languages]);
+    setDelivery(item.instructions);
+    restoreTiming(item.timing);
+    setDraftReference(undefined);
+  };
+  const saveConfiguration = () =>
+    managePreset(() => {
+      if (!canUpdatePreset || !presetName.trim()) return;
+      const id = crypto.randomUUID();
+      changeVoicePresets((items) => [
+        ...items,
+        {
+          ...voiceSettings,
+          id,
+          name: presetName.trim(),
+          archived: false,
+          ...(selected?.referenceVoice && preset?.referenceId
+            ? { referenceId: preset.referenceId }
+            : {}),
+        },
+      ]);
+      setPresetId(id);
+      setPresetName('');
+      setSavingAsNew(false);
     });
   const timing = () =>
     mode === 'speed'
@@ -726,8 +753,8 @@ export default function SpeechDialog({
           throw new Error('Prepare transcription before generating speech.');
         if (!script.trim() || !selected?.voices.includes(voice))
           throw new Error('Choose a script, model and voice.');
-        let reference = draftReference;
-        if (preset?.referenceId) {
+        let reference = selected?.referenceVoice ? draftReference : undefined;
+        if (selected?.referenceVoice && preset?.referenceId) {
           const stored = await readVoiceReference(preset.referenceId);
           if (!stored)
             throw new Error(
@@ -941,133 +968,166 @@ export default function SpeechDialog({
         </DialogHeader>
         <div className="min-h-0 min-w-0 flex-1 space-y-5 overflow-y-auto">
           <fieldset disabled={!!busy} className="min-w-0 space-y-5">
-            <div className="space-y-2">
-              <Label>Voice preset</Label>
-              <SettingsSelect
-                label="Voice preset"
-                value={preset?.id ?? 'custom'}
-                selectedLabel={
-                  preset
-                    ? preset.name + (presetModified ? ' (modified)' : '')
-                    : 'New voice preset'
-                }
-                options={[
-                  { value: 'custom', label: 'New voice preset' },
-                  ...presets
-                    .filter((item) => !item.archived)
-                    .map((item) => ({
-                      value: item.id,
-                      label:
-                        item.name +
-                        (item.referenceId ? '' : ' (settings only)') +
-                        (presetAvailable(item) ? '' : ' (unavailable)'),
-                    })),
+            <section className="space-y-3" aria-label="Voice configuration">
+              <div className="flex items-center justify-between gap-2">
+                <Label>Voice preset</Label>
+                {preset && (
+                  <span className="text-xs text-muted-foreground">
+                    {presetModified ? 'Unsaved changes' : 'Saved configuration'}
+                  </span>
+                )}
+              </div>
+              <Combobox<{ id: string; name: string }>
+                items={[
+                  { id: 'custom', name: 'New voice preset' },
+                  ...presets.filter((item) => !item.archived),
                 ]}
-                disabled={!!busy}
-                onChange={(id) => {
-                  if (id === 'custom') {
-                    setPresetId('');
-                    setDraftReference(undefined);
-                    return;
-                  }
-                  const item = presets.find(
-                    (item) => item.id === id && !item.archived,
-                  );
-                  if (!item) return;
-                  if (!presetAvailable(item)) {
-                    setPresetError(
-                      'This preset’s model or voice is unavailable on the current connection.',
-                    );
-                    return;
-                  }
-                  invalidate();
-                  setPresetError(null);
-                  setPresetId(id);
-                  setModel(item.model);
-                  setVoice(item.voice);
-                  setLanguages([...item.languages]);
-                  setDelivery(item.instructions);
-                  setDraftReference(undefined);
+                value={preset ?? { id: 'custom', name: 'New voice preset' }}
+                itemToStringLabel={(item) => item.name}
+                itemToStringValue={(item) => item.id}
+                isItemEqualToValue={(item, value) => item.id === value.id}
+                onValueChange={(item) => {
+                  if (item) selectPreset(item.id);
                 }}
-              />
-              {!preset && (
-                <div className="flex flex-wrap items-end gap-2">
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <Label htmlFor="speech-preset-name">New preset name</Label>
-                    <Input
-                      id="speech-preset-name"
-                      value={presetName}
-                      maxLength={100}
-                      onChange={(event) => setPresetName(event.target.value)}
+              >
+                <ComboboxTrigger aria-label="Voice preset" disabled={!!busy}>
+                  <span className="truncate">
+                    {preset?.name ?? 'New voice preset'}
+                  </span>
+                </ComboboxTrigger>
+                <ComboboxContent>
+                  <div className="p-2">
+                    <ComboboxInput
+                      aria-label="Search voice presets"
+                      placeholder="Search voices…"
                     />
                   </div>
-                  <Button
-                    variant="outline"
-                    disabled={!canSavePreset || !presetName.trim()}
-                    onClick={saveFavorite}
-                  >
-                    Save this voice
-                  </Button>
-                </div>
-              )}
-              <details className="space-y-3">
-                <summary className="cursor-pointer text-sm">
-                  Manage voice presets
-                </summary>
-                {preset && (
-                  <div className="flex flex-wrap items-end gap-2">
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <Label htmlFor="speech-preset-name">
-                        New preset name
-                      </Label>
-                      <Input
-                        id="speech-preset-name"
-                        value={presetName}
-                        maxLength={100}
-                        onChange={(event) => setPresetName(event.target.value)}
-                      />
-                    </div>
+                  <ComboboxEmpty>No matching voice presets.</ComboboxEmpty>
+                  <ComboboxList>
+                    {(item: { id: string; name: string }) => (
+                      <ComboboxItem key={item.id} value={item}>
+                        <span className="truncate">{item.name}</span>
+                        {item.id !== 'custom' &&
+                          !presetAvailable(item as VoicePreset) && (
+                            <span className="text-xs text-muted-foreground">
+                              (unavailable)
+                            </span>
+                          )}
+                      </ComboboxItem>
+                    )}
+                  </ComboboxList>
+                </ComboboxContent>
+              </Combobox>
+              {!preset || savingAsNew ? (
+                <div className="space-y-2">
+                  <Label htmlFor="speech-preset-name">New preset name</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Input
+                      id="speech-preset-name"
+                      className="min-w-0 flex-1 basis-40"
+                      value={presetName}
+                      maxLength={100}
+                      placeholder="e.g. Documentary narrator"
+                      onChange={(event) => setPresetName(event.target.value)}
+                    />
                     <Button
                       variant="outline"
-                      disabled={!canSavePreset || !presetName.trim()}
-                      onClick={saveFavorite}
+                      disabled={!canUpdatePreset || !presetName.trim()}
+                      onClick={saveConfiguration}
                     >
-                      Save this voice
+                      Save configuration
                     </Button>
+                    {savingAsNew && (
+                      <Button
+                        variant="ghost"
+                        onClick={() => setSavingAsNew(false)}
+                      >
+                        Cancel
+                      </Button>
+                    )}
                   </div>
-                )}
-                {preset && (
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
                   <Button
                     variant="outline"
                     disabled={!canUpdatePreset || !presetModified}
                     onClick={() =>
-                      managePreset(() => updatePreset(preset.id, voiceSettings))
+                      managePreset(() =>
+                        updatePreset(preset.id, {
+                          ...voiceSettings,
+                          referenceId: selected?.referenceVoice
+                            ? preset.referenceId
+                            : undefined,
+                        }),
+                      )
                     }
                   >
                     Save preset changes
                   </Button>
-                )}
-                <div className="max-h-48 space-y-2 overflow-y-auto">
-                  {presets.map((item) => (
-                    <VoicePresetRow
-                      key={item.id + item.name}
-                      preset={item}
-                      onRename={(name) =>
-                        managePreset(() => updatePreset(item.id, { name }))
-                      }
-                      onArchive={() =>
-                        managePreset(() => {
-                          updatePreset(item.id, { archived: !item.archived });
-                          if (presetId === item.id) {
-                            setPresetId('');
-                            setDraftReference(undefined);
-                          }
-                        })
-                      }
-                    />
-                  ))}
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setSavingAsNew(true);
+                      setPresetName(`${preset.name} copy`.slice(0, 100));
+                    }}
+                  >
+                    Save as new
+                  </Button>
                 </div>
-              </details>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Saves voice, model, delivery and timing. Script text stays
+                separate.
+              </p>
+              <VoicePresetManager
+                presets={presets}
+                selectedId={presetId}
+                models={models}
+                onSelect={selectPreset}
+                onRename={(id, name) =>
+                  managePreset(() => updatePreset(id, { name }))
+                }
+                onArchive={(item) =>
+                  managePreset(() => {
+                    updatePreset(item.id, { archived: !item.archived });
+                    if (presetId === item.id) {
+                      setPresetId('');
+                      setDraftReference(undefined);
+                    }
+                  })
+                }
+              />
+              {canSavePreset && (
+                <details className="space-y-2 rounded-md border p-3">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    Save speaker reference from this take
+                  </summary>
+                  <p className="text-xs text-muted-foreground">
+                    Stores this recording and its matching transcript separately
+                    for voice matching with Fish Audio.
+                  </p>
+                  <Label htmlFor="speech-reference-name">
+                    Speaker reference name
+                  </Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Input
+                      id="speech-reference-name"
+                      className="min-w-0 flex-1 basis-40"
+                      value={referenceName}
+                      maxLength={100}
+                      onChange={(event) => setReferenceName(event.target.value)}
+                    />
+                    <Button
+                      variant="outline"
+                      disabled={!referenceName.trim()}
+                      onClick={saveFavorite}
+                    >
+                      Save speaker reference
+                    </Button>
+                  </div>
+                </details>
+              )}
               {selected?.referenceVoice && (
                 <p className="text-sm text-muted-foreground">
                   Generate sends this saved recording and its transcript to Fish
@@ -1080,12 +1140,12 @@ export default function SpeechDialog({
                   {presetError}
                 </p>
               )}
-            </div>
+            </section>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="h-8">
                   Speech model{' '}
-                  <Tooltip content="Generate and preview a take, then save this voice for future scripts. Saved voices use the same reference recording; delivery can vary. A seed does not lock a speaker across scripts.">
+                  <Tooltip content="Save configuration to reuse settings independently of script text. To match a speaker, generate and preview a take, then save a speaker reference separately. Delivery can vary.">
                     <Button
                       type="button"
                       variant="ghost"
@@ -1104,7 +1164,6 @@ export default function SpeechDialog({
                       invalidate();
                       setModel(item.id);
                       setVoice('');
-                      setPresetId('');
                       setDraftReference(undefined);
                     }
                   }}
