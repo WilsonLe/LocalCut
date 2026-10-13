@@ -4,6 +4,8 @@ This is the project record of the user's durable product and workflow choices. U
 
 ## Silent chat retries — 13 October 2026
 
+- When a chat error escalates, show a play-icon Retry response button in the primary Send position. Retry the captured request without retyping; preserve completed actions. A new draft takes precedence as Send, and clearing it restores Retry.
+
 - Automatically retry empty provider replies and other transient chat inference failures silently within the submitted turn. Keep the same model/provider, completed tool receipts and cancellation control; show an error only when recovery fails.
 - Use a bounded retry policy. Do not replay already visible responses, permanent errors, refusals or failed paid tool/service actions. This supersedes manual-only retry for retriable chat inference failures.
 

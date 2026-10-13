@@ -1595,9 +1595,15 @@ export function createAssistant(options: AssistantOptions) {
           : localError(error);
         if (
           !disposed &&
-          (safe.code === 'CANCELLED' ||
-            (safe.code === 'RESPONSE_INCOMPLETE' &&
-              safe.details.reason === 'empty_response'))
+          ([
+            'CANCELLED',
+            'NETWORK_ERROR',
+            'TIMEOUT',
+            'RATE_LIMITED',
+            'PROVIDER_UNAVAILABLE',
+            'RESPONSE_INCOMPLETE',
+          ].includes(safe.code) ||
+            staged.some((proposal) => proposals.get(proposal.id)?.result))
         ) {
           // Preserve intent without retaining unmatched calls, staged proposals,
           // or skill instructions. A commit can win before its tool reply arrives.

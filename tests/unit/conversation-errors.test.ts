@@ -28,6 +28,7 @@ describe('safe conversation request diagnostics', () => {
       }),
     );
     expect(text).toContain('empty reply');
+    expect(text).toContain('Use Retry response');
     expect(text).toContain('completed actions remain saved');
     expect(text).not.toContain('SECRET');
   });

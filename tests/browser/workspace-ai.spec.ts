@@ -7,6 +7,7 @@ import {
   selectAISettingsTab,
 } from './workspace-settings-helper';
 import { fulfillChatTitle } from './chat-title-fixture';
+import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test } from '@playwright/test';
 import type { BrowserContext, Page, Route } from '@playwright/test';
 import type { Project } from '../../src/core/model';
@@ -334,6 +335,78 @@ test('rate-limit errors recover silently within the submitted chat turn', async 
   expect(requests).toBe(4);
   await expect(page.getByRole('alert')).toHaveCount(0);
   expect((await snapshot(page, name)).revision).toBe(1);
+});
+
+test('chat escalated errors preserve applied actions during manual primary retry', async ({
+  page,
+  context,
+}) => {
+  await catalog(context);
+  const requests: { messages: { role: string; content: string | null }[] }[] =
+    [];
+  await context.route(
+    'https://openrouter.ai/api/v1/chat/completions',
+    async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ headers: cors, body: '' });
+        return;
+      }
+      if (await fulfillChatTitle(route)) return;
+      const body = route.request().postDataJSON() as (typeof requests)[number];
+      requests.push(body);
+      if (requests.length <= 2) await fulfillProposal(route);
+      else if (
+        body.messages
+          .at(-1)
+          ?.content?.startsWith('Retry the unfinished response')
+      ) {
+        // Only narrate success when the canonical retained context proves the edit committed.
+        expect(JSON.stringify(body.messages)).toContain('appliedRevision');
+        expect(JSON.stringify(body.messages)).toContain(
+          'Never repeat an action with a confirmed completed receipt',
+        );
+        await route.fulfill({
+          headers: cors,
+          contentType: 'text/event-stream',
+          body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'The saved overlay track is already added.' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+        });
+      } else
+        await route.fulfill({
+          status: 429,
+          headers: cors,
+          json: { error: 'Synthetic rate limit' },
+        });
+    },
+  );
+  await page.goto('/LocalCut/');
+  const name = 'Manual retry keeps committed edit';
+  await createProject(page, name);
+  await connect(page);
+  await send(page, 'Add an overlay track.');
+  const retry = page.getByRole('button', {
+    name: 'Retry response',
+    exact: true,
+  });
+  await expect(retry).toBeEnabled();
+  expect(requests).toHaveLength(5);
+  await expect(
+    page.getByText('Applied at revision 1', { exact: true }),
+  ).toHaveCount(1);
+  expect((await snapshot(page, name)).revision).toBe(1);
+  await dismissNotifications(page);
+  await retry.click();
+  await expect(
+    page.getByText('The saved overlay track is already added.', {
+      exact: true,
+    }),
+  ).toBeVisible();
+  expect(requests).toHaveLength(6);
+  expect((await snapshot(page, name)).revision).toBe(1);
+  await expect(
+    page.getByText('Applied at revision 1', { exact: true }),
+  ).toHaveCount(1);
+  await expect(retry).toHaveCount(0);
+  await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
 for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>

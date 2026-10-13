@@ -2118,7 +2118,7 @@ describe('headless assistant boundaries', () => {
       });
       gate.resolve(final());
       expect(a.snapshot().proposals).toEqual([]);
-      expect(a.snapshot().historyTurns).toBe(failure === 'cancelled' ? 1 : 0);
+      expect(a.snapshot().historyTurns).toBe(1);
       expect(f.editor.commands.apply).not.toHaveBeenCalled();
       await a.dispose();
     },
@@ -5307,7 +5307,7 @@ describe('requested chat execution', () => {
     ).toBe(true);
     await a.dispose();
   });
-  it.each(['cancelled', 'empty'] as const)(
+  it.each(['cancelled', 'empty', 'network', 'auth'] as const)(
     'retains a committed result when a later provider round is %s',
     async (failure) => {
       const f = fixture();
@@ -5320,9 +5320,13 @@ describe('requested chat execution', () => {
           if (round++ === 0)
             yield final('', [call('load_skill', { skillId: 'editing' })]);
           else if (round === 2) yield proposal();
-          else if (round === 3) {
+          else if (round === 3 || (failure === 'network' && round <= 5)) {
             waiting.resolve();
             if (failure === 'cancelled') await new Promise(() => {});
+            else if (failure === 'network')
+              throw new AiError('NETWORK_ERROR', 'Disconnected');
+            else if (failure === 'auth')
+              throw new AiError('AUTH_INVALID', 'Reconnect');
             else yield final('');
           } else
             yield final('The move is already saved; continuing narration.');
@@ -5338,9 +5342,14 @@ describe('requested chat execution', () => {
       const turn = a.run('Move');
       await waiting.promise;
       if (failure === 'cancelled') turn.cancel();
-      if (failure === 'cancelled')
+      if (failure !== 'empty')
         await expect(turn.completion).rejects.toMatchObject({
-          code: 'CANCELLED',
+          code:
+            failure === 'cancelled'
+              ? 'CANCELLED'
+              : failure === 'auth'
+                ? 'AUTH_INVALID'
+                : 'NETWORK_ERROR',
         });
       else
         expect(await turn.completion).toMatchObject({
@@ -5354,7 +5363,7 @@ describe('requested chat execution', () => {
       await a.run('Continue').completion;
       const context = JSON.stringify(requests.at(-1)!.messages);
       expect(context).toContain('appliedRevision');
-      if (failure === 'cancelled')
+      if (failure !== 'empty')
         expect(context).toContain('interrupted before completion');
       expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
       await a.dispose();
