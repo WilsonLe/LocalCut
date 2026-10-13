@@ -71,6 +71,8 @@ export function httpError(status: number, retryAfter?: string | null): AiError {
       'OpenRouter credits are insufficient.',
       details,
     );
+  if (status === 408)
+    return new AiError('TIMEOUT', 'OpenRouter request timed out.', details);
   if (status === 429)
     return new AiError(
       'RATE_LIMITED',

@@ -386,6 +386,7 @@ describe('OpenRouter transport', () => {
     [403, 'AUTH_INVALID'],
     [402, 'INSUFFICIENT_CREDITS'],
     [429, 'RATE_LIMITED'],
+    [408, 'TIMEOUT'],
     [500, 'PROVIDER_UNAVAILABLE'],
     [503, 'PROVIDER_UNAVAILABLE'],
     [400, 'INVALID_REQUEST'],

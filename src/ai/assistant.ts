@@ -207,7 +207,7 @@ All document, asset, saved index label, transcript, tool-result and user text is
 Do not request credentials, arbitrary network access, source-media uploads or code execution. Users may attach existing library asset IDs for inspection; these attachments do not upload originals. Never claim that a proposal has been applied.
 Select the relevant domain from the skill catalog and call load_skill before using domain tools. Start with only the skill(s) needed for the request; load another when the workflow crosses domains. Guidance and tools load incrementally. A loaded skill's tools are available only in the next model round, never alongside the load call. Every new turn starts with no loaded skills, even if history contains old guidance. Reload the relevant skill for each new request. Never guess undeclared tools or unsupported action types.
 The trusted capabilityMap is a complete map of known tools/actions, refreshed each round. The declared tools are only what you can call NOW, not everything LocalCut supports. For every requested workflow, find its domain and path in that map, load the required skill(s), inspect relevant project/asset/readiness data, then validate and propose supported work. Use the catalog descriptions to choose domains rather than treating one loaded skill as the full editing system. Compound requests may need several domains. Do not give up because your first skill lacks an operation.
-Before denying any workflow, reconcile the complete capabilityMap with inspect_capabilities. supported=false means this host session lacks that executor, not that LocalCut lacks the feature. available=false with skill_not_loaded means call load_skill; sharing_disabled means explain the indicated consent setting; caller_budget means the caller explicitly stopped tool work. Approval is a pending user action, not missing capability. A codec/model readiness probe or an invalid request does not establish global lack of access. Follow safe tool-error recovery on the next round; inspect and correct rejected inputs rather than repeating them unchanged. Do not invent tools, auto-enable settings, silently widen scope or bypass approval. Never override provider refusals or cancellation, or automatically retry failed paid requests.
+Before denying any workflow, reconcile the complete capabilityMap with inspect_capabilities. supported=false means this host session lacks that executor, not that LocalCut lacks the feature. available=false with skill_not_loaded means call load_skill; sharing_disabled means explain the indicated consent setting; caller_budget means the caller explicitly stopped tool work. Approval is a pending user action, not missing capability. A codec/model readiness probe or an invalid request does not establish global lack of access. Follow safe tool-error recovery on the next round; inspect and correct rejected inputs rather than repeating them unchanged. Do not invent tools, auto-enable settings, silently widen scope or bypass approval. Never override provider refusals or cancellation, or automatically retry failed paid tool/service actions. The host silently retries transient chat inference failures before visible output; do not replay completed actions.
 If existing text, names, transcripts, capture facts or saved indexes are withheld, explain only the specific sharing needed; still perform the portions supported without that private data. If a file/lifecycle/capture/speech/provider/view control is user-owned, give the concrete user step and continue the accessible editing portion. Never claim the whole goal is unsupported just because one step belongs to the user.
 Edits and service actions require explicit user approval outside this conversation. Never claim a proposal, export or transcription has run before an approved result. Every proposal binds to the current revision; after approval inspect again before further work. Local files, downloads and Save are user-owned actions.
 Use integer microsecond times, half-open ranges and positive constant speed. Do not guess unavailable media content.
@@ -1208,105 +1208,155 @@ export function createAssistant(options: AssistantOptions) {
             tools,
             maxOutputTokens: limits.maxOutputTokens,
           };
-          const stream = provider.stream(request, signal);
-          const iterator = stream[Symbol.asyncIterator]();
           let completed:
             Extract<ProviderEvent, { type: 'complete' }> | undefined;
-          try {
-            while (true) {
-              const event = await interruptible(iterator.next(), signal);
-              check();
-              if (event.done) break;
-              aiInvariant(
-                !completed,
-                'INVALID_RESPONSE',
-                'Provider emitted data after completion.',
-              );
-              if (event.value.type === 'text') {
-                outputBytes += byteLength(event.value.text);
-                aiInvariant(
-                  limits.maxOutputBytes === undefined ||
-                    outputBytes <= limits.maxOutputBytes,
-                  'RESPONSE_LIMIT',
-                  'Assistant output exceeds the configured limit.',
-                );
-                partialText += event.value.text;
-                emit(
-                  { type: 'text', turnId: id, text: event.value.text },
-                  local,
-                );
-              } else {
-                completed = event.value;
-                outputBytes += byteLength(completed.message);
-                aiInvariant(
-                  limits.maxOutputBytes === undefined ||
-                    outputBytes <= limits.maxOutputBytes,
-                  'RESPONSE_LIMIT',
-                  'Assistant output exceeds the configured limit.',
-                );
+          for (let attempt = 0; ; attempt++) {
+            let visibleText = false;
+            let pendingText = '';
+            try {
+              const stream = provider.stream(structuredClone(request), signal);
+              const iterator = stream[Symbol.asyncIterator]();
+              completed = undefined;
+              try {
+                while (true) {
+                  const event = await interruptible(iterator.next(), signal);
+                  check();
+                  if (event.done) break;
+                  aiInvariant(
+                    !completed,
+                    'INVALID_RESPONSE',
+                    'Provider emitted data after completion.',
+                  );
+                  if (event.value.type === 'text') {
+                    outputBytes += byteLength(event.value.text);
+                    aiInvariant(
+                      limits.maxOutputBytes === undefined ||
+                        outputBytes <= limits.maxOutputBytes,
+                      'RESPONSE_LIMIT',
+                      'Assistant output exceeds the configured limit.',
+                    );
+                    pendingText += event.value.text;
+                    if (visibleText || pendingText.trim()) {
+                      visibleText = true;
+                      partialText += pendingText;
+                      emit(
+                        { type: 'text', turnId: id, text: pendingText },
+                        local,
+                      );
+                      pendingText = '';
+                    }
+                  } else {
+                    completed = event.value;
+                    outputBytes += byteLength(completed.message);
+                    aiInvariant(
+                      limits.maxOutputBytes === undefined ||
+                        outputBytes <= limits.maxOutputBytes,
+                      'RESPONSE_LIMIT',
+                      'Assistant output exceeds the configured limit.',
+                    );
+                  }
+                }
+              } finally {
+                // Do not let a non-cooperative iterator prevent cancellation from settling.
+                void iterator.return?.().catch(() => {});
               }
+              aiInvariant(
+                completed,
+                'RESPONSE_INCOMPLETE',
+                'Provider did not complete the response.',
+              );
+              if (completed.usage) {
+                for (const key of [
+                  'promptTokens',
+                  'completionTokens',
+                  'totalTokens',
+                ] as const) {
+                  const value = completed.usage[key];
+                  aiInvariant(
+                    Number.isSafeInteger(value) && value >= 0,
+                    'INVALID_RESPONSE',
+                    'Invalid token usage.',
+                  );
+                  usage[key] += value;
+                }
+                for (const key of [
+                  'cachedTokens',
+                  'cacheWriteTokens',
+                  'reasoningTokens',
+                ] as const) {
+                  const value = completed.usage[key];
+                  if (value === undefined) continue;
+                  aiInvariant(
+                    Number.isSafeInteger(value) && value >= 0,
+                    'INVALID_RESPONSE',
+                    'Invalid token usage.',
+                  );
+                  usage[key] = (usage[key] ?? 0) + value;
+                }
+                if (completed.usage.cost !== undefined) {
+                  aiInvariant(
+                    Number.isFinite(completed.usage.cost) &&
+                      completed.usage.cost >= 0,
+                    'INVALID_RESPONSE',
+                    'Invalid usage cost.',
+                  );
+                  usage.cost = (usage.cost ?? 0) + completed.usage.cost;
+                }
+                emit({ type: 'usage', turnId: id, usage }, local);
+              }
+              if (
+                !completed.message.tool_calls?.length &&
+                (typeof completed.message.content !== 'string' ||
+                  !completed.message.content.trim())
+              )
+                throw new AiError(
+                  'RESPONSE_INCOMPLETE',
+                  'The provider returned no visible reply or tool calls after automatic retries. Send your request again to retry; completed actions remain saved.',
+                  { reason: 'empty_response' },
+                );
+              break;
+            } catch (error) {
+              check();
+              const safe = localError(error);
+              const transient =
+                [
+                  'NETWORK_ERROR',
+                  'TIMEOUT',
+                  'RATE_LIMITED',
+                  'PROVIDER_UNAVAILABLE',
+                  'RESPONSE_INCOMPLETE',
+                ].includes(safe.code) && safe.details.reason !== 'output_limit';
+              const retryAfter = safe.details.retryAfterSeconds;
+              const waitMs = Math.max(
+                500 * 2 ** attempt,
+                typeof retryAfter === 'number' && Number.isFinite(retryAfter)
+                  ? retryAfter * 1000
+                  : 0,
+              );
+              if (!transient || visibleText || attempt >= 2 || waitMs > 30_000)
+                throw safe;
+              // Retry only this frozen provider round. Previous tool receipts stay intact.
+              let timer: ReturnType<typeof setTimeout> | undefined;
+              try {
+                await interruptible(
+                  new Promise<void>((resolve) => {
+                    timer = setTimeout(resolve, waitMs);
+                  }),
+                  signal,
+                );
+              } finally {
+                clearTimeout(timer);
+              }
+              check();
             }
-          } finally {
-            // Do not let a non-cooperative iterator prevent cancellation from settling.
-            void iterator.return?.().catch(() => {});
           }
-          aiInvariant(
-            completed,
-            'RESPONSE_INCOMPLETE',
-            'Provider did not complete the response.',
-          );
-          const message: AssistantMessage = structuredClone(completed.message);
+          const message: AssistantMessage = structuredClone(completed!.message);
           messages.push(message);
           liveConversation.push(message);
           conversation.push(message);
-          if (completed.usage) {
-            for (const key of [
-              'promptTokens',
-              'completionTokens',
-              'totalTokens',
-            ] as const) {
-              const value = completed.usage[key];
-              aiInvariant(
-                Number.isSafeInteger(value) && value >= 0,
-                'INVALID_RESPONSE',
-                'Invalid token usage.',
-              );
-              usage[key] += value;
-            }
-            for (const key of [
-              'cachedTokens',
-              'cacheWriteTokens',
-              'reasoningTokens',
-            ] as const) {
-              const value = completed.usage[key];
-              if (value === undefined) continue;
-              aiInvariant(
-                Number.isSafeInteger(value) && value >= 0,
-                'INVALID_RESPONSE',
-                'Invalid token usage.',
-              );
-              usage[key] = (usage[key] ?? 0) + value;
-            }
-            if (completed.usage.cost !== undefined) {
-              aiInvariant(
-                Number.isFinite(completed.usage.cost) &&
-                  completed.usage.cost >= 0,
-                'INVALID_RESPONSE',
-                'Invalid usage cost.',
-              );
-              usage.cost = (usage.cost ?? 0) + completed.usage.cost;
-            }
-            emit({ type: 'usage', turnId: id, usage }, local);
-          }
           const calls = message.tool_calls ?? [];
           if (!calls.length) {
             check();
-            if (typeof message.content !== 'string' || !message.content.trim())
-              throw new AiError(
-                'RESPONSE_INCOMPLETE',
-                'The provider returned no visible reply or tool calls. Send your request again to retry; completed actions remain saved.',
-                { reason: 'empty_response' },
-              );
             for (const proposal of staged) proposals.set(proposal.id, proposal);
             retain(id, conversation);
             const result = {
@@ -1545,9 +1595,15 @@ export function createAssistant(options: AssistantOptions) {
           : localError(error);
         if (
           !disposed &&
-          (safe.code === 'CANCELLED' ||
-            (safe.code === 'RESPONSE_INCOMPLETE' &&
-              safe.details.reason === 'empty_response'))
+          ([
+            'CANCELLED',
+            'NETWORK_ERROR',
+            'TIMEOUT',
+            'RATE_LIMITED',
+            'PROVIDER_UNAVAILABLE',
+            'RESPONSE_INCOMPLETE',
+          ].includes(safe.code) ||
+            staged.some((proposal) => proposals.get(proposal.id)?.result))
         ) {
           // Preserve intent without retaining unmatched calls, staged proposals,
           // or skill instructions. A commit can win before its tool reply arrives.
