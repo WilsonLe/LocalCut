@@ -807,13 +807,9 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         'INVALID_REQUEST',
         'Output limit exceeds the selected model capability.',
       );
-      // Use the model's full advertised allowance rather than a smaller provider default.
-      // Provider tokenization and context admission remain the provider's responsibility.
-      if (requestedTokens === undefined && model.maxCompletionTokens) {
-        const payload = JSON.parse(body) as Record<string, unknown>;
-        payload.max_tokens = model.maxCompletionTokens;
-        body = JSON.stringify(payload);
-      }
+      // The catalog maximum is an output capability, not the available budget
+      // after this prompt. Leave unspecified budgets to provider tokenization
+      // and admission; reserving the maximum can reject growing tool history.
       // Strict routing must not require an optional parameter the model cannot use.
       // The assistant already executes all validated tool calls sequentially.
       if (!model.supportedParameters.includes('parallel_tool_calls')) {

@@ -67,17 +67,22 @@ export function httpError(
   if (diagnostic && typeof diagnostic === 'object') {
     const error = diagnostic as Record<string, unknown>;
     const metadata = error.metadata;
-    const category =
+    // Providers use code, type or metadata.error_type for machine categories.
+    // Prefer a recognized category; an unknown wrapper must not hide it.
+    for (const category of [
       metadata && typeof metadata === 'object' && 'error_type' in metadata
         ? metadata.error_type
-        : error.code;
-    Object.assign(
-      details,
-      safeRecoveryDetails({
-        providerReason: category,
-        parameter: error.param,
-      }),
-    );
+        : undefined,
+      error.code,
+      error.type,
+    ]) {
+      const safe = safeRecoveryDetails({ providerReason: category });
+      if (safe.providerReason) {
+        details.providerReason = safe.providerReason;
+        break;
+      }
+    }
+    Object.assign(details, safeRecoveryDetails({ parameter: error.param }));
   }
   if (Number.isFinite(seconds) && seconds >= 0)
     details.retryAfterSeconds = Math.min(Math.ceil(seconds), 86_400);

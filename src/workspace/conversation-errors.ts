@@ -15,6 +15,8 @@ export function errorText(error: unknown): string {
   if (details && typeof details === 'object' && 'stage' in details) {
     if (details.stage === 'request_contract')
       return `The initial goal check failed. ${message} Any completed actions remain saved.`;
+    if (details.stage === 'assistant_response')
+      return `The assistant response failed. ${message} Any completed actions remain saved.`;
     if (details.stage === 'completion_check')
       return `The completion check failed after the assistant response. ${message} Any completed actions remain saved.`;
   }
@@ -32,6 +34,13 @@ function requestErrorText(error: unknown): string {
     if ('reason' in details && details.reason === 'reviewer_protocol')
       return 'The model returned tool protocol instead of a plain-text review after recovery attempts. Use Retry response, or choose another model.';
     if ('providerReason' in details) {
+      if (details.providerReason === 'unsupported_parameter')
+        return 'The provider rejected an unsupported request option. Update LocalCut or check the selected model settings before retrying.';
+      if (
+        details.providerReason === 'invalid_tool_call' ||
+        details.providerReason === 'invalid_tool_results'
+      )
+        return 'The provider rejected the tool-call history. Existing history and completed actions remain saved. Update LocalCut before retrying, or start a separate chat.';
       switch (details.providerReason) {
         case 'context_length_exceeded':
         case 'string_too_long':

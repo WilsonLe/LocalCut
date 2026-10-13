@@ -114,3 +114,26 @@ describe('safe conversation request diagnostics', () => {
     },
   );
 });
+
+it.each([
+  ['context_length_exceeded', 'conversation size'],
+  ['max_tokens_exceeded', 'token budget'],
+  ['invalid_tool_call', 'tool-call history'],
+  ['invalid_tool_results', 'tool-call history'],
+  ['unsupported_parameter', 'unsupported request option'],
+])(
+  'explains main-response %s rejection without suggesting an unchanged retry',
+  (providerReason, expected) => {
+    const text = errorText(
+      httpError(400, null, { type: providerReason, message: 'SECRET' }),
+    );
+    expect(text).toContain(expected);
+    expect(text).not.toContain('SECRET');
+    const staged = new AiError('INVALID_REQUEST', 'SECRET', {
+      ...httpError(400, null, { type: providerReason }).details,
+      stage: 'assistant_response',
+    });
+    expect(errorText(staged)).toContain('The assistant response failed.');
+    expect(errorText(staged)).toContain('completed actions remain saved');
+  },
+);

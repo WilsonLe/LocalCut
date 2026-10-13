@@ -1538,7 +1538,11 @@ describe('headless assistant boundaries', () => {
         },
       });
       try {
-        await expect(a.run('Inspect').completion).rejects.toBe(error);
+        await expect(a.run('Inspect').completion).rejects.toMatchObject({
+          code: error.code,
+          details: { ...error.details, stage: 'assistant_response' },
+          cause: error,
+        });
         expect(requests).toBe(1);
       } finally {
         await a.dispose();

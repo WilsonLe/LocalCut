@@ -90,6 +90,32 @@ describe('OpenRouter transport', () => {
     client.dispose();
   });
 
+  it('recognizes a provider machine type when its wrapper category is unknown', async () => {
+    const { client } = setup(() =>
+      Response.json(
+        {
+          error: {
+            code: 400,
+            type: 'invalid_tool_results',
+            metadata: { error_type: 'unknown SECRET' },
+            param: 'tool_call_id',
+            message: 'test-key-private SECRET',
+          },
+        },
+        { status: 400 },
+      ),
+    );
+    await expect(collect(client)).rejects.toMatchObject({
+      code: 'INVALID_REQUEST',
+      details: {
+        status: 400,
+        providerReason: 'invalid_tool_results',
+        parameter: 'tool_call_id',
+      },
+    });
+    client.dispose();
+  });
+
   it.each([
     'not JSON SECRET',
     JSON.stringify({
@@ -241,7 +267,7 @@ describe('OpenRouter transport', () => {
     }
   });
   it.each([943718, 1048576, undefined])(
-    'uses the advertised full output allowance within model capacity (%s)',
+    'leaves unspecified output admission to the provider (%s)',
     async (maximum) => {
       let submitted: Record<string, unknown> | undefined;
       const fetch = vi.fn<typeof globalThis.fetch>(async (url, init) => {
@@ -264,7 +290,7 @@ describe('OpenRouter transport', () => {
       client.setKey('synthetic-key');
       const value = { ...request(), maxOutputTokens: undefined };
       await collect(client, value);
-      expect(submitted!.max_tokens).toBe(maximum);
+      expect(submitted!).not.toHaveProperty('max_tokens');
       expect(submitted!.messages).toEqual(value.messages);
       client.dispose();
     },
@@ -629,7 +655,7 @@ describe('OpenRouter transport', () => {
     await expect(pending).rejects.toMatchObject({ code: 'MODEL_UNSUPPORTED' });
     expect(calls).toHaveLength(1);
   });
-  it('keeps advertised output capacity without a local input estimate cap', async () => {
+  it('does not reserve the entire context window as output', async () => {
     let release!: (value: Response) => void;
     let submitted: Record<string, unknown> | undefined;
     const fetch: typeof globalThis.fetch = async (url, init) => {
@@ -657,7 +683,7 @@ describe('OpenRouter transport', () => {
       }),
     );
     await pending;
-    expect(submitted!.max_tokens).toBe(300000);
+    expect(submitted!).not.toHaveProperty('max_tokens');
     expect(submitted!.messages).toEqual(request().messages);
     client.dispose();
   });
