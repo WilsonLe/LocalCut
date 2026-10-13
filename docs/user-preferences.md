@@ -2,11 +2,19 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Media folder breadcrumbs — 13 October 2026
+
+- Keep Media's title and actions in the main header. When browsing subfolders, show the path in a separate breadcrumb subheader below it, with clickable ancestors and the current folder marked. Hide the breadcrumb row at the root.
+
 ## Single OpenRouter connection — 13 October 2026
 
 - Allow only OpenRouter for remote AI. Remove OpenAI-compatible endpoints, ChatGPT sign-in and multiple provider accounts. The connection is binary: connected to OpenRouter or disconnected.
 - Remove all backup service routes and provider priority controls for LLM, TTS and STT. A failed request stops without switching services. Preserve local Whisper as the default local transcription choice; an explicitly chosen remote transcription service uses only OpenRouter.
 - Migrate old configuration to one retained OpenRouter account and its selections, preserving its credential namespace. Retire removed accounts' saved credentials and pending authentication; portable imports cannot revive them. These choices supersede prior multiple-provider, ChatGPT and fallback preferences.
+
+## OpenRouter request management — 13 October 2026
+
+- Pass session IDs into OpenRouter requests for better management, and follow applicable official integration best practices. Keep related conversation/tool requests grouped under the saved chat identity and audit the transport beyond chat alone.
 
 ## Mobile tab headers and scrolling — 13 October 2026
 

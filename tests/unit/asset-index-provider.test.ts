@@ -72,6 +72,7 @@ describe('dedicated indexing transport', () => {
         {
           model,
           prompt: 'Label scene',
+          sessionId: 'index-run-1',
           media: [
             { type: 'image/jpeg', data: 'YWJj' },
             { type: 'video/mp4', data: 'YWJj' },
@@ -84,6 +85,7 @@ describe('dedicated indexing transport', () => {
       expect(bodies[0]).toMatchObject({
         model,
         provider: { data_collection: 'deny', require_parameters: true },
+        session_id: 'index-run-1',
       });
       expect(bodies[0]).not.toHaveProperty('tools');
       expect(JSON.stringify(bodies)).not.toContain('synthetic-index-key');

@@ -168,6 +168,7 @@ describe('capture sharing on index retries', () => {
     try {
       await h.indexer.run('asset', 'existing').completion;
       expect(h.label).toHaveBeenCalledOnce();
+      expect(h.label.mock.calls[0]![0].sessionId).toBe(h.run.id);
       expect(h.recordRequest).toHaveBeenCalledWith(
         'existing',
         expect.objectContaining({ captureIncluded: true }),

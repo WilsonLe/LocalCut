@@ -7,11 +7,13 @@ export async function generateChatTitle({
   model,
   message,
   signal,
+  sessionId,
 }: {
   provider: Pick<OpenRouterClient, 'stream'>;
   model: string;
   message: string;
   signal: AbortSignal;
+  sessionId?: string;
 }): Promise<string> {
   const checkCancellation = () => {
     if (signal.aborted)
@@ -22,6 +24,7 @@ export async function generateChatTitle({
   for await (const event of provider.stream(
     {
       model,
+      sessionId,
       messages: [
         {
           role: 'system',

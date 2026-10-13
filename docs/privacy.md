@@ -4,6 +4,8 @@ LocalCut is a static browser application. It has no application backend or cloud
 
 ## Data boundaries
 
+OpenRouter API requests identify the public LocalCut application through fixed attribution headers, which can associate usage with its public OpenRouter app analytics/rankings. Inference requests additionally carry opaque chat, index-run or operation IDs for grouping; these do not contain project names, page routes, prompts or a global user identifier. Related chat requests reuse the saved chat UUID, including after reload; new chats and forks have independent IDs. Generation IDs and token/cache/reasoning accounting returned by the provider remain available locally. See the [OpenRouter request contract](ai.md#request-management-and-documentation-audit).
+
 | Action or data                                        | Where it goes / persists                                                                                                                                                                                                    |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Imported originals, editing, preview and video export | Browser-local media processing; originals in OPFS, project records in IndexedDB                                                                                                                                             |
