@@ -93,7 +93,7 @@ for (const base of ['/', '/LocalCut/']) {
             dimensions: [canvas.width, canvas.height],
             rightEdge: [
               ...context.getImageData(
-                canvas.width - 22 * scale,
+                canvas.width - 40 * scale,
                 canvas.height / 2,
                 1,
                 1,
