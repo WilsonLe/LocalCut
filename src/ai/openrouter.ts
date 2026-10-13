@@ -524,7 +524,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         models.some(
           (item) =>
             item.id === model &&
-            (response_format === 'mp3'
+            (item.referenceVoice
               ? item.referenceVoice
               : !!voice && item.voices.includes(voice)),
         ),

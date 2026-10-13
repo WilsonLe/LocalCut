@@ -1,4 +1,11 @@
+import { REFERENCE_SPEECH_MODEL } from '../ai/speech';
 import { useEffect, useSyncExternalStore } from 'react';
+import {
+  validElevenLabsSettings,
+  elevenLabsSchema,
+  elevenLabsCapabilities,
+} from '../ai/elevenlabs';
+import type { ElevenLabsSettings } from '../ai/elevenlabs';
 
 export const VOICE_PRESETS_KEY = 'localcut.voice-presets.v1';
 export type VoiceTiming =
@@ -10,6 +17,7 @@ export interface VoiceSettings {
   languages: string[];
   instructions: string;
   timing?: VoiceTiming;
+  elevenlabs?: ElevenLabsSettings;
 }
 export interface VoicePreset extends VoiceSettings {
   id: string;
@@ -41,13 +49,17 @@ export function validVoiceSettings(value: VoiceSettings): boolean {
     bounded(value.voice, 80) &&
     /^[A-Za-z0-9_-]+$/.test(value.voice) &&
     Array.isArray(value.languages) &&
-    value.languages.length >= 1 &&
+    (elevenLabsCapabilities(value.model) ||
+      value.model === REFERENCE_SPEECH_MODEL ||
+      value.languages.length >= 1) &&
     value.languages.length <= 8 &&
     value.languages.every(
       (language) => bounded(language, 80) && !!language.trim(),
     ) &&
     bounded(value.instructions, 1500) &&
-    (value.timing === undefined || validVoiceTiming(value.timing))
+    (value.timing === undefined || validVoiceTiming(value.timing)) &&
+    (value.elevenlabs === undefined ||
+      validElevenLabsSettings(value.model, value.elevenlabs))
   );
 }
 export function parseVoicePresets(raw: string | null): VoicePreset[] {
@@ -80,6 +92,9 @@ export function parseVoicePresets(raw: string | null): VoicePreset[] {
         voice: p.voice,
         languages: [...new Set(p.languages)] as string[],
         instructions: p.instructions,
+        ...(p.elevenlabs
+          ? { elevenlabs: elevenLabsSchema.parse(p.elevenlabs) }
+          : {}),
         ...(p.timing
           ? {
               timing:

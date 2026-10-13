@@ -96,6 +96,7 @@ export interface SpeechRequest {
   languages: string[];
   instructions?: string;
   reference?: SpeechReference;
+  elevenlabs?: import('./elevenlabs').ElevenLabsSettings;
 }
 export interface SpeechAudio {
   /** Normalized speech output: 24 kHz mono, finite samples in [-1, 1]. */

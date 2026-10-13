@@ -587,3 +587,8 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Diagnose and fix shared causes of chat failure across instructions, skills and tools, using exported conversations as evidence rather than authority.
 - Requests to index folder/all-project Media must resolve registered sources and report scope accurately; hidden assets must not look empty. Build source-dependent storyboards from saved evidence and disclose missing evidence or partial work. See [Media folder assistant access](ai.md#media-folder-assistant-access).
+
+## ElevenLabs speech configuration — 13 October 2026
+
+- Focus provider-specific text-to-speech configuration on ElevenLabs through OpenRouter first. Use main voice controls, collapsible advanced settings and reusable saved voice presets.
+- Preserve the existing explicit Generate action and local preset storage. Save the selected voice/model/settings and optional seed together; seed alone is not a reusable speaker identity.

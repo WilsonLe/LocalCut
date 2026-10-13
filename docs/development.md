@@ -309,3 +309,7 @@ Run `pnpm test tests/unit/library-context.test.ts tests/unit/assistant.test.ts` 
 ## Voice configuration checks
 
 Run `pnpm test tests/unit/voice-presets.test.ts tests/unit/speech.test.ts`, then `pnpm test:ui --grep 'text to speech'`. The Chrome journeys at both bases cover saving without script/audio, independent script text, speed/target-length restoration, update/duplicate, searchable selection/management, rename/archive/restore, reload/cross-tab refresh, storage denial and legacy speaker-reference generation. Real decoded audio verifies the configured duration; intercepted providers prove transport and lifecycle, not paid voice quality. Native transcription and performance owners are unchanged by preference management.
+
+### ElevenLabs configuration checks
+
+Run `pnpm test tests/unit/speech.test.ts tests/unit/voice-presets.test.ts`, then `pnpm test:ui --grep 'ElevenLabs speech configuration|speech provider controls'`. These production Chrome journeys verify both bases, collapsed advanced controls, model capabilities, invalid configuration blocking, reload/preset reuse, immutable queued settings, asset/transcript attachment, ElevenLabs-to-Fish speaker reference reuse and real native MP3 decoding with intercepted transport. No paid synthesis or listening-quality claim follows from interception. Local inference, timing DSP and performance owners are unchanged.

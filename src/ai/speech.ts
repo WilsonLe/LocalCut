@@ -1,5 +1,10 @@
 import { AiError, aiInvariant } from './errors';
 import type { SpeechAudio, SpeechModel, SpeechRequest } from './types';
+import {
+  elevenLabsCapabilities,
+  validElevenLabsSettings,
+  elevenLabsOptions,
+} from './elevenlabs';
 
 export const SPEECH_LIMITS = Object.freeze({
   scriptCharacters: 5000,
@@ -26,7 +31,9 @@ export function speechModelsFrom(value: unknown): SpeechModel[] {
     if (
       !object(item) ||
       typeof item.id !== 'string' ||
-      (!geminiTts.test(item.id) && item.id !== REFERENCE_SPEECH_MODEL)
+      (!geminiTts.test(item.id) &&
+        !elevenLabsCapabilities(item.id) &&
+        item.id !== REFERENCE_SPEECH_MODEL)
     )
       continue;
     if (item.id === REFERENCE_SPEECH_MODEL) {
@@ -80,9 +87,10 @@ export function speechModelsFrom(value: unknown): SpeechModel[] {
 
 export function speechBody(request: SpeechRequest): string {
   const referenceModel = request.model === REFERENCE_SPEECH_MODEL;
+  const elevenlabs = elevenLabsCapabilities(request.model);
   aiInvariant(
     typeof request.model === 'string' &&
-      (geminiTts.test(request.model) || referenceModel),
+      (geminiTts.test(request.model) || referenceModel || !!elevenlabs),
     'MODEL_UNSUPPORTED',
     'Select a supported speech model.',
   );
@@ -100,7 +108,7 @@ export function speechBody(request: SpeechRequest): string {
       typeof request.voice === 'string' &&
       /^[A-Za-z0-9_-]{1,80}$/.test(request.voice) &&
       Array.isArray(request.languages) &&
-      (referenceModel || request.languages.length >= 1) &&
+      (referenceModel || !!elevenlabs || request.languages.length >= 1) &&
       request.languages.length <= 8 &&
       request.languages.every(
         (language) =>
@@ -115,6 +123,29 @@ export function speechBody(request: SpeechRequest): string {
     'INVALID_REQUEST',
     'Check the script, voice, languages and delivery instructions.',
   );
+  aiInvariant(
+    request.elevenlabs === undefined ||
+      validElevenLabsSettings(request.model, request.elevenlabs),
+    'INVALID_REQUEST',
+    'Check the ElevenLabs voice settings for this model.',
+  );
+  if (elevenlabs) {
+    aiInvariant(
+      !request.instructions?.trim(),
+      'INVALID_REQUEST',
+      'Use audio tags in the script for ElevenLabs delivery directions.',
+    );
+    return JSON.stringify({
+      model: request.model,
+      input: request.script,
+      voice: request.voice,
+      response_format: 'mp3',
+      provider: {
+        data_collection: 'deny',
+        options: { elevenlabs: elevenLabsOptions(request.elevenlabs ?? {}) },
+      },
+    });
+  }
   if (request.reference) {
     const { data, transcript } = request.reference;
     aiInvariant(
