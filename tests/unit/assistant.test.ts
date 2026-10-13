@@ -849,9 +849,12 @@ describe('headless assistant boundaries', () => {
     const starts = events.filter(
       (event) =>
         event.phase === 'started' &&
-        !['load_skill', 'request_contract', 'completion_check'].includes(
-          event.name,
-        ),
+        ![
+          'load_skill',
+          'request_contract',
+          'session_todos',
+          'completion_check',
+        ].includes(event.name),
     );
     expect(starts).toHaveLength(4);
     expect(new Set(starts.map((event) => event.callId)).size).toBe(4);
@@ -863,9 +866,12 @@ describe('headless assistant boundaries', () => {
     const inspections = events.filter(
       (event) =>
         event.phase === 'completed' &&
-        !['load_skill', 'request_contract', 'completion_check'].includes(
-          event.name,
-        ),
+        ![
+          'load_skill',
+          'request_contract',
+          'session_todos',
+          'completion_check',
+        ].includes(event.name),
     );
     expect(inspections).toHaveLength(2);
     expect(inspections[0]!.result).toMatchObject({
@@ -931,7 +937,9 @@ describe('headless assistant boundaries', () => {
     const completed = events.filter(
       (event) =>
         event.phase === 'completed' &&
-        !['request_contract', 'completion_check'].includes(event.name),
+        !['request_contract', 'session_todos', 'completion_check'].includes(
+          event.name,
+        ),
     );
     expect(completed).toHaveLength(7);
     expect(completed.some((event) => event.resultOmitted)).toBe(false);
@@ -1707,8 +1715,15 @@ describe('headless assistant boundaries', () => {
       'state',
       'tool',
       'tool',
+      'session_goal',
+      'tool',
+      'tool',
+      'session_goal',
       'text',
       'usage',
+      'tool',
+      'tool',
+      'session_goal',
       'tool',
       'tool',
       'completed',
@@ -7662,8 +7677,27 @@ describe('request completion review sessions', () => {
       async *stream(request: ChatRequest): AsyncIterable<ProviderEvent> {
         requests.push(structuredClone(request));
         const instruction = request.messages[0]?.content ?? '';
+        if (instruction.startsWith('LocalCut session to-dos:')) {
+          yield {
+            type: 'complete' as const,
+            message: goalReviewReply(request)!,
+          };
+          return;
+        }
         if (instruction.startsWith('LocalCut request contract:'))
           yield final(contract);
+        else if (instruction.startsWith('LocalCut session to-dos:'))
+          yield {
+            type: 'complete' as const,
+            message: goalReviewReply(request)!,
+            usage: {
+              promptTokens: 2,
+              completionTokens: 3,
+              totalTokens: 5,
+              cost: 0.01,
+              cachedTokens: 1,
+            },
+          };
         else if (instruction.startsWith('LocalCut completion review:'))
           yield final(reviews.shift() ?? verdict('unknown'));
         else yield* execution.shift() ?? [final('Done')];
@@ -7688,6 +7722,158 @@ describe('request completion review sessions', () => {
   }
   const kind = (p: ReturnType<typeof reviewedProvider>, marker: string) =>
     p.requests.filter((r) => r.messages[0]?.content?.startsWith(marker));
+
+  it('updates the persistent goal before execution and carries it through reload, forks and explicit clearing', async () => {
+    const p = reviewedProvider([
+      [final('First answer')],
+      [final('Second answer')],
+    ]);
+    let updates = 0;
+    const original = p.stream;
+    p.stream = async function* (request) {
+      if (
+        request.messages[0]?.content?.startsWith('LocalCut request contract:')
+      ) {
+        p.requests.push(structuredClone(request));
+        yield final(
+          `## Goal\nPersistent goal ${++updates}\n## Success conditions\n- Answer supplied\n## Stop conditions\n- None`,
+        );
+      } else yield* original(request);
+    };
+    const f = make(p);
+    try {
+      const first = await f.assistant.run('Original outcome').completion;
+      const firstGoal = f.assistant.snapshot().sessionGoal!;
+      await f.assistant.run('New constraint').completion;
+      expect(
+        JSON.parse(
+          kind(p, 'LocalCut request contract:')[1]!.messages[1]!.content!,
+        ).existingGoal,
+      ).toBe(firstGoal.goal);
+      const executions = p.requests.filter((r) => r.tools.length);
+      expect(JSON.parse(executions[1]!.messages[1]!.content!)).toMatchObject({
+        requestContract: expect.stringContaining('Persistent goal 2'),
+        sessionTodos: expect.stringContaining('- [ ]'),
+      });
+      const fork = createRealAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test/model',
+        branch: f.assistant.branch(first.id),
+      });
+      expect(fork.snapshot().sessionGoal).toEqual(firstGoal);
+      await fork.dispose();
+      const restored = createRealAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test/model',
+        restoredGoal: f.assistant.snapshot().sessionGoal,
+      });
+      const count = p.requests.length;
+      expect(restored.snapshot().sessionGoal).toEqual(
+        f.assistant.snapshot().sessionGoal,
+      );
+      expect(p.requests).toHaveLength(count);
+      await restored.run('Follow-up after reload').completion;
+      expect(
+        JSON.parse(
+          kind(p, 'LocalCut request contract:').at(-1)!.messages[1]!.content!,
+        ).existingGoal,
+      ).toContain('Persistent goal 2');
+      await restored.dispose();
+      f.assistant.clearHistory();
+      expect(f.assistant.snapshot().sessionGoal).toBeUndefined();
+    } finally {
+      await f.assistant.dispose();
+    }
+  });
+
+  it('joins asynchronous checklist updates before the next iteration and refuses fulfilled reviews with unchecked work', async () => {
+    const p = reviewedProvider(
+      [
+        [final('', [call('inspect_project', {})])],
+        [final('Premature')],
+        [final('Complete')],
+      ],
+      [verdict('met'), verdict('met')],
+    );
+    const original = p.stream;
+    const entered = deferred<void>();
+    const gate = deferred<void>();
+    let updates = 0;
+    p.stream = async function* (request) {
+      if (
+        request.messages[0]?.content?.startsWith('LocalCut session to-dos:')
+      ) {
+        p.requests.push(structuredClone(request));
+        const iteration = ++updates;
+        if (iteration === 2) {
+          entered.resolve();
+          await gate.promise;
+        }
+        yield final(
+          `## To-dos\n- [${iteration >= 4 ? 'x' : ' '}] Finish required work`,
+        );
+      } else yield* original(request);
+    };
+    const f = make(p);
+    try {
+      const turn = f.assistant.run('Inspect and complete required work');
+      await entered.promise;
+      expect(p.requests.filter((r) => r.tools.length)).toHaveLength(1);
+      gate.resolve();
+      const result = await turn.completion;
+      expect(result.text).toBe('Complete');
+      expect(result.completion.checks).toBe(2);
+      expect(kind(p, 'LocalCut completion review:')).toHaveLength(2);
+      const correction = p.requests.filter((r) => r.tools.length).at(-1)!;
+      expect(
+        JSON.parse(correction.messages[1]!.content!).completionReview,
+      ).toContain('Required to-dos remain unchecked');
+      expect(f.assistant.snapshot().sessionGoal?.todos).toContain('- [x]');
+    } finally {
+      gate.resolve();
+      await f.assistant.dispose();
+    }
+  });
+
+  it('cancels an asynchronous checklist agent without publishing its late result', async () => {
+    const p = reviewedProvider([[final('Candidate')]]);
+    const original = p.stream;
+    const entered = deferred<void>();
+    const gate = deferred<void>();
+    p.stream = async function* (request) {
+      if (
+        request.messages[0]?.content?.startsWith('LocalCut session to-dos:')
+      ) {
+        entered.resolve();
+        await gate.promise;
+        yield final('## To-dos\n- [x] Late result');
+      } else yield* original(request);
+    };
+    const f = make(p);
+    const events: AssistantEvent[] = [];
+    f.assistant.subscribe((event) => events.push(event));
+    try {
+      const turn = f.assistant.run('Cancelled checklist');
+      await entered.promise;
+      turn.cancel();
+      await expect(turn.completion).rejects.toMatchObject({
+        code: 'CANCELLED',
+      });
+      gate.resolve();
+      await Promise.resolve();
+      expect(
+        events.filter((event) => event.type === 'session_goal'),
+      ).toHaveLength(1);
+      expect(p.requests.filter((r) => r.tools.length)).toHaveLength(0);
+    } finally {
+      gate.resolve();
+      await f.assistant.dispose();
+    }
+  });
 
   it.each(['contract', 'review'])(
     'recovers tool markup in %s without replaying a completed edit',
@@ -7929,6 +8115,13 @@ describe('request completion review sessions', () => {
       async *stream(request: ChatRequest): AsyncIterable<ProviderEvent> {
         requests.push(structuredClone(request));
         const instruction = request.messages[0]?.content ?? '';
+        if (instruction.startsWith('LocalCut session to-dos:')) {
+          yield {
+            type: 'complete' as const,
+            message: goalReviewReply(request)!,
+          };
+          return;
+        }
         if (instruction.startsWith('LocalCut request contract:')) {
           yield final(
             'Goal: Move the video, fade it in and add the closing title.',
@@ -8131,6 +8324,11 @@ describe('request completion review sessions', () => {
               entered.resolve();
               yield await gate.promise;
             } else yield final(contract);
+          } else if (instruction.startsWith('LocalCut session to-dos:')) {
+            yield {
+              type: 'complete' as const,
+              message: goalReviewReply(request)!,
+            };
           } else if (instruction.startsWith('LocalCut completion review:')) {
             entered.resolve();
             yield await gate.promise;
@@ -8231,11 +8429,11 @@ describe('request completion review sessions', () => {
     f.assistant.subscribe((e) => events.push(e));
     const result = await f.assistant.run('Move and answer').completion;
     expect(result.usage).toMatchObject({
-      promptTokens: 6,
-      completionTokens: 9,
-      totalTokens: 15,
-      cost: 0.03,
-      cachedTokens: 3,
+      promptTokens: 10,
+      completionTokens: 15,
+      totalTokens: 25,
+      cost: 0.05,
+      cachedTokens: 5,
     });
     expect(
       events.some(
@@ -8246,7 +8444,12 @@ describe('request completion review sessions', () => {
       events
         .filter((e) => e.type === 'tool' && e.phase === 'completed')
         .map((e) => (e.type === 'tool' ? e.name : '')),
-    ).toEqual(['request_contract', 'completion_check']);
+    ).toEqual([
+      'request_contract',
+      'session_todos',
+      'session_todos',
+      'completion_check',
+    ]);
     await f.assistant.dispose();
   });
   it.each(['contract', 'review'])(

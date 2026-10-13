@@ -419,7 +419,9 @@ for (const base of ['/', '/LocalCut/']) {
         .getByRole('button', { name: 'Send edit request', exact: true })
         .click();
       await expect(
-        page.getByText('Committing edit…', { exact: true }),
+        page
+          .locator('[aria-label="Chat action"]')
+          .getByRole('status', { name: 'Making it happen…', exact: true }),
       ).toBeVisible();
       await expect(
         page.getByRole('button', { name: 'Cancel action', exact: true }),

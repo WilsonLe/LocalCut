@@ -41,6 +41,7 @@ export function restoredChatTurns(
             : undefined);
         turns.push({
           id: message.id,
+          sessionGoal: message.sessionGoal,
           user: request,
           assistant: answer,
           ...(exchange ? { exchange: structuredClone(exchange) } : {}),
