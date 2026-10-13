@@ -18,7 +18,20 @@ import type {
   RenderedSpeech,
   SpeechReference,
 } from '../ai';
-import { REFERENCE_SPEECH_MODEL, SPEECH_REFERENCE_BYTES } from '../ai/speech';
+import {
+  REFERENCE_SPEECH_MODEL,
+  SPEECH_REFERENCE_BYTES,
+  SPEECH_LIMITS,
+} from '../ai/speech';
+import {
+  ELEVENLABS_DEFAULT_MODEL,
+  elevenLabsCapabilities,
+  compatibleElevenLabsSettings,
+  validElevenLabsSettings,
+  elevenLabsSchema,
+} from '../ai/elevenlabs';
+import type { ElevenLabsSettings } from '../ai/elevenlabs';
+import { ElevenLabsControls } from './ElevenLabsControls';
 import {
   saveVoiceReference,
   readVoiceReference,
@@ -124,12 +137,15 @@ export default function SpeechDialog({
   onSelection,
 }: Props) {
   const [models, setModels] = useState<SpeechModel[]>([]);
-  const [model, setModel] = useState(preferredModel);
+  const [model, setModel] = useState(
+    preferredModel || ELEVENLABS_DEFAULT_MODEL,
+  );
   const [voice, setVoice] = useState(preferredVoice);
   const [script, setScript] = useState('');
   const [selectedLanguages, setLanguages] = useState<string[]>(['English']);
   const [languageQuery, setLanguageQuery] = useState('');
   const [delivery, setDelivery] = useState('');
+  const [elevenlabs, setElevenLabs] = useState<ElevenLabsSettings>({});
   const presets = useVoicePresets();
   const [presetId, setPresetId] = useState('');
   const [presetName, setPresetName] = useState('');
@@ -278,12 +294,15 @@ export default function SpeechDialog({
     setError(null);
   };
   const selected = models.find((item) => item.id === model);
+  const isElevenLabs = !!elevenLabsCapabilities(model);
+  const parsedElevenLabs = elevenLabsSchema.safeParse(elevenlabs);
   const preset = presets.find((item) => item.id === presetId && !item.archived);
   const voiceSettings = {
     model,
     voice,
-    languages: selectedLanguages,
-    instructions: delivery,
+    languages: isElevenLabs ? [] : selectedLanguages,
+    instructions: isElevenLabs ? '' : delivery,
+    elevenlabs: isElevenLabs ? elevenlabs : undefined,
     timing:
       mode === 'speed'
         ? { mode: 'speed' as const, speed: Number(speed) }
@@ -303,9 +322,18 @@ export default function SpeechDialog({
     preset &&
     (preset.model !== model ||
       preset.voice !== voice ||
-      preset.instructions !== delivery ||
-      JSON.stringify(preset.languages) !== JSON.stringify(selectedLanguages) ||
-      JSON.stringify(preset.timing) !== JSON.stringify(voiceSettings.timing));
+      preset.instructions !== voiceSettings.instructions ||
+      JSON.stringify(preset.languages) !==
+        JSON.stringify(voiceSettings.languages) ||
+      JSON.stringify(preset.timing) !== JSON.stringify(voiceSettings.timing) ||
+      JSON.stringify(preset.elevenlabs ?? {}) !==
+        JSON.stringify(
+          isElevenLabs
+            ? parsedElevenLabs.success
+              ? parsedElevenLabs.data
+              : elevenlabs
+            : {},
+        ));
   const presetAvailable = (item: VoicePreset) =>
     models.some(
       (model) => model.id === item.model && model.voices.includes(item.voice),
@@ -387,6 +415,7 @@ export default function SpeechDialog({
       if (active.current) {
         setPresetId(id);
         setModel(REFERENCE_SPEECH_MODEL);
+        setElevenLabs({});
         setVoice('reference');
         setDelivery('');
         setDraftReference(undefined);
@@ -435,6 +464,7 @@ export default function SpeechDialog({
     setVoice(item.voice);
     setLanguages([...item.languages]);
     setDelivery(item.instructions);
+    setElevenLabs(item.elevenlabs ?? {});
     restoreTiming(item.timing);
     setDraftReference(undefined);
   };
@@ -509,6 +539,7 @@ export default function SpeechDialog({
     setVoice(input.request.voice);
     setLanguages(input.request.languages);
     setDelivery(input.request.instructions ?? '');
+    setElevenLabs(input.request.elevenlabs ?? {});
     setDraftReference(input.request.reference);
     setMode(input.timing.mode);
     if (input.timing.mode === 'speed') setSpeed(String(input.timing.speed));
@@ -760,6 +791,10 @@ export default function SpeechDialog({
           throw new Error('Prepare transcription before generating speech.');
         if (!script.trim() || !selected?.voices.includes(voice))
           throw new Error('Choose a script, model and voice.');
+        if (isElevenLabs && !validElevenLabsSettings(model, elevenlabs))
+          throw new Error('Check the ElevenLabs voice settings.');
+        if (script.length > SPEECH_LIMITS.scriptCharacters)
+          throw new Error('Use up to 5,000 characters per take.');
         let reference = selected?.referenceVoice ? draftReference : undefined;
         if (selected?.referenceVoice && preset?.referenceId) {
           const stored = await readVoiceReference(preset.referenceId);
@@ -787,8 +822,9 @@ export default function SpeechDialog({
             model,
             voice,
             script,
-            languages: selectedLanguages,
-            instructions: delivery,
+            languages: isElevenLabs ? [] : selectedLanguages,
+            instructions: isElevenLabs ? undefined : delivery,
+            ...(isElevenLabs ? { elevenlabs } : {}),
             ...(reference ? { reference } : {}),
           },
           timing: timing(),
@@ -1171,6 +1207,13 @@ export default function SpeechDialog({
                     if (item) {
                       invalidate();
                       setModel(item.id);
+                      if (!elevenLabsCapabilities(item.id))
+                        setLanguages((current) =>
+                          current.length ? current : ['English'],
+                        );
+                      setElevenLabs((settings) =>
+                        compatibleElevenLabsSettings(item.id, settings),
+                      );
                       setVoice('');
                       setDraftReference(undefined);
                     }
@@ -1230,7 +1273,17 @@ export default function SpeechDialog({
                 </div>
               )}
             </div>
-            {!selected?.referenceVoice && (
+            {isElevenLabs && (
+              <ElevenLabsControls
+                model={model}
+                value={elevenlabs}
+                onChange={(settings) => {
+                  invalidate();
+                  setElevenLabs(settings);
+                }}
+              />
+            )}
+            {!selected?.referenceVoice && !isElevenLabs && (
               <>
                 <div className="space-y-2">
                   <Label>Languages in script</Label>
@@ -1301,7 +1354,7 @@ export default function SpeechDialog({
             )}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Timing</Label>
+                <Label>{isElevenLabs ? 'Fit generated audio' : 'Timing'}</Label>
                 <SettingsSelect
                   label="Speech timing"
                   value={mode}
@@ -1389,7 +1442,7 @@ export default function SpeechDialog({
               <Textarea
                 id="speech-script"
                 rows={6}
-                maxLength={5000}
+                maxLength={SPEECH_LIMITS.scriptCharacters}
                 value={script}
                 onChange={(event) => {
                   invalidate();
@@ -1397,6 +1450,11 @@ export default function SpeechDialog({
                 }}
                 placeholder="Write your narration, including passages in different languages…"
               />
+              {isElevenLabs && (
+                <p className="text-xs text-muted-foreground">
+                  Up to 5,000 characters per take.
+                </p>
+              )}
             </div>
           </fieldset>
           {busy && (
@@ -1546,9 +1604,16 @@ export default function SpeechDialog({
               {!!script.trim() &&
                 !!voice &&
                 !!selected &&
-                !!selectedLanguages.length && (
+                (isElevenLabs ||
+                  selected?.referenceVoice ||
+                  !!selectedLanguages.length) && (
                   <Button
                     variant={rendered ? 'outline' : 'default'}
+                    disabled={
+                      (isElevenLabs &&
+                        !validElevenLabsSettings(model, elevenlabs)) ||
+                      script.length > SPEECH_LIMITS.scriptCharacters
+                    }
                     onClick={generate}
                   >
                     {audio ? 'Regenerate speech' : 'Generate speech'}
