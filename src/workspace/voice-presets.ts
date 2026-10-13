@@ -1,3 +1,4 @@
+import { REFERENCE_SPEECH_MODEL } from '../ai/speech';
 import { useEffect, useSyncExternalStore } from 'react';
 import {
   validElevenLabsSettings,
@@ -48,7 +49,9 @@ export function validVoiceSettings(value: VoiceSettings): boolean {
     bounded(value.voice, 80) &&
     /^[A-Za-z0-9_-]+$/.test(value.voice) &&
     Array.isArray(value.languages) &&
-    (elevenLabsCapabilities(value.model) || value.languages.length >= 1) &&
+    (elevenLabsCapabilities(value.model) ||
+      value.model === REFERENCE_SPEECH_MODEL ||
+      value.languages.length >= 1) &&
     value.languages.length <= 8 &&
     value.languages.every(
       (language) => bounded(language, 80) && !!language.trim(),

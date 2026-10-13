@@ -23,6 +23,7 @@ describe('voice preset persistence', () => {
       model: 'elevenlabs/eleven-flash-v2.5',
       voice: 'george',
       instructions: '',
+      languages: [],
       elevenlabs: {
         seed: 0,
         stability: 0.5,
@@ -53,6 +54,16 @@ describe('voice preset persistence', () => {
       { ...saved, elevenlabs: { apiKey: 'secret' } },
     ])
       expect(parseVoicePresets(record([invalid]))).toEqual([]);
+    const reference = {
+      ...saved,
+      model: 'fish-audio/s2.1-pro',
+      voice: 'reference',
+      referenceId: 'original-take',
+      elevenlabs: undefined,
+    };
+    expect(parseVoicePresets(record([reference]))).toEqual([
+      { ...reference, elevenlabs: undefined },
+    ]);
     let raw = record([saved]);
     vi.stubGlobal('localStorage', {
       getItem: () => raw,
@@ -75,6 +86,7 @@ describe('voice preset persistence', () => {
         ...item,
         model: preset.model,
         voice: 'Kore',
+        languages: ['English'],
         elevenlabs: undefined,
       })),
     );

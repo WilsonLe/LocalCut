@@ -32,23 +32,22 @@ export const elevenLabsSchema = z
   .strict();
 export type ElevenLabsSettings = z.infer<typeof elevenLabsSchema>;
 export const ELEVENLABS_DEFAULT_MODEL = 'elevenlabs/eleven-multilingual-v2';
-const models: Record<string, number> = {
-  'elevenlabs/eleven-multilingual-v2': 10000,
-  'elevenlabs/eleven-v4': 10000,
-  'elevenlabs/eleven-v4-turbo': 10000,
-  'elevenlabs/eleven-v3': 5000,
-  'elevenlabs/eleven-v3-conversational': 5000,
-  'elevenlabs/eleven-flash-v2.5': 40000,
-  'elevenlabs/eleven-turbo-v2.5': 40000,
-  'elevenlabs/eleven-flash-v2': 30000,
-  'elevenlabs/eleven-turbo-v2': 30000,
-};
+const models = new Set([
+  'elevenlabs/eleven-multilingual-v2',
+  'elevenlabs/eleven-v4',
+  'elevenlabs/eleven-v4-turbo',
+  'elevenlabs/eleven-v3',
+  'elevenlabs/eleven-v3-conversational',
+  'elevenlabs/eleven-flash-v2.5',
+  'elevenlabs/eleven-turbo-v2.5',
+  'elevenlabs/eleven-flash-v2',
+  'elevenlabs/eleven-turbo-v2',
+]);
 export function elevenLabsCapabilities(model: string) {
-  if (!Object.hasOwn(models, model)) return undefined;
+  if (!models.has(model)) return undefined;
   const v3 = model.includes('/eleven-v3');
   const v4 = model.includes('/eleven-v4');
   return {
-    characters: models[model]!,
     similarity: !v3,
     speed: !v3 && !v4,
     style: !v4,

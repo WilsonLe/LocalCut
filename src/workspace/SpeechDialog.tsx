@@ -18,7 +18,11 @@ import type {
   RenderedSpeech,
   SpeechReference,
 } from '../ai';
-import { REFERENCE_SPEECH_MODEL, SPEECH_REFERENCE_BYTES } from '../ai/speech';
+import {
+  REFERENCE_SPEECH_MODEL,
+  SPEECH_REFERENCE_BYTES,
+  SPEECH_LIMITS,
+} from '../ai/speech';
 import {
   ELEVENLABS_DEFAULT_MODEL,
   elevenLabsCapabilities,
@@ -411,6 +415,7 @@ export default function SpeechDialog({
       if (active.current) {
         setPresetId(id);
         setModel(REFERENCE_SPEECH_MODEL);
+        setElevenLabs({});
         setVoice('reference');
         setDelivery('');
         setDraftReference(undefined);
@@ -788,8 +793,8 @@ export default function SpeechDialog({
           throw new Error('Choose a script, model and voice.');
         if (isElevenLabs && !validElevenLabsSettings(model, elevenlabs))
           throw new Error('Check the ElevenLabs voice settings.');
-        if (script.length > (elevenLabsCapabilities(model)?.characters ?? 5000))
-          throw new Error('The script exceeds this model’s character limit.');
+        if (script.length > SPEECH_LIMITS.scriptCharacters)
+          throw new Error('Use up to 5,000 characters per take.');
         let reference = selected?.referenceVoice ? draftReference : undefined;
         if (selected?.referenceVoice && preset?.referenceId) {
           const stored = await readVoiceReference(preset.referenceId);
@@ -1437,7 +1442,7 @@ export default function SpeechDialog({
               <Textarea
                 id="speech-script"
                 rows={6}
-                maxLength={elevenLabsCapabilities(model)?.characters ?? 5000}
+                maxLength={SPEECH_LIMITS.scriptCharacters}
                 value={script}
                 onChange={(event) => {
                   invalidate();
@@ -1445,6 +1450,11 @@ export default function SpeechDialog({
                 }}
                 placeholder="Write your narration, including passages in different languages…"
               />
+              {isElevenLabs && (
+                <p className="text-xs text-muted-foreground">
+                  Up to 5,000 characters per take.
+                </p>
+              )}
             </div>
           </fieldset>
           {busy && (
@@ -1594,14 +1604,15 @@ export default function SpeechDialog({
               {!!script.trim() &&
                 !!voice &&
                 !!selected &&
-                (isElevenLabs || !!selectedLanguages.length) && (
+                (isElevenLabs ||
+                  selected?.referenceVoice ||
+                  !!selectedLanguages.length) && (
                   <Button
                     variant={rendered ? 'outline' : 'default'}
                     disabled={
                       (isElevenLabs &&
                         !validElevenLabsSettings(model, elevenlabs)) ||
-                      script.length >
-                        (elevenLabsCapabilities(model)?.characters ?? 5000)
+                      script.length > SPEECH_LIMITS.scriptCharacters
                     }
                     onClick={generate}
                   >

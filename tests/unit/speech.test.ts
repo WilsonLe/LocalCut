@@ -69,6 +69,56 @@ function frequency(samples: Float32Array) {
 }
 
 describe('OpenRouter speech', () => {
+  it('retains the bounded decoder and renderer duration contract', async () => {
+    const samples = new Float32Array(12_000_000);
+    const close = vi.fn(async () => {});
+    for (const length of [12_000_000, 12_000_001]) {
+      const channel = vi.fn(() => samples);
+      vi.stubGlobal(
+        'AudioContext',
+        class {
+          close = close;
+          async decodeAudioData() {
+            return {
+              sampleRate: 24000,
+              numberOfChannels: 1,
+              length,
+              getChannelData: channel,
+            };
+          }
+        },
+      );
+      const decoded = readSpeechAudio(
+        new Response(new Uint8Array([1, 2, 3]), {
+          headers: { 'content-type': 'audio/mpeg' },
+        }),
+        signal(),
+        'mp3',
+      );
+      if (length === 12_000_000) {
+        const audio = await decoded;
+        expect(audio.samples).toHaveLength(length);
+        expect(
+          (await renderSpeech(audio, { mode: 'speed', speed: 1 }, signal()))
+            .durationUs,
+        ).toBe(500_000_000);
+      } else {
+        await expect(decoded).rejects.toHaveProperty(
+          'code',
+          'INVALID_RESPONSE',
+        );
+        expect(channel).not.toHaveBeenCalled();
+        await expect(
+          renderSpeech(
+            { samples: new Float32Array(length), sampleRate: 24000 },
+            { mode: 'speed', speed: 1 },
+            signal(),
+          ),
+        ).rejects.toHaveProperty('code', 'INVALID_RESPONSE');
+      }
+    }
+    expect(close).toHaveBeenCalledTimes(2);
+  });
   it('discovers ElevenLabs and sends validated settings through OpenRouter with native MP3 decoding', async () => {
     const model = 'elevenlabs/eleven-multilingual-v2';
     const fetch = vi.fn<typeof globalThis.fetch>(async (url) =>
@@ -200,14 +250,14 @@ describe('OpenRouter speech', () => {
       { ...input, model: speech.id },
       { ...input, model: 'elevenlabs/eleven-v4' },
       { ...input, model: 'elevenlabs/eleven-v3' },
-      { ...input, script: 'a'.repeat(10001) },
+      { ...input, script: 'a'.repeat(5001) },
     ])
       await expect(
         client.synthesizeSpeech(invalid, signal()),
       ).rejects.toHaveProperty('code', 'INVALID_REQUEST');
     expect(fetch).not.toHaveBeenCalled();
     expect(() =>
-      speechBody({ ...input, script: 'a'.repeat(10000) }),
+      speechBody({ ...input, script: 'a'.repeat(5000) }),
     ).not.toThrow();
     client.dispose();
   });

@@ -275,6 +275,7 @@ for (const base of ['/', '/LocalCut/']) {
       true,
     );
     const eleven = 'elevenlabs/eleven-multilingual-v2';
+    const narration = 'Hello! Xin chào!'.padEnd(5000, ' ');
     const chooseModel = async (id: string) => {
       await dialog
         .getByRole('combobox', { name: 'Speech model', exact: true })
@@ -405,7 +406,11 @@ for (const base of ['/', '/LocalCut/']) {
       await page.screenshot({ path: info.outputPath('elevenlabs-mobile.png') });
       await page.setViewportSize({ width: 1366, height: 900 });
     }
-    await dialog.getByLabel('Script', { exact: true }).fill('Hello! Xin chào!');
+    await dialog.getByLabel('Script', { exact: true }).fill(narration);
+    await expect(dialog.getByLabel('Script', { exact: true })).toHaveAttribute(
+      'maxlength',
+      '5000',
+    );
     await dialog
       .getByRole('button', { name: 'Generate speech', exact: true })
       .click();
@@ -414,7 +419,7 @@ for (const base of ['/', '/LocalCut/']) {
     expect(requests[0]).toEqual({
       model: eleven,
       voice: 'george',
-      input: 'Hello! Xin chào!',
+      input: narration,
       response_format: 'mp3',
       provider: {
         data_collection: 'deny',
@@ -439,7 +444,33 @@ for (const base of ['/', '/LocalCut/']) {
         },
       },
     });
-    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await dialog
+      .getByRole('button', { name: 'Save to assets', exact: true })
+      .click();
+    await expect(
+      dialog.getByRole('status').filter({ hasText: 'Saved to assets' }),
+    ).toBeVisible();
+    await dialog
+      .getByRole('button', { name: 'Add to timeline', exact: true })
+      .click();
+    await expect(dialog).not.toBeVisible();
+    const savedTranscripts = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const project = (await editor.projects.list()).find(
+          (item) => item.name === 'Speech project',
+        )!;
+        return JSON.parse(await editor.projects.exportJSON(project.id))
+          .transcripts;
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    expect(savedTranscripts).toHaveLength(1);
+    expect(savedTranscripts[0].speech.script).toBe(narration);
     await page.reload();
     await page
       .getByRole('button', { name: 'Text to speech', exact: true })
@@ -452,6 +483,57 @@ for (const base of ['/', '/LocalCut/']) {
     await dialog.getByText('Advanced voice settings', { exact: true }).click();
     await expect(dialog.getByLabel('Seed', { exact: true })).toHaveValue('0');
     expect(requests).toHaveLength(1);
+    await dialog
+      .getByText('Save speaker reference from this take', { exact: true })
+      .click();
+    await dialog
+      .getByLabel('Speaker reference name', { exact: true })
+      .fill('Eleven speaker');
+    await dialog
+      .getByRole('button', { name: 'Save speaker reference', exact: true })
+      .click();
+    await expect(
+      dialog.getByRole('combobox', { name: 'Voice preset', exact: true }),
+    ).toContainText('Eleven speaker');
+    expect(requests).toHaveLength(1);
+    const savedReference = await page.evaluate(() =>
+      JSON.parse(
+        localStorage.getItem('localcut.voice-presets.v1')!,
+      ).presets.find(
+        (item: { name: string }) => item.name === 'Eleven speaker',
+      ),
+    );
+    expect(savedReference).toMatchObject({
+      model: 'fish-audio/s2.1-pro',
+      voice: 'reference',
+      languages: [],
+    });
+    expect(savedReference.referenceId).toBeTruthy();
+    expect(savedReference).not.toHaveProperty('elevenlabs');
+    await dialog
+      .getByLabel('Script', { exact: true })
+      .fill('A different future narration.');
+    await dialog
+      .getByRole('button', { name: 'Generate speech', exact: true })
+      .click();
+    await expect(dialog.getByLabel('Generated speech preview')).toBeVisible();
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toMatchObject({
+      model: 'fish-audio/s2.1-pro',
+      input: 'A different future narration.',
+      input_references: [
+        {
+          type: 'input_audio',
+          input_audio: {
+            data: expect.stringMatching(/^data:audio\/wav;base64,/),
+          },
+        },
+        { type: 'text', text: narration },
+      ],
+      provider: { data_collection: 'deny' },
+    });
+    expect(requests[1]).not.toHaveProperty('voice');
+    expect(requests[1]).not.toHaveProperty('provider.options');
   });
   test(`speech provider controls hide unsupported Fish options and restore Gemini ${base}`, async ({
     page,

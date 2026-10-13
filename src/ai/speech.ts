@@ -104,8 +104,7 @@ export function speechBody(request: SpeechRequest): string {
   aiInvariant(
     typeof request.script === 'string' &&
       request.script.trim().length > 0 &&
-      request.script.length <=
-        (elevenlabs?.characters ?? SPEECH_LIMITS.scriptCharacters) &&
+      request.script.length <= SPEECH_LIMITS.scriptCharacters &&
       typeof request.voice === 'string' &&
       /^[A-Za-z0-9_-]{1,80}$/.test(request.voice) &&
       Array.isArray(request.languages) &&
