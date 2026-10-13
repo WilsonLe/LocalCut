@@ -13,9 +13,7 @@ describe('safe conversation request diagnostics', () => {
             reason,
           }),
         ),
-      ).toBe(
-        'ChatGPT identity verification failed. Start a new connection with Continue with ChatGPT.',
-      );
+      ).toBe('Sign-in could not be verified. Start a new connection.');
     },
   );
   it('keeps generic flow failures separate from token verification', () => {

@@ -185,6 +185,15 @@ for (const base of ['/', '/LocalCut/']) {
       buffer: Buffer.from(bytes),
     });
     await closeMediaImportAndPlace(page);
+    const breadcrumbs = page.getByRole('navigation', {
+      name: 'Media folder path',
+      exact: true,
+    });
+    const toolbar = page.getByRole('region', {
+      name: 'Media actions',
+      exact: true,
+    });
+    await expect(breadcrumbs).toHaveCount(0);
     await page.getByRole('button', { name: 'New folder', exact: true }).click();
     const creation = page.getByRole('dialog', {
       name: 'New folder',
@@ -222,6 +231,17 @@ for (const base of ['/', '/LocalCut/']) {
       }),
     ).toHaveCount(0);
     await folder.click();
+    await expect(breadcrumbs.locator('[aria-current="page"]')).toHaveText(
+      'Shots',
+    );
+    await expect(
+      toolbar.getByRole('button', { name: 'Media root', exact: true }),
+    ).toHaveCount(0);
+    const toolbarBounds = (await toolbar.boundingBox())!;
+    const pathBounds = (await breadcrumbs.boundingBox())!;
+    expect(pathBounds.y).toBeGreaterThanOrEqual(
+      toolbarBounds.y + toolbarBounds.height,
+    );
     await expect(
       page.getByRole('button', {
         name: 'Asset details for root.png',
@@ -239,9 +259,21 @@ for (const base of ['/', '/LocalCut/']) {
     // Actual directory picker preserves its relative hierarchy and does not flatten files.
     const fixture = await mkdtemp(join(tmpdir(), 'localcut-folder-'));
     try {
-      await mkdir(join(fixture, 'Upload', 'Nested'), { recursive: true });
+      await mkdir(
+        join(
+          fixture,
+          'Upload',
+          'Nested folder with a very long name for breadcrumb overflow',
+        ),
+        { recursive: true },
+      );
       await writeFile(
-        join(fixture, 'Upload', 'Nested', 'frame.png'),
+        join(
+          fixture,
+          'Upload',
+          'Nested folder with a very long name for breadcrumb overflow',
+          'frame.png',
+        ),
         Buffer.from(bytes),
       );
       await page
@@ -255,7 +287,10 @@ for (const base of ['/', '/LocalCut/']) {
         .getByRole('button', { name: 'Open folder Upload', exact: true })
         .click();
       await page
-        .getByRole('button', { name: 'Open folder Nested', exact: true })
+        .getByRole('button', {
+          name: 'Open folder Nested folder with a very long name for breadcrumb overflow',
+          exact: true,
+        })
         .click();
       await expect(
         page.getByRole('button', {
@@ -263,6 +298,36 @@ for (const base of ['/', '/LocalCut/']) {
           exact: true,
         }),
       ).toBeVisible();
+      await expect(breadcrumbs.locator('[aria-current="page"]')).toHaveText(
+        'Nested folder with a very long name for breadcrumb overflow',
+      );
+      const currentBounds = (await breadcrumbs
+        .locator('[aria-current="page"]')
+        .boundingBox())!;
+      const desktopPath = (await breadcrumbs.boundingBox())!;
+      expect(currentBounds.x).toBeGreaterThanOrEqual(desktopPath.x);
+      expect(currentBounds.x + currentBounds.width).toBeLessThanOrEqual(
+        desktopPath.x + desktopPath.width + 1,
+      );
+      await breadcrumbs
+        .getByRole('button', { name: 'Shots', exact: true })
+        .focus();
+      await page.keyboard.press('Enter');
+      await expect(
+        breadcrumbs.getByRole('button', { name: 'Shots', exact: true }),
+      ).toBeFocused();
+      await expect(breadcrumbs.locator('[aria-current="page"]')).toHaveText(
+        'Shots',
+      );
+      await page
+        .getByRole('button', { name: 'Open folder Upload', exact: true })
+        .click();
+      await page
+        .getByRole('button', {
+          name: 'Open folder Nested folder with a very long name for breadcrumb overflow',
+          exact: true,
+        })
+        .click();
       await page.screenshot({
         path: info.outputPath('media-folder-hierarchy.png'),
       });
@@ -301,6 +366,7 @@ for (const base of ['/', '/LocalCut/']) {
       page.getByRole('button', { name: 'Open folder Empty', exact: true }),
     ).toBeVisible();
     await page.getByRole('button', { name: 'Media root', exact: true }).click();
+    await expect(breadcrumbs).toHaveCount(0);
     await page
       .getByRole('button', { name: 'Actions for Shots', exact: true })
       .focus();
@@ -345,9 +411,48 @@ for (const base of ['/', '/LocalCut/']) {
         exact: true,
       }),
     ).toBeVisible();
+    await page
+      .getByRole('button', { name: 'Open folder Upload', exact: true })
+      .click();
+    await page
+      .getByRole('button', {
+        name: 'Open folder Nested folder with a very long name for breadcrumb overflow',
+        exact: true,
+      })
+      .click();
+    await expect(breadcrumbs.locator('[aria-current="page"]')).toHaveText(
+      'Nested folder with a very long name for breadcrumb overflow',
+    );
+    const mobilePath = (await breadcrumbs.boundingBox())!;
+    expect(mobilePath.x).toBeGreaterThanOrEqual(0);
+    expect(mobilePath.x + mobilePath.width).toBeLessThanOrEqual(390);
+    expect(
+      await breadcrumbs.evaluate((node) => node.scrollWidth > node.clientWidth),
+    ).toBe(true);
+    const currentMobile = (await breadcrumbs
+      .locator('[aria-current="page"]')
+      .boundingBox())!;
+    expect(currentMobile.x).toBeGreaterThanOrEqual(mobilePath.x);
+    expect(currentMobile.x + currentMobile.width).toBeLessThanOrEqual(
+      mobilePath.x + mobilePath.width + 1,
+    );
+    await breadcrumbs.evaluate((node) => {
+      node.scrollLeft = 0;
+    });
+    await breadcrumbs.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect
+      .poll(() => breadcrumbs.evaluate((node) => node.scrollLeft))
+      .toBeGreaterThan(0);
     await page.screenshot({
       path: info.outputPath('media-folders-mobile.png'),
     });
+    await breadcrumbs
+      .getByRole('button', { name: 'Shots', exact: true })
+      .click();
+    await expect(breadcrumbs.locator('[aria-current="page"]')).toHaveText(
+      'Shots',
+    );
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.reload();
     await page

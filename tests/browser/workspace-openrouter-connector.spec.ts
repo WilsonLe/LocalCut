@@ -33,11 +33,14 @@ for (const base of ['/', '/LocalCut/']) {
         exact: true,
       });
       await expect(
-        dialog.getByText('No AI providers added', { exact: true }),
+        dialog.getByRole('group', {
+          name: 'OpenRouter connection',
+          exact: true,
+        }),
       ).toBeVisible();
-      await expect(dialog.getByText('OpenRouter', { exact: true })).toHaveCount(
-        0,
-      );
+      await expect(
+        dialog.getByRole('button', { name: 'Add provider', exact: true }),
+      ).toHaveCount(0);
       await expect(
         dialog.getByLabel('OpenRouter API key', { exact: true }),
       ).toHaveCount(0);
@@ -75,7 +78,7 @@ for (const base of ['/', '/LocalCut/']) {
         'storyboard text (including frame names)',
         'source transcript text',
         'capture dates and GPS',
-        'fallback routes',
+        'selected OpenRouter model',
         'including after reload',
         'do not start chat or indexing requests',
       ])
@@ -135,14 +138,6 @@ for (const base of ['/', '/LocalCut/']) {
       await expect
         .poll(() => dialog.evaluate((el) => el.scrollWidth <= el.clientWidth))
         .toBe(true);
-      await selectAISettingsTab(page, 'Providers');
-      await dialog
-        .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
-        .click();
-      await confirmProviderDisconnect(page);
-      await expect(
-        dialog.getByText('No AI providers added', { exact: true }),
-      ).toBeVisible();
       await dialog.getByRole('button', { name: 'Done', exact: true }).click();
       await page.reload();
     }
@@ -521,294 +516,6 @@ for (const base of ['/', '/LocalCut/']) {
       page.getByRole('button', { name: 'Connect provider', exact: true }),
     ).toBeVisible();
     expect(requests).toHaveLength(6);
-  });
-  test(`provider empty state clears a removed saved account reconnect draft ${base}`, async ({
-    page,
-    context,
-  }) => {
-    let requests = 0;
-    await context.route('https://endpoint.example.test/**', (route) => {
-      requests++;
-      return route.abort();
-    });
-    await page.goto(base);
-    await page.evaluate(() =>
-      localStorage.setItem(
-        'localcut.workspace-preferences.v1',
-        JSON.stringify({
-          version: 1,
-          preferences: {
-            aiProviders: JSON.stringify({
-              profiles: [
-                {
-                  id: 'removed-endpoint',
-                  name: 'Saved endpoint',
-                  kind: 'compatible',
-                  baseUrl: 'https://endpoint.example.test/v1',
-                },
-              ],
-              routes: {
-                llm: [{ providerId: 'removed-endpoint', model: 'probe-model' }],
-                tts: [],
-                stt: [{ providerId: 'local', model: 'whisper' }],
-              },
-            }),
-          },
-        }),
-      ),
-    );
-    await page.reload();
-    await openAISettings(page);
-    const dialog = page.getByRole('dialog', {
-      name: 'AI connection',
-      exact: true,
-    });
-    await dialog.getByRole('button', { name: 'Connect', exact: true }).click();
-    const form = page.getByRole('dialog', {
-      name: 'Add provider connection',
-      exact: true,
-    });
-    await expect(page.getByLabel('Name', { exact: true })).toHaveValue(
-      'Saved endpoint',
-    );
-    await page
-      .getByLabel('API key (optional for local servers)', { exact: true })
-      .fill('synthetic-stale-key');
-    await dialog.getByText('Saved endpoint', { exact: true }).first().click();
-    await expect(form).toBeHidden();
-    await selectAISettingsTab(page, 'Providers');
-    await dialog
-      .getByRole('button', { name: 'Disconnect Saved endpoint', exact: true })
-      .click();
-    await confirmProviderDisconnect(page);
-    await expect(
-      dialog.getByText('No AI providers added', { exact: true }),
-    ).toBeVisible();
-    await dialog
-      .getByRole('button', { name: 'Add provider', exact: true })
-      .click();
-    await expect(
-      page.getByRole('heading', { name: 'Add provider', exact: true }),
-    ).toBeVisible();
-    await expect(page.getByLabel('Name', { exact: true })).toHaveValue('');
-    await expect(page.getByLabel('API base URL', { exact: true })).toHaveValue(
-      '',
-    );
-    await expect(
-      page.getByLabel('API key (optional for local servers)', { exact: true }),
-    ).toHaveValue('');
-    await page.keyboard.press('Escape');
-    await addOpenRouter(page);
-    const config = await page.evaluate(() =>
-      JSON.parse(
-        JSON.parse(localStorage.getItem('localcut.workspace-preferences.v1')!)
-          .preferences.aiProviders,
-      ),
-    );
-    expect(config.profiles).toEqual([
-      { id: 'openrouter', name: 'OpenRouter', kind: 'openrouter' },
-    ]);
-    expect(JSON.stringify(config)).not.toContain('removed-endpoint');
-    expect(requests).toBe(0);
-  });
-  test(`OpenRouter connector removes and re-adds with compact connected management ${base}`, async ({
-    page,
-    context,
-  }, info) => {
-    let paid = 0;
-    await context.route('https://openrouter.ai/api/v1/**', async (route) => {
-      if (route.request().method() === 'OPTIONS')
-        return route.fulfill({ headers: cors, body: '' });
-      if (route.request().url().endsWith('/models'))
-        return route.fulfill({
-          headers: cors,
-          json: {
-            data: [
-              {
-                id: 'test/model',
-                name: 'Test model',
-                context_length: 512000,
-                supported_parameters: ['tools'],
-              },
-            ],
-          },
-        });
-      if (
-        route
-          .request()
-          .url()
-          .endsWith('/models?output_modalities=transcription')
-      )
-        return route.fulfill({
-          headers: cors,
-          json: {
-            data: [
-              { id: 'openai/whisper-1', name: 'Whisper' },
-              { id: 'openai/whisper-large-v3', name: 'Whisper Large V3' },
-            ],
-          },
-        });
-      if (
-        route.request().method() === 'GET' &&
-        new URL(route.request().url()).searchParams.get('output_modalities') ===
-          'speech'
-      )
-        return route.fulfill({
-          headers: cors,
-          json: {
-            data: [
-              {
-                id: 'google/gemini-3.8-flash-tts',
-                name: 'Gemini Flash TTS',
-                architecture: { output_modalities: ['speech'] },
-                supported_voices: ['Zephyr'],
-              },
-            ],
-          },
-        });
-      paid++;
-      return route.abort();
-    });
-    const dialog = page.getByRole('dialog', {
-      name: 'AI connection',
-      exact: true,
-    });
-    const config = () =>
-      page.evaluate(() =>
-        JSON.parse(
-          JSON.parse(
-            localStorage.getItem('localcut.workspace-preferences.v1') ?? '{}',
-          ).preferences?.aiProviders ?? 'null',
-        ),
-      );
-    const credential = () =>
-      page.evaluate(() =>
-        localStorage.getItem('localcut.openrouter-credential.v1'),
-      );
-    await page.goto(base);
-    await openAISettings(page);
-    await expect(
-      dialog.getByText('No AI providers added', { exact: true }),
-    ).toBeVisible();
-    await expect(
-      dialog.getByRole('button', { name: 'Add provider', exact: true }),
-    ).toBeVisible();
-    expect(await config()).toBeNull();
-    await page.reload();
-    await openAISettings(page);
-    await expect(
-      dialog.getByRole('button', {
-        name: 'Log in and generate a key',
-        exact: true,
-      }),
-    ).toHaveCount(0);
-    await prepareOpenRouterKey(page);
-    await dialog
-      .getByLabel('OpenRouter API key', { exact: true })
-      .fill('synthetic-original');
-    await dialog
-      .getByRole('button', { name: 'Use API key', exact: true })
-      .click();
-    await selectAISettingsTab(page, 'LLM - Chat');
-    await expect(
-      dialog.getByRole('combobox', { name: 'AI model', exact: true }),
-    ).toBeVisible();
-    await expect(
-      dialog.getByText('Key connected', { exact: true }),
-    ).toHaveCount(0);
-    await expect(
-      dialog.getByText('Replace API key', { exact: true }),
-    ).toHaveCount(0);
-    await expect(
-      dialog.getByRole('button', { name: 'Reconnect OpenRouter', exact: true }),
-    ).toHaveCount(0);
-    await expect(
-      dialog.getByLabel('OpenRouter API key', { exact: true }),
-    ).toHaveCount(0);
-    await selectAISettingsTab(page, 'STT - Transcription');
-    await dialog
-      .getByRole('combobox', { name: 'Add STT provider', exact: true })
-      .click();
-    await page.getByRole('option', { name: 'OpenRouter', exact: true }).click();
-    await selectAISettingsTab(page, 'STT - Transcription');
-    await expect(dialog.getByLabel('OpenRouter stt route model')).toContainText(
-      'openai/whisper-1',
-    );
-    await selectAISettingsTab(page, 'STT - Transcription');
-    await dialog
-      .getByRole('combobox', {
-        name: 'OpenRouter stt route model',
-        exact: true,
-      })
-      .click();
-    await page
-      .getByRole('combobox', { name: 'Search models', exact: true })
-      .fill('large');
-    await page
-      .getByRole('option', {
-        name: 'Whisper Large V3 · openai/whisper-large-v3',
-        exact: true,
-      })
-      .click();
-    expect((await config()).routes.stt[1].model).toBe(
-      'openai/whisper-large-v3',
-    );
-    await expect(
-      dialog.getByText('Remote transcription sends selected audio', {
-        exact: false,
-      }),
-    ).toHaveCount(0);
-    await dialog
-      .getByRole('button', { name: 'Move OpenRouter up in stt', exact: true })
-      .click();
-    const original = await config();
-    expect(
-      original.routes.stt.map((r: { providerId: string }) => r.providerId),
-    ).toEqual(['openrouter', 'local']);
-    await selectAISettingsTab(page, 'Providers');
-
-    await selectAISettingsTab(page, 'Providers');
-    await expect(
-      dialog.getByRole('button', {
-        name: 'Disconnect OpenRouter',
-        exact: true,
-      }),
-    ).toBeVisible();
-    await page.reload();
-    await openAISettings(page);
-    await selectAISettingsTab(page, 'LLM - Chat');
-    await expect(
-      dialog.getByRole('combobox', { name: 'AI model', exact: true }),
-    ).toBeVisible();
-    expect(await config()).toEqual(original);
-    expect(await credential()).toContain('synthetic-original');
-    expect(paid).toBe(0);
-    await page.screenshot({ path: info.outputPath('connector-desktop.png') });
-    await page.setViewportSize({ width: 390, height: 844 });
-    const bounds = (await dialog.boundingBox())!;
-    expect(bounds.x).toBeGreaterThanOrEqual(0);
-    expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
-    await page.screenshot({ path: info.outputPath('connector-mobile.png') });
-    await selectAISettingsTab(page, 'Providers');
-    await dialog
-      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
-      .click();
-    await confirmProviderDisconnect(page);
-    expect(await credential()).toBeNull();
-    // A disconnected account can be forgotten through the same control.
-    await selectAISettingsTab(page, 'Providers');
-    await dialog
-      .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
-      .click();
-    await confirmProviderDisconnect(page);
-    expect((await config()).routes.stt).toEqual([
-      { providerId: 'local', model: 'whisper' },
-    ]);
-    await page.keyboard.press('Escape');
-    await expect(dialog).toBeHidden();
-    await expect(
-      page.getByRole('button', { name: 'Workspace settings', exact: true }),
-    ).toBeFocused();
   });
 }
 

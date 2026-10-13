@@ -3,8 +3,8 @@ import { onDemandDialog } from './on-demand-dialog';
 import ChatSessionTitle from './ChatSessionTitle';
 import {
   accountStorage,
+  retireRemovedProviderCredentials,
   accountCredentialKey,
-  accountStorageKey,
   forgetAccount,
   OPENROUTER_ACCOUNT_PENDING,
 } from './provider-account-storage';
@@ -37,11 +37,8 @@ import {
   parseProviderConfiguration,
   workspaceContextPolicy,
 } from './provider-preferences';
-import type {
-  ProviderConfiguration,
-  ProviderProfile,
-} from './provider-preferences';
-import type { ProviderConnection, ChatGPTClient } from '../ai';
+import type { ProviderConfiguration } from './provider-preferences';
+import type { ProviderConnection } from '../ai';
 import { Button } from '../components/ui/button';
 import {
   Empty,
@@ -162,6 +159,7 @@ export function Conversation(props: ConversationProps) {
   };
   const [connecting, setConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [credentialRemovalFailed, setCredentialRemovalFailed] = useState(false);
   const [sessionBusy, setSessionBusy] = useState(false);
   const selectedExport = useRef<(() => ChatExportSource) | null>(null);
   const exportChat = () => {
@@ -317,8 +315,7 @@ export function Conversation(props: ConversationProps) {
           );
           return (
             providers.current.get(route.providerId)?.client.status()
-              .connected &&
-            (profile?.kind !== 'compatible' || route.model || profile.model)
+              .connected && profile?.kind === 'openrouter'
           );
         })
       )
@@ -376,171 +373,6 @@ export function Conversation(props: ConversationProps) {
         });
     }
   };
-  const connectProvider = async (
-    profile: ProviderProfile,
-    credential: string,
-    restore = false,
-  ) => {
-    const token = ++attempt.current;
-    request.current?.abort();
-    const controller = new AbortController();
-    request.current = controller;
-    setConnecting(true);
-    setConnectionError(null);
-    let client: OpenRouter | undefined;
-    let accepted = false;
-    try {
-      const api = moduleRef.current ?? (await import('../ai'));
-      moduleRef.current = api;
-      if (!mounted.current || token !== attempt.current) return false;
-      const candidate = structuredClone(configuration.current);
-      candidate.profiles = candidate.profiles.filter(
-        (p) => p.id !== profile.id,
-      );
-      candidate.profiles.push(profile);
-      if (
-        !parseProviderConfiguration(JSON.stringify(candidate)).profiles.some(
-          (p) => p.id === profile.id,
-        )
-      )
-        throw new api.AiError(
-          'INVALID_REQUEST',
-          'Choose a valid provider name, endpoint, model and voice.',
-        );
-      if (profile.kind === 'chatgpt') {
-        const pending = providers.current.get(profile.id)?.client as
-          ChatGPTClient | undefined;
-        const chatgpt =
-          pending ??
-          api.createChatGPT({
-            credentialStorage: accountStorage(
-              profile,
-              () => window.localStorage,
-            ),
-            oauthStorage: accountStorage(profile, () => window.sessionStorage),
-          });
-        client = chatgpt;
-        if (restore) {
-          if (!chatgpt.restore())
-            throw new api.AiError(
-              'AUTH_REQUIRED',
-              'No saved ChatGPT connection. Continue with ChatGPT.',
-            );
-        } else
-          await chatgpt.completeAuthorization(
-            { callbackUrl: credential },
-            controller.signal,
-          );
-      } else {
-        client = api.createOpenAICompatible({
-          baseUrl: profile.baseUrl!,
-          model: profile.model,
-          speechModel: profile.speechModel,
-          transcriptionModel: profile.transcriptionModel,
-          voices: profile.voices,
-        });
-        client.setKey(credential);
-      }
-      if (!mounted.current || token !== attempt.current) return false;
-      const old = providers.current.get(profile.id)?.client;
-      if (old !== client) old?.dispose();
-      providers.current.set(profile.id, {
-        id: profile.id,
-        name: profile.name,
-        client,
-      });
-      accepted = true;
-      const isNewProfile = !configuration.current.profiles.some(
-        (p) => p.id === profile.id,
-      );
-      const next = structuredClone(configuration.current);
-      if (!next.profiles.some((p) => p.id === profile.id))
-        next.profiles.push(profile);
-      else
-        next.profiles = next.profiles.map((p) =>
-          p.id === profile.id ? profile : p,
-        );
-      if (
-        !next.routes.llm.some((r) => r.providerId === profile.id) &&
-        (profile.kind === 'compatible' || profile.kind === 'chatgpt')
-      )
-        next.routes.llm.push({
-          providerId: profile.id,
-          model: profile.model ?? '',
-        });
-      if (
-        profile.speechModel &&
-        !next.routes.tts.some((r) => r.providerId === profile.id)
-      )
-        next.routes.tts.push({
-          providerId: profile.id,
-          model: profile.speechModel,
-          voice: profile.voices?.[0],
-        });
-      if (
-        profile.transcriptionModel &&
-        !next.routes.stt.some((r) => r.providerId === profile.id)
-      )
-        next.routes.stt.push({
-          providerId: profile.id,
-          model: profile.transcriptionModel,
-        });
-      // Promote a new provider only over the untouched disconnected default. Preserve deliberate ordering.
-      for (const service of ['llm', 'tts'] as const) {
-        const first = next.routes[service][0];
-        if (
-          isNewProfile &&
-          first?.providerId === 'openrouter' &&
-          !first.model &&
-          !providers.current.get(first.providerId)?.client.status().connected
-        )
-          next.routes[service].sort(
-            (a, b) =>
-              Number(b.providerId === profile.id) -
-              Number(a.providerId === profile.id),
-          );
-      }
-      configuration.current = next;
-      setProviderConfiguration(next);
-      saveWorkspacePreferences({ aiProviders: JSON.stringify(next) });
-      await publishConnection(api, token, controller);
-    } catch (error) {
-      if (mounted.current && token === attempt.current) report(error);
-    } finally {
-      if (
-        !accepted &&
-        client &&
-        ![...providers.current.values()].some((p) => p.client === client)
-      )
-        client.dispose();
-      if (mounted.current && token === attempt.current) setConnecting(false);
-    }
-    return accepted;
-  };
-  const authorizeChatGPT = async (
-    profile: ProviderProfile,
-  ): Promise<string> => {
-    const token = ++attempt.current;
-    const api = moduleRef.current ?? (await import('../ai'));
-    moduleRef.current = api;
-    if (!mounted.current || token !== attempt.current)
-      throw new api.AiError('CANCELLED', 'Sign-in cancelled.');
-    let client = providers.current.get(profile.id)?.client as
-      ChatGPTClient | undefined;
-    if (!client) {
-      client = api.createChatGPT({
-        credentialStorage: accountStorage(profile, () => window.localStorage),
-        oauthStorage: accountStorage(profile, () => window.sessionStorage),
-      });
-      providers.current.set(profile.id, { ...profile, client });
-    }
-    const result = await client.beginAuthorization({ callbackUrl: '' });
-    if (!mounted.current || token !== attempt.current) {
-      client.dispose();
-      throw new api.AiError('CANCELLED', 'Sign-in cancelled.');
-    }
-    return result.authorizationUrl;
-  };
   const removeProvider = useCallback(
     (id: string, forget = true, keepProfile = false) => {
       const token = ++attempt.current;
@@ -562,6 +394,7 @@ export function Conversation(props: ConversationProps) {
         removalFailed = true;
         report(profile?.kind === 'openrouter' ? storageError() : error);
       }
+      if (forget) setCredentialRemovalFailed(removalFailed);
       client?.dispose();
       providers.current.delete(id);
       const next = structuredClone(configuration.current);
@@ -624,9 +457,7 @@ export function Conversation(props: ConversationProps) {
         if (!current()) return;
         const profile =
           configuration.current.profiles.find((p) => p.id === accountId) ??
-          (kind === 'saved' &&
-          accountId === 'openrouter' &&
-          !getWorkspacePreferences().preferences.aiProviders
+          (accountId === 'openrouter' && !configuration.current.profiles.length
             ? {
                 id: 'openrouter',
                 name: 'OpenRouter',
@@ -667,10 +498,11 @@ export function Conversation(props: ConversationProps) {
         providers.current.get(accountId)?.client.dispose();
         providers.current.set(accountId, {
           id: accountId,
-          name: profile.name,
+          name: 'OpenRouter',
           client: provider,
         });
         accepted = true;
+        setCredentialRemovalFailed(false);
         const next = structuredClone(configuration.current);
         const added = !next.profiles.some((p) => p.id === accountId);
         if (added)
@@ -744,6 +576,14 @@ export function Conversation(props: ConversationProps) {
       const callback = takePendingCallback();
       void (async () => {
         try {
+          await retireRemovedProviderCredentials(
+            configuration.current.profiles[0],
+          );
+          if (!active) return;
+          if (getWorkspacePreferences().preferences.aiProviders)
+            saveWorkspacePreferences({
+              aiProviders: JSON.stringify(configuration.current),
+            });
           if (callback) {
             const accountId =
               window.sessionStorage.getItem(OPENROUTER_ACCOUNT_PENDING) ??
@@ -789,14 +629,28 @@ export function Conversation(props: ConversationProps) {
       const api = moduleRef.current ?? (await import('../ai'));
       moduleRef.current = api;
       if (!mounted.current || token !== attempt.current) return;
-      const profile = configuration.current.profiles.find(
-        (p) => p.id === accountId,
-      );
+      const profile =
+        configuration.current.profiles.find((p) => p.id === accountId) ??
+        (accountId === 'openrouter' && !configuration.current.profiles.length
+          ? {
+              id: 'openrouter',
+              name: 'OpenRouter',
+              kind: 'openrouter' as const,
+            }
+          : undefined);
       if (!profile || profile.kind !== 'openrouter')
         throw new Error('Choose an OpenRouter account.');
       provider = api.createOpenRouter({
         oauthStorage: accountStorage(profile, () => window.sessionStorage),
       });
+      if (!configuration.current.profiles.length) {
+        const next = parseProviderConfiguration(
+          JSON.stringify({ ...configuration.current, profiles: [profile] }),
+        );
+        configuration.current = next;
+        setProviderConfiguration(next);
+        saveWorkspacePreferences({ aiProviders: JSON.stringify(next) });
+      }
       window.sessionStorage.setItem(OPENROUTER_ACCOUNT_PENDING, accountId);
       const { authorizationUrl } = await provider.beginAuthorization({
         callbackUrl: window.location.href,
@@ -819,19 +673,7 @@ export function Conversation(props: ConversationProps) {
     const changed = (event: StorageEvent) => {
       if (event.storageArea !== window.localStorage) return;
       for (const profile of configuration.current.profiles) {
-        if (
-          profile.kind !== 'compatible' &&
-          (event.key === accountCredentialKey(profile) ||
-            (profile.kind === 'chatgpt' &&
-              event.key ===
-                accountStorageKey(profile, 'localcut.chatgpt-authority.v1')) ||
-            event.key === null)
-        ) {
-          if (profile.kind === 'chatgpt') {
-            const client = providers.current.get(profile.id)?.client as
-              ChatGPTClient | undefined;
-            if (!client?.synchronize()) continue;
-          }
+        if (event.key === accountCredentialKey(profile) || event.key === null) {
           removeProvider(profile.id, false);
         }
       }
@@ -843,18 +685,15 @@ export function Conversation(props: ConversationProps) {
     const client = providers.current.get(id)?.client;
     if (!client?.status().connected)
       throw new Error('Connect this provider first.');
-    const scope = client.verifyConnection
-      ? await client.verifyConnection()
-      : (await client.listModels(), 'credentials');
+    if (client.verifyConnection) await client.verifyConnection();
+    else await client.listModels();
     if (
       !mounted.current ||
       providers.current.get(id)?.client !== client ||
       !client.status().connected
     )
       throw new Error('Connection changed during verification.');
-    return scope === 'endpoint'
-      ? 'Endpoint verified. Credential enforcement depends on this server.'
-      : 'Credentials verified with provider.';
+    return 'OpenRouter credentials verified.';
   };
   const refreshCatalog = async () => {
     if (!connection || connecting) return;
@@ -946,11 +785,7 @@ export function Conversation(props: ConversationProps) {
                 (route) => route.providerId === profile.id,
               ),
             )
-            .map(({ id, kind, baseUrl }) => ({
-              id,
-              kind,
-              baseUrl,
-            })),
+            .map(({ id, kind }) => ({ id, kind })),
           model,
           ...(privacy.includeText
             ? ['openrouter-context-v1']
@@ -1018,7 +853,7 @@ export function Conversation(props: ConversationProps) {
         : []),
       {
         id: 'ai-settings',
-        label: connection ? 'AI provider settings' : 'Connect AI providers',
+        label: connection ? 'AI connection settings' : 'Connect OpenRouter',
         group: 'Chat',
         run: () => {
           settingsReturnFocus.current = null;
@@ -1343,13 +1178,12 @@ export function Conversation(props: ConversationProps) {
             settingsOpen={settingsOpen}
             setSettingsOpen={setSettingsOpen}
             providerConfiguration={providerConfiguration}
-            connectedProviders={connectedProviders}
+            connected={connectedProviders.length > 0}
             updateConfiguration={updateConfiguration}
-            connectProvider={connectProvider}
-            authorizeChatGPT={authorizeChatGPT}
-            removeProvider={removeProvider}
-            disconnectProvider={(id) => removeProvider(id, true, true)}
-            verifyProvider={verifyProvider}
+            disconnect={() =>
+              removeProvider(configuration.current.profiles[0]!.id, true, true)
+            }
+            verify={() => verifyProvider(configuration.current.profiles[0]!.id)}
             loadServiceModels={async (id, service, signal) => {
               const client = providers.current.get(id)?.client;
               if (!client?.status().connected)
@@ -1370,7 +1204,6 @@ export function Conversation(props: ConversationProps) {
             authorize={authorize}
             connect={connect}
             model={model}
-            modelProviderId={connection?.provider.selectedProvider('llm')}
             setModel={(model) => {
               setModel(model);
               const next = structuredClone(configuration.current);
@@ -1389,6 +1222,16 @@ export function Conversation(props: ConversationProps) {
             models={models}
             refreshCatalog={refreshCatalog}
             connectionError={connectionError}
+            retryCredentialRemoval={
+              credentialRemovalFailed
+                ? () =>
+                    removeProvider(
+                      configuration.current.profiles[0]!.id,
+                      true,
+                      true,
+                    )
+                : undefined
+            }
           />
         </Suspense>
       )}

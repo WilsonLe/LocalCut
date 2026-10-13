@@ -132,20 +132,6 @@ describe('OpenRouter transport', () => {
       client.dispose();
     },
   );
-  it('omits the output cap for a configured compatible model without output metadata', async () => {
-    let body: Record<string, unknown> | undefined;
-    const client = createOpenRouter({
-      compatible: { baseUrl: 'https://example.test/v1', model: model.id },
-      fetch: async (_url, init) => {
-        body = JSON.parse(String(init?.body));
-        return streamResponse();
-      },
-    });
-    client.setKey('synthetic-key');
-    await collect(client, { ...request(), maxOutputTokens: undefined });
-    expect(body).not.toHaveProperty('max_tokens');
-    client.dispose();
-  });
   it('delegates oversized chat context and request admission to the provider', async () => {
     const { client, fetch } = setup();
     await collect(client, {

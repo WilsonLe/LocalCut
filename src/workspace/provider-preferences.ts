@@ -3,12 +3,7 @@ import type { ContextPolicy } from '../ai/context';
 export interface ProviderProfile {
   id: string;
   name: string;
-  kind: 'openrouter' | 'compatible' | 'chatgpt';
-  baseUrl?: string;
-  model?: string;
-  speechModel?: string;
-  transcriptionModel?: string;
-  voices?: string[];
+  kind: 'openrouter';
 }
 export interface ProviderConfiguration {
   profiles: ProviderProfile[];
@@ -46,127 +41,75 @@ const modelId = (v: unknown) =>
     (/^~?[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/.test(v) &&
       !v.includes('://') &&
       v !== 'openrouter/auto'));
-/** Whitelist portable configuration. Credentials, callback URLs and consent are never admitted. */
+/** Normalize legacy/portable settings without importing credentials or backup authority. */
 export function parseProviderConfiguration(raw: string): ProviderConfiguration {
+  const empty = defaultProviderConfiguration();
   try {
-    if (raw.length > 65536) return defaultProviderConfiguration();
-    const value = JSON.parse(raw) as ProviderConfiguration;
+    if (raw.length > 65536) return empty;
+    const value = JSON.parse(raw);
     if (
       !value ||
       !Array.isArray(value.profiles) ||
       value.profiles.length > 20 ||
       !value.routes
     )
-      return defaultProviderConfiguration();
-    const profiles: ProviderProfile[] = [];
-    for (const p of value.profiles) {
-      if (
-        !p ||
-        typeof p.id !== 'string' ||
-        !/^[a-zA-Z0-9_-]{1,80}$/.test(p.id) ||
-        profiles.some((x) => x.id === p.id) ||
-        typeof p.name !== 'string' ||
-        p.name.trim().length === 0 ||
-        p.name.length > 80 ||
-        !['openrouter', 'compatible', 'chatgpt'].includes(p.kind) ||
-        (p.kind !== 'openrouter' && p.id === 'openrouter') ||
-        p.id === 'local'
-      )
-        return defaultProviderConfiguration();
-      const profile: ProviderProfile = { id: p.id, name: p.name, kind: p.kind };
-      if (p.kind === 'compatible') {
-        const url = new URL(p.baseUrl!);
-        if (
-          p.baseUrl!.length > 2048 ||
-          url.username ||
-          url.password ||
-          url.search ||
-          url.hash ||
-          !(
-            url.protocol === 'https:' ||
-            (url.protocol === 'http:' &&
-              ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
-          )
-        )
-          return defaultProviderConfiguration();
-        profile.baseUrl = url.href.replace(/\/+$/, '');
-        if (p.model !== undefined) {
-          if (!modelId(p.model) || !p.model)
-            return defaultProviderConfiguration();
-          profile.model = p.model;
-        }
-        if (p.speechModel !== undefined) {
-          if (!modelId(p.speechModel) || !p.speechModel)
-            return defaultProviderConfiguration();
-          profile.speechModel = p.speechModel;
-        }
-        if (p.transcriptionModel !== undefined) {
-          if (!modelId(p.transcriptionModel) || !p.transcriptionModel)
-            return defaultProviderConfiguration();
-          profile.transcriptionModel = p.transcriptionModel;
-        }
-        if (p.voices !== undefined) {
-          if (
-            !Array.isArray(p.voices) ||
-            p.voices.length > 256 ||
-            !p.voices.every(
-              (v) => typeof v === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(v),
-            )
-          )
-            return defaultProviderConfiguration();
-          profile.voices = [...new Set(p.voices)];
-        }
-      }
-      profiles.push(profile);
-    }
+      return empty;
+    // Retain the previously selected OpenRouter account, or the first valid OpenRouter.
+    const valid = value.profiles.filter(
+      (p: ProviderProfile) =>
+        p &&
+        p.kind === 'openrouter' &&
+        typeof p.id === 'string' &&
+        /^[a-zA-Z0-9_-]{1,80}$/.test(p.id) &&
+        p.id !== 'local' &&
+        typeof p.name === 'string' &&
+        p.name.trim().length > 0 &&
+        p.name.length <= 80,
+    );
+    const account =
+      valid.find(
+        (p: ProviderProfile) => p.id === value.routes.llm?.[0]?.providerId,
+      ) ?? valid[0];
+    if (!account) return empty;
+    const profile: ProviderProfile = {
+      id: account.id,
+      // Speech checkpoints include this legacy name in their immutable route identity.
+      name: account.name,
+      kind: 'openrouter',
+    };
     const routes: ServiceRoutes = {
-      llm: [],
-      tts: [],
-      stt: [],
+      llm: [{ providerId: profile.id, model: '' }],
+      tts: [{ providerId: profile.id, model: '' }],
+      stt: empty.routes.stt,
     };
     for (const service of ['llm', 'tts', 'stt'] as const) {
+      const previous = value.routes[service];
+      if (!Array.isArray(previous) || previous.length > 20) continue;
+      // A removed primary never promotes a remote STT backup over local transcription.
+      const route =
+        service === 'stt'
+          ? previous[0]
+          : previous.find((r) => r?.providerId === profile.id);
       if (
-        !Array.isArray(value.routes[service]) ||
-        value.routes[service].length > 20
+        route?.providerId !== profile.id ||
+        !modelId(route.model) ||
+        (service === 'stt' && !route.model)
       )
-        return defaultProviderConfiguration();
-      for (const r of value.routes[service]) {
-        if (service === 'stt' && r?.providerId === 'local') {
-          if (
-            r.model !== 'whisper' ||
-            routes.stt.some((x) => x.providerId === 'local')
-          )
-            return defaultProviderConfiguration();
-          routes.stt.push({ providerId: 'local', model: 'whisper' });
-          continue;
-        }
-        const p = profiles.find((p) => p.id === r?.providerId);
-        if (
-          !p ||
-          routes[service].some((x) => x.providerId === r.providerId) ||
-          !modelId(r.model) ||
-          (service === 'tts' &&
-            (p.kind === 'chatgpt' ||
-              (p.kind === 'compatible' && !p.speechModel))) ||
-          (service === 'stt' &&
-            (p.kind === 'chatgpt' ||
-              (p.kind === 'compatible' && !p.transcriptionModel) ||
-              !r.model))
-        )
-          return defaultProviderConfiguration();
-        const route = {
-          providerId: r.providerId,
-          model: r.model,
-          ...(typeof r.voice === 'string' &&
-          /^[A-Za-z0-9_-]{1,80}$/.test(r.voice)
-            ? { voice: r.voice }
+        continue;
+      routes[service] = [
+        {
+          providerId: profile.id,
+          model: route.model,
+          ...(service === 'tts' &&
+          typeof route.voice === 'string' &&
+          /^[A-Za-z0-9_-]{1,80}$/.test(route.voice)
+            ? { voice: route.voice }
             : {}),
-        };
-        routes[service].push(route);
-      }
+        },
+      ];
     }
-    return { profiles, routes };
+    return { profiles: [profile], routes };
   } catch {
-    return defaultProviderConfiguration();
+    return empty;
   }
 }

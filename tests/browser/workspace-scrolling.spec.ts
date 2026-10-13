@@ -123,7 +123,10 @@ for (const base of ['/', '/LocalCut/']) {
         });
         await expect(dialog).toBeVisible();
         await expect(
-          dialog.getByRole('button', { name: 'Add provider', exact: true }),
+          dialog.getByRole('button', {
+            name: 'I have an API key',
+            exact: true,
+          }),
         ).toBeVisible();
         await dialog.evaluate((el) =>
           Promise.all(

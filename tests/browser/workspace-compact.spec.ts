@@ -1,6 +1,5 @@
 import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { dismissNotifications } from './workspace-notifications-helper';
-import { selectAISettingsTab } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 
 for (const base of ['/', '/LocalCut/']) {
@@ -18,6 +17,11 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     const media = page.getByRole('region', { name: 'Project media' });
     const heading = media.locator('.section-heading');
+    const path = media.getByRole('navigation', {
+      name: 'Media folder path',
+      exact: true,
+    });
+    await expect(path).toHaveCount(0);
     const names = [
       'New folder',
       'Upload folder',
@@ -66,11 +70,20 @@ for (const base of ['/', '/LocalCut/']) {
     await media
       .getByRole('button', { name: `Open folder ${folderName}`, exact: true })
       .click();
-    const breadcrumb = heading.getByRole('button', {
+    const breadcrumb = path.getByRole('button', {
       name: folderName,
       exact: true,
     });
     await expect(breadcrumb).toBeVisible();
+    await expect(breadcrumb).toHaveAttribute('aria-current', 'page');
+    await expect(
+      heading.getByRole('button', { name: folderName, exact: true }),
+    ).toHaveCount(0);
+    const pathBounds = (await path.boundingBox())!;
+    const toolbarBounds = (await heading.boundingBox())!;
+    expect(pathBounds.y).toBeGreaterThanOrEqual(
+      toolbarBounds.y + toolbarBounds.height,
+    );
     await breadcrumb.click();
     for (const width of [390, 320]) {
       await page.setViewportSize({ width, height: 844 });
@@ -115,14 +128,16 @@ for (const base of ['/', '/LocalCut/']) {
     await heading
       .getByRole('button', { name: 'Open media Trash', exact: true })
       .click();
-    await expect(heading.getByText('Trash', { exact: true })).toBeVisible();
+    await expect(path.getByText('Trash', { exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
     await expect(
       heading.getByRole('button', { name: 'New folder', exact: true }),
     ).toHaveCount(0);
-    await heading
-      .getByRole('button', { name: 'Media root', exact: true })
-      .click();
+    await path.getByRole('button', { name: 'Media root', exact: true }).click();
     await expect(breadcrumb).toHaveCount(0);
+    await expect(path).toHaveCount(0);
     await expect(
       heading.getByRole('button', { name: 'New folder', exact: true }),
     ).toBeEnabled();
@@ -134,12 +149,10 @@ for (const base of ['/', '/LocalCut/']) {
     await page
       .getByRole('button', { name: 'Expand media', exact: true })
       .click();
-    await expect(
-      heading.getByRole('button', { name: 'Media root', exact: true }),
-    ).toHaveCount(0);
+    await expect(path).toHaveCount(0);
   });
 
-  test(`compact workspace imports via card, backs up from settings and connects any chat provider ${base}`, async ({
+  test(`compact workspace imports via card, backs up from settings and connects OpenRouter ${base}`, async ({
     page,
     context,
   }, testInfo) => {
@@ -298,41 +311,17 @@ for (const base of ['/', '/LocalCut/']) {
       path: testInfo.outputPath('compact-workspace-desktop.png'),
     });
 
-    // A compatible endpoint works independently of OpenRouter, without a paid request.
+    // A disconnected account offers one OpenRouter connection and no alternative endpoint.
     await connect.click();
-    await selectAISettingsTab(page, 'Providers');
-    await dialog
-      .getByRole('button', { name: 'Add provider', exact: true })
-      .click();
-    await page.getByLabel('Name', { exact: true }).fill('Local model');
-    await page
-      .getByLabel('API base URL', { exact: true })
-      .fill('http://localhost:1234/v1');
-    await page
-      .getByRole('button', { name: 'Connect endpoint', exact: true })
-      .click();
-    await selectAISettingsTab(page, 'LLM - Chat');
-    await dialog.getByLabel('Local model llm route model').fill('local-editor');
-    await selectAISettingsTab(page, 'LLM - Chat');
-    await dialog.getByLabel('Local model llm route model').press('Tab');
-    await selectAISettingsTab(page, 'LLM - Chat');
     await expect(
-      dialog.getByLabel('Local model llm route model'),
-    ).toBeEnabled();
-
+      dialog.getByRole('button', { name: 'I have an API key', exact: true }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByLabel('API base URL', { exact: true }),
+    ).toHaveCount(0);
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-    const composer = chat.getByRole('textbox', { name: 'Describe your edit' });
-    await expect(composer).toBeEnabled();
-    await composer.fill('Keep my draft');
-    await page
-      .getByRole('button', { name: 'Collapse chat', exact: true })
-      .click();
-    await page
-      .getByRole('button', { name: 'Expand chat', exact: true })
-      .click();
-    await expect(composer).toHaveValue('Keep my draft');
     await page.reload();
-    await expect(connect).toBeVisible(); // Compatible credentials stay session-only.
+    await expect(connect).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
     const nav = page.getByRole('navigation', { name: 'Workspace sections' });
     await nav.getByRole('button', { name: 'Chat', exact: true }).click();

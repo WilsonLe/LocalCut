@@ -201,7 +201,7 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       header.getByRole('button', { name: 'Commands', exact: true }),
     ).toBeFocused();
-    await run(page, 'Connect AI providers');
+    await run(page, 'Connect OpenRouter');
     await expect(
       page.getByRole('dialog', { name: 'AI connection', exact: true }),
     ).toBeVisible();

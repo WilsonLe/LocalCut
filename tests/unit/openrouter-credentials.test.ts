@@ -43,21 +43,16 @@ describe('persistent OpenRouter credentials', () => {
     memory.dispose();
     expect(createOpenRouter().restoreCredential().connected).toBe(false);
   });
-  it('never restores or modifies the OpenRouter record through a compatible endpoint', () => {
+  it('rejects removed endpoint options before accessing saved credentials', () => {
     const { store } = fixture();
     const original = JSON.stringify({ version: 1, key });
     store.setItem(CREDENTIAL_STORAGE_KEY, original);
-    const client = createOpenRouter({
-      compatible: { baseUrl: 'http://localhost:1234/v1', model: 'local' },
-      credentialStorage: () => store,
-    });
-    expect(() => client.restoreCredential()).toThrow(
-      expect.objectContaining({ code: 'MODEL_UNSUPPORTED' }),
-    );
-    client.setKey('');
-    expect(client.status().connected).toBe(true);
-    client.disconnect();
-    client.dispose();
+    expect(() =>
+      createOpenRouter({
+        compatible: { baseUrl: 'https://example.test/v1' },
+        credentialStorage: () => store,
+      } as unknown as import('../../src/ai/types').OpenRouterOptions),
+    ).toThrow(expect.objectContaining({ code: 'INVALID_REQUEST' }));
     expect(store.getItem(CREDENTIAL_STORAGE_KEY)).toBe(original);
   });
   it.each([
