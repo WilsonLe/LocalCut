@@ -7419,3 +7419,91 @@ describe('immutable conversation continuity', () => {
     expect(f.editor.commands.apply).not.toHaveBeenCalled();
   });
 });
+
+it('retains a returned parallel sibling outcome verbatim when another sibling is cancelled', async () => {
+  const f = fixture();
+  const waiting = deferred<void>();
+  const finished = deferred<void>();
+  const inspect = f.editor.assets.inspect;
+  f.editor.assets.inspect = vi.fn(async (id) => {
+    if (id === 'other') await waiting.promise;
+    return inspect(id);
+  });
+  const a = createAssistant({
+    editor: f.editor,
+    projectId: f.project().id,
+    model: 'test/model',
+    provider: provider(
+      [
+        [final('', [call('load_skill', { skillId: 'editing' }, 'load')])],
+        [
+          final('', [
+            call('inspect_asset', { assetId: 'asset' }, 'returned'),
+            call('inspect_asset', { assetId: 'other' }, 'unfinished'),
+          ]),
+        ],
+      ],
+      false,
+    ),
+    execution: 'requested',
+    assetIds: ['other'],
+    context: { includeAssetNames: true },
+  });
+  const events: AssistantEvent[] = [];
+  let original: unknown;
+  a.subscribe((event) => {
+    events.push(event);
+    if (
+      event.type === 'tool' &&
+      event.name === 'inspect_asset' &&
+      event.phase === 'completed'
+    ) {
+      original = event.result;
+      finished.resolve();
+    }
+  });
+  try {
+    const turn = a.run('Inspect both sources');
+    await finished.promise;
+    turn.cancel();
+    await expect(turn.completion).rejects.toMatchObject({ code: 'CANCELLED' });
+    const saved = savedInterruptedTurn(
+      events,
+      turn.id,
+      'Inspect both sources',
+      a.snapshot(),
+    );
+    const exchange = saved.content.messages[1]!.continuation!.exchange!;
+    expect(exchange).toContainEqual({
+      role: 'tool',
+      tool_call_id: 'returned',
+      content: JSON.stringify(original),
+    });
+    expect(
+      exchange.find((m) => m.role === 'tool' && m.tool_call_id === 'unfinished')
+        ?.content,
+    ).toContain('CANCELLED');
+    const p = provider([[final('Retained earlier observation')]], false);
+    const restored = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+      restoredTurns: restoredChatTurns(saved.content.messages),
+    });
+    try {
+      await restored.run('Continue after reload').completion;
+      expect(p.requests[0]!.messages).toContainEqual({
+        role: 'tool',
+        tool_call_id: 'returned',
+        content: JSON.stringify(original),
+      });
+      expect(f.editor.commands.apply).not.toHaveBeenCalled();
+    } finally {
+      await restored.dispose();
+    }
+  } finally {
+    waiting.resolve();
+    await a.dispose();
+  }
+});
