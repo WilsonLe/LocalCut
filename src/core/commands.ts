@@ -42,6 +42,8 @@ export type EditOperation =
   | { type: 'setStoryboard'; storyboard: Storyboard }
   | { type: 'upsertStoryboardElements'; elements: StoryboardPatch[] }
   | { type: 'removeStoryboardElements'; elementIds: string[] }
+  | { type: 'reorderStoryboardElements'; elementIds: string[] }
+  | { type: 'setStoryboardBackground'; backgroundColor: string }
   | { type: 'addTrack'; track: TrackInput }
   | {
       type: 'updateTrack';
@@ -135,6 +137,18 @@ const delta = z
   .min(-Number.MAX_SAFE_INTEGER)
   .max(Number.MAX_SAFE_INTEGER);
 const operationSchema = z.discriminatedUnion('type', [
+  z
+    .object({
+      type: z.literal('reorderStoryboardElements'),
+      elementIds: z.array(entityId).max(5000),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('setStoryboardBackground'),
+      backgroundColor: z.string().max(100),
+    })
+    .strict(),
   z
     .object({ type: z.literal('setStoryboard'), storyboard: storyboardSchema })
     .strict(),
@@ -482,6 +496,41 @@ export function applyOperations(
   for (let index = 0; index < pending.length; index++) {
     const op = pending[index]!;
     switch (op.type) {
+      case 'reorderStoryboardElements': {
+        const scene = p.storyboard ?? {
+          elements: [],
+          backgroundColor: '#ffffff',
+        };
+        const live = scene.elements.filter((element) => !element.isDeleted);
+        invariant(
+          op.elementIds.length === live.length &&
+            new Set(op.elementIds).size === op.elementIds.length &&
+            op.elementIds.every((id) => live.some((e) => e.id === id)),
+          'INVALID_COMMAND',
+          'Storyboard order must include every live element exactly once',
+        );
+        const byId = new Map(scene.elements.map((e) => [e.id, e]));
+        p.storyboard = {
+          ...scene,
+          elements: [
+            ...op.elementIds.map((id) => ({
+              ...byId.get(id)!,
+              index: null,
+              version: byId.get(id)!.version + 1,
+            })),
+            ...scene.elements.filter((element) => element.isDeleted),
+          ],
+        };
+        op.elementIds.forEach((id) => affected.add(id));
+        break;
+      }
+      case 'setStoryboardBackground':
+        p.storyboard = {
+          ...(p.storyboard ?? { elements: [] }),
+          backgroundColor: op.backgroundColor,
+        };
+        affected.add(p.id);
+        break;
       case 'setStoryboard':
         p.storyboard = op.storyboard;
         affected.add(p.id);

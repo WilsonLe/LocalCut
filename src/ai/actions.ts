@@ -2,12 +2,18 @@ import type { LibraryOperation } from '../core/media-library';
 import type { EditReceipt } from '../core/commands';
 import type { Editor } from '../editor';
 import type { ExportOptions } from '../media/export';
+import type {
+  StoryboardExportOptions,
+  StoryboardStoreOptions,
+} from '../core/storyboard-export';
 
 /** Service actions are reviewable requests, never callable by a model directly. */
 export type AssistantAction =
   | { type: 'undo' | 'redo' }
   | { type: 'library'; operation: LibraryOperation; expectedRevision: number }
   | { type: 'export'; options: ExportOptions }
+  | { type: 'export_storyboard'; options: StoryboardExportOptions }
+  | { type: 'store_storyboard'; options: StoryboardStoreOptions }
   | {
       type: 'transcribe';
       assetId: string;
@@ -37,10 +43,28 @@ export type AssistantActionResult =
     }
   | { kind: 'indexing'; runId: string; assetId: string; sceneCount: number }
   | { kind: 'preparation'; ready: boolean }
-  | { kind: 'library'; revision: number };
+  | { kind: 'library'; revision: number }
+  | {
+      kind: 'storyboard_export';
+      artifactId: string;
+      projectId: string;
+      revision: number;
+      format: 'png' | 'svg' | 'excalidraw';
+      name: string;
+      size: number;
+    }
+  | {
+      kind: 'storyboard_asset';
+      projectId: string;
+      revision: number;
+      assetId: string;
+      entryId: string;
+      libraryRevision: number;
+    };
 
 /** An assistant may be embedded with just document editing, or the full engine. */
 export interface AssistantEditor {
+  storyboard?: Partial<Pick<Editor['storyboard'], 'export' | 'store'>>;
   library?: {
     forProject(
       projectId: string,
@@ -60,6 +84,8 @@ export interface AssistantEditor {
 }
 
 export interface AssistantCapabilities {
+  storyboardExport?: boolean;
+  storyboardStore?: boolean;
   /** Host support is discoverable even while permission blocks proposals. */
   indexingSupported?: boolean;
   indexing?: boolean;
@@ -77,6 +103,8 @@ export function assistantCapabilities(
   editor: AssistantEditor,
 ): AssistantCapabilities {
   return {
+    storyboardExport: !!editor.storyboard?.export,
+    storyboardStore: !!editor.storyboard?.store,
     maskTracking: !!editor.masks,
     library: !!editor.library,
     undo: !!editor.commands.undo,

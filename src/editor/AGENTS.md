@@ -10,3 +10,5 @@
 - Run `pnpm typecheck` for public declaration changes. Follow the [development guide](../../docs/development.md) for build freshness and final checks.
 
 `masks.track` computes a revision-bound draft result through the media worker and versioned durable queue cache; it never commits automatically. UI/assistant consumers apply motion with the ordinary `updateClip` receipt contract. Source identity and optional draft geometry belong in cache admission. Keep [creative effect checks](../../docs/development.md#creative-effect-checks) alongside worker/lifecycle checks when changing this path.
+
+`storyboard.export/store` delegate to the lazy pinned renderer and existing derivative cache/original import/project library owners. Capture expected revisions, validate destinations before import, preserve committed originals on late cancellation and keep artifact bytes local. See [storyboard contracts](../../docs/api.md#storyboard-export-and-media-reuse).
