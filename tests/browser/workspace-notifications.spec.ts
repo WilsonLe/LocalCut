@@ -223,6 +223,14 @@ for (const base of ['/', '/LocalCut/']) {
       exact: true,
     });
     const report = details.getByLabel('Full error report');
+    await expect(
+      details.locator('[data-slot="dialog-description"]'),
+    ).toHaveCount(0);
+    await expect(details).not.toContainText('Stack trace and session data');
+    await expect(report.locator('code')).toBeVisible();
+    expect(
+      await report.evaluate((element) => getComputedStyle(element).whiteSpace),
+    ).toBe('pre');
     await expect(report).toContainText('Error: Build information unavailable');
     await expect(report).toContainText(id);
     await expect(report).toContainText('playheadUs');
@@ -296,6 +304,14 @@ for (const base of ['/', '/LocalCut/']) {
     });
     await log.getByRole('button', { name: /^View stack trace:/ }).click();
     await expect(report).toHaveText(fullText!);
+    const detailBounds = (await details.boundingBox())!;
+    expect(detailBounds.x).toBeGreaterThanOrEqual(0);
+    expect(detailBounds.x + detailBounds.width).toBeLessThanOrEqual(390);
+    expect(
+      await report.evaluate(
+        (element) => element.scrollWidth > element.clientWidth,
+      ),
+    ).toBe(true);
     await page.screenshot({
       path: testInfo.outputPath('error-details-mobile.png'),
     });
