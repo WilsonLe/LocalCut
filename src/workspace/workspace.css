@@ -1799,14 +1799,36 @@
   height: 16px;
   z-index: 1;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) * 0.4);
-  background: var(--background);
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--foreground) 20%, var(--background)) 0 2px,
+    color-mix(in oklch, var(--background) 90%, transparent) 2px 6px
+  );
   color: var(--foreground);
-  font-size: 9px;
   cursor: pointer;
+}
+.timeline-overlap svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  background: var(--background);
+  border-radius: 2px;
+}
+.timeline-overlap[data-transition='true'] {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.timeline-overlap:hover,
+.timeline-overlap:focus-visible,
+.timeline-overlap[data-popup-open] {
+  outline: 2px solid var(--foreground);
+  outline-offset: -2px;
 }
 .timeline-overlap[aria-pressed='true'] {
   border-color: var(--foreground);
