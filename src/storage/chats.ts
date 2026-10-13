@@ -1,6 +1,7 @@
 import { openDB } from 'idb';
 import type { DBSchema, IDBPDatabase } from 'idb';
 import { z } from 'zod';
+import { safeChatFailure } from '../core/error-diagnostics';
 import { chatExchangeSchema } from '../ai/chat-context';
 
 const identity = z.string().min(1).max(200);
@@ -40,6 +41,7 @@ const messageSchema = z.object({
       reasoningTokens: z.number().int().nonnegative().optional(),
     })
     .optional(),
+  failure: z.unknown().transform(safeChatFailure).optional(),
   // Canonical historical exchange, separate from UI activity and live authority.
   exchange: chatExchangeSchema.optional(),
   continuation: z

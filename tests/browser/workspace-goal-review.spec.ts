@@ -39,6 +39,7 @@ for (const base of behaviorBases) {
               id: 'test/review',
               name: 'Review test model',
               context_length: 512000,
+              top_provider: { max_completion_tokens: 512000 },
               supported_parameters: ['tools', 'tool_choice'],
             },
           ],
@@ -52,6 +53,9 @@ for (const base of behaviorBases) {
     let titleCalls = 0;
     let exhausted = false;
     let rejectReview = false;
+    let rejectExecution = false;
+    let rejectTodos = false;
+    let executionRejections = 0;
     const sessions: { execution: string[]; review: string[] } = {
       execution: [],
       review: [],
@@ -69,6 +73,7 @@ for (const base of behaviorBases) {
           return;
         }
         const request = route.request().postDataJSON();
+        expect(request).not.toHaveProperty('max_tokens');
         const instruction = request.messages[0]?.content ?? '';
         if (instruction.startsWith('LocalCut request contract:')) {
           parses++;
@@ -88,6 +93,20 @@ for (const base of behaviorBases) {
         }
         if (instruction.startsWith('LocalCut session to-dos:')) {
           todoUpdates++;
+          if (rejectTodos) {
+            await route.fulfill({
+              headers: cors,
+              status: 400,
+              json: {
+                error: {
+                  type: 'context_length_exceeded',
+                  param: 'max_tokens',
+                  message: 'PRIVATE_TODO_ECHO',
+                },
+              },
+            });
+            return;
+          }
           expect(request.tool_choice).toBe('none');
           const data = JSON.parse(request.messages[1].content);
           const met =
@@ -168,6 +187,21 @@ for (const base of behaviorBases) {
           await reply(route, undefined, [
             { name: 'load_skill', arguments: '{"skillId":"editing"}' },
           ]);
+          return;
+        }
+        if (rejectExecution) {
+          executionRejections++;
+          await route.fulfill({
+            headers: cors,
+            status: 400,
+            json: {
+              error: {
+                message: 'PRIVATE_EXECUTION_ECHO',
+                type: 'context_length_exceeded',
+                param: 'max_tokens',
+              },
+            },
+          });
           return;
         }
         if (
@@ -548,5 +582,89 @@ for (const base of behaviorBases) {
     ).toBeVisible();
     expect(editCalls).toBe(1);
     expect(titleCalls).toBe(1);
+
+    // Match the exported failure boundary: goal check and skill loading succeed,
+    // then the expanded main round fails. Keep permanent errors explicit.
+    rejectExecution = true;
+    await page
+      .getByLabel('Describe your edit', { exact: true })
+      .fill('Recheck the saved title');
+    await page
+      .getByRole('button', { name: 'Send edit request', exact: true })
+      .click();
+    await expect(page.locator('form [role="alert"]')).toContainText(
+      'The assistant response failed',
+    );
+    await expect(page.locator('form [role="alert"]')).toContainText(
+      'conversation size',
+    );
+    expect(executionRejections).toBe(1);
+    const beforeReload = executionRounds;
+    await page.reload();
+    await expect(
+      page.getByRole('button', { name: 'Retry response', exact: true }),
+    ).toBeVisible();
+    await expect(page.locator('form [role="alert"]')).toContainText(
+      'conversation size',
+    );
+    expect(executionRounds).toBe(beforeReload);
+    await expect(page.locator('body')).not.toContainText(
+      'PRIVATE_EXECUTION_ECHO',
+    );
+    rejectExecution = false;
+    await dismissNotifications(page);
+    await page
+      .getByRole('button', { name: 'Retry response', exact: true })
+      .click();
+    await expect(
+      page.getByRole('article', { name: 'Assistant response' }).last(),
+    ).toContainText('The overlay track and closing title are now added.');
+    await expect(
+      page
+        .getByRole('article', { name: 'Assistant response' })
+        .last()
+        .getByRole('button', { name: 'Completion verified · 1', exact: true }),
+    ).toBeVisible();
+    expect(editCalls).toBe(1);
+    expect(executionRejections).toBe(1);
+
+    // New persistent checklists are separate inference; their error stage must
+    // survive the queue and reload, without replaying a completed edit.
+    rejectTodos = true;
+    await page
+      .getByLabel('Describe your edit', { exact: true })
+      .fill('Verify the saved overlay');
+    await page
+      .getByRole('button', { name: 'Send edit request', exact: true })
+      .click();
+    await expect(page.locator('form [role="alert"]')).toContainText(
+      'The to-do update failed',
+    );
+    await expect(page.locator('form [role="alert"]')).toContainText(
+      'conversation size',
+    );
+    await page.reload();
+    await expect(
+      page.getByRole('button', { name: 'Retry response', exact: true }),
+    ).toBeVisible();
+    await expect(page.locator('form [role="alert"]')).toContainText(
+      'The to-do update failed',
+    );
+    await expect(page.locator('body')).not.toContainText('PRIVATE_TODO_ECHO');
+    rejectTodos = false;
+    await dismissNotifications(page);
+    await page
+      .getByRole('button', { name: 'Retry response', exact: true })
+      .click();
+    await expect(
+      page.getByRole('article', { name: 'Assistant response' }).last(),
+    ).toContainText('The overlay track and closing title are now added.');
+    await expect(
+      page
+        .getByRole('article', { name: 'Assistant response' })
+        .last()
+        .getByRole('button', { name: 'Completion verified · 1', exact: true }),
+    ).toBeVisible();
+    expect(editCalls).toBe(1);
   });
 }

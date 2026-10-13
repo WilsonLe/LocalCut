@@ -62,6 +62,43 @@ const source = (): ChatExportSource => ({
 });
 
 describe('chat export', () => {
+  it('exports safe terminal response failures in JSON and Markdown without raw error data', async () => {
+    const original = source();
+    original.messages[1]!.status = 'failed';
+    Object.assign(original.messages[1]!, {
+      failure: {
+        code: 'INVALID_REQUEST',
+        message: 'SECRET raw provider message',
+        stack: 'SECRET',
+        details: {
+          status: 400,
+          stage: 'assistant_response',
+          providerReason: 'context_length_exceeded',
+          parameter: 'max_tokens',
+          raw: 'SECRET',
+        },
+      },
+    });
+    const snapshot = captureChatExport(original, metadata);
+    expect(snapshot.messages[1]!.failure).toEqual({
+      code: 'INVALID_REQUEST',
+      details: {
+        status: 400,
+        stage: 'assistant_response',
+        providerReason: 'context_length_exceeded',
+        parameter: 'max_tokens',
+      },
+    });
+    const files = unzipSync(
+      new Uint8Array(await chatExportFile(snapshot).arrayBuffer()),
+    );
+    for (const file of Object.values(files)) {
+      expect(strFromU8(file)).toContain('context_length_exceeded');
+      expect(strFromU8(file)).not.toContain('SECRET');
+    }
+    expect(strFromU8(files['chat.md']!)).toContain('### Response failure');
+  });
+
   it('archives a detached complete snapshot with safe names and readable text', async () => {
     const original = source();
     const snapshot = captureChatExport(original, metadata);

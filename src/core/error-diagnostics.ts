@@ -18,6 +18,9 @@ const providerReasons = [
   'invalid_prompt',
   'payload_too_large',
   'unprocessable',
+  'unsupported_parameter',
+  'invalid_tool_call',
+  'invalid_tool_results',
   'refusal',
   'content_policy_violation',
 ] as const;
@@ -27,6 +30,10 @@ const requestParameters = [
   'tools',
   'tool_choice',
   'max_tokens',
+  'max_completion_tokens',
+  'parallel_tool_calls',
+  'tool_calls',
+  'tool_call_id',
   'reasoning',
   'reasoning_content',
   'reasoning_details',
@@ -38,7 +45,11 @@ export type RecoveryDetails = {
     | 'empty_response'
     | 'reviewer_protocol'
     | 'attachment_unavailable';
-  stage?: 'request_contract' | 'completion_check';
+  stage?:
+    | 'request_contract'
+    | 'session_todos'
+    | 'completion_check'
+    | 'assistant_response';
   providerReason?: (typeof providerReasons)[number];
   parameter?: (typeof requestParameters)[number];
 };
@@ -73,7 +84,9 @@ export function safeRecoveryDetails(
     details.reason = metadata.reason;
   if (
     metadata.stage === 'request_contract' ||
-    metadata.stage === 'completion_check'
+    metadata.stage === 'session_todos' ||
+    metadata.stage === 'completion_check' ||
+    metadata.stage === 'assistant_response'
   )
     details.stage = metadata.stage;
   if (
@@ -88,6 +101,44 @@ export function safeRecoveryDetails(
   )
     details.parameter = metadata.parameter as RecoveryDetails['parameter'];
   return details;
+}
+
+/** Safe terminal chat diagnostics: never retain remote messages or stacks. */
+export function safeChatFailure(value: unknown) {
+  const error =
+    value && typeof value === 'object'
+      ? (value as Record<string, unknown>)
+      : {};
+  const knownCodes = [
+    'AUTH_REQUIRED',
+    'AUTH_INVALID',
+    'INSUFFICIENT_CREDITS',
+    'RATE_LIMITED',
+    'PROVIDER_UNAVAILABLE',
+    'NETWORK_ERROR',
+    'TIMEOUT',
+    'CANCELLED',
+    'DISPOSED',
+    'MODEL_REQUIRED',
+    'MODEL_UNSUPPORTED',
+    'INVALID_REQUEST',
+    'INVALID_RESPONSE',
+    'RESPONSE_LIMIT',
+    'RESPONSE_INCOMPLETE',
+    'PROVIDER_REFUSAL',
+    'BUSY',
+    'REVISION_CONFLICT',
+    'CONTEXT_LIMIT',
+    'TOOL_LIMIT',
+    'TOOL_NOT_ALLOWED',
+    'INVALID_TOOL_ARGUMENTS',
+    'EDIT_REJECTED',
+  ];
+  const code =
+    typeof error.code === 'string' && knownCodes.includes(error.code)
+      ? error.code
+      : 'UNKNOWN';
+  return { code, details: safeRecoveryDetails(error.details, code) };
 }
 
 export function redactDiagnosticText(text: string): string {

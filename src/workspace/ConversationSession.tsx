@@ -1,3 +1,4 @@
+import { safeChatFailure } from '../core/error-diagnostics';
 import { registerErrorSession } from './error-toast';
 import {
   lazy,
@@ -402,7 +403,12 @@ export default function ConversationSession({
   const [running, setRunning] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [activity, setActivity] = useState('Pondering…');
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failure, setFailure] = useState<string | null>(() => {
+    const latest = (initialBranch?.messages ?? initialContent.messages).at(-1);
+    return latest?.status === 'failed' && latest.failure
+      ? errorText(latest.failure)
+      : null;
+  });
   const [recoveryRequest, setRecoveryRequest] =
     useState<RecoveryRequest | null>(() =>
       restoredChatRecovery({
@@ -865,6 +871,7 @@ ${resuming.prompt}`
                       ? 'interrupted'
                       : 'failed',
                   proposalIds: [],
+                  ...(!cancelled ? { failure: safeChatFailure(error) } : {}),
                 }
               : message,
           ),

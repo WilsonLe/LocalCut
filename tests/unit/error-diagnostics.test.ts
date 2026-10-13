@@ -135,3 +135,21 @@ it('keeps Safari frames and multiline headers as supplied after normalization', 
     stack: error.stack,
   });
 });
+
+it('retains the new session checklist stage through safe chat and queued diagnostic metadata', () => {
+  const details = {
+    status: 400,
+    stage: 'session_todos',
+    providerReason: 'context_length_exceeded',
+    parameter: 'max_tokens',
+  };
+  expect(safeRecoveryDetails(details, 'INVALID_REQUEST')).toEqual(details);
+  expect(
+    errorDiagnostic(
+      Object.assign(new Error('Safe rejection'), {
+        code: 'INVALID_REQUEST',
+        details,
+      }),
+    ).details,
+  ).toEqual(details);
+});

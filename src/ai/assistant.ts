@@ -1706,7 +1706,14 @@ export function createAssistant(options: AssistantOptions) {
               check();
               const safe = localError(error);
               const waitMs = inferenceRetryDelay(safe, attempt, visibleText);
-              if (waitMs === undefined) throw safe;
+              if (waitMs === undefined) {
+                const stagedError = new AiError(safe.code, safe.message, {
+                  ...safe.details,
+                  stage: 'assistant_response',
+                });
+                stagedError.cause = safe;
+                throw stagedError;
+              }
               // Retry only this frozen provider round. Previous tool receipts stay intact.
               let timer: ReturnType<typeof setTimeout> | undefined;
               try {

@@ -66,6 +66,41 @@ it('restores paused explicit recovery without auto-executing old tools or changi
 });
 
 describe('local chat records', () => {
+  it('retains safe terminal failures through reload and fork, removing raw diagnostic fields', () => {
+    const chat = newChatSession('project:model:private');
+    chat.content.messages.push({
+      id: 'failed',
+      role: 'assistant',
+      text: '',
+      status: 'failed',
+    });
+    Object.assign(chat.content.messages[0]!, {
+      failure: {
+        code: 'INVALID_REQUEST',
+        message: 'SECRET',
+        details: {
+          status: 400,
+          stage: 'assistant_response',
+          providerReason: 'invalid_tool_call',
+          parameter: 'tool_calls',
+          raw: 'SECRET',
+        },
+      },
+    });
+    for (const saved of [restoreChatSession(chat)!, forkChatSession(chat)]) {
+      expect(saved.content.messages[0]!.failure).toEqual({
+        code: 'INVALID_REQUEST',
+        details: {
+          status: 400,
+          stage: 'assistant_response',
+          providerReason: 'invalid_tool_call',
+          parameter: 'tool_calls',
+        },
+      });
+      expect(JSON.stringify(saved)).not.toContain('SECRET');
+    }
+  });
+
   it('retains additive cache and reasoning accounting through restore and fork', () => {
     const chat = newChatSession('project:model:private');
     const usage = {

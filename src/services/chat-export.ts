@@ -3,6 +3,7 @@ import type { Asset } from '../core/model';
 import type { EditProposal } from '../ai';
 import type { SavedChatMessage } from '../storage/chats';
 import type { TaskQueue } from './task-queue';
+import { safeChatFailure } from '../core/error-diagnostics';
 import { freshTask } from './task-cache';
 
 export const CHAT_EXPORT_TASK = 'chat.export.v1';
@@ -35,6 +36,7 @@ export function captureChatExport(
       text: message.text,
       status: message.status,
       proposalIds: [...message.proposalIds],
+      failure: message.failure && safeChatFailure(message.failure),
       usage: message.usage && {
         promptTokens: message.usage.promptTokens,
         completionTokens: message.usage.completionTokens,
@@ -101,6 +103,8 @@ export function chatExportMarkdown(snapshot: ChatExportSnapshot) {
       '',
       message.text,
     );
+    if (message.failure)
+      lines.push('', '### Response failure', '', jsonBlock(message.failure));
     if (message.tools?.length)
       lines.push('', '### Tool activity', '', jsonBlock(message.tools));
     if (message.proposalIds.length)

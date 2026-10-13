@@ -180,6 +180,8 @@ Quota/access failures retain the latest dirty snapshots in memory across scope s
 
 Archiving retains a record, with active selection repaired after hydration. Forks receive new UUIDs and a cloned display snapshot with stopped unfinished work and retained history provenance; they never copy live assistant checkpoints. Renames lock automatic title replacement.
 
+Failed assistant messages in the version-one chat sidecar may carry additive `failure` metadata: a fixed error code and the core safe recovery allowlist (status, stage, category, parameter and supported reason). Parsing removes raw error messages, stacks, bodies and unrelated fields. Legacy chats without this field remain valid. Reload and forks preserve it as historical display data; it never grants execution or restores proposals. Chat exports include the same sanitized metadata.
+
 ## Creative effect state and tracking cache
 
 Clip JSON owns LUT numeric tables, preset strength, blend mode, mask geometry/motion points, chroma key, EQ, balance and spectral suppression settings. Optional fields leave old documents neutral; null clears replacement objects. History and portable project/workspace backups retain them with the clip. Imported LUT titles/file names are not retained. Older releases with strict schemas may reject these new fields; retain the current release and backup when reverting.
