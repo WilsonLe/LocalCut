@@ -7906,11 +7906,13 @@ describe('request completion review sessions', () => {
     },
     { fulfilled: 'true' },
   ])('rejects incomplete or malformed check verdicts', async (value) => {
-    const f = make(reviewedProvider([[final('Candidate')]], [value]));
+    const p = reviewedProvider([[final('Candidate')]], [value, value, value]);
+    const f = make(p);
     await expect(
       f.assistant.run('Move and answer').completion,
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
     expect(f.assistant.snapshot().historyTurns).toBe(1);
+    expect(kind(p, 'LocalCut completion review:')).toHaveLength(3);
     await f.assistant.dispose();
   });
 
@@ -8013,6 +8015,176 @@ describe('request completion review sessions', () => {
     },
   );
 
+  it.each(['contract', 'review'])(
+    'recovers invalid %s JSON privately with usage and the same request',
+    async (phase) => {
+      const p = reviewedProvider([[final('Candidate')]]);
+      const original = p.stream;
+      const attempts: ChatRequest[] = [];
+      const marker =
+        phase === 'contract'
+          ? 'LocalCut request contract:'
+          : 'LocalCut completion review:';
+      p.stream = async function* (request) {
+        if (request.messages[0]?.content?.startsWith(marker)) {
+          attempts.push(structuredClone(request));
+          if (attempts.length < 3) {
+            yield {
+              ...final(attempts.length === 1 ? '{broken' : '{}'),
+              usage: {
+                promptTokens: 2,
+                completionTokens: 3,
+                totalTokens: 5,
+                cost: 0.01,
+              },
+            };
+            return;
+          }
+        }
+        for await (const event of original(request)) {
+          if (
+            event.type === 'complete' &&
+            request.messages[0]?.content?.startsWith(marker)
+          ) {
+            yield {
+              ...event,
+              message: {
+                ...event.message,
+                content: '```json\n' + event.message.content + '\n```',
+              },
+              usage: {
+                promptTokens: 2,
+                completionTokens: 3,
+                totalTokens: 5,
+                cost: 0.01,
+              },
+            };
+          } else yield event;
+        }
+      };
+      const f = make(p);
+      const events: AssistantEvent[] = [];
+      f.assistant.subscribe((event) => events.push(event));
+      try {
+        const result = await f.assistant.run('Move and answer').completion;
+        expect(result.completion).toMatchObject({
+          status: 'fulfilled',
+          checks: 1,
+        });
+        expect(attempts).toHaveLength(3);
+        expect(attempts[1]).toEqual(attempts[0]);
+        expect(attempts[2]).toEqual(attempts[0]);
+        expect(
+          p.requests.filter(
+            (r) => !r.messages[0]?.content?.startsWith('LocalCut '),
+          ),
+        ).toHaveLength(1);
+        expect(result.usage).toMatchObject({
+          promptTokens: 6,
+          completionTokens: 9,
+          totalTokens: 15,
+          cost: 0.03,
+        });
+        expect(
+          events.some((e) => e.type === 'tool' && e.phase === 'failed'),
+        ).toBe(false);
+        expect(
+          events.some((e) => e.type === 'text' && e.text.includes('broken')),
+        ).toBe(false);
+      } finally {
+        await f.assistant.dispose();
+      }
+    },
+  );
+
+  it.each([
+    '```json\n{broken\n```',
+    'Here is the JSON: {}',
+    '{}\n{}',
+    '```json\n{}\n```\nExtra prose',
+  ])(
+    'exhausts malformed reviewer replies without accepting embedded JSON: %s',
+    async (content) => {
+      const p = reviewedProvider([[final('Candidate')]]);
+      const original = p.stream;
+      let attempts = 0;
+      p.stream = async function* (request) {
+        if (
+          request.messages[0]?.content?.startsWith(
+            'LocalCut completion review:',
+          )
+        ) {
+          attempts++;
+          yield final(content);
+        } else yield* original(request);
+      };
+      const f = make(p);
+      try {
+        await expect(
+          f.assistant.run('Move and answer').completion,
+        ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+        expect(attempts).toBe(3);
+        expect(f.editor.commands.apply).not.toHaveBeenCalled();
+      } finally {
+        await f.assistant.dispose();
+      }
+    },
+  );
+
+  it('cancels during invalid JSON backoff without another reviewer request', async () => {
+    const p = reviewedProvider([[final('Candidate')]]);
+    const original = p.stream;
+    vi.useFakeTimers();
+    const returned = deferred<void>();
+    let attempts = 0;
+    p.stream = async function* (request) {
+      if (
+        request.messages[0]?.content?.startsWith('LocalCut completion review:')
+      ) {
+        attempts++;
+        yield final('{broken');
+        returned.resolve();
+      } else yield* original(request);
+    };
+    const f = make(p);
+    try {
+      const turn = f.assistant.run('Move and answer');
+      await returned.promise;
+      await vi.advanceTimersByTimeAsync(0);
+      turn.cancel();
+      await expect(turn.completion).rejects.toMatchObject({
+        code: 'CANCELLED',
+      });
+      expect(attempts).toBe(1);
+    } finally {
+      await f.assistant.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('enforces the cumulative caller output budget across invalid reviewer attempts', async () => {
+    const p = reviewedProvider([[final('Candidate')]]);
+    const original = p.stream;
+    let attempts = 0;
+    p.stream = async function* (request) {
+      if (
+        request.messages[0]?.content?.startsWith('LocalCut completion review:')
+      ) {
+        attempts++;
+        yield final('x'.repeat(600));
+      } else yield* original(request);
+    };
+    const f = make(p, { limits: { maxOutputBytes: 1200 } });
+    try {
+      await expect(
+        f.assistant.run('Move and answer').completion,
+      ).rejects.toMatchObject({ code: 'RESPONSE_LIMIT' });
+      expect(attempts).toBe(2);
+    } finally {
+      await f.assistant.dispose();
+    }
+  });
+
   it('reparses unfinished restored intent without restoring historical checker authority', async () => {
     const p = reviewedProvider([[final('Candidate')]]);
     const f = make(p, {
@@ -8052,7 +8224,7 @@ describe('request completion review sessions', () => {
     await expect(
       f.assistant.run('Move and answer').completion,
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
-    expect(requests).toBe(1);
+    expect(requests).toBe(3);
     expect(f.editor.commands.apply).not.toHaveBeenCalled();
     await f.assistant.dispose();
   });

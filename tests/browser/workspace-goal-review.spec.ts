@@ -46,6 +46,13 @@ for (const base of ['/', '/LocalCut/']) {
     let checks = 0,
       executionRounds = 0,
       parses = 0;
+    let parseAttempts = 0,
+      reviewAttempts = 0,
+      editCalls = 0;
+    const retryRequests: { parse: unknown[]; review: unknown[] } = {
+      parse: [],
+      review: [],
+    };
     let exhausted = false;
     const sessions: { execution: string[]; review: string[] } = {
       execution: [],
@@ -67,12 +74,24 @@ for (const base of ['/', '/LocalCut/']) {
         const request = route.request().postDataJSON();
         const instruction = request.messages[0]?.content ?? '';
         if (instruction.startsWith('LocalCut request contract:')) {
+          parseAttempts++;
+          if (parseAttempts <= 2) retryRequests.parse.push(request);
+          if (parseAttempts === 1) {
+            await reply(route, '{malformed contract');
+            return;
+          }
           parses++;
           sessions.review.push(request.session_id);
-          await reply(route, JSON.stringify(contract));
+          await reply(route, '```json\n' + JSON.stringify(contract) + '\n```');
           return;
         }
         if (instruction.startsWith('LocalCut completion review:')) {
+          reviewAttempts++;
+          if (reviewAttempts <= 2) retryRequests.review.push(request);
+          if (reviewAttempts === 1) {
+            await reply(route, '{malformed verdict');
+            return;
+          }
           checks++;
           sessions.review.push(request.session_id);
           const data = JSON.parse(request.messages[1].content);
@@ -125,6 +144,7 @@ for (const base of ['/', '/LocalCut/']) {
             (track: { id: string }) => track.id === 'checked-overlay',
           )
         ) {
+          editCalls++;
           await reply(route, undefined, [
             {
               name: 'propose_edits',
@@ -195,6 +215,9 @@ for (const base of ['/', '/LocalCut/']) {
     ).toBeVisible();
     expect(checks).toBe(2);
     expect(parses).toBe(1);
+    expect(editCalls).toBe(1);
+    expect(retryRequests.parse[1]).toEqual(retryRequests.parse[0]);
+    expect(retryRequests.review[1]).toEqual(retryRequests.review[0]);
     expect(new Set(sessions.review).size).toBe(1);
     expect(sessions.review[0]).not.toBe(sessions.execution[0]);
     expect(payloads[0]!.initialRequest).toBe('Add an overlay track');

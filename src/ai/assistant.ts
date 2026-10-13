@@ -699,6 +699,7 @@ export function createAssistant(options: AssistantOptions) {
               schema,
               check,
               interrupt: (promise) => interruptible(promise, signal),
+              accountUsage: addUsage,
               accountBytes: (value) => {
                 outputBytes += byteLength(value);
                 aiInvariant(
@@ -710,7 +711,6 @@ export function createAssistant(options: AssistantOptions) {
               },
             });
             check();
-            addUsage(response.usage);
             const value = after ? await after(response.value) : response.value;
             check();
             emit({ ...activity, phase: 'completed', result: value }, local);

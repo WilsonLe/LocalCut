@@ -45,6 +45,7 @@ async function readGoalResponse<T>({
   interrupt,
   check,
   accountBytes,
+  accountUsage,
 }: {
   provider: Pick<OpenRouterClient, 'stream'>;
   request: ChatRequest;
@@ -53,7 +54,8 @@ async function readGoalResponse<T>({
   interrupt: <V>(promise: Promise<V>) => Promise<V>;
   check: () => void;
   accountBytes: (value: unknown) => void;
-}): Promise<{ value: T; usage?: Usage }> {
+  accountUsage: (usage?: Usage) => void;
+}): Promise<{ value: T }> {
   check();
   const stream = provider.stream(structuredClone(request), signal);
   const iterator = stream[Symbol.asyncIterator]();
@@ -81,36 +83,42 @@ async function readGoalResponse<T>({
     'RESPONSE_INCOMPLETE',
     'Completion reviewer did not finish.',
   );
+  accountUsage(complete.usage);
   aiInvariant(
     complete.message.role === 'assistant' &&
       !complete.message.tool_calls?.length,
     'INVALID_RESPONSE',
     'Completion reviewer cannot execute tools.',
   );
+  const content = complete.message.content?.trim();
   aiInvariant(
-    !!complete.message.content?.trim(),
+    content,
     'RESPONSE_INCOMPLETE',
     'Completion reviewer returned an empty response.',
   );
+  // Accept only a single whole-response fence, never JSON embedded in prose.
+  const fenced = /^```(?:json)?\s*\n([\s\S]*?)\n```$/i.exec(content);
   let json: unknown;
   try {
-    json = JSON.parse(complete.message.content ?? '');
+    json = JSON.parse(fenced?.[1] ?? content);
   } catch {
     throw new AiError(
       'INVALID_RESPONSE',
       'Completion reviewer returned invalid JSON.',
+      { reason: 'reviewer_json' },
     );
   }
   const parsed = schema.safeParse(json);
-  aiInvariant(
-    parsed.success,
-    'INVALID_RESPONSE',
-    'Completion reviewer returned an invalid contract or verdict.',
-  );
-  return { value: parsed.data, usage: complete.usage };
+  if (!parsed.success)
+    throw new AiError(
+      'INVALID_RESPONSE',
+      'Completion reviewer returned an invalid contract or verdict.',
+      { reason: 'reviewer_json' },
+    );
+  return { value: parsed.data };
 }
 
-/** Reviewer output is private, so transient inference retries can reuse the same
+/** Reviewer output is private, so transient inference and JSON retries reuse the same
  * frozen request without replaying execution or exposing partial JSON. */
 export async function goalResponse<T>(
   options: Parameters<typeof readGoalResponse<T>>[0],
@@ -122,7 +130,13 @@ export async function goalResponse<T>(
       options.check();
       const waitMs =
         error instanceof AiError
-          ? inferenceRetryDelay(error, attempt)
+          ? inferenceRetryDelay(
+              error.code === 'INVALID_RESPONSE' &&
+                error.details.reason === 'reviewer_json'
+                ? new AiError('RESPONSE_INCOMPLETE', error.message)
+                : error,
+              attempt,
+            )
           : undefined;
       if (waitMs === undefined) throw error;
       let timer: ReturnType<typeof setTimeout> | undefined;
