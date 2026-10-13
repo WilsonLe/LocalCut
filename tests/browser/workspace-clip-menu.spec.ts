@@ -77,6 +77,36 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(menu).toBeVisible();
     await expect(first).toHaveAttribute('aria-pressed', 'true');
     expect((await snapshot(page, base, id)).revision).toBe(before.revision);
+    let releaseDialog!: () => void;
+    const dialogGate = new Promise<void>((resolve) => {
+      releaseDialog = resolve;
+    });
+    const dialogResponse = page.waitForResponse((response) =>
+      /\/assets\/WorkspaceDialogs-[^/]+\.js$/.test(response.url()),
+    );
+    await page.route('**/assets/WorkspaceDialogs-*.js', async (route) => {
+      await dialogGate;
+      await route.continue();
+    });
+    await menu
+      .getByRole('menuitem', { name: 'Properties', exact: true })
+      .click();
+    await expect(
+      page.getByText('Opening clip properties…', { exact: true }).or(
+        page.getByRole('status', {
+          name: 'Loading clip properties…',
+          exact: true,
+        }),
+      ),
+    ).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(form).not.toBeVisible();
+    await expect(target).toBeFocused();
+    releaseDialog();
+    await (await dialogResponse).finished();
+    await page.unroute('**/assets/WorkspaceDialogs-*.js');
+    await expect(form).not.toBeVisible();
+    await target.press('Shift+F10');
     await menu
       .getByRole('menuitem', { name: 'Properties', exact: true })
       .click();
@@ -85,6 +115,22 @@ for (const base of ['/', '/LocalCut/']) {
       form.getByRole('tab', { name: 'General', exact: true }),
     ).toHaveAttribute('aria-selected', 'true');
     await expect(form.getByLabel('Start (seconds)')).toHaveValue('3');
+    await form.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(form).not.toBeVisible();
+    await expect(target).toBeFocused();
+    await target.press('Shift+F10');
+    await menu
+      .getByRole('menuitem', { name: 'Properties', exact: true })
+      .focus();
+    await page.keyboard.press('Enter');
+    await expect(form).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(form).not.toBeVisible();
+    await expect(target).toBeFocused();
+    await target.press('Shift+F10');
+    await menu
+      .getByRole('menuitem', { name: 'Properties', exact: true })
+      .click();
     await expect(form.locator('summary')).toHaveCount(0);
     await form.getByLabel('Duration (seconds)').fill('3');
     const color = form.getByRole('tab', { name: 'Color', exact: true });
@@ -268,6 +314,7 @@ for (const base of ['/', '/LocalCut/']) {
       path: testInfo.outputPath('clip-properties-tabs-mobile.png'),
     });
     await form.getByRole('button', { name: 'Close', exact: true }).tap();
+    await expect(target).toBeFocused();
     await touch('touchStart');
     await touch('touchMove', point.x + 20);
     await page.waitForTimeout(600);

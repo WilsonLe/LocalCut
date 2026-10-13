@@ -45,6 +45,7 @@ export interface Progress {
 }
 interface Props {
   dialog: DialogName;
+  propertiesOpener?: HTMLElement | null;
   busy: boolean;
   readOnly?: boolean;
   project: Project | null;

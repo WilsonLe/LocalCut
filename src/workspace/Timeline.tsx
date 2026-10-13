@@ -85,7 +85,7 @@ interface Props {
   onRedo: () => void;
   onSplit: () => void;
   onDelete: () => void;
-  onProperties: (clipId?: string) => void;
+  onProperties: (clipId?: string, opener?: HTMLElement | null) => void;
   onText: () => void;
   onAddTrack: (kind: 'video' | 'audio') => void;
   onReorderTrack: (trackId: string, index: number) => void;

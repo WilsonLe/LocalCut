@@ -30,7 +30,7 @@ export function TimelineClipMenu({
   timeUs: number;
   disabled: boolean;
   busy: boolean;
-  onProperties: (clipId: string) => void;
+  onProperties: (clipId: string, opener: HTMLElement | null) => void;
   onSelect: () => void;
   onMenuOpen: () => void;
   onOperation: (
@@ -107,7 +107,11 @@ export function TimelineClipMenu({
             <ContextMenu.Item
               className={itemClass}
               disabled={busy || stale}
-              onClick={() => onProperties(clip.id)}
+              onClick={() => {
+                // The focused menu item is transient. Carry the persistent clip
+                // through the loading shell and resolved dialog explicitly.
+                onProperties(clip.id, trigger.current);
+              }}
             >
               <SlidersHorizontal className="size-4" aria-hidden="true" />
               Properties
