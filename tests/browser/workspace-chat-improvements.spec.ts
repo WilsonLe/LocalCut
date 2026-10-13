@@ -84,6 +84,7 @@ for (const base of ['/', '/LocalCut/']) {
       messages: { role: string; content: string | null }[];
     }[] = [];
     const pending: (() => void)[] = [];
+    let blankReply = true;
     const reply = (delta: Record<string, unknown>) =>
       `data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: 'stop' }], usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } })}\n\ndata: [DONE]\n\n`;
     await context.route(
@@ -117,15 +118,16 @@ for (const base of ['/', '/LocalCut/']) {
         const content = storyboard
           ? 'Continuing your five-day Sydney storyboard.'
           : 'All assets already indexed.';
+        const empty = prompt === 'all' && blankReply;
+        if (empty) blankReply = false;
         await route.fulfill({
           headers: cors,
           contentType: 'text/event-stream',
-          body:
-            prompt === 'all'
-              ? reply({
-                  reasoning: 'Hidden model reasoning without a user reply',
-                })
-              : reply({ content }),
+          body: empty
+            ? reply({
+                reasoning: 'Hidden model reasoning without a user reply',
+              })
+            : reply({ content }),
         });
       },
     );
@@ -230,27 +232,18 @@ for (const base of ['/', '/LocalCut/']) {
         },
       );
     }
-    await test.step('reasoning-only blank reply shows feedback and permits manual retry', async () => {
+    await test.step('reasoning-only blank reply recovers silently within one send', async () => {
       const count = requests.length;
+      const responseCount = await responses.count();
       await input.fill('all');
-      await send.click();
-      await expect(responses.last()).toContainText('Incomplete response');
-      await expect(page.getByRole('alert')).toContainText('empty reply');
-      await expect(send).toHaveCount(0);
-      await expect(
-        page.getByRole('button', { name: 'Cancel response', exact: true }),
-      ).toHaveCount(0);
-      expect(requests).toHaveLength(count + 1);
-      // Persistent error toasts can cover Send; dismiss them through real controls.
-      await dismissNotifications(page);
-      await input.fill('Try again with the retained storyboard context');
-      await expect(send).toBeEnabled();
       await send.click();
       await expect(responses.last()).toContainText(
         'Continuing your five-day Sydney storyboard.',
       );
+      await expect(responses).toHaveCount(responseCount + 1);
       await expect(page.getByRole('alert')).toHaveCount(0);
       expect(requests).toHaveLength(count + 2);
+      expect(requests[count + 1]).toEqual(requests[count]);
     });
   });
   test(`chat title runs asynchronously once with animated scoped replacement ${base}`, async ({

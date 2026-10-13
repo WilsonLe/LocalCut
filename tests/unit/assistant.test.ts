@@ -1254,11 +1254,13 @@ describe('headless assistant boundaries', () => {
     expect(a.snapshot()).toMatchObject({ state: 'idle', proposals: [] });
   });
   it.each(['', '   ', null])(
-    'rejects empty terminal replies (%s) without retrying or freezing the session',
+    'silently retries empty terminal replies (%s) in the same turn',
     async (content) => {
+      vi.useFakeTimers();
       const f = fixture();
       const p = provider([
         [
+          { type: 'text', text: '  ' },
           {
             type: 'complete',
             message: {
@@ -1266,6 +1268,7 @@ describe('headless assistant boundaries', () => {
               content,
               reasoning: 'Hidden thoughts',
             },
+            usage: { promptTokens: 2, completionTokens: 3, totalTokens: 5 },
           },
         ],
         [final('Recovered')],
@@ -1276,24 +1279,265 @@ describe('headless assistant boundaries', () => {
         projectId: f.project().id,
         model: 'test/model',
       });
-      const events: AssistantEvent[] = [];
-      a.subscribe((event) => events.push(event));
-      await expect(a.run('all').completion).rejects.toMatchObject({
+      try {
+        const events: AssistantEvent[] = [];
+        a.subscribe((event) => events.push(event));
+        const completion = a.run('all').completion;
+        await vi.runAllTimersAsync();
+        expect(await completion).toMatchObject({
+          text: 'Recovered',
+          usage: { promptTokens: 2, completionTokens: 3, totalTokens: 5 },
+        });
+        expect(p.requests).toHaveLength(2);
+        expect(p.requests[1]).toEqual(p.requests[0]);
+        expect(
+          events.filter((event) => ['error', 'cancelled'].includes(event.type)),
+        ).toEqual([]);
+        expect(
+          events.filter((event) => event.type === 'completed'),
+        ).toHaveLength(1);
+        expect(events.filter((event) => event.type === 'text')).toEqual([]);
+        expect(a.snapshot()).toMatchObject({ state: 'idle', historyTurns: 1 });
+      } finally {
+        await a.dispose();
+        vi.useRealTimers();
+      }
+    },
+  );
+  it.each([
+    'NETWORK_ERROR',
+    'TIMEOUT',
+    'RATE_LIMITED',
+    'PROVIDER_UNAVAILABLE',
+    'RESPONSE_INCOMPLETE',
+  ] as const)(
+    'silently recovers from %s with frozen request context',
+    async (code) => {
+      vi.useFakeTimers();
+      const f = fixture();
+      const requests: ChatRequest[] = [];
+      const a = createAssistant({
+        editor: f.editor,
+        projectId: f.project().id,
+        model: 'test/model',
+        provider: {
+          async *stream(request) {
+            requests.push(structuredClone(request));
+            if (requests.length === 1) throw new AiError(code, 'Transient');
+            yield final('Recovered');
+          },
+        },
+      });
+      try {
+        const completion = a.run('Inspect').completion;
+        await vi.runAllTimersAsync();
+        expect(await completion).toMatchObject({ text: 'Recovered' });
+        expect(requests).toHaveLength(2);
+        expect(requests[1]).toEqual(requests[0]);
+      } finally {
+        await a.dispose();
+        vi.useRealTimers();
+      }
+    },
+  );
+  it.each([
+    'AUTH_INVALID',
+    'INSUFFICIENT_CREDITS',
+    'INVALID_RESPONSE',
+    'PROVIDER_REFUSAL',
+    'CANCELLED',
+  ] as const)(
+    'does not retry permanent or cancelled %s failures',
+    async (code) => {
+      const f = fixture();
+      let requests = 0;
+      const a = createAssistant({
+        editor: f.editor,
+        projectId: f.project().id,
+        model: 'test/model',
+        provider: {
+          async *stream() {
+            requests++;
+            throw new AiError(code, 'Stop');
+            yield final('Unreachable');
+          },
+        },
+      });
+      try {
+        await expect(a.run('Inspect').completion).rejects.toMatchObject({
+          code,
+        });
+        expect(requests).toBe(1);
+      } finally {
+        await a.dispose();
+      }
+    },
+  );
+  it('bounds silent retries and honors Retry-After without intermediate errors', async () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    let requests = 0;
+    const events: AssistantEvent[] = [];
+    const a = createAssistant({
+      editor: f.editor,
+      projectId: f.project().id,
+      model: 'test/model',
+      provider: {
+        async *stream() {
+          requests++;
+          throw new AiError('RATE_LIMITED', 'Wait', { retryAfterSeconds: 2 });
+          yield final('Unreachable');
+        },
+      },
+    });
+    a.subscribe((event) => events.push(event));
+    try {
+      const completion = a.run('Inspect').completion;
+      const rejected = expect(completion).rejects.toMatchObject({
+        code: 'RATE_LIMITED',
+      });
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(requests).toBe(1);
+      expect(events.filter((e) => e.type === 'error')).toEqual([]);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(requests).toBe(2);
+      await vi.advanceTimersByTimeAsync(2000);
+      await rejected;
+      expect(requests).toBe(3);
+      expect(events.filter((e) => e.type === 'error')).toHaveLength(1);
+    } finally {
+      await a.dispose();
+      vi.useRealTimers();
+    }
+  });
+  it('cancels silent backoff immediately without another request', async () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    let requests = 0;
+    const a = createAssistant({
+      editor: f.editor,
+      projectId: f.project().id,
+      model: 'test/model',
+      provider: {
+        async *stream() {
+          requests++;
+          throw new AiError('NETWORK_ERROR', 'Disconnected');
+          yield final('Unreachable');
+        },
+      },
+    });
+    try {
+      const turn = a.run('Inspect');
+      const rejected = expect(turn.completion).rejects.toMatchObject({
+        code: 'CANCELLED',
+      });
+      await vi.advanceTimersByTimeAsync(100);
+      turn.cancel();
+      await rejected;
+      await vi.runAllTimersAsync();
+      expect(requests).toBe(1);
+    } finally {
+      await a.dispose();
+      vi.useRealTimers();
+    }
+  });
+  it('exhausts empty replies, retains intent and permits a fresh send', async () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    const p = provider([
+      [final('')],
+      [final('')],
+      [final('')],
+      [final('Recovered')],
+    ]);
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    try {
+      const turn = a.run('Inspect');
+      const rejected = expect(turn.completion).rejects.toMatchObject({
         code: 'RESPONSE_INCOMPLETE',
         details: { reason: 'empty_response' },
       });
-      expect(p.requests).toHaveLength(1);
-      expect(events.some((event) => event.type === 'completed')).toBe(false);
-      expect(a.snapshot()).toMatchObject({ state: 'idle', historyTurns: 1 });
-      expect(await a.run('Try all again').completion).toMatchObject({
+      await vi.runAllTimersAsync();
+      await rejected;
+      expect(p.requests).toHaveLength(3);
+      expect(a.snapshot()).toMatchObject({
+        state: 'idle',
+        historyTurns: 1,
+        proposals: [],
+      });
+      expect(await a.run('Continue').completion).toMatchObject({
         text: 'Recovered',
       });
       expect(JSON.stringify(p.requests.at(-1)!.messages)).toContain(
         'interrupted before completion',
       );
+    } finally {
       await a.dispose();
+      vi.useRealTimers();
+    }
+  });
+  it.each([
+    new AiError('RATE_LIMITED', 'Wait', { retryAfterSeconds: 31 }),
+    new AiError('RESPONSE_INCOMPLETE', 'Output limit', {
+      reason: 'output_limit',
+    }),
+  ])(
+    'does not automatically replay an excessive wait or output-limit truncation: %s',
+    async (error) => {
+      const f = fixture();
+      let requests = 0;
+      const a = createAssistant({
+        editor: f.editor,
+        projectId: f.project().id,
+        model: 'test/model',
+        provider: {
+          async *stream() {
+            requests++;
+            throw error;
+            yield final('Unreachable');
+          },
+        },
+      });
+      try {
+        await expect(a.run('Inspect').completion).rejects.toBe(error);
+        expect(requests).toBe(1);
+      } finally {
+        await a.dispose();
+      }
     },
   );
+  it('does not replay text already streamed before a transient failure', async () => {
+    const f = fixture();
+    let requests = 0;
+    const events: AssistantEvent[] = [];
+    const a = createAssistant({
+      editor: f.editor,
+      projectId: f.project().id,
+      model: 'test/model',
+      provider: {
+        async *stream() {
+          requests++;
+          yield { type: 'text' as const, text: 'Visible narration' };
+          throw new AiError('NETWORK_ERROR', 'Disconnected');
+        },
+      },
+    });
+    a.subscribe((event) => events.push(event));
+    try {
+      await expect(a.run('Inspect').completion).rejects.toMatchObject({
+        code: 'NETWORK_ERROR',
+      });
+      expect(requests).toBe(1);
+      expect(events.filter((e) => e.type === 'text')).toHaveLength(1);
+    } finally {
+      await a.dispose();
+    }
+  });
   it.each(
     [false, true].flatMap((withText) =>
       [
@@ -5094,9 +5338,14 @@ describe('requested chat execution', () => {
       const turn = a.run('Move');
       await waiting.promise;
       if (failure === 'cancelled') turn.cancel();
-      await expect(turn.completion).rejects.toMatchObject({
-        code: failure === 'cancelled' ? 'CANCELLED' : 'RESPONSE_INCOMPLETE',
-      });
+      if (failure === 'cancelled')
+        await expect(turn.completion).rejects.toMatchObject({
+          code: 'CANCELLED',
+        });
+      else
+        expect(await turn.completion).toMatchObject({
+          text: 'The move is already saved; continuing narration.',
+        });
       expect(f.project().revision).toBe(1);
       expect(a.snapshot().proposals[0]!.result).toMatchObject({
         kind: 'edit',
@@ -5105,7 +5354,8 @@ describe('requested chat execution', () => {
       await a.run('Continue').completion;
       const context = JSON.stringify(requests.at(-1)!.messages);
       expect(context).toContain('appliedRevision');
-      expect(context).toContain('interrupted before completion');
+      if (failure === 'cancelled')
+        expect(context).toContain('interrupted before completion');
       expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
       await a.dispose();
     },

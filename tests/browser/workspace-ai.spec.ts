@@ -7,7 +7,6 @@ import {
   selectAISettingsTab,
 } from './workspace-settings-helper';
 import { fulfillChatTitle } from './chat-title-fixture';
-import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test } from '@playwright/test';
 import type { BrowserContext, Page, Route } from '@playwright/test';
 import type { Project } from '../../src/core/model';
@@ -295,7 +294,7 @@ test('text clarification waits for a typed reply before executing the requested 
   ).toBe(true);
 });
 
-test('rate-limit errors remain visible and retry requires a fresh send', async ({
+test('rate-limit errors recover silently within the submitted chat turn', async ({
   page,
   context,
 }) => {
@@ -327,22 +326,13 @@ test('rate-limit errors remain visible and retry requires a fresh send', async (
   await connect(page);
   await send(page, 'Add an overlay track.');
   await expect(
-    page.getByRole('alert').filter({ hasText: /rate limiting requests/ }),
-  ).toBeVisible();
-  expect(requests).toBe(1);
-  expect((await snapshot(page, name)).revision).toBe(0);
-  await expect(
-    page.getByRole('button', { name: 'Apply proposal', exact: true }),
-  ).toHaveCount(0);
-  await dismissNotifications(page);
-  await send(page, 'Retry the overlay track request.');
-  await expect(
     page.getByText('Applied at revision 1', { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByText('The new overlay track was added.', { exact: true }),
   ).toBeVisible();
   expect(requests).toBe(4);
+  await expect(page.getByRole('alert')).toHaveCount(0);
   expect((await snapshot(page, name)).revision).toBe(1);
 });
 
