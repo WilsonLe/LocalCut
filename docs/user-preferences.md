@@ -588,3 +588,8 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Let the agent choose parallel calls for independent work and sequential rounds for dependencies across all tool workflows. Keep host safety/resource scheduling and authoritative receipts; indexing all project assets is one example.
 - Always place agent response text below the turn's tool activity and action results, including indexing.
+
+## ElevenLabs speech configuration — 13 October 2026
+
+- Focus provider-specific text-to-speech configuration on ElevenLabs through OpenRouter first. Use main voice controls, collapsible advanced settings and reusable saved voice presets.
+- Preserve the existing explicit Generate action and local preset storage. Save the selected voice/model/settings and optional seed together; seed alone is not a reusable speaker identity.

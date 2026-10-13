@@ -17,6 +17,81 @@ const preset = {
 const record = (presets: unknown) => JSON.stringify({ version: 1, presets });
 afterEach(() => vi.unstubAllGlobals());
 describe('voice preset persistence', () => {
+  it('round-trips ElevenLabs options with explicit zero/false and rejects unsupported or arbitrary settings', () => {
+    const saved = {
+      ...preset,
+      model: 'elevenlabs/eleven-flash-v2.5',
+      voice: 'george',
+      instructions: '',
+      languages: [],
+      elevenlabs: {
+        seed: 0,
+        stability: 0.5,
+        similarity_boost: 0.75,
+        speed: 0.95,
+        style: 0,
+        use_speaker_boost: false,
+        language_code: 'ja',
+        apply_text_normalization: 'off',
+        apply_language_text_normalization: true,
+        pronunciation_dictionary_locators: [
+          { pronunciation_dictionary_id: 'dictionary' },
+        ],
+        previous_text: 'Before.',
+        next_text: 'After.',
+      },
+    };
+    expect(parseVoicePresets(record([saved, preset]))).toEqual([saved]); // duplicate identity
+    expect(
+      parseVoicePresets(record([saved, { ...preset, id: 'legacy' }])),
+    ).toEqual([saved, { ...preset, id: 'legacy' }]);
+    for (const invalid of [
+      { ...saved, model: preset.model },
+      { ...saved, model: 'elevenlabs/eleven-multilingual-v2' },
+      { ...saved, model: 'elevenlabs/eleven-v4' },
+      { ...saved, elevenlabs: { seed: 1.5 } },
+      { ...saved, elevenlabs: { speed: 0.6 } },
+      { ...saved, elevenlabs: { apiKey: 'secret' } },
+    ])
+      expect(parseVoicePresets(record([invalid]))).toEqual([]);
+    const reference = {
+      ...saved,
+      model: 'fish-audio/s2.1-pro',
+      voice: 'reference',
+      referenceId: 'original-take',
+      elevenlabs: undefined,
+    };
+    expect(parseVoicePresets(record([reference]))).toEqual([
+      { ...reference, elevenlabs: undefined },
+    ]);
+    let raw = record([saved]);
+    vi.stubGlobal('localStorage', {
+      getItem: () => raw,
+      setItem: (_key: string, value: string) => {
+        raw = value;
+      },
+    });
+    changeVoicePresets((items) =>
+      items.map((item) => ({
+        ...item,
+        archived: true,
+        name: 'Reused narrator',
+      })),
+    );
+    expect(parseVoicePresets(raw)).toEqual([
+      { ...saved, archived: true, name: 'Reused narrator' },
+    ]);
+    changeVoicePresets((items) =>
+      items.map((item) => ({
+        ...item,
+        model: preset.model,
+        voice: 'Kore',
+        languages: ['English'],
+        elevenlabs: undefined,
+      })),
+    );
+    expect(parseVoicePresets(raw)[0]).not.toHaveProperty('elevenlabs');
+  });
   it('rejects invalid data and duplicates, and strips non-preset fields', () => {
     for (const raw of [
       null,
