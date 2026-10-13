@@ -33,6 +33,46 @@ describe('local chat records', () => {
       restoreChatSession(forkChatSession(chat))?.content.messages[0]?.usage,
     ).toEqual(usage);
   });
+  it('retains plain reviewer strings and legacy observations through restore and fork', () => {
+    const chat = newChatSession('project:model:private');
+    const observations = [
+      '  ## Goal\nMove the clip and answer.\n',
+      'FULFILLED\nConfirmed by the applied receipt.\n',
+      {
+        goal: 'Previous goal',
+        successConditions: ['Previous outcome'],
+        stopConditions: [],
+      },
+      {
+        conditions: [
+          { conditionIndex: 0, status: 'met', evidence: 'Previous receipt' },
+        ],
+        stopReason: null,
+      },
+    ];
+    chat.content.messages.push({
+      id: 'review',
+      role: 'assistant',
+      text: 'Done',
+      status: 'complete',
+      tools: observations.map((result, index) => ({
+        callId: `review-${index}`,
+        name: index % 2 === 0 ? 'request_contract' : 'completion_check',
+        phase: 'completed',
+        result,
+      })),
+    });
+    const original = structuredClone(chat);
+    for (const candidate of [chat, forkChatSession(chat)]) {
+      expect(
+        restoreChatSession(candidate)?.content.messages[0]?.tools?.map(
+          (tool) => tool.result,
+        ),
+      ).toEqual(observations);
+    }
+    expect(chat).toEqual(original);
+  });
+
   it('retains history and attachments beyond the former workspace caps', () => {
     const chat = newChatSession('project:model:private');
     chat.content.historyTurnIds = Array.from(

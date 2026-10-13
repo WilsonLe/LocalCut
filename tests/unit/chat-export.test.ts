@@ -93,6 +93,33 @@ describe('chat export', () => {
     expect(markdown).not.toContain('Later');
   });
 
+  it('exports plain review text verbatim with legacy structured observations', async () => {
+    const original = source();
+    const observations = [
+      '  ## Goal\nMove the clip.\n',
+      'FULFILLED\nConfirmed by the receipt.\n',
+      {
+        conditions: [
+          { conditionIndex: 0, status: 'met', evidence: 'Historical receipt' },
+        ],
+        stopReason: null,
+      },
+    ];
+    original.messages[1]!.tools = observations.map((result, index) => ({
+      callId: `review-${index}`,
+      name: index === 0 ? 'request_contract' : 'completion_check',
+      phase: 'completed',
+      result,
+    }));
+    const file = chatExportFile(captureChatExport(original, metadata));
+    const files = unzipSync(new Uint8Array(await file.arrayBuffer()));
+    const json = JSON.parse(strFromU8(files['chat.json']!));
+    expect(
+      json.messages[1].tools.map((tool: { result: unknown }) => tool.result),
+    ).toEqual(observations);
+    expect(strFromU8(files['chat.md']!)).toContain('Confirmed by the receipt.');
+  });
+
   it('excludes session internals and proposal artifacts while keeping status/omission details', () => {
     const original = source();
     Object.assign(original.messages[1]!, {

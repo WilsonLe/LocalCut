@@ -54,13 +54,33 @@ import { AccordionDisclosure } from '../components/ui/accordion';
 import { downloadFile, MEDIA_DRAG_EVENT } from './helpers';
 import type { MediaDragDetail } from './helpers';
 import { errorCode, errorText } from './conversation-errors';
-import { goalContractSchema, goalVerdictSchema } from '../ai/goal-review';
+import { fulfilledGoal } from '../ai/goal-review';
+import { z } from 'zod';
+
 import DictationButton from './DictationButton';
 import type { Asset } from '../editor';
 import type { AssistantBranch } from '../ai';
 import type { ChatContent, SavedChatMessage } from '../storage/chats';
 import { restoredChatTurns } from './chat-transcript';
 const ChatMarkdown = lazy(() => import('./ChatMarkdown'));
+
+// Display-only compatibility for saved structured review observations. New
+// reviewer responses are plain strings; historical records remain immutable.
+const legacyGoalContractSchema = z.object({
+  goal: z.string(),
+  successConditions: z.array(z.string()),
+  stopConditions: z.array(z.string()),
+});
+const legacyGoalVerdictSchema = z.object({
+  conditions: z.array(
+    z.object({
+      conditionIndex: z.number().int().nonnegative(),
+      status: z.enum(['met', 'unmet', 'unknown']),
+      evidence: z.string(),
+    }),
+  ),
+  stopReason: z.string().nullable(),
+});
 
 export type Message = ChatExportMessage &
   Pick<SavedChatMessage, 'continuation' | 'exchange'>;
@@ -76,16 +96,21 @@ function CompletionDetails({
 }) {
   const reviews = tools.filter(isGoalReview);
   if (!reviews.length) return null;
-  const contract = goalContractSchema.safeParse(
+  const contract = legacyGoalContractSchema.safeParse(
     reviews.find((tool) => tool.name === 'request_contract')?.result,
   );
   const checks = reviews.filter((tool) => tool.name === 'completion_check');
   const last = checks.at(-1) ?? reviews.at(-1)!;
-  const parsed = goalVerdictSchema.safeParse(last.result);
+  const parsed = legacyGoalVerdictSchema.safeParse(last.result);
   const verified =
-    parsed.success &&
-    parsed.data.conditions.length > 0 &&
-    parsed.data.conditions.every((condition) => condition.status === 'met');
+    last.input?.contextChanged !== true &&
+    (typeof last.result === 'string'
+      ? fulfilledGoal(last.result)
+      : parsed.success &&
+        parsed.data.conditions.length > 0 &&
+        parsed.data.conditions.every(
+          (condition) => condition.status === 'met',
+        ));
   const label =
     last.phase === 'started'
       ? streaming
@@ -117,7 +142,17 @@ function CompletionDetails({
                   : `Completion check ${String(tool.input?.check ?? '')}`}{' '}
                 · {tool.phase}
               </p>
-              {tool.name === 'request_contract' && contract.success ? (
+              {tool.input?.contextChanged === true && (
+                <p>
+                  Project or permitted source context changed during review. A
+                  fresh check is required.
+                </p>
+              )}
+              {tool.phase === 'completed' && typeof tool.result === 'string' ? (
+                <p className="whitespace-pre-wrap rounded-xl bg-muted p-3">
+                  {tool.result}
+                </p>
+              ) : tool.name === 'request_contract' && contract.success ? (
                 <div className="space-y-2 rounded-xl bg-muted p-3">
                   <p>{contract.data.goal}</p>
                   <p className="font-medium">Success conditions</p>
@@ -140,7 +175,7 @@ function CompletionDetails({
                   )}
                 </div>
               ) : tool.name === 'completion_check' &&
-                goalVerdictSchema.safeParse(tool.result).success ? (
+                legacyGoalVerdictSchema.safeParse(tool.result).success ? (
                 <CompletionVerdict
                   result={tool.result}
                   conditions={
@@ -168,7 +203,7 @@ function CompletionVerdict({
   result: unknown;
   conditions: string[];
 }) {
-  const verdict = goalVerdictSchema.safeParse(result);
+  const verdict = legacyGoalVerdictSchema.safeParse(result);
   if (!verdict.success) return null;
   return (
     <div className="space-y-2 rounded-xl bg-muted p-3">

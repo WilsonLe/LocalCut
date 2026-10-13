@@ -46,11 +46,7 @@ for (const base of ['/', '/LocalCut/']) {
                 type: 'complete' as const,
                 message: {
                   role: 'assistant' as const,
-                  content: JSON.stringify({
-                    goal: 'Scripted skill request',
-                    successConditions: ['Fulfill scripted request'],
-                    stopConditions: [],
-                  }),
+                  content: 'Fulfill scripted skill request.',
                 },
               };
               return;
@@ -60,16 +56,7 @@ for (const base of ['/', '/LocalCut/']) {
                 type: 'complete' as const,
                 message: {
                   role: 'assistant' as const,
-                  content: JSON.stringify({
-                    conditions: [
-                      {
-                        conditionIndex: 0,
-                        status: 'met',
-                        evidence: 'Scripted scenario receipts',
-                      },
-                    ],
-                    stopReason: null,
-                  }),
+                  content: 'FULFILLED\nScripted scenario receipts',
                 },
               };
               return;
@@ -295,11 +282,7 @@ for (const base of ['/', '/LocalCut/']) {
                 type: 'complete' as const,
                 message: {
                   role: 'assistant' as const,
-                  content: JSON.stringify({
-                    goal: 'Scripted skill request',
-                    successConditions: ['Fulfill scripted request'],
-                    stopConditions: [],
-                  }),
+                  content: 'Fulfill scripted skill request.',
                 },
               };
               return;
@@ -309,16 +292,7 @@ for (const base of ['/', '/LocalCut/']) {
                 type: 'complete' as const,
                 message: {
                   role: 'assistant' as const,
-                  content: JSON.stringify({
-                    conditions: [
-                      {
-                        conditionIndex: 0,
-                        status: 'met',
-                        evidence: 'Scripted scenario receipts',
-                      },
-                    ],
-                    stopReason: null,
-                  }),
+                  content: 'FULFILLED\nScripted scenario receipts',
                 },
               };
               return;
