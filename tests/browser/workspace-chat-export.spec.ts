@@ -380,10 +380,25 @@ for (const base of ['/', '/LocalCut/']) {
       'user',
       'assistant',
     ]);
-    expect(complete.snapshot.messages[1]!.tools![0]).toMatchObject({
+    const exportedActivity = complete.snapshot.messages[1]!.tools!;
+    expect(
+      exportedActivity.find((activity) => activity.name === 'inspect_project'),
+    ).toMatchObject({
       name: 'inspect_project',
       phase: 'completed',
     });
+    expect(exportedActivity).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'request_contract',
+          phase: 'completed',
+        }),
+        expect.objectContaining({
+          name: 'completion_check',
+          phase: 'completed',
+        }),
+      ]),
+    );
     expect(complete.markdown).toContain('Ready **to edit**. Tiếng Việt.');
     expect(complete.snapshot.draft.text).toBe('Second unsent draft');
     expect(JSON.stringify(complete.snapshot)).not.toContain(
