@@ -93,6 +93,14 @@ export function readIndex(
       const evidence = s.artifacts.filter((artifact) => sent.has(artifact.id));
       const video = evidence.some((artifact) => artifact.kind === 'video');
       const audio = evidence.some((artifact) => artifact.kind === 'audio');
+      const transmittedAudio = audio || (video && run.source.hasAudio);
+      const soundAssessment = !transmittedAudio
+        ? 'unassessed'
+        : request?.audioInputSupported === true
+          ? 'supported'
+          : request?.audioInputSupported === false
+            ? 'unsupported'
+            : 'unknown';
       return {
         sceneId: s.id,
         startUs: s.startUs,
@@ -106,9 +114,10 @@ export function readIndex(
           recorded: !!request,
           still: evidence.some((artifact) => artifact.kind === 'image'),
           video,
-          audio: audio || (video && run.source.hasAudio),
+          audio: transmittedAudio,
           motionAssessed: video,
-          soundAssessed: audio || (video && run.source.hasAudio),
+          soundAssessed: soundAssessment === 'supported',
+          soundAssessment,
         },
       };
     }),

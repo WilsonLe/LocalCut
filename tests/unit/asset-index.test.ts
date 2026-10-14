@@ -264,6 +264,7 @@ describe('saved index context', () => {
       recorded: false,
       motionAssessed: false,
       soundAssessed: false,
+      soundAssessment: 'unassessed',
     });
     asset.requests.push({
       id: 'still-request',
@@ -291,13 +292,26 @@ describe('saved index context', () => {
       audio: false,
       motionAssessed: false,
       soundAssessed: false,
+      soundAssessment: 'unassessed',
     });
     asset.requests.at(-1)!.label = label;
     expect(readIndex(asset).scenes[0]?.evidence).toMatchObject({
       video: true,
       audio: true,
       motionAssessed: true,
+      soundAssessed: false,
+      soundAssessment: 'unknown',
+    });
+    asset.requests.at(-1)!.audioInputSupported = false;
+    expect(readIndex(asset).scenes[0]?.evidence).toMatchObject({
+      audio: true,
+      soundAssessed: false,
+      soundAssessment: 'unsupported',
+    });
+    asset.requests.at(-1)!.audioInputSupported = true;
+    expect(readIndex(asset).scenes[0]?.evidence).toMatchObject({
       soundAssessed: true,
+      soundAssessment: 'supported',
     });
     asset.source.hasAudio = false;
     expect(readIndex(asset).scenes[0]?.evidence.soundAssessed).toBe(false);
@@ -312,5 +326,14 @@ describe('saved index context', () => {
     expect(JSON.stringify(readIndex(asset))).not.toMatch(
       /private|image-model|video-model/,
     );
+    asset.source.kind = 'audio';
+    scene.artifacts = [
+      { id: 'wave', kind: 'audio', type: 'audio/wav', size: 1 },
+    ];
+    asset.requests.at(-1)!.artifactIds = ['wave'];
+    expect(readIndex(asset).scenes[0]?.evidence).toMatchObject({
+      motionAssessed: false,
+      soundAssessed: true,
+    });
   });
 });
