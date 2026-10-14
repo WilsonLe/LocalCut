@@ -137,6 +137,28 @@ export interface UsageMessage {
   usage?: Usage;
   usageCalls?: UsageCall[];
 }
+/** Preserve known legacy totals before any new per-call accounting is attached. */
+export function messageUsageCalls(message: UsageMessage): UsageCall[] {
+  return (
+    message.usageCalls ??
+    (message.usage
+      ? [{ id: message.id, source: 'legacy', model: '', usage: message.usage }]
+      : [])
+  );
+}
+
+/** Call with the latest state message when Resume replaces its display response. */
+export function carryRequestUsage<T extends UsageMessage>(
+  previous: UsageMessage,
+  response: T,
+): T & Pick<UsageMessage, 'requestId' | 'usageCalls'> {
+  return {
+    ...response,
+    requestId: previous.requestId ?? previous.id,
+    usageCalls: messageUsageCalls(previous),
+  };
+}
+
 /** Recovery attempts share a request; background results remain on their initiating message. */
 export function requestUsage(messages: readonly UsageMessage[]) {
   const groups = new Map<
@@ -151,19 +173,7 @@ export function requestUsage(messages: readonly UsageMessage[]) {
     }
     const id = message.requestId ?? message.id;
     const group = groups.get(id) ?? { id, prompt, calls: [] };
-    group.calls.push(
-      ...(message.usageCalls ??
-        (message.usage
-          ? [
-              {
-                id: message.id,
-                source: 'legacy' as const,
-                model: '',
-                usage: message.usage,
-              },
-            ]
-          : [])),
-    );
+    group.calls.push(...messageUsageCalls(message));
     groups.set(id, group);
   }
   return [...groups.values()];

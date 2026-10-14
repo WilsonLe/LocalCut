@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import {
+  carryRequestUsage,
   priceUsageCall,
   requestUsage,
   summarizeUsage,
@@ -150,4 +151,36 @@ it('keeps legacy aggregate totals separate from actual main context snapshots', 
   ]);
   expect(groups[0]!.calls[0]!.source).toBe('legacy');
   expect(summarizeUsage(groups[0]!.calls).cost).toBe(0.007);
+});
+
+it('Resume carries the latest accounting after delayed callbacks and preserves legacy totals', () => {
+  const captured = {
+    id: 'paused',
+    role: 'assistant' as const,
+    text: '',
+    usageCalls: [call],
+  };
+  // A callback completes while Resume awaits setup. The updater receives this newer state.
+  const current = {
+    ...captured,
+    usageCalls: [
+      ...captured.usageCalls,
+      { ...call, id: 'late-title', source: 'title' as const },
+    ],
+  };
+  const response = { id: 'resumed', role: 'assistant' as const, text: '' };
+  const resumed = carryRequestUsage(current, response);
+  expect(resumed.requestId).toBe('paused');
+  expect(summarizeUsage(resumed.usageCalls!)).toMatchObject({
+    cost: 0.014,
+    tokens: 2400,
+  });
+  const legacy = carryRequestUsage(
+    { id: 'old', role: 'assistant', text: '', usage: call.usage },
+    response,
+  );
+  expect(legacy.usageCalls![0]!.source).toBe('legacy');
+  expect(
+    summarizeUsage([...legacy.usageCalls!, { ...call, id: 'next' }]).cost,
+  ).toBe(0.014);
 });

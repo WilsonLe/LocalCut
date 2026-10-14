@@ -1,5 +1,9 @@
 import UsagePopover from './UsagePopover';
-import { priceUsageCall } from '../ai/usage';
+import {
+  carryRequestUsage,
+  messageUsageCalls,
+  priceUsageCall,
+} from '../ai/usage';
 import type { UsageCall } from '../ai/usage';
 import type { OpenRouterModel } from '../ai';
 import { safeChatFailure } from '../core/error-diagnostics';
@@ -311,7 +315,7 @@ export default function ConversationSession({
           ? {
               ...message,
               usageCalls: [
-                ...(message.usageCalls ?? []).filter(
+                ...messageUsageCalls(message).filter(
                   (item) => item.id !== priced.id,
                 ),
                 priced,
@@ -690,7 +694,6 @@ ${resuming.prompt}`
       const response: Message = {
         id: activeTurn.id,
         requestId: owner,
-        usageCalls: !retrying ? previous?.usageCalls : undefined,
         role: 'assistant',
         text: '',
         status: 'streaming',
@@ -699,7 +702,9 @@ ${resuming.prompt}`
       setMessages((current) =>
         resuming && !retrying
           ? current.map((message) =>
-              message.id === resuming.turnId ? response : message,
+              message.id === resuming.turnId
+                ? carryRequestUsage(message, response)
+                : message,
             )
           : [
               ...current,
