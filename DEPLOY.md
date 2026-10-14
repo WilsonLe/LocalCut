@@ -84,6 +84,6 @@ Prefer a reviewed forward fix that retains these readers. Before recovery work, 
 
 New authored text may contain bundled `font-` IDs and animation fields. A rollback must retain a parser and font catalog that support those saved styles; prior system-only releases cannot parse them. Prefer a compatible forward fix and preserve current backups rather than stripping authored styles to force a downgrade.
 
-## Update discovery
+## Build identity
 
-Static builds publish `build-info.json` with the built commit and its ancestor SHAs, and embed the running commit in the app. The Pages checkout fetches complete history so the header can distinguish later deployments from older or unrelated commits. No author, message or credential data is included. Verified build reuse includes this revision metadata; advancing Git HEAD invalidates the cached build even when production source files are unchanged. Source archives without Git publish unavailable identity and cannot check for updates.
+Static builds publish `build-info.json` with the built commit and its ancestor SHAs, and embed the running commit for error diagnostics and deployment inspection. No author, message or credential data is included. Verified build reuse includes this revision metadata; advancing Git HEAD invalidates the cached build even when production source files are unchanged. Source archives without Git publish unavailable identity. The application does not fetch this metadata to check for updates; use the browser's installed-app controls or refresh.

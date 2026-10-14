@@ -48,7 +48,6 @@ const ErrorDetailsDialog = onDemandDialog(
   ({ onClose }) => ({ title: 'Error details', onClose }),
 );
 import { NotificationControl } from './NotificationControl';
-import { UpdateControl } from './UpdateControl';
 // Capture callback secrets before loading the conversation or any asynchronous work.
 import './oauth-callback';
 const Conversation = lazy(() =>
@@ -1865,7 +1864,6 @@ export function Workspace() {
         </Suspense>
       )}
       <NotificationControl />
-      <UpdateControl busy={busy} />
       {!busy && (
         <Button
           id="workspace-command-trigger"
