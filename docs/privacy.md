@@ -50,3 +50,7 @@ Voice presets store settings and provenance locally, separately from generated o
 ## Browser coding execution
 
 The project coding directory contains authored sources and generated files. Guest JavaScript runs in QuickJS inside a terminable worker, with only virtual project-file bindings; browser globals, provider credentials, other projects, internal journals and immutable Media originals are absent. The browser shell uses the same virtual filesystem with networking disabled. Runtime JavaScript/WASM is embedded in pinned local deployment chunks, loaded only for coding work; no runtime CDN, account or backend is required. Generated binary bytes stay local until the user requests the existing media/indexing/transcription paths. Authored UTF-8 sources, paths, search results and console output may enter the selected chat model under the coding context grant. Shell stdout and script logs are user-program output; avoid writing secrets into this workspace.
+
+## Audio and video reference analysis
+
+Attaching/importing a reference does not upload it or start inference. On an explicit analysis request, the existing connection-authorized indexer may send generated stills, audio excerpts and short video excerpts with sound to the selected OpenRouter model. Originals remain in local Media storage. Ordinary chat receives saved text, timestamps and sampling provenance, never original media bytes. Draft references and Retry use stable local asset IDs; a missing original requires restoring/replacing the reference.

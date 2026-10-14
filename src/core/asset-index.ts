@@ -71,6 +71,8 @@ export interface IndexRequestManifest {
   createdAt: number;
   purpose?: 'summary-part';
   captureIncluded?: boolean;
+  /** Trusted catalog capability at submission; absent in legacy manifests. */
+  audioInputSupported?: boolean;
   label?: IndexLabel;
   response?: string;
   actualModel?: string;

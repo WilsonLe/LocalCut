@@ -286,9 +286,13 @@ test('text clarification waits for a typed reply before executing the requested 
   await createProject(page, name);
   await connect(page);
   await send(page, 'Improve the opening');
+  const response = page
+    .getByRole('article', { name: 'Assistant response' })
+    .last();
   await expect(
-    page.getByText('Should I add an overlay track?', { exact: true }),
+    response.getByRole('button', { name: 'Copy response', exact: true }),
   ).toBeVisible();
+  await expect(response).toContainText('Should I add an overlay track?');
   expect((await snapshot(page, name)).revision).toBe(0);
   await expect(
     page.getByRole('button', { name: 'Apply proposal', exact: true }),

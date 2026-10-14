@@ -348,7 +348,7 @@ Run `pnpm test tests/unit/goal-review.test.ts tests/unit/assistant.test.ts tests
 
 ## Chat usage popover checks
 
-Run `pnpm test tests/unit/usage.test.ts tests/unit/assistant.test.ts tests/unit/chat-title.test.ts tests/unit/chat-persistence.test.ts tests/unit/chat-export.test.ts tests/unit/openrouter.test.ts tests/unit/asset-indexer-capture.test.ts`, then `pnpm test:ui --grep 'chat usage popover'`. The production stable Chrome journey checks per-request/agent charges, delayed naming ownership across follow-ups, saved context/rates, keyboard dismissal/focus return, reload without inference and phone bounds. Unit cases cover cache read/write separation, zero/absent prices, partial totals, recovery grouping, immutable accounting events and persistence/export. Controlled provider replies prove accounting and transport, not live billed receipt. Native codecs/transcription/performance algorithms are unchanged.
+Run `pnpm test tests/unit/usage.test.ts tests/unit/assistant.test.ts tests/unit/chat-title.test.ts tests/unit/chat-persistence.test.ts tests/unit/chat-export.test.ts tests/unit/openrouter.test.ts tests/unit/asset-indexer-capture.test.ts`, then `pnpm test:ui --grep 'chat usage popover'`. The production stable Chrome journey checks per-request/agent charges, delayed naming ownership across follow-ups, saved context/rates, separate message-detail popovers without accordions, request switching, nested keyboard dismissal/focus return, long-message scrolling, reload without inference and desktop/phone bounds. Unit cases cover cache read/write separation, zero/absent prices, partial totals, recovery grouping, immutable accounting events and persistence/export. Controlled provider replies prove accounting and transport, not live billed receipt. Native codecs/transcription/performance algorithms are unchanged.
 
 ## Agent narration and transcript diagnosis checks
 
@@ -375,6 +375,10 @@ Run `pnpm test tests/unit/chat-context.test.ts tests/unit/assistant.test.ts test
 ## Composer voice recording checks
 
 Run `pnpm test tests/unit/microphone-recording.test.ts tests/unit/voice-presets.test.ts tests/unit/speech.test.ts`, then `pnpm test:ui --grep 'dictation'` and `pnpm test:browser tests/browser/agent-speech.spec.ts --grep 'agent saved voices'`. The composer journey uses controlled recognition text with real Chrome MediaRecorder capture, decode, import, local transcript/reference persistence and discovery after reload. The agent voice journey verifies a selected dictation reference reaches the existing synthesis action with the original WAV/transcript; providers remain controlled, so paid cloning quality is unverified. Recognition never supplies measured word timings. Local Whisper preparation/inference and performance owners are unchanged.
+
+## Audio and video reference checks
+
+Run `pnpm test tests/unit/asset-index.test.ts tests/unit/asset-index-provider.test.ts tests/unit/asset-indexer-capture.test.ts tests/unit/assistant.test.ts tests/unit/conversation-errors.test.ts`, then `pnpm test:ui --grep "(audio|video) reference attachments|chat readiness and persisted sessions"`. The native Chrome reference journey covers file selection/drop, draft reload, Media scope, actual generated still/clip evidence, timestamp/provenance readback, cached reuse and unchanged timeline. Provenance units cover audible video with unsupported/supported audio capability and legacy unknown records; native audio readback retains the new trusted capability metadata. After both builds, run `pnpm test:browser tests/browser/asset-index.spec.ts tests/browser/ai-skills.spec.ts` for native scene/audio retention and supported/unloaded/blocked discovery. Controlled responses establish transport and lifecycle evidence; paid video comprehension and semantic quality remain separate. Native transcription and rendering/performance algorithms are unchanged.
 
 ## Prompt cache reuse checks
 

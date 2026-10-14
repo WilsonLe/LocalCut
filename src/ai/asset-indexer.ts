@@ -61,6 +61,8 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
           const framesOnly =
             asset.kind === 'video' &&
             !model?.inputModalities?.includes('video');
+          const audioInputSupported =
+            model?.inputModalities?.includes('audio') === true;
           const local = options.editor.assets.analyze(assetId, runId);
           const abort = () => local.cancel(),
             unsubscribe = local.subscribe(progress);
@@ -134,6 +136,7 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
                           .filter((a) => !framesOnly || a.kind === 'image')
                           .map((a) => a.id) ?? [],
                       createdAt: Date.now(),
+                      audioInputSupported,
                       ...(capture ? { captureIncluded: true } : {}),
                       ...(intermediate
                         ? { purpose: 'summary-part' as const }
@@ -185,6 +188,16 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
                     } else normalized = parseIndexLabel(result.text);
                     if (framesOnly)
                       normalized.sound = 'Not assessed from still frames';
+                    else if (
+                      run.source.kind === 'video' &&
+                      !run.source.hasAudio
+                    )
+                      normalized.sound = 'No audio track in source';
+                    else if (
+                      run.source.kind === 'video' &&
+                      !audioInputSupported
+                    )
+                      normalized.sound = 'Not assessed by selected model';
                   } catch (e) {
                     await options.editor.assets.indexes.recordResponse(
                       run.id,
@@ -222,7 +235,7 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
                     progress: i / (run.analysis.scenes.length + 1),
                   });
                   await label(
-                    `Label the supplied ${run.source.kind === 'audio' ? 'audio excerpt' : 'representative still'}${run.source.kind === 'video' && !framesOnly ? ' and action excerpt including sound' : ''}. ${framesOnly ? 'Video frame indexing: only a still is supplied; do not infer motion or sound. Set sound to "Not assessed from still frames". ' : ''}These are selected samples, not complete scene coverage. Return only {"sceneId":"${scene.id}","label":${shape}}. Do not guess unseen content or identify people by name. Local measurements: ${JSON.stringify({ startUs: scene.startUs, endUs: scene.endUs, excerptStartUs: scene.excerptStartUs, excerptEndUs: scene.excerptEndUs, sharpness: scene.representative?.sharpness, clipped: scene.representative?.clipped, colors: scene.representative?.colors, audio: scene.audio })}`,
+                    `Label the supplied ${run.source.kind === 'audio' ? 'audio excerpt' : 'representative still'}${run.source.kind === 'video' && !framesOnly ? ` and action excerpt${run.source.hasAudio && audioInputSupported ? ' including sound' : ' (sound unassessed)'}` : ''}. ${framesOnly ? 'Video frame indexing: only a still is supplied; do not infer motion or sound. Set sound to "Not assessed from still frames". ' : ''}${run.source.kind === 'video' && run.source.hasAudio && !framesOnly && !audioInputSupported ? 'The selected model does not advertise audio understanding; do not infer sound from video. Set sound to "Not assessed by selected model". ' : ''}These are selected samples, not complete scene coverage. ${run.source.kind === 'audio' ? 'Assess audible sources, speech intelligibility/delivery, music/instrumentation/rhythm/mood, ambience/effects and perceived noise or distortion in summary/sound; put audible source types in subjects, acoustic setting in scene and sonic character in style. Do not invent visuals, exact BPM/key/LUFS, speaker identity or a full transcript.' : 'Describe observed subjects and setting in scene/subjects; framing, composition, lighting, color and legible on-screen text in style/summary; observed camera or subject movement in summary only when a video excerpt is supplied; audible speech/music/effects in sound only when audio is supplied. For silent video, mark sound unassessed.'} Do not infer exact transitions or content outside the samples. Return only {"sceneId":"${scene.id}","label":${shape}}. Do not guess unseen content or identify people by name. Local measurements: ${JSON.stringify({ startUs: scene.startUs, endUs: scene.endUs, excerptStartUs: scene.excerptStartUs, excerptEndUs: scene.excerptEndUs, sharpness: scene.representative?.sharpness, clipped: scene.representative?.clipped, colors: scene.representative?.colors, audio: scene.audio })}`,
                     scene.id,
                   );
                 }

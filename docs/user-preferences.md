@@ -14,6 +14,12 @@ This is the project record of the user's durable product and workflow choices. U
 - Leave the document exactly unchanged when no material update is needed. Formatting suggestions apply when creating the initial document, rather than restyling existing notes.
 - This refines the persistent-session and plain-text preferences below; maintenance still checks new evidence and user changes.
 
+## Audio and video reference analysis — 14 October 2026
+
+- Let Klip receive local audio/video references directly in chat and analyze audio and videos already in the current project's Media. Reuse the browser-only media/indexing pipeline and connected OpenRouter model.
+- Include standalone audio assessments for speech, music, effects and sound quality through the same attachment and Media paths.
+- Keep imported references off the timeline until requested. Import, attachment and reload do not start paid analysis. Report timestamped sampled observations and distinguish them from creative recommendations and unassessed motion/sound.
+
 ## Prompt cache reuse — 14 October 2026
 
 - Keep stable instructions and conversation history ahead of changing current state to improve provider prompt-cache reuse. Fresh state must remain authoritative, with existing sharing, skill-loading and execution boundaries.
@@ -711,7 +717,8 @@ This is the project record of the user's durable product and workflow choices. U
 ## Chat context and cost disclosure — 14 October 2026
 
 - Add a single icon to the chat composer footer beside Pause/Send and keep context/token/cost details inside its popover. Break costs down by user request, including synchronous and asynchronous sub-agents, and separate input, input cache and output.
-- Keep the usage popover compact: omit context/pricing explanatory paragraphs; identify each request by the user's message, truncate overflowing labels with an ellipsis and show the full message in a hover/focus tooltip. This supersedes numbered request labels. Retain numeric context/charges, estimate labels and expandable agent details.
+- Keep the usage popover compact: omit context/pricing explanatory paragraphs; identify each request by the user's message, truncate overflowing labels with an ellipsis and show the full message in a hover/focus tooltip. This supersedes numbered request labels. Retain numeric context/charges and estimate labels.
+- Select a message to open its usage in a separate detail popover instead of expanding accordions in the overview. Show the message total and agent breakdowns directly in that detail popover.
 
 ## Composer recordings for voice cloning — 14 October 2026
 

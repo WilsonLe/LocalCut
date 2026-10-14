@@ -22,6 +22,7 @@ function harness(
   status: AssetIndexRun['status'],
   sharing = false,
   onUsage?: (call: UsageCall) => void,
+  inputs: string[] = ['image'],
 ) {
   const run: AssetIndexRun = {
     version: 1,
@@ -89,7 +90,7 @@ function harness(
   const setStatus = vi.fn(async () => {});
   const editor = {
     assets: {
-      inspect: async () => ({ kind: 'image' }),
+      inspect: async () => ({ kind: run.source.kind }),
       analyze: (_assetId: string, runId?: string) => {
         if (!runId) {
           run.id = 'fresh';
@@ -107,9 +108,20 @@ function harness(
           work(),
         get: async () => run,
         recordRequest,
-        recordResponse: async () => {
-          run.label = safeLabel;
-          run.status = 'complete';
+        artifact: async () => new Blob(['synthetic-evidence']),
+        recordResponse: async (
+          _id: string,
+          _requestId: string,
+          _response: string,
+          normalized?: IndexLabel,
+          sceneId?: string,
+        ) => {
+          if (sceneId)
+            run.analysis.scenes.find((scene) => scene.id === sceneId)!.label =
+              normalized;
+          else run.label = normalized;
+          if (run.label && run.analysis.scenes.every((scene) => scene.label))
+            run.status = 'complete';
           return run;
         },
         status: setStatus,
@@ -119,7 +131,7 @@ function harness(
   const provider = {
     status: () => ({ connected: true }),
     listModels: async () => [
-      { id: 'synthetic', supportsTools: true, inputModalities: ['image'] },
+      { id: 'synthetic', supportsTools: true, inputModalities: inputs },
     ],
     label,
   } as unknown as OpenRouter;
@@ -228,4 +240,78 @@ it('reports completed label charges before parsing and emits no charge for retai
     }),
   );
   fresh.indexer.dispose();
+});
+
+it.each([
+  {
+    inputs: ['image', 'video'],
+    expected: 'Not assessed by selected model',
+    video: true,
+    audio: false,
+  },
+  {
+    inputs: ['image', 'video', 'audio'],
+    expected: safeLabel.sound,
+    video: true,
+    audio: true,
+  },
+  {
+    inputs: ['image'],
+    expected: 'Not assessed from still frames',
+    video: false,
+    audio: false,
+  },
+])(
+  'keeps audible reference sound assessment tied to catalog capability $inputs',
+  async ({ inputs, expected, video, audio }) => {
+    const h = harness('analyzed', false, undefined, inputs);
+    h.run.captureShared = false;
+    h.run.source.kind = 'video';
+    h.run.source.hasAudio = true;
+    const scene = h.run.analysis.scenes[0]!;
+    scene.label = undefined;
+    scene.artifacts = [
+      { id: 'still', kind: 'image', type: 'image/jpeg', size: 18 },
+      { id: 'clip', kind: 'video', type: 'video/mp4', size: 18 },
+    ];
+    h.label.mockImplementation(async (request) => ({
+      text: JSON.stringify(
+        request.media.length
+          ? { sceneId: scene.id, label: safeLabel }
+          : safeLabel,
+      ),
+      model: 'synthetic',
+    }));
+    try {
+      await h.indexer.run('asset', 'existing').completion;
+      const sceneRequest = h.recordRequest.mock.calls.find(
+        (call) => call[1].sceneId === scene.id,
+      )![1];
+      expect(sceneRequest).toMatchObject({
+        audioInputSupported: audio,
+        artifactIds: video ? ['still', 'clip'] : ['still'],
+      });
+      expect(h.label.mock.calls[0]![0].media.map((part) => part.type)).toEqual(
+        video ? ['image/jpeg', 'video/mp4'] : ['image/jpeg'],
+      );
+      expect(h.run.label!.sound).toBe(expected);
+    } finally {
+      await h.indexer.dispose();
+    }
+  },
+);
+
+it('rejects an audio assessment with a visual-only model before processing or paid traffic', async () => {
+  const h = harness('analyzed', false, undefined, ['image', 'video']);
+  h.run.source.kind = 'audio';
+  h.run.source.hasAudio = true;
+  try {
+    await expect(
+      h.indexer.run('asset', 'existing').completion,
+    ).rejects.toMatchObject({ code: 'MODEL_UNSUPPORTED' });
+    expect(h.label).not.toHaveBeenCalled();
+    expect(h.recordRequest).not.toHaveBeenCalled();
+  } finally {
+    await h.indexer.dispose();
+  }
 });

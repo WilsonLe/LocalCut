@@ -39,6 +39,7 @@ import {
   Play,
   Terminal,
   CheckCheck,
+  Paperclip,
 } from 'lucide-react';
 import { toast } from './notifications';
 import { Tooltip } from '../components/ui/tooltip';
@@ -375,6 +376,7 @@ export default function ConversationSession({
     );
   const [following, setFollowing] = useState(true);
   const composer = useRef<HTMLTextAreaElement>(null);
+  const referenceInput = useRef<HTMLInputElement>(null);
   const assistant = useRef<Assistant | null>(null);
   const turn = useRef<AssistantTurn | null>(null);
   const unsubscribe = useRef<(() => void) | null>(null);
@@ -424,7 +426,7 @@ export default function ConversationSession({
       setAttachments(
         results.flatMap((result) =>
           result.status === 'fulfilled' &&
-          result.value.kind === 'image' &&
+          ['image', 'video', 'audio'].includes(result.value.kind) &&
           result.value.status === 'ready'
             ? [result.value]
             : [],
@@ -647,14 +649,17 @@ export default function ConversationSession({
             resuming.assetIds.map(async (id) => {
               try {
                 const asset = await editor.assets.inspect(id);
-                if (asset.kind === 'image' && asset.status === 'ready')
+                if (
+                  ['image', 'video', 'audio'].includes(asset.kind) &&
+                  asset.status === 'ready'
+                )
                   return asset.id;
               } catch {
                 /* Missing originals remain a user-owned recovery step. */
               }
               throw new AiError(
                 'INVALID_REQUEST',
-                'An attached image is unavailable.',
+                'An attached reference is unavailable.',
                 { reason: 'attachment_unavailable' },
               );
             }),
@@ -665,7 +670,7 @@ export default function ConversationSession({
       const context =
         (selected ? `Selected clip ID: ${selected.id}.\n\n` : '') +
         (attachments.length
-          ? `Attached local image asset IDs: ${attachments.map((asset) => asset.id).join(', ')}. Inspect these assets with the declared tools; their pixels remain local.\n\n`
+          ? `Attached local reference asset IDs: ${attachments.map((asset) => `${asset.id} (${asset.kind})`).join(', ')}. Inspect these assets with the declared tools. For requested image/audio/video reference analysis, load indexing, reuse saved observations or index these assets and read the timestamped evidence before answering. Originals remain local; indexing sends generated samples through the connected provider authorization. References are not timeline clips; do not insert them unless requested.\n\n`
           : '');
       const requestPrompt = retrying
         ? `Retry the unfinished response to the request below. Continue from confirmed progress in the conversation; inspect current state and do not repeat actions with completed receipts.
@@ -920,43 +925,59 @@ ${resuming.prompt}`
     input.style.height = `${Math.min(180, input.scrollHeight)}px`;
   }, [prompt]);
   const composerBox = useRef<HTMLDivElement>(null);
-  const attachImages = useCallback(
+  const attachReferences = useCallback(
     async (files: File[], assetId?: string) => {
       if (!active || readOnly || attaching || runningRef.current) return;
       setAttaching(true);
+      setFailure(null);
+      const references: Asset[] = [];
       try {
-        const images: Asset[] = [];
-        if (assetId) images.push(await editor.assets.inspect(assetId));
-        for (const file of files) {
-          if (!file.type.startsWith('image/'))
-            throw new Error('Drag image files or image assets into the draft.');
-          images.push(await editor.assets.import(file).completion);
-        }
         if (
-          images.some(
-            (asset) => asset.kind !== 'image' || asset.status !== 'ready',
+          files.some(
+            (file) => file.type && !/^(image|video|audio)\//.test(file.type),
           )
         )
-          throw new Error('Choose a ready image asset.');
-        if (!mounted.current) return;
-        setAttachments((current) => [
-          ...new Map(
-            [...current, ...images].map((asset) => [asset.id, asset]),
-          ).values(),
-        ]);
-        composer.current?.focus();
+          throw new Error('Choose image, audio or video files for reference.');
+        if (assetId) {
+          const asset = await editor.assets.inspect(assetId);
+          if (
+            !['image', 'video', 'audio'].includes(asset.kind) ||
+            asset.status !== 'ready'
+          )
+            throw new Error('Choose a ready image, audio or video asset.');
+          references.push(asset);
+        }
+        for (const file of files) {
+          const asset = await editor.assets.import(file).completion;
+          if (
+            !['image', 'video', 'audio'].includes(asset.kind) ||
+            asset.status !== 'ready'
+          )
+            throw new Error('Choose a ready image, audio or video asset.');
+          await editor.library.forProject(project.id).place(asset.id, []);
+          references.push(asset);
+        }
       } catch (error) {
         if (mounted.current)
           setFailure(
             error instanceof Error
               ? error.message
-              : 'Image could not be attached.',
+              : 'Reference could not be attached.',
           );
       } finally {
-        if (mounted.current) setAttaching(false);
+        if (mounted.current) {
+          // Keep completed references if a later file in the batch fails.
+          setAttachments((current) => [
+            ...new Map(
+              [...current, ...references].map((asset) => [asset.id, asset]),
+            ).values(),
+          ]);
+          setAttaching(false);
+          composer.current?.focus();
+        }
       }
     },
-    [active, readOnly, attaching, editor],
+    [active, readOnly, attaching, editor, project.id],
   );
   useEffect(() => {
     if (!active) return;
@@ -975,11 +996,11 @@ ${resuming.prompt}`
           ?.closest('.chat-composer') === composerBox.current;
       setDropping(detail.phase === 'move' && over);
       if (detail.phase === 'drop' && over)
-        void attachImages([], detail.assetId);
+        void attachReferences([], detail.assetId);
     };
     document.addEventListener(MEDIA_DRAG_EVENT, handle);
     return () => document.removeEventListener(MEDIA_DRAG_EVENT, handle);
-  }, [active, readOnly, attaching, attachImages]);
+  }, [active, readOnly, attaching, attachReferences]);
   return (
     <>
       <div className="conversation-transcript">
@@ -1407,6 +1428,9 @@ ${resuming.prompt}`
               (event.dataTransfer.types.includes('Files') ||
                 event.dataTransfer.types.includes(
                   'application/x-localcut-image',
+                ) ||
+                event.dataTransfer.types.includes(
+                  'application/x-localcut-asset',
                 ))
             ) {
               event.preventDefault();
@@ -1422,9 +1446,10 @@ ${resuming.prompt}`
             event.preventDefault();
             event.stopPropagation();
             setDropping(false);
-            void attachImages(
+            void attachReferences(
               [...event.dataTransfer.files],
-              event.dataTransfer.getData('application/x-localcut-image') ||
+              event.dataTransfer.getData('application/x-localcut-asset') ||
+                event.dataTransfer.getData('application/x-localcut-image') ||
                 undefined,
             );
           }}
@@ -1432,14 +1457,16 @@ ${resuming.prompt}`
           {!!attachments.length && (
             <div
               className="flex flex-wrap gap-1 px-3 pt-2"
-              aria-label="Attached images"
+              aria-label="Attached references"
             >
               {attachments.map((asset) => (
                 <span
-                  className="flex items-center rounded-md bg-muted px-2 text-xs"
+                  className="flex min-w-0 max-w-full items-center rounded-md bg-muted px-2 text-xs"
                   key={asset.id}
                 >
-                  {asset.name}
+                  <span className="truncate" title={asset.name}>
+                    {asset.name}
+                  </span>
                   <Button
                     type="button"
                     variant="ghost"
@@ -1459,7 +1486,7 @@ ${resuming.prompt}`
           )}
           {attaching && (
             <p role="status" className="px-3 pt-2 text-xs">
-              Importing image…
+              Importing reference…
             </p>
           )}
           <Textarea
@@ -1499,6 +1526,31 @@ ${resuming.prompt}`
           >
             <div className="flex items-center gap-1">
               {composerControl}
+              <input
+                ref={referenceInput}
+                type="file"
+                className="hidden"
+                aria-label="Reference files"
+                accept="image/*,audio/*,video/*"
+                multiple
+                onChange={(event) => {
+                  const files = [...(event.currentTarget.files ?? [])];
+                  event.currentTarget.value = '';
+                  void attachReferences(files);
+                }}
+              />
+              <Tooltip content="Attach image, audio or video references">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Attach references"
+                  disabled={readOnly || running || applying || attaching}
+                  onClick={() => referenceInput.current?.click()}
+                >
+                  <Paperclip />
+                </Button>
+              </Tooltip>
               <UsagePopover messages={messages} />
             </div>
             <div className="ml-auto flex items-center gap-1">
