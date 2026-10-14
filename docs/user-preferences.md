@@ -2,9 +2,10 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
-## Video reference analysis — 14 October 2026
+## Audio and video reference analysis — 14 October 2026
 
-- Let Klip receive local video references directly in chat and analyze videos already in the current project's Media. Reuse the browser-only media/indexing pipeline and connected OpenRouter model.
+- Let Klip receive local audio/video references directly in chat and analyze audio and videos already in the current project's Media. Reuse the browser-only media/indexing pipeline and connected OpenRouter model.
+- Include standalone audio assessments for speech, music, effects and sound quality through the same attachment and Media paths.
 - Keep imported references off the timeline until requested. Import, attachment and reload do not start paid analysis. Report timestamped sampled observations and distinguish them from creative recommendations and unassessed motion/sound.
 
 ## Automatic working-context compaction — 14 October 2026

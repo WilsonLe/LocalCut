@@ -82,6 +82,9 @@ export function readIndex(
       sampleRate: run.analysis.settings.sampleRate,
       excerptUs: run.analysis.settings.excerptUs,
       completeSceneCoverage: false,
+      ...(run.analysis.settings.audio
+        ? { audio: run.analysis.settings.audio }
+        : {}),
     },
     offset,
     scenes: run.analysis.scenes.slice(offset, offset + limit).map((s) => {
@@ -110,6 +113,7 @@ export function readIndex(
         excerptStartUs: s.excerptStartUs,
         excerptEndUs: s.excerptEndUs,
         label: s.label,
+        ...(s.audio ? { audioMetrics: s.audio } : {}),
         evidence: {
           recorded: !!request,
           still: evidence.some((artifact) => artifact.kind === 'image'),

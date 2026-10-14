@@ -426,7 +426,7 @@ export default function ConversationSession({
       setAttachments(
         results.flatMap((result) =>
           result.status === 'fulfilled' &&
-          (result.value.kind === 'image' || result.value.kind === 'video') &&
+          ['image', 'video', 'audio'].includes(result.value.kind) &&
           result.value.status === 'ready'
             ? [result.value]
             : [],
@@ -650,7 +650,7 @@ export default function ConversationSession({
               try {
                 const asset = await editor.assets.inspect(id);
                 if (
-                  (asset.kind === 'image' || asset.kind === 'video') &&
+                  ['image', 'video', 'audio'].includes(asset.kind) &&
                   asset.status === 'ready'
                 )
                   return asset.id;
@@ -670,7 +670,7 @@ export default function ConversationSession({
       const context =
         (selected ? `Selected clip ID: ${selected.id}.\n\n` : '') +
         (attachments.length
-          ? `Attached local reference asset IDs: ${attachments.map((asset) => `${asset.id} (${asset.kind})`).join(', ')}. Inspect these assets with the declared tools. For requested visual/video reference analysis, load indexing, reuse saved observations or index these assets and read the timestamped evidence before answering. Originals remain local; indexing sends generated samples through the connected provider authorization. References are not timeline clips; do not insert them unless requested.\n\n`
+          ? `Attached local reference asset IDs: ${attachments.map((asset) => `${asset.id} (${asset.kind})`).join(', ')}. Inspect these assets with the declared tools. For requested image/audio/video reference analysis, load indexing, reuse saved observations or index these assets and read the timestamped evidence before answering. Originals remain local; indexing sends generated samples through the connected provider authorization. References are not timeline clips; do not insert them unless requested.\n\n`
           : '');
       const requestPrompt = retrying
         ? `Retry the unfinished response to the request below. Continue from confirmed progress in the conversation; inspect current state and do not repeat actions with completed receipts.
@@ -933,25 +933,27 @@ ${resuming.prompt}`
       const references: Asset[] = [];
       try {
         if (
-          files.some((file) => file.type && !/^(image|video)\//.test(file.type))
+          files.some(
+            (file) => file.type && !/^(image|video|audio)\//.test(file.type),
+          )
         )
-          throw new Error('Choose image or video files for reference.');
+          throw new Error('Choose image, audio or video files for reference.');
         if (assetId) {
           const asset = await editor.assets.inspect(assetId);
           if (
-            !['image', 'video'].includes(asset.kind) ||
+            !['image', 'video', 'audio'].includes(asset.kind) ||
             asset.status !== 'ready'
           )
-            throw new Error('Choose a ready image or video asset.');
+            throw new Error('Choose a ready image, audio or video asset.');
           references.push(asset);
         }
         for (const file of files) {
           const asset = await editor.assets.import(file).completion;
           if (
-            !['image', 'video'].includes(asset.kind) ||
+            !['image', 'video', 'audio'].includes(asset.kind) ||
             asset.status !== 'ready'
           )
-            throw new Error('Choose a ready image or video asset.');
+            throw new Error('Choose a ready image, audio or video asset.');
           await editor.library.forProject(project.id).place(asset.id, []);
           references.push(asset);
         }
@@ -1529,7 +1531,7 @@ ${resuming.prompt}`
                 type="file"
                 className="hidden"
                 aria-label="Reference files"
-                accept="image/*,video/*"
+                accept="image/*,audio/*,video/*"
                 multiple
                 onChange={(event) => {
                   const files = [...(event.currentTarget.files ?? [])];
@@ -1537,7 +1539,7 @@ ${resuming.prompt}`
                   void attachReferences(files);
                 }}
               />
-              <Tooltip content="Attach image or video references">
+              <Tooltip content="Attach image, audio or video references">
                 <Button
                   type="button"
                   variant="ghost"

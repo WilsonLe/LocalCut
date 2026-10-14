@@ -300,3 +300,18 @@ it.each([
     }
   },
 );
+
+it('rejects an audio assessment with a visual-only model before processing or paid traffic', async () => {
+  const h = harness('analyzed', false, undefined, ['image', 'video']);
+  h.run.source.kind = 'audio';
+  h.run.source.hasAudio = true;
+  try {
+    await expect(
+      h.indexer.run('asset', 'existing').completion,
+    ).rejects.toMatchObject({ code: 'MODEL_UNSUPPORTED' });
+    expect(h.label).not.toHaveBeenCalled();
+    expect(h.recordRequest).not.toHaveBeenCalled();
+  } finally {
+    await h.indexer.dispose();
+  }
+});

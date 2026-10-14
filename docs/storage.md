@@ -224,4 +224,4 @@ Composer dictation retains successful audio through ordinary Media import and tr
 
 ## Reference attachment compatibility
 
-Chat draft/recovery attachment IDs may refer to ready image or video assets. The existing chat sidecar stores IDs only; source bytes remain with the existing asset owner. No schema migration or automatic analysis runs on reload. Saved index reads derive sampling provenance from successful request manifests without modifying historical records. New manifests add optional trusted `audioInputSupported` catalog evidence; legacy absence means unknown sound capability, not an inferred default.
+Chat draft/recovery attachment IDs may refer to ready image, audio or video assets. The existing chat sidecar stores IDs only; source bytes remain with the existing asset owner. No schema migration or automatic analysis runs on reload. Saved index reads derive sampling provenance from successful request manifests without modifying historical records. New manifests add optional trusted `audioInputSupported` catalog evidence; legacy absence means unknown sound capability, not an inferred default.

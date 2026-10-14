@@ -1691,30 +1691,38 @@ for (const base of behaviorBases) {
 }
 
 for (const base of behaviorBases) {
-  for (const videoInput of [true, false]) {
-    test(`video reference attachments and Media analysis use ${videoInput ? 'clips' : 'stills'} ${base}`, async ({
+  for (const variant of ['clips', 'stills', 'audio'] as const) {
+    const audioInput = variant === 'audio';
+    const videoInput = variant === 'clips';
+    const kind = audioInput ? 'audio' : 'video';
+    const mediaName = audioInput
+      ? 'Media reference.wav'
+      : 'Media reference.webm';
+    test(`${kind} reference attachments and Media analysis use ${variant} ${base}`, async ({
       page,
       context,
     }, testInfo) => {
-      await catalog(context, false, videoInput);
+      await catalog(context, audioInput, videoInput, !audioInput);
       let round = 0;
       let mode: 'attachment' | 'cached' | 'media' = 'attachment';
       let assetId = '';
       let labeling = 0;
       let mainRequests = 0;
-      let failResponse = videoInput;
+      let failResponse = videoInput || audioInput;
       let observations:
         | {
             scenes: {
               evidence: { video: boolean; soundAssessed: boolean };
+              audioMetrics?: { timeUs: number; rms: number; peak: number };
               startUs: number;
               endUs: number;
             }[];
             sampling: { completeSceneCoverage: boolean };
           }
         | undefined;
-      const response =
-        'Reference analysis: 0:00 sampled framing is a green graphic. This is sampled evidence; sound is unassessed.';
+      const response = audioInput
+        ? 'Audio assessment: 0:00 a steady tone is audible in the sampled excerpt; this is partial coverage.'
+        : 'Reference analysis: 0:00 sampled framing is a green graphic. This is sampled evidence; sound is unassessed.';
       await context.route(
         'https://openrouter.ai/api/v1/chat/completions',
         async (route) => {
@@ -1737,11 +1745,11 @@ for (const base of behaviorBases) {
             round++;
             // Main chat receives only text/context, never reference pixels or video bytes.
             expect(JSON.stringify(body.messages)).not.toMatch(
-              /data:(video|image)|video_url|image_url/,
+              /data:(video|image|audio)|video_url|image_url|input_audio/,
             );
             if (round === 1) {
               expect(body.messages[0].content).toContain(
-                'Metadata inspection alone is not visual perception',
+                'Metadata inspection alone is not visual or audio perception',
               );
               tool_calls = call('load_skill', { skillId: 'indexing' });
             } else if (mode === 'cached') {
@@ -1770,11 +1778,11 @@ for (const base of behaviorBases) {
               } else if (step === 3) {
                 expect(JSON.parse(body.messages.at(-1).content)).toMatchObject({
                   id: assetId,
-                  kind: 'video',
+                  kind,
                   status: 'ready',
                 });
                 tool_calls = call('propose_action', {
-                  summary: 'Analyze this video reference',
+                  summary: `Analyze this ${kind} reference`,
                   action: { type: 'index_asset', assetId },
                 });
               } else if (step === 4) {
@@ -1792,11 +1800,13 @@ for (const base of behaviorBases) {
             const parts = body.messages.at(-1).content;
             const sceneId =
               parts.length > 1
-                ? /"sceneId":"(scene-\d+)"/.exec(parts[0].text)?.[1]
+                ? /"sceneId":"([^"]+)"/.exec(parts[0].text)?.[1]
                 : undefined;
             if (sceneId) {
               expect(parts[0].text).toContain(
-                'framing, composition, lighting, color',
+                audioInput
+                  ? 'speech intelligibility/delivery'
+                  : 'framing, composition, lighting, color',
               );
               expect(
                 parts.some(
@@ -1807,7 +1817,12 @@ for (const base of behaviorBases) {
                 parts.some(
                   (part: { type: string }) => part.type === 'image_url',
                 ),
-              ).toBe(true);
+              ).toBe(!audioInput);
+              expect(
+                parts.some(
+                  (part: { type: string }) => part.type === 'input_audio',
+                ),
+              ).toBe(audioInput);
             }
             text = JSON.stringify(
               sceneId
@@ -1815,9 +1830,12 @@ for (const base of behaviorBases) {
                     sceneId,
                     label: {
                       ...label,
-                      summary:
-                        'A green graphic, static in the sampled evidence',
-                      sound: 'invented fixture sound',
+                      summary: audioInput
+                        ? 'A steady synthetic tone in the sampled excerpt'
+                        : 'A green graphic, static in the sampled evidence',
+                      sound: audioInput
+                        ? 'Steady tone'
+                        : 'invented fixture sound',
                     },
                   }
                 : label,
@@ -1859,12 +1877,37 @@ for (const base of behaviorBases) {
         .click();
       const dialog = await connect(page);
       await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-      const video = await mediaVideo(page);
+      const video = audioInput
+        ? (() => {
+            const frames = 48000;
+            const bytes = Buffer.alloc(44 + frames * 2);
+            bytes.write('RIFF', 0);
+            bytes.writeUInt32LE(bytes.length - 8, 4);
+            bytes.write('WAVEfmt ', 8);
+            bytes.writeUInt32LE(16, 16);
+            bytes.writeUInt16LE(1, 20);
+            bytes.writeUInt16LE(1, 22);
+            bytes.writeUInt32LE(48000, 24);
+            bytes.writeUInt32LE(96000, 28);
+            bytes.writeUInt16LE(2, 32);
+            bytes.writeUInt16LE(16, 34);
+            bytes.write('data', 36);
+            bytes.writeUInt32LE(frames * 2, 40);
+            for (let frame = 0; frame < frames; frame++)
+              bytes.writeInt16LE(
+                Math.round(
+                  Math.sin((frame * 2 * Math.PI * 440) / 48000) * 10000,
+                ),
+                44 + frame * 2,
+              );
+            return { name: 'tone.wav', mimeType: 'audio/wav', buffer: bytes };
+          })()
+        : await mediaVideo(page);
       const composer = page.getByRole('textbox', {
         name: 'Describe your edit',
         exact: true,
       });
-      if (videoInput) {
+      if (videoInput || audioInput) {
         const picker = page.waitForEvent('filechooser');
         await page
           .getByRole('button', { name: 'Attach references', exact: true })
@@ -1887,7 +1930,9 @@ for (const base of behaviorBases) {
       await expect(page.getByLabel('Attached references')).toContainText(
         video.name,
       );
-      await composer.fill('Analyze this attached video as a style reference.');
+      await composer.fill(
+        `Analyze this attached ${kind} as a style reference.`,
+      );
       const draftIds = async () =>
         page.evaluate(async () => {
           const request = indexedDB.open('localcut-chats-v1');
@@ -1907,7 +1952,7 @@ for (const base of behaviorBases) {
               result.onerror = () => reject(result.error);
             });
             return (
-              rows.find((row) => row.content.prompt.includes('attached video'))
+              rows.find((row) => row.content.prompt.includes('attached '))
                 ?.content.attachmentIds ?? []
             );
           } finally {
@@ -1921,7 +1966,7 @@ for (const base of behaviorBases) {
         video.name,
       );
       await expect(composer).toHaveValue(
-        'Analyze this attached video as a style reference.',
+        `Analyze this attached ${kind} as a style reference.`,
       );
       expect(mainRequests).toBe(0);
       expect(labeling).toBe(0);
@@ -1944,7 +1989,7 @@ for (const base of behaviorBases) {
           page.getByRole('button', { name: 'Cancel response', exact: true }),
         ).toBeHidden();
       };
-      if (videoInput) {
+      if (videoInput || audioInput) {
         await page
           .getByRole('button', { name: 'Send edit request', exact: true })
           .click();
@@ -1971,11 +2016,18 @@ for (const base of behaviorBases) {
       } else await send();
       expect(observations).toMatchObject({
         sampling: { completeSceneCoverage: false },
-        scenes: [{ evidence: { video: videoInput, soundAssessed: false } }],
+        scenes: [
+          { evidence: { video: videoInput, soundAssessed: audioInput } },
+        ],
       });
       expect(observations!.scenes[0]!.endUs).toBeGreaterThan(
         observations!.scenes[0]!.startUs,
       );
+      if (audioInput) {
+        const first = observations!.scenes[0]!.audioMetrics!;
+        expect(first.rms).toBeGreaterThan(0.1);
+        expect(first.peak).toBeGreaterThan(0.2);
+      }
       const labeledOnce = labeling;
       mode = 'cached';
       round = 0;
@@ -1986,27 +2038,29 @@ for (const base of behaviorBases) {
       await expect(page.locator('.timeline-clip')).toHaveCount(0);
       await page
         .getByLabel('Import media', { exact: true })
-        .setInputFiles({ ...video, name: 'Media reference.webm' });
+        .setInputFiles({ ...video, name: mediaName });
       await closeMediaImport(page);
-      assetId = await page.evaluate(async (base) => {
-        const { createEditor } = (await import(
-          base + 'editor.js'
-        )) as typeof import('../../src/editor');
-        const editor = await createEditor();
-        try {
-          const project = (await editor.projects.list())[0]!;
-          return (
-            await editor.library.forProject(project.id).list()
-          ).entries.find((entry) => entry.name === 'Media reference.webm')!
-            .assetId!;
-        } finally {
-          await editor.dispose();
-        }
-      }, base);
+      assetId = await page.evaluate(
+        async ({ base, mediaName }) => {
+          const { createEditor } = (await import(
+            base + 'editor.js'
+          )) as typeof import('../../src/editor');
+          const editor = await createEditor();
+          try {
+            const project = (await editor.projects.list())[0]!;
+            return (
+              await editor.library.forProject(project.id).list()
+            ).entries.find((entry) => entry.name === mediaName)!.assetId!;
+          } finally {
+            await editor.dispose();
+          }
+        },
+        { base, mediaName },
+      );
       mode = 'media';
       round = 0;
       await send(
-        'Analyze Media reference.webm for reference without putting it on the timeline.',
+        `Analyze ${mediaName} for reference without putting it on the timeline.`,
       );
       expect(labeling).toBeGreaterThan(labeledOnce);
       expect(observations!.scenes[0]!.evidence.video).toBe(videoInput);
@@ -2052,7 +2106,7 @@ for (const base of behaviorBases) {
         { assetId, x: composerBounds.x + 20, y: composerBounds.y + 20 },
       );
       await expect(page.getByLabel('Attached references')).toContainText(
-        'Media reference.webm',
+        mediaName,
       );
       expect(mainRequests).toBe(requestsBeforeAttachments);
       expect(labeling).toBe(labelsBeforeAttachments);
