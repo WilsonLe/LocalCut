@@ -216,10 +216,15 @@ for (const base of behaviorBases) {
 
     // Existing desktop hover/focus remains intact.
     await page.setViewportSize({ width: 1280, height: 900 });
-    await addText.hover();
-    await expect(
-      page.getByRole('tooltip', { name: 'Add text', exact: true }),
-    ).toBeVisible();
+    // Responsive panel layout can move the trigger after the first hover.
+    // Re-enter from outside until the real mouse tooltip is visible.
+    await expect(async () => {
+      await page.mouse.move(0, 0);
+      await addText.hover();
+      await expect(
+        page.getByRole('tooltip', { name: 'Add text', exact: true }),
+      ).toBeVisible({ timeout: 1000 });
+    }).toPass({ timeout: 10000 });
     await page.mouse.move(0, 0);
     await page.getByRole('button', { name: 'Snapping', exact: true }).focus();
     await page.keyboard.press('Tab');
