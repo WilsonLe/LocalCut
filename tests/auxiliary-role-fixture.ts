@@ -65,9 +65,21 @@ export const roleArtifacts: Record<GoalStage, string> = {
 /** Test-only semantic probes. No host parser, verdict gate or response repair.
  * Returns booleans so live checks never expose provider response bodies. */
 export function roleLeafChecks(stage: GoalStage, text: string) {
-  const taskContext = (name: string) => {
-    const offset = text.toLowerCase().indexOf(name.toLowerCase());
-    return offset < 0 ? '' : text.slice(Math.max(0, offset - 60), offset + 170);
+  const taskContexts = (name: string) => {
+    const fragments = text.split(/\n|[.;]/).filter((value) => value.trim());
+    const names = /Harbour title|Music bed|Sunset ending/i;
+    return fragments.flatMap((fragment, index) => {
+      if (!fragment.toLowerCase().includes(name.toLowerCase())) return [];
+      const next = fragments[index + 1] ?? '';
+      // A wrapped explanation can belong to this task; a different named task
+      // or a new checklist entry cannot supply its completion/blocker evidence.
+      return [
+        fragment,
+        ...(!names.test(next) && !/^\s*[-*]\s*\[/.test(next)
+          ? [fragment + ' ' + next]
+          : []),
+      ];
+    });
   };
   return {
     requiredOutcomesRetained: [
@@ -83,25 +95,52 @@ export function roleLeafChecks(stage: GoalStage, text: string) {
       !/<(?:[｜|]\s*DSML|tool_calls?\b|function_calls?\b)/i.test(text),
     completedAndBlockedRetained:
       stage !== 'session_todos' ||
-      (/complete|present|verified|receipt|\[x\]/i.test(
-        taskContext('Harbour title'),
+      (taskContexts('Harbour title').some(
+        (value) =>
+          /\bcomplete(?:d)?\b|\bpresent\b|\bverified\b|\breceipt\b|\[x\]/i.test(
+            value,
+          ) &&
+          !/\bincomplete\b|\bnot (?:yet )?(?:complete|present|verified)\b/i.test(
+            value,
+          ),
       ) &&
-        /blocked|missing|unavailable|no source/i.test(
-          taskContext('Music bed'),
+        taskContexts('Music bed').some((value) =>
+          /blocked|missing|unavailable|no source/i.test(value),
         )),
     independentAssessment:
       stage !== 'completion_check' ||
       (/candidate|offer|claim/i.test(text) &&
         /does not|incomplete|unfinished|not fulfill|not satisf/i.test(text) &&
         /evidence|receipt|current state/i.test(text)),
-    noInventedRequirements:
-      !/Voiceover\s+(?:is\s+)?(?:required|mandatory)|Voiceover\s+must(?!\s+not)|must\s+(?:add\s+)?(?:a\s+)?Voiceover/i.test(
-        text,
-      ),
+    noInventedRequirements: !text.split(/\n|[.;]/).some((clause) => {
+      // An active task or affirmative obligation differs from quoting and
+      // rejecting an earlier erroneous requirement. Keep the assertion in tests.
+      const action =
+        /(?:^|\]\s*)(?:add|create|generate|record|include|require)\b[^\n]*\bVoiceover\b/i.test(
+          clause,
+        );
+      const obligation =
+        /Voiceover\s+(?:is\s+)?(?:required|mandatory)|Voiceover\s+must(?!\s+not)|must\s+(?:add\s+)?(?:a\s+)?Voiceover/i.test(
+          clause,
+        );
+      const rejected =
+        /(?:\bnot required\b|\bNo Voiceover\b|\breject|\bdismiss|\bignore|\bincorrect|\berroneous|\bunsupported requirement|\bcancel|\bsupersed|\bexclud|\bdiscard|\bnot requested\b|\bnot mandatory\b|\boutside.{0,30}scope\b|\bmust not\b|\bdo not\b)/i.test(
+          clause,
+        );
+      return (action || obligation) && !rejected;
+    }),
     noRoutineApprovalGate:
       stage !== 'session_todos' ||
-      !/(?:blocked until|waiting for|requires|approval pending).{0,80}(?:say|explicit).{0,25}["'“]?go\b/i.test(
-        text,
-      ),
+      !text.split(/\n|[.;]/).some((clause) => {
+        const gate =
+          /(?:blocked until|waiting for|requires|approval pending).{0,80}(?:say|explicit).{0,25}["'“]?go\b/i.test(
+            clause,
+          );
+        const rejected =
+          /go.{0,35}(?:not required|not needed)|(?:no new|no extra|no additional|without|do not).{0,70}(?:say|explicit).{0,25}["'“]?go\b|\bcancel|\bsupersed|\breject|\bignore|\bdo not keep|\bexclud/i.test(
+            clause,
+          );
+        return gate && !rejected;
+      }),
   };
 }

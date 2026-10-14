@@ -25,7 +25,7 @@ for (const { stage, leaf, text } of auxiliaryRoleLeaves) {
         const { createEditor } = (await import(
           String('/LocalCut/editor.js')
         )) as typeof import('../../src/editor');
-        const { createOpenRouter, createAssistant } = (await import(
+        const { createOpenRouter, createAssistant, AiError } = (await import(
           String('/LocalCut/ai.js')
         )) as typeof import('../../src/ai');
         const editor = await createEditor({
@@ -37,6 +37,9 @@ for (const { stage, leaf, text } of auxiliaryRoleLeaves) {
           'Synthetic auxiliary role test',
         );
         let assistant: ReturnType<typeof createAssistant> | undefined;
+        let phase = 'catalog';
+        let failureCategory: string | undefined;
+        let failureReason = 'unknown';
         let targetCalls = 0;
         const targetTexts: string[] = [];
         let executableCalls = 0;
@@ -47,6 +50,7 @@ for (const { stage, leaf, text } of auxiliaryRoleLeaves) {
             )
           )
             throw new Error('Selected model does not advertise tools.');
+          phase = 'fixture';
           await editor.commands.apply({
             projectId: project.id,
             requestId: crypto.randomUUID(),
@@ -110,8 +114,8 @@ for (const { stage, leaf, text } of auxiliaryRoleLeaves) {
                 ],
               },
             ],
-            // Explicit test budgets bound cost and local execution. No application caps added.
-            limits: { maxRounds: 2, maxToolCalls: 1, maxOutputTokens: 900 },
+            // Bound execution rounds and tools; use the selected model allowance like the app.
+            limits: { maxRounds: 2, maxToolCalls: 1 },
             provider: {
               async *stream(request, signal) {
                 const instruction = request.messages[0]?.content ?? '';
@@ -146,10 +150,20 @@ for (const { stage, leaf, text } of auxiliaryRoleLeaves) {
               },
             },
           });
+          phase = 'assistant';
+          assistant.subscribe((event) => {
+            if (event.type === 'error') {
+              failureCategory = event.error.code;
+              const reason = event.error.details.reason;
+              if (reason === 'output_limit' || reason === 'empty_response')
+                failureReason = reason;
+            }
+          });
           const response = await assistant.run(
             'Retain the completed Harbour title and Sunset ending tracks. Add a Music bed only from an available music source; there is no source in this project and synthesis is unavailable. No Voiceover is requested. Routine choices need no new go confirmation. Do not mutate the project or retry paid actions.',
           ).completion;
           const after = await editor.projects.snapshot(project.id);
+          phase = 'grading';
           const evaluateText = new Function(
             'stage',
             'text',
@@ -172,10 +186,16 @@ for (const { stage, leaf, text } of auxiliaryRoleLeaves) {
             unchanged: after.revision === before.revision,
             tokens: response.usage.totalTokens,
           };
-        } catch {
-          // Never expose real provider request/response bodies or internal exceptions.
+        } catch (error) {
+          // Public adapter codes and local phase/counts explain failed gates without
+          // exposing provider bodies, generated text or credential values.
+          const category =
+            failureCategory ??
+            (error instanceof AiError ? error.code : 'HARNESS_FAILED');
           throw new Error(
-            'Live auxiliary role evaluation failed before a complete result.',
+            `Live auxiliary evaluation failed: phase=${phase}, category=${category}, reason=${failureReason}, targetCalls=${targetCalls}, completedTargets=${targetTexts.length}.`,
+            // Adapter/queue failures already retain only safe public diagnostics.
+            { cause: error },
           );
         } finally {
           await assistant?.dispose();

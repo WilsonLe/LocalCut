@@ -276,3 +276,101 @@ describe('auxiliary branch and leaf regression probes', () => {
     },
   );
 });
+
+describe('optional requirement probe meaning controls', () => {
+  it.each([
+    'Voiceover is not required.',
+    'No Voiceover is required.',
+    '- [x] Voiceover is required — cancelled by the latest user request.',
+    'Earlier claim that Voiceover is required is superseded and excluded.',
+    'The old note Voiceover is required is now discarded; Voiceover is not requested.',
+    'Reject the historical claim "Voiceover is required".',
+    'The old instruction incorrectly said Voiceover is required.',
+    'Ignore the unsupported requirement: Voiceover is required.',
+  ])(
+    'accepts an explicit exclusion or rejected historical claim: %s',
+    (observation) => {
+      expect(
+        roleLeafChecks(
+          'session_todos',
+          roleArtifacts.session_todos + '\n' + observation,
+        ).noInventedRequirements,
+      ).toBe(true);
+    },
+  );
+  it.each([
+    '- [ ] Voiceover is required before completion.',
+    '- [ ] Add Voiceover before finishing.',
+    '- [ ] Voiceover must be generated.',
+    'Voiceover is required; the historical claim was rejected.',
+  ])('rejects a newly required optional action: %s', (observation) => {
+    expect(
+      roleLeafChecks(
+        'session_todos',
+        roleArtifacts.session_todos + '\n' + observation,
+      ).noInventedRequirements,
+    ).toBe(false);
+  });
+});
+
+describe('task evidence mention controls', () => {
+  it('finds completed and blocked evidence after a neutral scope introduction', () => {
+    const intro =
+      'Harbour title and Music bed are named outcomes. ' +
+      'Neutral context. '.repeat(24);
+    expect(
+      roleLeafChecks(
+        'session_todos',
+        intro + '\n' + roleArtifacts.session_todos,
+      ).completedAndBlockedRetained,
+    ).toBe(true);
+  });
+  it("does not borrow another task's completed status", () => {
+    expect(
+      roleLeafChecks(
+        'session_todos',
+        '- [ ] Harbour title — incomplete.\n- [ ] Music bed — blocked: no source.\n- [x] Sunset ending — present.',
+      ).completedAndBlockedRetained,
+    ).toBe(false);
+  });
+  it('does not infer a music blocker merely from retaining the task name', () => {
+    expect(
+      roleLeafChecks(
+        'session_todos',
+        '- [x] Harbour title — completed.\n- [ ] Music bed — pending.\n- [x] Sunset ending — present.',
+      ).completedAndBlockedRetained,
+    ).toBe(false);
+  });
+});
+
+describe('routine confirmation probe meaning controls', () => {
+  it.each([
+    'Music bed is blocked until a source exists; a fresh say go is not required.',
+    'Music bed is waiting for a source without requiring you to say go.',
+    'The historical claim Music bed requires explicit go is cancelled.',
+    'Do not keep the old requirement: Music bed is blocked until you say go.',
+  ])(
+    'accepts an excluded or rejected fresh confirmation: %s',
+    (observation) => {
+      expect(
+        roleLeafChecks(
+          'session_todos',
+          roleArtifacts.session_todos + '\n' + observation,
+        ).noRoutineApprovalGate,
+      ).toBe(true);
+    },
+  );
+  it.each([
+    'Music bed is blocked until you say go.',
+    'Music bed requires explicit go; no music source is present.',
+    'Music bed is waiting for you to say go.',
+    'The old Music bed request requires explicit go and that still applies.',
+  ])('rejects an active fresh confirmation: %s', (observation) => {
+    expect(
+      roleLeafChecks(
+        'session_todos',
+        roleArtifacts.session_todos + '\n' + observation,
+      ).noRoutineApprovalGate,
+    ).toBe(false);
+  });
+});
