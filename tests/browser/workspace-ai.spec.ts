@@ -375,6 +375,7 @@ test('chat escalated errors preserve applied actions during manual primary retry
       if (requests.length <= 2) await fulfillProposal(route);
       else if (
         body.messages
+          .filter((message) => message.role === 'user')
           .at(-1)
           ?.content?.startsWith('Retry the unfinished response')
       ) {
@@ -413,6 +414,12 @@ test('chat escalated errors preserve applied actions during manual primary retry
   expect((await snapshot(page, name)).revision).toBe(1);
   await dismissNotifications(page);
   await retry.click();
+  await expect(
+    page
+      .getByRole('article', { name: 'Assistant response' })
+      .last()
+      .getByRole('button', { name: 'Copy response', exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByText('The saved overlay track is already added.', {
       exact: true,
