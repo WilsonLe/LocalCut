@@ -499,6 +499,63 @@ for (const base of behaviorBases) {
           localRejected = (e as { code: string }).code === 'MODEL_REQUIRED';
         }
       }
+      const submissionsBeforeCommitRecovery = submissions;
+      let committedAssetId = '';
+      const importOwner = editor.assets.import;
+      const publicationEditor = new Proxy(editor, {
+        get(target, property) {
+          if (property !== 'assets') return Reflect.get(target, property);
+          return {
+            ...target.assets,
+            import: (...args: Parameters<typeof importOwner>) => {
+              const imported = importOwner(...args);
+              return {
+                ...imported,
+                completion: imported.completion.then((asset) => {
+                  committedAssetId = asset.id;
+                  late.cancel();
+                  return asset;
+                }),
+              };
+            },
+          };
+        },
+      });
+      const late: import('../../src/services/jobs').Job<
+        import('../../src/ai').GeneratedSpeech
+      > = api
+        .createAssistantSpeech(publicationEditor, connection)
+        .generate(project.id, options);
+      let lateGenerationId = '';
+      try {
+        await late.completion;
+      } catch (error) {
+        const failed = error as {
+          code: string;
+          details: { generationId: string };
+        };
+        if (failed.code !== 'CANCELLED') throw error;
+        lateGenerationId = failed.details.generationId;
+      }
+      const committedReceipt = (await editor.tasks.checkpoint(
+        lateGenerationId,
+      )) as {
+        imported: { assetId: string };
+      };
+      const recoveredCommit = await speech.generate(project.id, {
+        ...options,
+        generationId: lateGenerationId,
+      }).completion;
+      const publicationRecovery = {
+        committedAssetId,
+        checkpointAssetId: committedReceipt.imported.assetId,
+        recoveredAssetId: recoveredCommit.assetId,
+        submissions: submissions - submissionsBeforeCommitRecovery,
+        mediaCount: (
+          await editor.library.forProject(project.id).list()
+        ).entries.filter((e) => e.kind === 'asset').length,
+        waveform: await editor.assets.waveform(recoveredCommit.assetId),
+      };
       await editor.dispose();
       return {
         submissions,
@@ -513,10 +570,11 @@ for (const base of behaviorBases) {
         mediaCount,
         localReady: readiness.timingReady,
         localRejected,
+        publicationRecovery,
       };
     }, base);
-    expect(result.submissions).toBe(1);
-    expect(result.attempts).toBe(2);
+    expect(result.submissions).toBe(2);
+    expect(result.attempts).toBe(3);
     expect(result.savedAudio).toBe(24000);
     expect(result.failedCode).toBe('INVALID_RESPONSE');
     expect(result.generated).toMatchObject({
@@ -529,6 +587,16 @@ for (const base of behaviorBases) {
     expect(result.offlineReused).toBe(true);
     expect(result.cancelled).toBe(true);
     expect(result.mediaCount).toBe(1);
+    expect(result.publicationRecovery.committedAssetId).toBeTruthy();
+    expect(result.publicationRecovery.checkpointAssetId).toBe(
+      result.publicationRecovery.committedAssetId,
+    );
+    expect(result.publicationRecovery.recoveredAssetId).toBe(
+      result.publicationRecovery.committedAssetId,
+    );
+    expect(result.publicationRecovery.submissions).toBe(1);
+    expect(result.publicationRecovery.mediaCount).toBe(2);
+    expect(result.publicationRecovery.waveform).toBeTruthy();
     if (!result.localReady) expect(result.localRejected).toBe(true);
   });
   test(`workspace chat generates narration through configured speech and saves it across reload ${base}`, async ({
@@ -642,8 +710,24 @@ for (const base of behaviorBases) {
           await route.fulfill({ headers: cors, body: '' });
           return;
         }
-        if (await fulfillChatTitle(route, 'Sydney narration')) return;
         const request = route.request().postDataJSON();
+        let completionDecision = false;
+        try {
+          completionDecision = !!JSON.parse(
+            request.messages[1]?.content ?? '{}',
+          ).completionDecision;
+        } catch {
+          // Naming requests can contain ordinary prose rather than app context.
+        }
+        if (completionDecision) {
+          await route.fulfill({
+            headers: cors,
+            contentType: 'text/event-stream',
+            body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: reuse ? 'Saved voice reused with new narration.' : 'Narration generated and placed.' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+          });
+          return;
+        }
+        if (await fulfillChatTitle(route, 'Sydney narration')) return;
         let name: string | undefined,
           args: object = {};
         switch (step++) {
@@ -745,9 +829,7 @@ for (const base of behaviorBases) {
               ],
             }
           : {
-              content: reuse
-                ? 'Saved voice reused with new narration.'
-                : 'Narration generated and placed.',
+              content: 'Narration saved; reviewing the result.',
             };
         await route.fulfill({
           headers: cors,
@@ -797,6 +879,9 @@ for (const base of behaviorBases) {
     await expect(
       page.getByText('Narration generated and placed.', { exact: true }),
     ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Cancel response', exact: true }),
+    ).toBeHidden();
     expect(submissions).toBe(1);
     await page.screenshot({
       path: info.outputPath('agent-narration-chat.png'),
@@ -816,6 +901,9 @@ for (const base of behaviorBases) {
     await expect(
       page.getByText('Saved voice reused with new narration.', { exact: true }),
     ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Cancel response', exact: true }),
+    ).toBeHidden();
     const saved = await page.evaluate(async (path) => {
       const { createEditor } = (await import(
         path + 'editor.js'

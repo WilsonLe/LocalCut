@@ -42,6 +42,8 @@ export interface SpeechTaskResult {
   rendered: RenderedSpeech;
   transcript?: SpeechTranscript;
   publication?: import('./agent-speech').GeneratedSpeech;
+  /** Durable publication stages survive cancellation or a later storage failure. */
+  imported?: { projectId: string; assetId: string; transcriptId?: string };
 }
 export interface SpeechCheckpoint extends SpeechAudio {
   transcript?: SpeechTranscript;

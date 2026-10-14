@@ -175,9 +175,18 @@ export function initializeVoicePresets() {
 export function changeVoicePresets(
   change: (current: VoicePreset[]) => VoicePreset[],
 ) {
+  let current: VoicePreset[];
   try {
-    const current = parseVoicePresets(localStorage.getItem(VOICE_PRESETS_KEY));
-    const next = change(current);
+    current = parseVoicePresets(localStorage.getItem(VOICE_PRESETS_KEY));
+  } catch (error) {
+    throw new Error(
+      'Voice preset could not be saved. Allow browser storage and try again.',
+      { cause: error },
+    );
+  }
+  // Domain guards in the mutation are not storage failures.
+  const next = change(current);
+  try {
     const serialized = JSON.stringify({ version: 1, presets: next });
     const validated = parseVoicePresets(serialized);
     if (next.length > 100 || validated.length !== next.length)

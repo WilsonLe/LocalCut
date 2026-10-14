@@ -106,8 +106,6 @@ export async function saveGeneratedVoice(
     settings.model === REFERENCE_SPEECH_MODEL ||
     inherited?.synthesis?.settingsFingerprint === fingerprint;
   let referenceId = referenceMatches && inherited ? inheritedId : undefined;
-  if (existing?.source && referenceId)
-    return { ...publication, voicePresetId: id, referenceSaved: true };
   let createdReference = false;
   try {
     if (
@@ -144,7 +142,28 @@ export async function saveGeneratedVoice(
     signal.throwIfAborted();
     changeVoicePresets((presets) => {
       // Another tab can have published this same immutable generation meanwhile.
-      const found = presets.find((preset) => preset.id === id);
+      let found = presets.find((preset) => preset.id === id);
+      aiInvariant(
+        !found?.archived,
+        'INVALID_REQUEST',
+        'The saved voice was archived while generation was running. Restore it before reuse.',
+      );
+      if (
+        found &&
+        (canonical(settingsOf(found)) !== canonical(settingsOf(settings)) ||
+          found.referenceId !== existing?.referenceId)
+      ) {
+        // Reference reads/rendering yield to other consumers. Bind the take to
+        // its own identity instead of overwriting a subsequently edited voice.
+        id = publication.generationId;
+        found = presets.find((preset) => preset.id === id);
+      }
+      aiInvariant(
+        !found ||
+          canonical(settingsOf(found)) === canonical(settingsOf(settings)),
+        'REVISION_CONFLICT',
+        'The generated voice identity now has different settings. Preserve it and save this take under a new identity.',
+      );
       aiInvariant(
         !found?.archived,
         'INVALID_REQUEST',

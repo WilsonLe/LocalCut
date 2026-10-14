@@ -21,6 +21,8 @@ Audit date: 14 October 2026. The candidate was rebased onto `4dbc82f2e6bd5381361
 
 ## Verification boundaries and further leads
 
+The single independent candidate review also exposed two sibling persistence defects. An asynchronous reference save could bind an old take to a concurrently edited voice profile; the final mutation now rechecks settings/reference identity, preserves the edited profile and uses a separate generation identity. Rename retains identity, archive rejects publication, and domain conflicts remain distinct from storage denial. A committed audio import or transcript attachment could be lost from recovery bookkeeping after late cancellation or a subsequent failure; incremental checkpoints now resume those stages with the same IDs. `voice-reuse.test.ts` covers settings/reference/rename/archive races and import/attachment/library recovery. The native Chrome narration journey cancels immediately after a real import commits, then verifies the same asset/checkpoint/waveform on recovery without a second synthesis or duplicate original.
+
 The earlier empty failed response has no failure payload in the export; its cause cannot be established.
 
 The original user's browser storage/media are not contained in this chat ZIP. These changes repair LocalCut; they do not edit that live Sydney project or retroactively replace its soundtrack. Controlled provider replies and native imported WAV readback establish tool/queue/editor/persistence behavior. They do not establish live model adherence, real TTS quality, subjective music polish or the original upstream HTTP400 cause. No paid provider requests are made by this audit.

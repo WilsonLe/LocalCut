@@ -146,7 +146,7 @@ export function createAssistantSpeech(
     inspect,
     generate(projectId, value) {
       let generationId: string | undefined;
-      return new Jobs().start(
+      const job = new Jobs().start<GeneratedSpeech>(
         async (signal, progress) => {
           const input = speechGenerationSchema.parse(value);
           if (input.generationId) {
@@ -423,19 +423,41 @@ export function createAssistantSpeech(
               return publication;
             }
             progress({ stage: 'Saving narration in Media…' });
-            const importing = editor.assets.import(
-              take.rendered.file,
-              input.name ?? 'Narration.wav',
-            );
-            const cancelImport = () => importing.cancel();
-            signal.addEventListener('abort', cancelImport, { once: true });
-            if (signal.aborted) cancelImport();
+            let imported = savedTake?.imported;
             let asset: import('../editor').Asset;
-            try {
-              signal.throwIfAborted();
-              asset = await importing.completion;
-            } finally {
-              signal.removeEventListener('abort', cancelImport);
+            if (imported) {
+              aiInvariant(
+                imported.projectId === projectId,
+                'INVALID_REQUEST',
+                'The imported narration belongs to another project.',
+              );
+              asset = await editor.assets.inspect(imported.assetId);
+              aiInvariant(
+                asset.status === 'ready',
+                'EDIT_REJECTED',
+                'The imported narration asset is unavailable. Restore it before recovery.',
+              );
+            } else {
+              const importing = editor.assets.import(
+                take.rendered.file,
+                input.name ?? 'Narration.wav',
+              );
+              const cancelImport = () => importing.cancel();
+              signal.addEventListener('abort', cancelImport, { once: true });
+              if (signal.aborted) cancelImport();
+              try {
+                signal.throwIfAborted();
+                asset = await importing.completion;
+              } finally {
+                signal.removeEventListener('abort', cancelImport);
+              }
+              // A successful import is committed even if cancellation arrived
+              // after commit. Retain its identity before observing cancellation.
+              imported = { projectId, assetId: asset.id };
+              await editor.tasks.saveCheckpoint(queued.id, {
+                ...take,
+                imported,
+              });
             }
             signal.throwIfAborted();
             aiInvariant(
@@ -451,20 +473,29 @@ export function createAssistantSpeech(
               originalDurationUs,
               asset.durationUs,
             );
-            const transcript = await editor.transcription.attach(
-              asset.id,
-              padSpeechTranscript(measured, asset.durationUs),
-              {
-                script: request.script,
-                model: request.model,
-                voice: request.voice,
-                languages: request.languages,
-                instructions: request.instructions,
-                originalDurationUs,
-                measuredCues: measured.cues,
-                paddingUs: 80_000,
-              },
-            );
+            let transcriptId = imported.transcriptId;
+            if (!transcriptId) {
+              const transcript = await editor.transcription.attach(
+                asset.id,
+                padSpeechTranscript(measured, asset.durationUs),
+                {
+                  script: request.script,
+                  model: request.model,
+                  voice: request.voice,
+                  languages: request.languages,
+                  instructions: request.instructions,
+                  originalDurationUs,
+                  measuredCues: measured.cues,
+                  paddingUs: 80_000,
+                },
+              );
+              transcriptId = transcript.id;
+              imported = { ...imported, transcriptId };
+              await editor.tasks.saveCheckpoint(queued.id, {
+                ...take,
+                imported,
+              });
+            }
             signal.throwIfAborted();
             const library = await editor.library
               .forProject(projectId)
@@ -473,7 +504,7 @@ export function createAssistantSpeech(
               projectId,
               generationId: queued.id,
               assetId: asset.id,
-              transcriptId: transcript.id,
+              transcriptId,
               libraryRevision: library.revision,
               durationUs: asset.durationUs,
               sampleRate: asset.sampleRate!,
@@ -553,6 +584,22 @@ export function createAssistantSpeech(
           },
         },
       );
+      const completion = job.completion.catch((error: unknown) => {
+        // Jobs intentionally replaces abort failures with a generic CANCELLED
+        // error. Preserve the saved generation's recovery identity for callers.
+        if (error instanceof EditorError && error.code === 'CANCELLED')
+          throw new AiError(
+            'CANCELLED',
+            'Narration generation cancelled. Completed stages remain saved for explicit recovery.',
+            {
+              generationId,
+              paidSubmission: generationId !== undefined,
+            },
+          );
+        throw error;
+      });
+      void completion.catch(() => {});
+      return { ...job, completion };
     },
   };
 }
