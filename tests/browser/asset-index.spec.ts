@@ -738,6 +738,9 @@ for (const base of behaviorBases) {
           sceneTimes: run.analysis.scenes.map((s) => [s.startUs, s.endUs]),
           excerpts,
           requests: run.requests.length,
+          audioCapabilities: (
+            await editor.assets.indexes.get(run.id)
+          ).requests.map((request) => request.audioInputSupported),
           retained: (await editor.assets.indexes.list(asset.id)).length,
         };
       } finally {
@@ -751,6 +754,7 @@ for (const base of behaviorBases) {
       frames: 0,
       windows: 24,
       requests: 6,
+      audioCapabilities: [true, true, true, true, true, true],
       retained: 1,
     });
     expect(result.sceneTimes).toEqual([

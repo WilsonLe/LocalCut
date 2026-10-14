@@ -566,7 +566,7 @@ for (const base of behaviorBases) {
       .locator('.conversation-session:not([hidden]) .chat-composer')
       .dispatchEvent('drop', { dataTransfer: imageDrop });
     await imageDrop.dispose();
-    await expect(page.getByLabel('Attached images')).toContainText(
+    await expect(page.getByLabel('Attached references')).toContainText(
       'Saved reference.png',
     );
     await expect
@@ -579,7 +579,7 @@ for (const base of behaviorBases) {
       )
       .toBe(true);
     await page.reload();
-    await expect(page.getByLabel('Attached images')).toContainText(
+    await expect(page.getByLabel('Attached references')).toContainText(
       'Saved reference.png',
     );
     expect(completions).toBe(2);
@@ -782,7 +782,7 @@ for (const base of behaviorBases) {
     await expect(
       page.getByRole('button', { name: 'Resume response', exact: true }),
     ).toHaveCount(0);
-    await expect(page.getByLabel('Attached images')).toContainText(
+    await expect(page.getByLabel('Attached references')).toContainText(
       'Saved reference.png',
     );
     expect(completions).toBe(2);
