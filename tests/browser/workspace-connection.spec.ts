@@ -72,6 +72,7 @@ for (const base of behaviorBases) {
           expect(body.provider).toEqual({
             data_collection: 'deny',
             require_parameters: true,
+            allow_fallbacks: false,
           });
           expect(body.tool_choice).toBe('auto');
           // Simulate strict routing rejecting a parameter this model cannot use.

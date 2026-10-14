@@ -1537,7 +1537,9 @@ data: [DONE]
       .getByRole('button', { name: 'Send edit request', exact: true })
       .click();
     await expect(
-      page.getByText('Alternative reply.', { exact: true }),
+      page
+        .getByRole('log', { name: 'Conversation messages' })
+        .getByText('Alternative reply.', { exact: true }),
     ).toBeVisible();
     const last = JSON.stringify(requests.at(-1)?.messages);
     expect(last).toContain('First idea');
@@ -1553,7 +1555,9 @@ data: [DONE]
       page.getByRole('article', { name: 'Assistant response' }),
     ).toHaveCount(2);
     await expect(
-      page.getByText('Alternative reply.', { exact: true }),
+      page
+        .getByRole('log', { name: 'Conversation messages' })
+        .getByText('Alternative reply.', { exact: true }),
     ).not.toBeVisible();
     // Import a real local image into the draft; only its metadata/ID may travel remotely.
     const imageBytes = await page.evaluate(async () => {
