@@ -15,6 +15,8 @@ export interface AssetIndexerOptions {
   consent: () => boolean;
   /** Trusted host checkpoint for explicit retries of the same approved request. */
   onRunId?: (runId: string) => void;
+  /** Completed remote labeling attempts, including invalid labels. Cached runs emit none. */
+  onUsage?: (call: import('./usage').UsageCall) => void;
   /** Independent explicit permission to send embedded dates and GPS with labels. */
   includeCaptureMetadata?: boolean;
 }
@@ -152,6 +154,18 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
                     signal,
                   );
                   check(signal);
+                  options.onUsage?.({
+                    id: requestId,
+                    source: 'indexing',
+                    model: result.model ?? options.model,
+                    usage: result.usage,
+                    ...(model?.id === (result.model ?? options.model)
+                      ? {
+                          pricing: model.pricing,
+                          contextLength: model.contextLength,
+                        }
+                      : {}),
+                  });
                   let normalized: IndexLabel;
                   try {
                     if (sceneId) {

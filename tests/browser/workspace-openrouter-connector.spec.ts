@@ -382,6 +382,11 @@ for (const base of behaviorBases) {
         .getByRole('button', { name: 'Send edit request', exact: true })
         .click();
       await expect.poll(() => requests.length).toBe(before + 3);
+      // Text streams before completion review finishes. Reload only a terminal
+      // reply so the next turn checks completed history rather than pagehide recovery.
+      await expect(
+        page.getByRole('button', { name: 'Cancel response', exact: true }),
+      ).toHaveCount(0);
       await expect(
         page.getByText('All shared context was read.', { exact: true }),
       ).toHaveCount(before / 3 + 1);

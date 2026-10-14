@@ -37,12 +37,9 @@ export function captureChatExport(
       status: message.status,
       proposalIds: [...message.proposalIds],
       failure: message.failure && safeChatFailure(message.failure),
-      usage: message.usage && {
-        promptTokens: message.usage.promptTokens,
-        completionTokens: message.usage.completionTokens,
-        totalTokens: message.usage.totalTokens,
-        cost: message.usage.cost,
-      },
+      requestId: message.requestId,
+      usageCalls: message.usageCalls && structuredClone(message.usageCalls),
+      usage: message.usage && { ...message.usage },
       tools: message.tools?.map((tool) => ({
         callId: tool.callId,
         name: tool.name,

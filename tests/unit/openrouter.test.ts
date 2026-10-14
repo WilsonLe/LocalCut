@@ -12,7 +12,12 @@ const model = {
   context_length: 512000,
   supported_parameters: ['tools', 'tool_choice'],
   top_provider: { max_completion_tokens: 4000 },
-  pricing: { prompt: '0.000001', completion: '0.000002' },
+  pricing: {
+    prompt: '0.000001',
+    completion: '0.000002',
+    input_cache_read: '0.0000001',
+    input_cache_write: '0.00000125',
+  },
 };
 const request = (): ChatRequest => ({
   model: model.id,
