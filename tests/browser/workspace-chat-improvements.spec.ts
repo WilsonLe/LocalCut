@@ -1096,7 +1096,8 @@ data: [DONE]
           );
         }
         stop() {
-          this.onend?.();
+          // Real browser recognition delivers final/end events after Stop returns.
+          setTimeout(() => this.onend?.(), 300);
         }
         abort() {
           this.onend?.();
@@ -1131,6 +1132,9 @@ data: [DONE]
     await page
       .getByRole('button', { name: 'Stop dictation', exact: true })
       .click();
+    await page
+      .getByRole('button', { name: 'Collapse chat', exact: true })
+      .click();
     await expect
       .poll(() =>
         page.evaluate(() => {
@@ -1155,6 +1159,9 @@ data: [DONE]
         ),
       )
       .toBe(1);
+    await page
+      .getByRole('button', { name: 'Expand chat', exact: true })
+      .click();
     const voiceId = await page.evaluate(
       () =>
         JSON.parse(localStorage.getItem('localcut.voice-presets.v1')!)
@@ -1300,7 +1307,11 @@ data: [DONE]
           );
         }
         stop() {
-          this.onend?.();
+          Object.assign(window, { dictationEndPending: true });
+          setTimeout(() => {
+            Object.assign(window, { dictationEndPending: false });
+            this.onend?.();
+          }, 1000);
         }
         abort() {
           this.onend?.();
@@ -1383,7 +1394,9 @@ data: [DONE]
       .getByRole('button', { name: 'Stop dictation', exact: true })
       .click();
     await input.fill('First idea');
-    const micBounds = (await mic.boundingBox())!;
+    const micBounds = (await page
+      .getByRole('button', { name: /^(Dictate message|Stop dictation)$/ })
+      .boundingBox())!;
     const sendBounds = (await page
       .getByRole('button', { name: 'Send edit request', exact: true })
       .boundingBox())!;
@@ -1400,6 +1413,13 @@ data: [DONE]
         .getByRole('button', { name: 'Commands', exact: true })
         .boundingBox())!.x,
     );
+    expect(
+      await page.evaluate(
+        () =>
+          (window as unknown as { dictationEndPending: boolean })
+            .dictationEndPending,
+      ),
+    ).toBe(true);
     await page
       .getByRole('button', { name: 'Send edit request', exact: true })
       .click();

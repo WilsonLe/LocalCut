@@ -41,6 +41,7 @@ export default function DictationButton({
   const recognition = useRef<Recognition | null>(null);
   const finish = useRef<(() => void) | null>(null);
   const capture = useRef<AbortController | null>(null);
+  const stopping = useRef(false);
   const callbacks = useRef({ onText, onError });
   useEffect(() => {
     callbacks.current = { onText, onError };
@@ -49,16 +50,20 @@ export default function DictationButton({
     mounted.current = true;
     return () => {
       mounted.current = false;
-      capture.current?.abort();
-      recognition.current?.abort();
-      finish.current?.();
+      if (!stopping.current) {
+        capture.current?.abort();
+        recognition.current?.abort();
+        finish.current?.();
+      }
     };
   }, []);
   useEffect(() => {
     if (!active || disabled) {
-      capture.current?.abort();
-      recognition.current?.abort();
-      finish.current?.();
+      if (!stopping.current) {
+        capture.current?.abort();
+        recognition.current?.abort();
+        finish.current?.();
+      }
     }
   }, [active, disabled]);
   const Constructor =
@@ -82,7 +87,12 @@ export default function DictationButton({
   const start = async () => {
     if (recording) {
       if (!recognition.current) capture.current?.abort();
-      recognition.current?.stop();
+      if (recognition.current) {
+        // Browser Stop completes asynchronously. Seal ownership now, before a
+        // Send/hide effect can abort the final recognition events/local save.
+        stopping.current = true;
+        recognition.current.stop();
+      }
       return;
     }
     if (capture.current) return;
@@ -121,6 +131,7 @@ export default function DictationButton({
     const end = () => {
       if (ended) return;
       ended = true;
+      stopping.current = false;
       recognition.current = null;
       finish.current = null;
       // Stop seals the recording. Sending the draft/navigation must not discard
