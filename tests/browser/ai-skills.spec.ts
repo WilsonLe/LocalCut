@@ -66,13 +66,31 @@ for (const base of ['/', '/LocalCut/']) {
                 type: 'complete' as const,
                 message: {
                   role: 'assistant' as const,
-                  content: 'FULFILLED\nScripted scenario receipts',
+                  content:
+                    'The scripted scenario receipts support the outcome.',
                 },
               };
               return;
             }
 
             requests.push(structuredClone(request));
+            if (JSON.parse(request.messages[1]!.content!).completionDecision) {
+              yield {
+                type: 'complete' as const,
+                message: {
+                  role: 'assistant' as const,
+                  content:
+                    [...request.messages]
+                      .reverse()
+                      .find(
+                        (message) =>
+                          message.role === 'assistant' &&
+                          !message.tool_calls?.length,
+                      )?.content ?? 'Done',
+                },
+              };
+              return;
+            }
             const name = [
               'load_skill',
               'inspect_capabilities',
@@ -235,13 +253,13 @@ for (const base of ['/', '/LocalCut/']) {
     expect(result[2]!.payload).toContain('clip_local_timeline');
     expect(result[2]!.payload).toContain('interpolation');
     expect(result[3]!.payload).toContain('font-space-mono');
-    expect(result[5]!.tools).toEqual(result[0]!.tools);
-    expect(result[5]!.payload).toContain(
+    expect(result[6]!.tools).toEqual(result[0]!.tools);
+    expect(result[6]!.payload).toContain(
       'Transition templates are editable recipes',
     );
     expect(result[1]!.currentSkills).toEqual(['editing']);
-    expect(result[5]!.currentSkills).toEqual([]);
-    expect(result[5]!.skillLoads).toEqual(result[1]!.skillLoads);
+    expect(result[6]!.currentSkills).toEqual([]);
+    expect(result[6]!.skillLoads).toEqual(result[1]!.skillLoads);
     expect(requested).toContain(skillFiles[0]);
     for (const path of skillFiles.slice(1))
       expect(requested).not.toContain(path);
@@ -312,13 +330,31 @@ for (const base of ['/', '/LocalCut/']) {
                 type: 'complete' as const,
                 message: {
                   role: 'assistant' as const,
-                  content: 'FULFILLED\nScripted scenario receipts',
+                  content:
+                    'The scripted scenario receipts support the outcome.',
                 },
               };
               return;
             }
 
             requests.push(structuredClone(request));
+            if (JSON.parse(request.messages[1]!.content!).completionDecision) {
+              yield {
+                type: 'complete' as const,
+                message: {
+                  role: 'assistant' as const,
+                  content:
+                    [...request.messages]
+                      .reverse()
+                      .find(
+                        (message) =>
+                          message.role === 'assistant' &&
+                          !message.tool_calls?.length,
+                      )?.content ?? 'Done',
+                },
+              };
+              return;
+            }
             const scope = JSON.parse(request.messages[1]!.content!);
             let calls: import('../../src/ai').ToolCall[] | undefined;
             switch (step++) {
@@ -522,7 +558,7 @@ for (const base of ['/', '/LocalCut/']) {
       revision: 1,
       font: 'font-space-mono',
       secondProposals: [],
-      requests: 11,
+      requests: 13,
       privateLeak: false,
       proposed: 1,
     });

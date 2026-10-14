@@ -6,7 +6,6 @@ export default function ChatMarkdown({ text }: { text: string }) {
     <div className="min-w-0 space-y-3 break-words [&_p]:whitespace-pre-wrap">
       <Markdown
         remarkPlugins={[remarkGfm]}
-        skipHtml
         components={{
           h1: ({ children }) => (
             <h3 className="text-lg font-semibold">{children}</h3>

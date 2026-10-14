@@ -481,11 +481,12 @@ it('recovers prior sharing variants only into an explicitly OpenRouter-authorize
   }
 });
 
-it('persists Markdown goal and checklist snapshots through restore and fork without changing legacy chats', () => {
+it('persists verbatim goal and task text through restore and fork without changing legacy chats', () => {
   const chat = newChatSession('project:model:private');
   const goal = {
-    goal: '## Goal\nKeep the session objective',
-    todos: '## To-dos\n- [x] First task\n- [ ] Remaining task',
+    goal: '  Keep the session objective without headings.\n<direction> stays text.\n',
+    todos:
+      'First task is complete. Remaining task needs attention; no checkbox syntax.',
   };
   chat.content.sessionGoal = goal;
   chat.content.messages.push(

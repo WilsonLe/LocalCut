@@ -58,7 +58,7 @@ for (const base of behaviorBases) {
           : instruction.startsWith('LocalCut session to-dos:')
             ? `## To-dos\n- [${data.conversation?.some((message: { role: string }) => message.role === 'assistant') ? 'x' : ' '}] Answer the question with supported information.`
             : instruction.startsWith('LocalCut completion review:')
-              ? 'FULFILLED\nThe answer explains the workflow and needs no project changes.'
+              ? 'The answer explains the workflow and needs no project changes.'
               : 'Import footage into Media, then place it on the timeline to edit.';
         await route.fulfill({
           headers: cors,
@@ -209,7 +209,7 @@ for (const base of behaviorBases) {
     await expect(article.locator('[data-chat-review-draft]')).toHaveCount(0);
     await expect(article.locator('.chat-thinking')).toHaveCount(0);
     await expect(
-      article.getByRole('button', { name: 'Completion verified · 1' }),
+      article.getByRole('button', { name: 'Completion reviewed · 1' }),
     ).toBeVisible();
     const settled = requests;
     await page.reload();
