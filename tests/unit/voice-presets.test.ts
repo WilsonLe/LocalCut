@@ -225,7 +225,7 @@ it('retains generated voice provenance while excluding script and raw reference 
     ...preset,
     referenceId: 'saved-reference',
     source: {
-      projectId: 'project',
+      projectId: 'project/1:legacy',
       assetId: 'audio',
       transcriptId: 'words',
       generationId: 'generation',
@@ -240,7 +240,7 @@ it('retains generated voice provenance while excluding script and raw reference 
   expect(parsed[0]).toMatchObject({
     referenceId: 'saved-reference',
     source: {
-      projectId: 'project',
+      projectId: 'project/1:legacy',
       assetId: 'audio',
       transcriptId: 'words',
       generationId: 'generation',

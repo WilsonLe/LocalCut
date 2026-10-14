@@ -35,12 +35,7 @@ const validSource = (source: NonNullable<VoicePreset['source']>) =>
   source &&
   ['projectId', 'assetId', 'transcriptId', 'generationId'].every((key) => {
     const value = source[key as 'projectId'];
-    return (
-      typeof value === 'string' &&
-      value.length > 0 &&
-      value.length <= 200 &&
-      /^[A-Za-z0-9_-]+$/.test(value)
-    );
+    return typeof value === 'string' && value.length > 0 && value.length <= 200;
   }) &&
   Number.isSafeInteger(source.createdAt) &&
   source.createdAt >= 0;

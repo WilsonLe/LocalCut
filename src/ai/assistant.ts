@@ -1491,6 +1491,41 @@ export function createAssistant(options: AssistantOptions) {
                 'TOOL_NOT_ALLOWED',
                 'This local service is unavailable.',
               );
+              if (
+                action.type === 'generate_speech' &&
+                !action.options.generationId
+              ) {
+                const state = await interruptible(
+                  speech!.inspect(signal),
+                  signal,
+                );
+                if (action.options.voicePresetId) {
+                  const preset = state.savedVoices?.find(
+                    (p) => p.id === action.options.voicePresetId && !p.archived,
+                  );
+                  aiInvariant(
+                    preset?.version &&
+                      (!action.options.voiceVersion ||
+                        preset.version === action.options.voiceVersion),
+                    'REVISION_CONFLICT',
+                    'The saved voice is unavailable or changed. Inspect voices and request a fresh proposal.',
+                  );
+                  action.options.voiceVersion = preset.version;
+                } else {
+                  // Review freezes advertised defaults as well as an explicitly named voice.
+                  const modelId =
+                    action.options.model ||
+                    state.selectedModel ||
+                    state.models.find((m) => !m.referenceVoice)?.id;
+                  if (modelId) action.options.model = modelId;
+                  const model = state.models.find((m) => m.id === modelId);
+                  if (!action.options.voice && model && !model.referenceVoice)
+                    action.options.voice =
+                      (model.id === state.selectedModel
+                        ? state.selectedVoice
+                        : undefined) || model.voices[0];
+                }
+              }
               let libraryDependent = false;
               if (action.type === 'library') {
                 libraryObserved = true;

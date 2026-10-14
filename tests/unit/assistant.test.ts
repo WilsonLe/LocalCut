@@ -9428,7 +9428,11 @@ describe('agent narration access and preserved failure evidence', () => {
       jobs = new Jobs();
     const speech = {
       disclosure: 'Script only.',
-      inspect: vi.fn(),
+      inspect: vi.fn(async () => ({
+        models: [],
+        timingReady: true,
+        timingRoute: 'remote',
+      })),
       generate: vi.fn(() =>
         jobs.start(
           async () => {
@@ -9477,7 +9481,11 @@ describe('agent narration access and preserved failure evidence', () => {
     let attempts = 0;
     const speech = {
       disclosure: 'Script only.',
-      inspect: vi.fn(),
+      inspect: vi.fn(async () => ({
+        models: [],
+        timingReady: true,
+        timingRoute: 'remote',
+      })),
       generate: vi.fn(() =>
         jobs.start(
           async () => {
@@ -9674,5 +9682,162 @@ it('discloses saved voice settings without leaking withheld names or contextual 
     expect(speech.generate).not.toHaveBeenCalled();
   } finally {
     await a.dispose();
+  }
+});
+
+it('freezes saved voice configuration identity before deferred headless approval', async () => {
+  const f = fixture(),
+    jobs = new Jobs();
+  const version = 'a'.repeat(64);
+  const speech = {
+    disclosure: 'Script and selected generated reference only.',
+    inspect: vi.fn(async () => ({
+      models: [],
+      timingReady: true,
+      timingRoute: 'remote',
+      savedVoices: [
+        {
+          id: 'voice-profile',
+          name: 'Narrator',
+          archived: false,
+          model: 'test/tts',
+          voice: 'voice',
+          languages: ['English'],
+          instructions: '',
+          version,
+        },
+      ],
+    })),
+    generate: vi.fn(
+      (
+        _projectId: string,
+        input: import('../../src/ai/agent-speech').SpeechGeneration,
+      ) =>
+        jobs.start(
+          async () => {
+            expect(input.voiceVersion).toBe(version);
+            throw new AiError(
+              'REVISION_CONFLICT',
+              'Voice changed after approval was staged.',
+              { paidSubmission: false },
+            );
+          },
+          { error: (error) => error as AiError },
+        ),
+    ),
+  };
+  const p = provider(
+    [
+      [final('', [call('load_skill', { skillId: 'speech' })])],
+      [
+        final('', [
+          call('propose_action', {
+            summary: 'Use saved narrator',
+            action: {
+              type: 'generate_speech',
+              options: { script: 'Sydney.', voicePresetId: 'voice-profile' },
+            },
+          }),
+        ]),
+      ],
+      [final('Ready for approval.')],
+    ],
+    false,
+  );
+  const a = createAssistant({
+    editor: f.editor,
+    provider: p,
+    speech,
+    projectId: f.project().id,
+    model: 'test/model',
+  });
+  try {
+    const result = await a.run('Reuse the saved narrator').completion;
+    expect(a.getProposal(result.proposalIds[0]!).action).toMatchObject({
+      type: 'generate_speech',
+      options: { voiceVersion: version },
+    });
+    expect(speech.generate).not.toHaveBeenCalled();
+    await expect(
+      a.approveProposal(result.proposalIds[0]!),
+    ).rejects.toMatchObject({ code: 'REVISION_CONFLICT' });
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+  } finally {
+    await a.dispose();
+    await jobs.dispose();
+  }
+});
+
+it('freezes advertised default voice choices for review even if configuration changes afterward', async () => {
+  const f = fixture(),
+    jobs = new Jobs();
+  let voice = 'Kore';
+  const speech = {
+    disclosure: 'Script only.',
+    inspect: vi.fn(async () => ({
+      models: [{ id: 'test/tts', name: 'Test', voices: ['Kore', 'Puck'] }],
+      selectedModel: 'test/tts',
+      selectedVoice: voice,
+      timingReady: true,
+      timingRoute: 'remote',
+    })),
+    generate: vi.fn(
+      (
+        _projectId: string,
+        input: import('../../src/ai/agent-speech').SpeechGeneration,
+      ) =>
+        jobs.start(async () => ({
+          projectId: f.project().id,
+          generationId: 'take',
+          assetId: 'narration',
+          transcriptId: 'spoken',
+          libraryRevision: 1,
+          durationUs: 1000000,
+          sampleRate: 24000,
+          channels: 1,
+          model: input.model!,
+          voice: input.voice!,
+        })),
+    ),
+  };
+  const p = provider(
+    [
+      [final('', [call('load_skill', { skillId: 'speech' })])],
+      [
+        final('', [
+          call('propose_action', {
+            summary: 'Create narration',
+            action: {
+              type: 'generate_speech',
+              options: { script: 'Sydney.', languages: ['English'] },
+            },
+          }),
+        ]),
+      ],
+      [final('Ready for approval.')],
+    ],
+    false,
+  );
+  const a = createAssistant({
+    editor: f.editor,
+    provider: p,
+    speech,
+    projectId: f.project().id,
+    model: 'test/model',
+  });
+  try {
+    const result = await a.run('Generate narration').completion;
+    expect(a.getProposal(result.proposalIds[0]!).action).toMatchObject({
+      options: { model: 'test/tts', voice: 'Kore' },
+    });
+    voice = 'Puck';
+    await a.approveProposal(result.proposalIds[0]!);
+    expect(a.getProposal(result.proposalIds[0]!).result).toMatchObject({
+      kind: 'speech',
+      voice: 'Kore',
+    });
+  } finally {
+    await a.dispose();
+    await jobs.dispose();
   }
 });

@@ -1,3 +1,4 @@
+import { canonical } from '../core/commands';
 import { AiError, aiInvariant } from './errors';
 import { REFERENCE_SPEECH_MODEL, SPEECH_REFERENCE_BYTES } from './speech';
 import { changeVoicePresets, readVoicePresets } from './voice-presets';
@@ -78,29 +79,35 @@ export async function saveGeneratedVoice(
     matching &&
     JSON.stringify(settingsOf(matching)) ===
       JSON.stringify(settingsOf(settings));
-  const id = matches ? matching.id : publication.generationId;
-  const existing = current.find((preset) => preset.id === id);
+  let id = matches ? matching.id : publication.generationId;
+  let existing = current.find((preset) => preset.id === id);
+  if (
+    existing &&
+    JSON.stringify(settingsOf(existing)) !==
+      JSON.stringify(settingsOf(settings))
+  ) {
+    // Preserve a configuration edited by another consumer during synthesis.
+    id = publication.generationId;
+    existing = current.find((preset) => preset.id === id);
+  }
   aiInvariant(
     !existing?.archived,
     'INVALID_REQUEST',
     'This voice configuration was archived. Restore it or save a new voice.',
   );
-  if (existing?.referenceId && existing.source)
-    return {
-      ...publication,
-      voicePresetId: id,
-      referenceSaved: !!existing.referenceId,
-    };
-  let referenceId =
-    existing?.referenceId ??
-    (selectedPreset?.referenceId &&
-    (settings.model === REFERENCE_SPEECH_MODEL ||
-      (settings.model === selectedPreset.model &&
-        settings.voice === selectedPreset.voice))
-      ? selectedPreset.referenceId
-      : undefined);
-  const { saveVoiceReference, removeVoiceReference } =
+  const { saveVoiceReference, readVoiceReference, removeVoiceReference } =
     await import('../storage/voice-references');
+  const fingerprint = await synthesisFingerprint(settings);
+  const inheritedId = existing?.referenceId ?? selectedPreset?.referenceId;
+  const inherited = inheritedId
+    ? await readVoiceReference(inheritedId)
+    : undefined;
+  const referenceMatches =
+    settings.model === REFERENCE_SPEECH_MODEL ||
+    inherited?.synthesis?.settingsFingerprint === fingerprint;
+  let referenceId = referenceMatches && inherited ? inheritedId : undefined;
+  if (existing?.source && referenceId)
+    return { ...publication, voicePresetId: id, referenceSaved: true };
   let createdReference = false;
   try {
     if (
@@ -113,11 +120,24 @@ export async function saveGeneratedVoice(
         signal,
       );
       signal.throwIfAborted();
-      referenceId = id;
-      await saveVoiceReference(id, {
+      referenceId = publication.generationId;
+      await saveVoiceReference(referenceId, {
         file: original.file,
         transcript: script,
         timing: take.transcript,
+        configuration: settingsOf(settings),
+        source: {
+          projectId: publication.projectId,
+          assetId: publication.assetId,
+          transcriptId: publication.transcriptId,
+          generationId: publication.generationId,
+          createdAt: Date.now(),
+        },
+        synthesis: {
+          model: settings.model,
+          voice: settings.voice,
+          settingsFingerprint: fingerprint,
+        },
       });
       createdReference = true;
     }
@@ -136,13 +156,16 @@ export async function saveGeneratedVoice(
             ? {
                 ...preset,
                 ...(referenceId ? { referenceId } : {}),
-                source: preset.source ?? {
-                  projectId: publication.projectId,
-                  assetId: publication.assetId,
-                  transcriptId: publication.transcriptId,
-                  generationId: publication.generationId,
-                  createdAt: Date.now(),
-                },
+                source:
+                  referenceMatches && preset.source
+                    ? preset.source
+                    : {
+                        projectId: publication.projectId,
+                        assetId: publication.assetId,
+                        transcriptId: publication.transcriptId,
+                        generationId: publication.generationId,
+                        createdAt: Date.now(),
+                      },
               }
             : preset,
         );
@@ -167,8 +190,8 @@ export async function saveGeneratedVoice(
   } catch (error) {
     if (createdReference) {
       try {
-        if (!readVoicePresets().some((p) => p.referenceId === id))
-          await removeVoiceReference(id);
+        if (!readVoicePresets().some((p) => p.referenceId === referenceId))
+          await removeVoiceReference(referenceId!);
       } catch {
         /* Preserve a reference when another publisher may own it. */
       }
@@ -181,4 +204,30 @@ export async function saveGeneratedVoice(
     );
   }
   return { ...publication, voicePresetId: id, referenceSaved: !!referenceId };
+}
+
+/** Settings identity only; renaming a preset does not change its speaker/configuration. */
+export async function voiceVersion(preset: VoicePreset): Promise<string> {
+  const bytes = new TextEncoder().encode(
+    canonical({
+      settings: settingsOf(preset),
+      referenceId: preset.referenceId,
+      archived: preset.archived,
+    }),
+  );
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)]
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function synthesisFingerprint(settings: VoiceSettings) {
+  const { model, voice, languages, instructions, elevenlabs } = settings;
+  const bytes = new TextEncoder().encode(
+    canonical({ model, voice, languages, instructions, elevenlabs }),
+  );
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)]
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('');
 }

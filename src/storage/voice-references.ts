@@ -6,6 +6,9 @@ export interface VoiceReference {
   file: Blob;
   transcript: string;
   timing?: SpeechTranscript;
+  configuration?: import('../ai/voice-presets').VoiceSettings;
+  source?: NonNullable<import('../ai/voice-presets').VoicePreset['source']>;
+  synthesis?: { model: string; voice: string; settingsFingerprint: string };
 }
 interface VoiceReferenceDatabase extends DBSchema {
   references: { key: string; value: VoiceReference };

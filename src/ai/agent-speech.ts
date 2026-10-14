@@ -17,6 +17,7 @@ import {
   voiceReference,
   saveGeneratedVoice,
   settingsOf,
+  voiceVersion,
 } from './voice-reuse';
 import { REFERENCE_SPEECH_MODEL } from './speech';
 import type { VoicePreset } from './voice-presets';
@@ -33,6 +34,10 @@ import type {
 
 export const speechGenerationSchema = z
   .object({
+    voiceVersion: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
     voicePresetId: z.string().min(1).max(80).optional(),
     reuseMode: z.enum(['settings', 'reference']).optional(),
     saveVoiceName: z.string().trim().min(1).max(100).optional(),
@@ -93,7 +98,7 @@ export interface AssistantSpeech {
     models: import('./types').SpeechModel[];
     selectedModel?: string;
     selectedVoice?: string;
-    savedVoices?: VoicePreset[];
+    savedVoices?: (VoicePreset & { version?: string })[];
     timingReady: boolean;
     timingRoute: string;
   }>;
@@ -107,7 +112,9 @@ export interface AssistantSpeech {
 export function createAssistantSpeech(
   editor: Editor,
   connection: SpeechConnection,
-  selected: { model?: string; voice?: string } = {},
+  selected:
+    | { model?: string; voice?: string }
+    | (() => { model?: string; voice?: string } | undefined) = {},
 ): AssistantSpeech {
   const localTiming =
     connection.provider.transcriptionDisclosure.includes('runs locally');
@@ -117,11 +124,18 @@ export function createAssistantSpeech(
     const timingReady =
       !localTiming || (await editor.transcription.status()).ready;
     signal.throwIfAborted();
+    const selection =
+      (typeof selected === 'function' ? selected() : selected) ?? {};
     return {
       models,
-      savedVoices: savedVoices(),
-      selectedModel: selected.model,
-      selectedVoice: selected.voice,
+      savedVoices: await Promise.all(
+        savedVoices().map(async (preset) => ({
+          ...preset,
+          version: await voiceVersion(preset),
+        })),
+      ),
+      selectedModel: selection.model,
+      selectedVoice: selection.voice,
       timingReady,
       timingRoute: connection.provider.transcriptionDisclosure,
     };
@@ -135,6 +149,67 @@ export function createAssistantSpeech(
       return new Jobs().start(
         async (signal, progress) => {
           const input = speechGenerationSchema.parse(value);
+          if (input.generationId) {
+            const task = await editor.tasks.get(input.generationId);
+            const original = (await editor.tasks.input(input.generationId)) as
+              SpeechTaskInput | undefined;
+            aiInvariant(
+              task?.projectId === projectId &&
+                task.kind === speechTaskKind(connection) &&
+                original?.route === speechRoute(connection) &&
+                original.timingRoute === speechTimingRoute(connection),
+              'INVALID_REQUEST',
+              'The saved generation does not belong to this project and configured speech route.',
+            );
+            const requested = {
+              ...original.request,
+              script: input.script,
+              ...(input.model ? { model: input.model } : {}),
+              ...(input.voice ? { voice: input.voice } : {}),
+              ...(input.languages ? { languages: input.languages } : {}),
+              ...(input.instructions !== undefined
+                ? { instructions: input.instructions }
+                : {}),
+              ...(input.elevenlabs ? { elevenlabs: input.elevenlabs } : {}),
+            };
+            aiInvariant(
+              speechBody(requested) === speechBody(original.request) &&
+                (!input.timing ||
+                  JSON.stringify(input.timing) ===
+                    JSON.stringify(original.timing)) &&
+                (input.reuseMode !== 'reference' ||
+                  original.request.model === REFERENCE_SPEECH_MODEL),
+              'INVALID_REQUEST',
+              'Recover a saved take with its original script, model, voice and timing settings.',
+            );
+            if (task.state === 'completed') {
+              const cached = (await editor.tasks.checkpoint(task.id)) as
+                SpeechTaskResult | undefined;
+              if (
+                cached?.publication?.voicePresetId &&
+                savedVoices().some(
+                  (p) => p.id === cached.publication!.voicePresetId,
+                )
+              ) {
+                aiInvariant(
+                  !input.voicePresetId ||
+                    input.voicePresetId === cached.publication.voicePresetId,
+                  'INVALID_REQUEST',
+                  'This saved take belongs to a different voice configuration.',
+                );
+                const asset = await editor.assets.inspect(
+                  cached.publication.assetId,
+                );
+                signal.throwIfAborted();
+                aiInvariant(
+                  asset.status === 'ready',
+                  'EDIT_REJECTED',
+                  'The saved narration asset is unavailable. Restore it before placement.',
+                );
+                return cached.publication;
+              }
+            }
+          }
           const state = await inspect(signal);
           const preset = input.voicePresetId
             ? state.savedVoices?.find(
@@ -145,6 +220,11 @@ export function createAssistantSpeech(
             !input.voicePresetId || preset,
             'INVALID_REQUEST',
             'The saved voice is missing or archived. Inspect saved voices and choose an active stable ID.',
+          );
+          aiInvariant(
+            !input.voiceVersion || input.voiceVersion === preset?.version,
+            'REVISION_CONFLICT',
+            'The saved voice settings changed. Inspect the current voice and request a fresh proposal before synthesis.',
           );
           const referenceReuse =
             input.reuseMode === 'reference' ||
@@ -157,7 +237,7 @@ export function createAssistantSpeech(
           const modelId =
             input.model ||
             (referenceReuse ? REFERENCE_SPEECH_MODEL : preset?.model) ||
-            selected.model ||
+            state.selectedModel ||
             state.models.find((m) => !m.referenceVoice)?.id;
           const model = state.models.find((m) => m.id === modelId);
           aiInvariant(
@@ -174,7 +254,9 @@ export function createAssistantSpeech(
             (model.referenceVoice
               ? 'reference'
               : input.voice || preset?.voice) ||
-            (model.id === selected.model ? selected.voice : undefined) ||
+            (model.id === state.selectedModel
+              ? state.selectedVoice
+              : undefined) ||
             model.voices[0];
           aiInvariant(
             voice &&

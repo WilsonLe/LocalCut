@@ -418,6 +418,20 @@ for (const base of behaviorBases) {
         ...options,
         generationId: generated.generationId,
       }).completion;
+      const offline = api.createAssistantSpeech(editor, {
+        ...connection,
+        provider: {
+          ...connection.provider,
+          listSpeechModels: async () => {
+            throw new api.AiError('NETWORK_ERROR', 'Catalog offline');
+          },
+        },
+      });
+      const offlineReceipt = await offline.generate(project.id, {
+        ...options,
+        generationId: generated.generationId,
+      }).completion;
+      const offlineReused = offlineReceipt.assetId === generated.assetId;
       const sameAsset = reused.assetId === generated.assetId;
       const wrongProject = await editor.projects.create('Other project');
       let foreignRejected = false;
@@ -494,6 +508,7 @@ for (const base of behaviorBases) {
         generated,
         foreignRejected,
         sameAsset,
+        offlineReused,
         cancelled,
         mediaCount,
         localReady: readiness.timingReady,
@@ -511,6 +526,7 @@ for (const base of behaviorBases) {
     });
     expect(result.foreignRejected).toBe(true);
     expect(result.sameAsset).toBe(true);
+    expect(result.offlineReused).toBe(true);
     expect(result.cancelled).toBe(true);
     expect(result.mediaCount).toBe(1);
     if (!result.localReady) expect(result.localRejected).toBe(true);
@@ -953,6 +969,30 @@ for (const base of behaviorBases) {
         const profile = record.presets.find(
           (v: { id: string }) => v.id === first.voicePresetId,
         );
+        const version = original.version;
+        profile.name = 'Renamed narrator';
+        localStorage.setItem(
+          'localcut.voice-presets.v1',
+          JSON.stringify(record),
+        );
+        const renamedVersion = (
+          await speech.inspect(new AbortController().signal)
+        ).savedVoices!.find((v) => v.id === first.voicePresetId)!.version;
+        profile.instructions = 'Different delivery';
+        localStorage.setItem(
+          'localcut.voice-presets.v1',
+          JSON.stringify(record),
+        );
+        let staleRejected = false;
+        try {
+          await speech.generate(project.id, {
+            script: 'Do not submit.',
+            voicePresetId: first.voicePresetId,
+            voiceVersion: version,
+          }).completion;
+        } catch (e) {
+          staleRejected = (e as { code: string }).code === 'REVISION_CONFLICT';
+        }
         profile.archived = true;
         localStorage.setItem(
           'localcut.voice-presets.v1',
@@ -987,6 +1027,9 @@ for (const base of behaviorBases) {
           newScript: referenceRequest.script,
           wavHeader,
           wrongModel,
+          staleRejected,
+          renamedVersion,
+          version,
           archived,
           missing,
           metadataContainsScript: JSON.stringify(record.presets).includes(
@@ -1012,6 +1055,8 @@ for (const base of behaviorBases) {
     expect(result.wavHeader).toMatch(/^RIFF.{4}WAVE$/s);
     expect(result.count).toBe(2);
     expect(result.wrongModel).toBe(true);
+    expect(result.staleRejected).toBe(true);
+    expect(result.renamedVersion).toBe(result.version);
     expect(result.archived).toBe(true);
     expect(result.missing).toBe(true);
     expect(result.original).toMatchObject({

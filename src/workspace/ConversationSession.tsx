@@ -537,9 +537,10 @@ export default function ConversationSession({
           ? connection.api.createAssistantSpeech(
               editor,
               connection,
-              parseProviderConfiguration(
-                getWorkspacePreferences().preferences.aiProviders,
-              ).routes.tts[0],
+              () =>
+                parseProviderConfiguration(
+                  getWorkspacePreferences().preferences.aiProviders,
+                ).routes.tts[0],
             )
           : undefined,
         indexing:
