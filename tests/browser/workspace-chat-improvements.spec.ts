@@ -465,7 +465,7 @@ data: [DONE]
         .locator('.chat-composer')
         .dispatchEvent('drop', { dataTransfer: transfer });
       await transfer.dispose();
-      await expect(page.getByLabel('Attached images')).toContainText(
+      await expect(page.getByLabel('Attached references')).toContainText(
         'Retry reference.png',
       );
       await input.fill('Inspect my attached reference');
@@ -1566,7 +1566,7 @@ data: [DONE]
       page.locator('.conversation-session:not([hidden]) .chat-composer'),
     ).toHaveAttribute('data-dropping', 'true');
     await page.mouse.up();
-    await expect(page.getByLabel('Attached images')).toContainText(
+    await expect(page.getByLabel('Attached references')).toContainText(
       'Reference.png',
     );
     await page
@@ -1585,7 +1585,7 @@ data: [DONE]
     await page
       .locator('.conversation-session:not([hidden]) .chat-composer')
       .dispatchEvent('drop', { dataTransfer: transfer });
-    await expect(page.getByLabel('Attached images')).toContainText(
+    await expect(page.getByLabel('Attached references')).toContainText(
       'Reference.png',
     );
     await input.fill('Use the attached image');
@@ -1629,7 +1629,7 @@ data: [DONE]
       await page
         .locator('.conversation-session:not([hidden]) .chat-composer')
         .dispatchEvent('drop', { dataTransfer: data });
-      await expect(page.getByLabel('Attached images')).toContainText(
+      await expect(page.getByLabel('Attached references')).toContainText(
         image.name,
       );
       await expect(

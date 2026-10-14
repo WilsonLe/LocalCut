@@ -247,4 +247,70 @@ describe('saved index context', () => {
     expect(readIndex(asset, 1).scenes).toEqual([]);
     expect(JSON.stringify(readIndex(asset))).not.toContain('private');
   });
+  it('reports only successfully transmitted reference evidence and preserves unknown legacy coverage', () => {
+    const asset = run('reference', 'video', 0);
+    asset.source = {
+      ...asset.source,
+      kind: 'video',
+      durationUs: 9000000,
+      hasAudio: true,
+    };
+    const scene = asset.analysis.scenes[0]!;
+    scene.artifacts = [
+      { id: 'still', kind: 'image', type: 'image/jpeg', size: 1 },
+      { id: 'clip', kind: 'video', type: 'video/mp4', size: 1 },
+    ];
+    expect(readIndex(asset).scenes[0]?.evidence).toMatchObject({
+      recorded: false,
+      motionAssessed: false,
+      soundAssessed: false,
+    });
+    asset.requests.push({
+      id: 'still-request',
+      sceneId: scene.id,
+      prompt: 'private',
+      model: 'image-model',
+      artifactIds: ['still'],
+      createdAt: 1,
+      label,
+    });
+    // A failed clip request must not overstate the successful still-only label.
+    asset.requests.push({
+      id: 'failed-clip',
+      sceneId: scene.id,
+      prompt: 'private',
+      model: 'video-model',
+      artifactIds: ['still', 'clip'],
+      createdAt: 2,
+      response: 'invalid',
+    });
+    expect(readIndex(asset).scenes[0]?.evidence).toEqual({
+      recorded: true,
+      still: true,
+      video: false,
+      audio: false,
+      motionAssessed: false,
+      soundAssessed: false,
+    });
+    asset.requests.at(-1)!.label = label;
+    expect(readIndex(asset).scenes[0]?.evidence).toMatchObject({
+      video: true,
+      audio: true,
+      motionAssessed: true,
+      soundAssessed: true,
+    });
+    asset.source.hasAudio = false;
+    expect(readIndex(asset).scenes[0]?.evidence.soundAssessed).toBe(false);
+    expect(readIndex(asset)).toMatchObject({
+      source: { kind: 'video', durationUs: 9000000, hasAudio: false },
+      sampling: {
+        sampleRate: 4,
+        excerptUs: 4000000,
+        completeSceneCoverage: false,
+      },
+    });
+    expect(JSON.stringify(readIndex(asset))).not.toMatch(
+      /private|image-model|video-model/,
+    );
+  });
 });

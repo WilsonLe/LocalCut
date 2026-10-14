@@ -2,6 +2,11 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Video reference analysis — 14 October 2026
+
+- Let Klip receive local video references directly in chat and analyze videos already in the current project's Media. Reuse the browser-only media/indexing pipeline and connected OpenRouter model.
+- Keep imported references off the timeline until requested. Import, attachment and reload do not start paid analysis. Report timestamped sampled observations and distinguish them from creative recommendations and unassessed motion/sound.
+
 ## Automatic working-context compaction — 14 October 2026
 
 - Automatically compact model working context when it reaches 192,000 estimated tokens, 75% of the original 256k working budget. This supersedes the no-compaction parts of the 12 October no-cap preference; retain uncapped output and execution with provider/caller limits.

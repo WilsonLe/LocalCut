@@ -73,17 +73,45 @@ export function readIndex(
 ) {
   return {
     ...compactIndex(run, policy),
+    source: {
+      kind: run.source.kind,
+      durationUs: run.source.durationUs,
+      hasAudio: run.source.hasAudio,
+    },
+    sampling: {
+      sampleRate: run.analysis.settings.sampleRate,
+      excerptUs: run.analysis.settings.excerptUs,
+      completeSceneCoverage: false,
+    },
     offset,
-    scenes: run.analysis.scenes.slice(offset, offset + limit).map((s) => ({
-      sceneId: s.id,
-      startUs: s.startUs,
-      endUs: s.endUs,
-      representativeUs: s.representativeUs,
-      actionUs: s.actionUs,
-      excerptStartUs: s.excerptStartUs,
-      excerptEndUs: s.excerptEndUs,
-      label: s.label,
-    })),
+    scenes: run.analysis.scenes.slice(offset, offset + limit).map((s) => {
+      // Generated artifacts alone do not prove they reached the labeling model.
+      const request = run.requests
+        .filter((item) => item.sceneId === s.id && item.label)
+        .at(-1);
+      const sent = new Set(request?.artifactIds ?? []);
+      const evidence = s.artifacts.filter((artifact) => sent.has(artifact.id));
+      const video = evidence.some((artifact) => artifact.kind === 'video');
+      const audio = evidence.some((artifact) => artifact.kind === 'audio');
+      return {
+        sceneId: s.id,
+        startUs: s.startUs,
+        endUs: s.endUs,
+        representativeUs: s.representativeUs,
+        actionUs: s.actionUs,
+        excerptStartUs: s.excerptStartUs,
+        excerptEndUs: s.excerptEndUs,
+        label: s.label,
+        evidence: {
+          recorded: !!request,
+          still: evidence.some((artifact) => artifact.kind === 'image'),
+          video,
+          audio: audio || (video && run.source.hasAudio),
+          motionAssessed: video,
+          soundAssessed: audio || (video && run.source.hasAudio),
+        },
+      };
+    }),
     nextOffset:
       offset + limit < run.analysis.scenes.length ? offset + limit : null,
   };

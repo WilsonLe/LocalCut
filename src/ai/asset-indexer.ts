@@ -185,6 +185,11 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
                     } else normalized = parseIndexLabel(result.text);
                     if (framesOnly)
                       normalized.sound = 'Not assessed from still frames';
+                    else if (
+                      run.source.kind === 'video' &&
+                      !run.source.hasAudio
+                    )
+                      normalized.sound = 'No audio track in source';
                   } catch (e) {
                     await options.editor.assets.indexes.recordResponse(
                       run.id,
@@ -222,7 +227,7 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
                     progress: i / (run.analysis.scenes.length + 1),
                   });
                   await label(
-                    `Label the supplied ${run.source.kind === 'audio' ? 'audio excerpt' : 'representative still'}${run.source.kind === 'video' && !framesOnly ? ' and action excerpt including sound' : ''}. ${framesOnly ? 'Video frame indexing: only a still is supplied; do not infer motion or sound. Set sound to "Not assessed from still frames". ' : ''}These are selected samples, not complete scene coverage. Return only {"sceneId":"${scene.id}","label":${shape}}. Do not guess unseen content or identify people by name. Local measurements: ${JSON.stringify({ startUs: scene.startUs, endUs: scene.endUs, excerptStartUs: scene.excerptStartUs, excerptEndUs: scene.excerptEndUs, sharpness: scene.representative?.sharpness, clipped: scene.representative?.clipped, colors: scene.representative?.colors, audio: scene.audio })}`,
+                    `Label the supplied ${run.source.kind === 'audio' ? 'audio excerpt' : 'representative still'}${run.source.kind === 'video' && !framesOnly ? ` and action excerpt${run.source.hasAudio ? ' including sound' : ' without audio'}` : ''}. ${framesOnly ? 'Video frame indexing: only a still is supplied; do not infer motion or sound. Set sound to "Not assessed from still frames". ' : ''}These are selected samples, not complete scene coverage. Describe observed subjects and setting in scene/subjects; framing, composition, lighting, color and legible on-screen text in style/summary; observed camera or subject movement in summary only when a video excerpt is supplied; audible speech/music/effects in sound only when audio is supplied. For silent video, mark sound unassessed. Do not infer exact transitions or content outside the samples. Return only {"sceneId":"${scene.id}","label":${shape}}. Do not guess unseen content or identify people by name. Local measurements: ${JSON.stringify({ startUs: scene.startUs, endUs: scene.endUs, excerptStartUs: scene.excerptStartUs, excerptEndUs: scene.excerptEndUs, sharpness: scene.representative?.sharpness, clipped: scene.representative?.clipped, colors: scene.representative?.colors, audio: scene.audio })}`,
                     scene.id,
                   );
                 }

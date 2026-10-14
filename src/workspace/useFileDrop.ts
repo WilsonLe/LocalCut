@@ -40,6 +40,13 @@ export function useFileDrop(
     };
     const hover = (event: DragEvent) => {
       if (!hasFiles(event.dataTransfer)) return;
+      if (
+        event.target instanceof Element &&
+        event.target.closest('.chat-composer')
+      ) {
+        reset();
+        return;
+      }
       event.preventDefault();
       const allowed = accept(event.target);
       if (event.type === 'dragenter') depth++;
@@ -52,6 +59,14 @@ export function useFileDrop(
     };
     const drop = (event: DragEvent) => {
       if (!hasFiles(event.dataTransfer)) return;
+      // The composer imports references through its own shared asset path.
+      if (
+        event.target instanceof Element &&
+        event.target.closest('.chat-composer')
+      ) {
+        reset();
+        return;
+      }
       // Never let the browser navigate to a file, including in blocked views.
       event.preventDefault();
       event.stopPropagation();

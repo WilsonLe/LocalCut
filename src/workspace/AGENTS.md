@@ -32,3 +32,5 @@ For scrolling or settings changes, select the matching title in `tests/browser/w
 - `MediaFolders.tsx` owns folder navigation/forms and calls `editor.library`; freeze the library revision when opening a form. Folder upload/drop hierarchy flows through `folder-upload.ts` and the shared placement API. Preserve thumbnail-to-timeline dragging and offer context-menu move alternatives. See [Media folders](../../docs/workspace.md#media-folders).
 
 - Keep AI connection binary: OpenRouter connected or disconnected. Normalize legacy settings to one retained account and one model/voice per service; keep its credential namespace and discard backups. Local Whisper remains an explicit STT choice; failed local/remote work never switches services.
+
+- Composer references accept ready local images/videos through selection, native drop and Media drag. Keep stable attachment IDs through draft reload/Retry, use the shared asset importer and leave timeline placement/inference to explicit requests. Native workspace upload routing must leave composer drops to that owner. See [reference workflow](../../docs/workspace.md#video-references-in-chat).

@@ -35,7 +35,7 @@ function requestErrorText(error: unknown): string {
       : undefined;
   if (details && typeof details === 'object') {
     if ('reason' in details && details.reason === 'attachment_unavailable')
-      return 'An attached image is unavailable. Restore it in Media before retrying, or send a new request with a replacement image.';
+      return 'An attached reference is unavailable. Restore it in Media before retrying, or send a new request with a replacement image or video.';
     if ('reason' in details && details.reason === 'reviewer_protocol')
       return 'The model returned tool protocol instead of a plain-text review after recovery attempts. Use Retry response, or choose another model.';
     if ('providerReason' in details) {

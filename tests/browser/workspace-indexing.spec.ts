@@ -596,7 +596,9 @@ for (const base of behaviorBases) {
         .locator('.conversation-session:not([hidden]) .chat-composer')
         .dispatchEvent('drop', { dataTransfer: transfer });
       await transfer.dispose();
-      await expect(page.getByLabel('Attached images')).toContainText('red.png');
+      await expect(page.getByLabel('Attached references')).toContainText(
+        'red.png',
+      );
       await page
         .getByRole('textbox', { name: 'Describe your edit' })
         .fill(text);
@@ -1686,4 +1688,382 @@ for (const base of behaviorBases) {
       indexes: [assetId],
     });
   });
+}
+
+for (const base of behaviorBases) {
+  for (const videoInput of [true, false]) {
+    test(`video reference attachments and Media analysis use ${videoInput ? 'clips' : 'stills'} ${base}`, async ({
+      page,
+      context,
+    }, testInfo) => {
+      await catalog(context, false, videoInput);
+      let round = 0;
+      let mode: 'attachment' | 'cached' | 'media' = 'attachment';
+      let assetId = '';
+      let labeling = 0;
+      let mainRequests = 0;
+      let failResponse = videoInput;
+      let observations:
+        | {
+            scenes: {
+              evidence: { video: boolean; soundAssessed: boolean };
+              startUs: number;
+              endUs: number;
+            }[];
+            sampling: { completeSceneCoverage: boolean };
+          }
+        | undefined;
+      const response =
+        'Reference analysis: 0:00 sampled framing is a green graphic. This is sampled evidence; sound is unassessed.';
+      await context.route(
+        'https://openrouter.ai/api/v1/chat/completions',
+        async (route) => {
+          if (route.request().method() === 'OPTIONS')
+            return route.fulfill({ headers: cors });
+          if (await fulfillChatTitle(route)) return;
+          const body = route.request().postDataJSON();
+          let text: string | undefined;
+          let tool_calls: object[] | undefined;
+          const call = (name: string, args: object) => [
+            {
+              index: 0,
+              id: `${mode}-${round}`,
+              type: 'function',
+              function: { name, arguments: JSON.stringify(args) },
+            },
+          ];
+          if (body.tools) {
+            mainRequests++;
+            round++;
+            // Main chat receives only text/context, never reference pixels or video bytes.
+            expect(JSON.stringify(body.messages)).not.toMatch(
+              /data:(video|image)|video_url|image_url/,
+            );
+            if (round === 1) {
+              expect(body.messages[0].content).toContain(
+                'Metadata inspection alone is not visual perception',
+              );
+              tool_calls = call('load_skill', { skillId: 'indexing' });
+            } else if (mode === 'cached') {
+              if (round === 2)
+                tool_calls = call('read_asset_index', { assetId });
+              else {
+                observations = JSON.parse(body.messages.at(-1).content);
+                text = response;
+              }
+            } else {
+              const step = round - (mode === 'media' ? 2 : 0);
+              if (mode === 'media' && round === 2)
+                tool_calls = call('inspect_library', {});
+              else if (mode === 'media' && round === 3) {
+                const library = JSON.parse(body.messages.at(-1).content);
+                tool_calls = call('resolve_library_assets', {
+                  folderId: null,
+                  expectedRevision: library.revision,
+                });
+              } else if (step === 2) {
+                if (mode === 'media')
+                  expect(
+                    JSON.parse(body.messages.at(-1).content).assetIds,
+                  ).toContain(assetId);
+                tool_calls = call('inspect_asset', { assetId });
+              } else if (step === 3) {
+                expect(JSON.parse(body.messages.at(-1).content)).toMatchObject({
+                  id: assetId,
+                  kind: 'video',
+                  status: 'ready',
+                });
+                tool_calls = call('propose_action', {
+                  summary: 'Analyze this video reference',
+                  action: { type: 'index_asset', assetId },
+                });
+              } else if (step === 4) {
+                expect(
+                  JSON.parse(body.messages.at(-1).content).result,
+                ).toMatchObject({ assetId });
+                tool_calls = call('read_asset_index', { assetId });
+              } else {
+                observations = JSON.parse(body.messages.at(-1).content);
+                text = response;
+              }
+            }
+          } else {
+            labeling++;
+            const parts = body.messages.at(-1).content;
+            const sceneId =
+              parts.length > 1
+                ? /"sceneId":"(scene-\d+)"/.exec(parts[0].text)?.[1]
+                : undefined;
+            if (sceneId) {
+              expect(parts[0].text).toContain(
+                'framing, composition, lighting, color',
+              );
+              expect(
+                parts.some(
+                  (part: { type: string }) => part.type === 'video_url',
+                ),
+              ).toBe(videoInput);
+              expect(
+                parts.some(
+                  (part: { type: string }) => part.type === 'image_url',
+                ),
+              ).toBe(true);
+            }
+            text = JSON.stringify(
+              sceneId
+                ? {
+                    sceneId,
+                    label: {
+                      ...label,
+                      summary:
+                        'A green graphic, static in the sampled evidence',
+                      sound: 'invented fixture sound',
+                    },
+                  }
+                : label,
+            );
+          }
+          if (text === response && failResponse) {
+            failResponse = false;
+            await route.fulfill({
+              headers: cors,
+              status: 400,
+              json: {
+                error: { message: 'Controlled reference response failure' },
+              },
+            });
+            return;
+          }
+          await route.fulfill({
+            headers: cors,
+            contentType: 'text/event-stream',
+            body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { ...(text ? { content: text } : {}), ...(tool_calls ? { tool_calls } : {}) }, finish_reason: tool_calls ? 'tool_calls' : 'stop' }], model })}\n\ndata: [DONE]\n\n`,
+          });
+        },
+      );
+      await page.goto(base);
+      await page
+        .getByRole('button', { name: 'Workspace settings', exact: true })
+        .click();
+      await page
+        .getByRole('menuitem', { name: 'Project', exact: true })
+        .click();
+      await page
+        .getByRole('menuitem', { name: 'New project', exact: true })
+        .click();
+      await page
+        .getByLabel('Project name', { exact: true })
+        .fill('Reference perception');
+      await page
+        .getByRole('button', { name: 'Create project', exact: true })
+        .click();
+      const dialog = await connect(page);
+      await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+      const video = await mediaVideo(page);
+      const composer = page.getByRole('textbox', {
+        name: 'Describe your edit',
+        exact: true,
+      });
+      if (videoInput) {
+        const picker = page.waitForEvent('filechooser');
+        await page
+          .getByRole('button', { name: 'Attach references', exact: true })
+          .click();
+        await (await picker).setFiles(video);
+      } else {
+        const transfer = await page.evaluateHandle(
+          ({ name, bytes }) => {
+            const data = new DataTransfer();
+            data.items.add(
+              new File([new Uint8Array(bytes)], name, { type: 'video/webm' }),
+            );
+            return data;
+          },
+          { name: video.name, bytes: [...video.buffer] },
+        );
+        await composer.dispatchEvent('drop', { dataTransfer: transfer });
+        await transfer.dispose();
+      }
+      await expect(page.getByLabel('Attached references')).toContainText(
+        video.name,
+      );
+      await composer.fill('Analyze this attached video as a style reference.');
+      const draftIds = async () =>
+        page.evaluate(async () => {
+          const request = indexedDB.open('localcut-chats-v1');
+          const db = await new Promise<IDBDatabase>((resolve, reject) => {
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+          });
+          try {
+            const rows = await new Promise<
+              { content: { attachmentIds: string[]; prompt: string } }[]
+            >((resolve, reject) => {
+              const result = db
+                .transaction('sessions')
+                .objectStore('sessions')
+                .getAll();
+              result.onsuccess = () => resolve(result.result);
+              result.onerror = () => reject(result.error);
+            });
+            return (
+              rows.find((row) => row.content.prompt.includes('attached video'))
+                ?.content.attachmentIds ?? []
+            );
+          } finally {
+            db.close();
+          }
+        });
+      await expect.poll(draftIds).toHaveLength(1);
+      assetId = (await draftIds())[0]!;
+      await page.reload();
+      await expect(page.getByLabel('Attached references')).toContainText(
+        video.name,
+      );
+      await expect(composer).toHaveValue(
+        'Analyze this attached video as a style reference.',
+      );
+      expect(mainRequests).toBe(0);
+      expect(labeling).toBe(0);
+      await expect(page.locator('.timeline-clip')).toHaveCount(0);
+      await page.screenshot({
+        path: testInfo.outputPath('video-reference-draft.png'),
+      });
+      const send = async (prompt?: string) => {
+        if (prompt) await composer.fill(prompt);
+        await page
+          .getByRole('button', { name: 'Send edit request', exact: true })
+          .click();
+        await expect(
+          page
+            .getByRole('article', { name: 'Assistant response', exact: true })
+            .last()
+            .locator('[data-chat-response-text]'),
+        ).toHaveText(response);
+        await expect(
+          page.getByRole('button', { name: 'Cancel response', exact: true }),
+        ).toBeHidden();
+      };
+      if (videoInput) {
+        await page
+          .getByRole('button', { name: 'Send edit request', exact: true })
+          .click();
+        await expect(
+          page.getByRole('button', { name: 'Retry response', exact: true }),
+        ).toBeVisible();
+        const beforeRetry = labeling;
+        await page.reload();
+        mode = 'cached';
+        round = 0;
+        await page
+          .getByRole('button', { name: 'Retry response', exact: true })
+          .click();
+        await expect(
+          page
+            .getByRole('article', { name: 'Assistant response', exact: true })
+            .last()
+            .locator('[data-chat-response-text]'),
+        ).toHaveText(response);
+        await expect(
+          page.getByRole('button', { name: 'Cancel response', exact: true }),
+        ).toBeHidden();
+        expect(labeling).toBe(beforeRetry);
+      } else await send();
+      expect(observations).toMatchObject({
+        sampling: { completeSceneCoverage: false },
+        scenes: [{ evidence: { video: videoInput, soundAssessed: false } }],
+      });
+      expect(observations!.scenes[0]!.endUs).toBeGreaterThan(
+        observations!.scenes[0]!.startUs,
+      );
+      const labeledOnce = labeling;
+      mode = 'cached';
+      round = 0;
+      await send(
+        'Use the saved reference observations again without reindexing.',
+      );
+      expect(labeling).toBe(labeledOnce);
+      await expect(page.locator('.timeline-clip')).toHaveCount(0);
+      await page
+        .getByLabel('Import media', { exact: true })
+        .setInputFiles({ ...video, name: 'Media reference.webm' });
+      await closeMediaImport(page);
+      assetId = await page.evaluate(async (base) => {
+        const { createEditor } = (await import(
+          base + 'editor.js'
+        )) as typeof import('../../src/editor');
+        const editor = await createEditor();
+        try {
+          const project = (await editor.projects.list())[0]!;
+          return (
+            await editor.library.forProject(project.id).list()
+          ).entries.find((entry) => entry.name === 'Media reference.webm')!
+            .assetId!;
+        } finally {
+          await editor.dispose();
+        }
+      }, base);
+      mode = 'media';
+      round = 0;
+      await send(
+        'Analyze Media reference.webm for reference without putting it on the timeline.',
+      );
+      expect(labeling).toBeGreaterThan(labeledOnce);
+      expect(observations!.scenes[0]!.evidence.video).toBe(videoInput);
+      await expect(page.locator('.timeline-clip')).toHaveCount(0);
+      const requestsBeforeAttachments = mainRequests;
+      const labelsBeforeAttachments = labeling;
+      await page.getByLabel('Reference files', { exact: true }).setInputFiles([
+        { ...video, name: 'Completed reference.webm' },
+        {
+          name: 'Broken reference.webm',
+          mimeType: 'video/webm',
+          buffer: Buffer.from([1, 2, 3]),
+        },
+      ]);
+      await expect(page.getByLabel('Attached references')).toContainText(
+        'Completed reference.webm',
+      );
+      await expect(page.getByLabel('Attached references')).not.toContainText(
+        'Broken reference.webm',
+      );
+      await expect(
+        page.locator('.conversation-session:not([hidden]) [role="alert"]'),
+      ).toBeVisible();
+      await dismissNotifications(page);
+      await page
+        .getByRole('button', {
+          name: 'Remove Completed reference.webm',
+          exact: true,
+        })
+        .click();
+      // The existing Media pointer transport supplies the stable ID, not a second import.
+      const composerBounds = (await page
+        .locator('.conversation-session:not([hidden]) .chat-composer')
+        .boundingBox())!;
+      await page.evaluate(
+        ({ assetId, x, y }) => {
+          document.dispatchEvent(
+            new CustomEvent('localcut-media-drag', {
+              detail: { phase: 'drop', assetId, clientX: x, clientY: y },
+            }),
+          );
+        },
+        { assetId, x: composerBounds.x + 20, y: composerBounds.y + 20 },
+      );
+      await expect(page.getByLabel('Attached references')).toContainText(
+        'Media reference.webm',
+      );
+      expect(mainRequests).toBe(requestsBeforeAttachments);
+      expect(labeling).toBe(labelsBeforeAttachments);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.getByRole('button', { name: 'Chat', exact: true }).click();
+      await expect(
+        page.getByRole('button', { name: 'Attach references', exact: true }),
+      ).toBeInViewport();
+      await page.screenshot({
+        path: testInfo.outputPath('video-reference-mobile.png'),
+      });
+    });
+  }
 }
