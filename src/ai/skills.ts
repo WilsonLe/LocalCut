@@ -1,6 +1,11 @@
 /** Only catalog metadata is eager. Guidance lives in separately imported modules. */
 export const skillCatalog = [
   {
+    id: 'coding',
+    description:
+      'Read, write, edit, glob, grep, browser Bash and arbitrary isolated JavaScript in the persistent project coding directory; compose/synthesize original music and sound effects with code, render WAV, retain sources, and import generated files into Media.',
+  },
+  {
     id: 'storyboard',
     description:
       'Author and inspect whiteboards, shot plans and diagrams; layout, style, group and layer Excalidraw shapes/text/arrows/frames/freehand and actual images/video stills; export PNG/SVG/editable scenes, store renders in Media and combine with timeline/evidence/document workflows.',
@@ -34,6 +39,8 @@ export type SkillId = (typeof skillCatalog)[number]['id'];
 
 export async function loadSkill(id: SkillId): Promise<string> {
   switch (id) {
+    case 'coding':
+      return (await import('./skills/coding')).instructions;
     case 'storyboard':
       return (await import('./skills/storyboard')).instructions;
     case 'editing':

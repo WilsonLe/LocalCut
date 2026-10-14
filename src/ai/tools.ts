@@ -14,6 +14,13 @@ import {
   chromaKeySchema,
 } from '../core/effects';
 import { z } from 'zod';
+import {
+  codingOperations,
+  codingQueries,
+  codingOperationSchema,
+  codingRevision,
+} from '../core/coding';
+import type { CodingOperation } from '../core/coding';
 import { applyOperations, batchSchema } from '../core/commands';
 import type { CommandBatch } from '../core/commands';
 import {
@@ -57,6 +64,13 @@ const exportOptionsSchema = z
   })
   .strict();
 const actionSchema = z.discriminatedUnion('type', [
+  z
+    .object({
+      type: z.literal('coding'),
+      operation: codingOperationSchema,
+      expectedRevision: codingRevision,
+    })
+    .strict(),
   z
     .object({
       type: z.literal('insert_storyboard_image'),
@@ -123,6 +137,25 @@ const actionSchema = z.discriminatedUnion('type', [
     .strict(),
 ]);
 const schemas = {
+  inspect_coding_workspace: emptySchema,
+  read_file: codingQueries.read_file.omit({ type: true }),
+  glob: codingQueries.glob.omit({ type: true }),
+  grep: codingQueries.grep.omit({ type: true }),
+  write_file: codingOperations.write_file
+    .omit({ type: true })
+    .extend({ expectedRevision: codingRevision }),
+  edit_file: codingOperations.edit_file
+    .omit({ type: true })
+    .extend({ expectedRevision: codingRevision }),
+  bash: codingOperations.bash
+    .omit({ type: true })
+    .extend({ expectedRevision: codingRevision }),
+  execute_code: codingOperations.execute_code
+    .omit({ type: true })
+    .extend({ expectedRevision: codingRevision }),
+  import_workspace_file: codingOperations.import_workspace_file
+    .omit({ type: true })
+    .extend({ expectedRevision: codingRevision }),
   load_skill: z
     .object({
       skillId: z.enum([
@@ -132,6 +165,7 @@ const schemas = {
         'transcription',
         'indexing',
         'history',
+        'coding',
       ]),
     })
     .strict(),
@@ -194,8 +228,31 @@ const schemas = {
     .strict(),
 };
 export type ToolName = keyof typeof schemas;
+export function codingMutation(name: string) {
+  return Object.hasOwn(codingOperations, name);
+}
+export function codingAction(name: string, args: Record<string, unknown>) {
+  const { expectedRevision, ...input } = args;
+  return {
+    summary: `Project workspace: ${name}`,
+    action: {
+      type: 'coding' as const,
+      expectedRevision: expectedRevision as number,
+      operation: { ...input, type: name } as CodingOperation,
+    },
+  };
+}
 // Exhaustive classification: new tools must choose their scheduling contract.
 const toolScheduling = {
+  inspect_coding_workspace: 'read',
+  read_file: 'read',
+  glob: 'read',
+  grep: 'read',
+  write_file: 'serial',
+  edit_file: 'serial',
+  bash: 'serial',
+  execute_code: 'serial',
+  import_workspace_file: 'serial',
   load_skill: 'serial',
   resolve_library_assets: 'serial',
   propose_edits: 'serial',
@@ -300,6 +357,7 @@ export function capabilityDiscovery(
   includeAssetIndexes = false,
   hasAssetIndexes = true,
   budgetExhausted = false,
+  includeCodingWorkspace = false,
 ) {
   const access = (rule: AccessRule) => {
     const supported = rule.support?.[0] ?? true;
@@ -330,6 +388,17 @@ export function capabilityDiscovery(
     };
   };
   const actions = {
+    coding: access({
+      skills: ['coding'],
+      support: [
+        !!capabilities.coding,
+        'Connect a host with the browser project coding workspace. Native tools are not required.',
+      ],
+      permission: [
+        includeCodingWorkspace,
+        'Enable includeCodingWorkspace in the headless context policy to share authored workspace sources and execution output.',
+      ],
+    }),
     library: access({
       skills: ['editing'],
       support: [
@@ -427,6 +496,45 @@ export function capabilityDiscovery(
     ],
   };
   const rules = {
+    inspect_coding_workspace: {
+      skills: ['coding'],
+      support: [!!capabilities.coding, 'Use a host with a coding workspace.'],
+    },
+    read_file: {
+      skills: ['coding'],
+      support: [!!capabilities.coding, 'Use a host with a coding workspace.'],
+    },
+    glob: {
+      skills: ['coding'],
+      support: [!!capabilities.coding, 'Use a host with a coding workspace.'],
+    },
+    grep: {
+      skills: ['coding'],
+      support: [!!capabilities.coding, 'Use a host with a coding workspace.'],
+    },
+    write_file: {
+      skills: ['coding'],
+      support: [!!capabilities.coding, 'Use a host with a coding workspace.'],
+    },
+    edit_file: {
+      skills: ['coding'],
+      support: [!!capabilities.coding, 'Use a host with a coding workspace.'],
+    },
+    bash: {
+      skills: ['coding'],
+      support: [!!capabilities.coding, 'Use a host with a coding workspace.'],
+    },
+    execute_code: {
+      skills: ['coding'],
+      support: [!!capabilities.coding, 'Use a host with a coding workspace.'],
+    },
+    import_workspace_file: {
+      skills: ['coding'],
+      support: [
+        !!capabilities.coding,
+        'Use a host with a coding workspace and media import.',
+      ],
+    },
     load_skill: { skills: [] },
     inspect_project: { skills: [] },
     inspect_library: {
@@ -477,6 +585,23 @@ export function capabilityDiscovery(
     // Individual service variants retain their own domain/support/permission checks below.
     propose_action: { skills: [] },
   } satisfies Record<ToolName, AccessRule>;
+  for (const name of [
+    'inspect_coding_workspace',
+    'read_file',
+    'glob',
+    'grep',
+    'write_file',
+    'edit_file',
+    'bash',
+    'execute_code',
+    'import_workspace_file',
+  ] as const)
+    Object.assign(rules[name], {
+      permission: [
+        includeCodingWorkspace,
+        'Enable includeCodingWorkspace in the headless context policy. Workspace connection terms disclose authored source and execution output sharing.',
+      ],
+    });
   const tools = Object.fromEntries(
     (Object.keys(schemas) as ToolName[]).map((name) => [
       name,
@@ -512,8 +637,24 @@ export function toolDefinitions(
   loadedSkills: ReadonlySet<SkillId> = new Set(),
   includeAssetIndexes = false,
   hasAssetIndexes = true,
+  includeCodingWorkspace = false,
 ): ToolDefinition[] {
   const descriptions: Record<ToolName, string> = {
+    inspect_coding_workspace:
+      'Inspect the persistent project coding directory, revision, files and actual browser runtime capabilities. No code runs.',
+    read_file:
+      'Read an authored UTF-8 file within /project. Binary artifacts stay local; use code to analyze them.',
+    glob: 'Find project workspace files matching *, ** and ? patterns. Defaults to every file.',
+    grep: 'Search authored UTF-8 workspace files by regular expression, returning file paths, line numbers and text. Skips binary files.',
+    write_file:
+      'Write a complete UTF-8 workspace file at expectedRevision. Uses requested execution or a headless reviewable coding proposal.',
+    edit_file:
+      'Replace exact oldText in a workspace file at expectedRevision; ambiguous matches require replaceAll. Uses the shared coding action executor.',
+    bash: 'Execute browser Bash against the project workspace at expectedRevision. Supports shell scripts/pipes/redirects/file/search tools and js. No native processes, network or package installation. Check exitCode; retained files appear in the completed receipt.',
+    execute_code:
+      'Run a saved JavaScript file in isolated QuickJS at expectedRevision, with optional argv args. Arbitrary composition/DSP supported through fs and writeWav; no browser globals or native Node. Sources and successful generated files persist locally.',
+    import_workspace_file:
+      'Import a saved generated media file at expectedRevision through the canonical asset and project library APIs. Returns assetId for timeline editing; no bytes are sent to the provider.',
     load_skill:
       'Load guidance and tools for one relevant request domain. Tools become available in the next round. Load additional skills only as needed; this never grants approval or sharing consent.',
     search_asset_index:
@@ -557,8 +698,14 @@ export function toolDefinitions(
     loadedSkills,
     includeAssetIndexes,
     hasAssetIndexes,
+    false,
+    includeCodingWorkspace,
   );
-  const permittedActions = allowedActions(capabilities, loadedSkills);
+  const permittedActions = allowedActions(
+    capabilities,
+    loadedSkills,
+    includeCodingWorkspace,
+  );
   return (Object.keys(schemas) as ToolName[])
     .filter((name) => discovery.tools[name].available)
     .map((name) => {
@@ -597,11 +744,16 @@ export function toolDefinitions(
 export function allowedActions(
   capabilities: AssistantCapabilities,
   loadedSkills: ReadonlySet<SkillId>,
+  includeCodingWorkspace = false,
 ) {
   const actions = capabilityDiscovery(
     false,
     capabilities,
     loadedSkills,
+    false,
+    true,
+    false,
+    includeCodingWorkspace,
   ).actions;
   return new Set(
     (Object.keys(actions) as z.infer<typeof actionSchema>['type'][]).filter(

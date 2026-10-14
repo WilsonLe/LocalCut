@@ -28,6 +28,7 @@ import { maskSchema } from '../core/effects';
 import type { Mask } from '../core/effects';
 import { Store } from '../storage/store';
 import { MediaLibraryStore } from '../storage/media-library';
+import type { CodingOperation, CodingQuery } from '../core/coding';
 import type { LibraryOperation } from '../core/media-library';
 export type {
   LibraryEntry,
@@ -377,6 +378,96 @@ export async function createEditor(options: EditorOptions = {}) {
   };
   const api = {
     tasks,
+    coding: {
+      async inspect(projectId: string) {
+        active();
+        await store.getProject(projectId);
+        const { inspectCoding } = await import('../services/coding');
+        return inspectCoding(namespace, projectId);
+      },
+      query(projectId: string, query: CodingQuery) {
+        active();
+        return jobs.start(async (signal, progress) => {
+          await store.getProject(projectId);
+          const { executeCoding } = await import('../services/coding');
+          return executeCoding(
+            namespace,
+            projectId,
+            query,
+            undefined,
+            signal,
+            progress,
+          );
+        });
+      },
+      run(
+        projectId: string,
+        operation: Exclude<CodingOperation, { type: 'import_workspace_file' }>,
+        expectedRevision: number,
+      ) {
+        active();
+        return jobs.start(
+          async (signal, progress) => {
+            await store.getProject(projectId);
+            const { executeCoding } = await import('../services/coding');
+            return executeCoding(
+              namespace,
+              projectId,
+              operation,
+              expectedRevision,
+              signal,
+              progress,
+            );
+          },
+          { acceptCommittedResult: true },
+        );
+      },
+      async file(projectId: string, path: string) {
+        active();
+        await store.getProject(projectId);
+        const { codingFile } = await import('../services/coding');
+        return codingFile(namespace, projectId, path);
+      },
+      importFile(
+        projectId: string,
+        path: string,
+        expectedRevision: number,
+        name?: string,
+      ) {
+        active();
+        return jobs.start(
+          async (signal, progress) => {
+            await store.getProject(projectId);
+            const { codingFile } = await import('../services/coding');
+            const file = await codingFile(
+              namespace,
+              projectId,
+              path,
+              expectedRevision,
+            );
+            checkAbort(signal);
+            const job = api.assets.import(file, name ?? file.name);
+            const abort = () => job.cancel();
+            signal.addEventListener('abort', abort, { once: true });
+            if (signal.aborted) abort();
+            progress({ stage: 'Importing generated Media' });
+            let asset: Asset;
+            try {
+              asset = await job.completion;
+            } finally {
+              signal.removeEventListener('abort', abort);
+            }
+            const placed = await boundLibrary(projectId).place(asset.id, []);
+            return {
+              projectId,
+              assetId: asset.id,
+              libraryRevision: placed.revision,
+            };
+          },
+          { acceptCommittedResult: true },
+        );
+      },
+    },
     storyboard: {
       async files(project: Project, signal = new AbortController().signal) {
         active();
@@ -1426,6 +1517,24 @@ export async function createEditor(options: EditorOptions = {}) {
     lane: 'export',
     recovery: 'manual',
     retryCodes: [],
+  });
+  api.coding.run = queued('coding.run', api.coding.run, {
+    cache: freshTask(
+      'Explicit authored code execution or file mutation publishes a new workspace revision; persisted files are reused on inspection and reload.',
+    ),
+    lane: 'coding',
+    recovery: 'manual',
+    retryCodes: [],
+    acceptCommittedResult: true,
+  });
+  api.coding.importFile = queued('coding.import', api.coding.importFile, {
+    cache: freshTask(
+      'Explicit import publishes a new immutable Media asset from a saved generated file.',
+    ),
+    lane: 'coding',
+    recovery: 'manual',
+    retryCodes: [],
+    acceptCommittedResult: true,
   });
   api.storyboard.store = queued('storyboard.store', api.storyboard.store, {
     cache: freshTask(
