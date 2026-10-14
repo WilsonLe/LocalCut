@@ -251,7 +251,11 @@ for (const base of behaviorBases) {
         requests++;
         if (await fulfillChatTitle(route, 'My exported edit')) return;
         const final =
-          route.request().postDataJSON().messages.at(-1).role === 'tool';
+          route
+            .request()
+            .postDataJSON()
+            .messages.filter((m: { role: string }) => m.role !== 'system')
+            .at(-1).role === 'tool';
         await route.fulfill({
           headers: cors,
           contentType: 'text/event-stream',

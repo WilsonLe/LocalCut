@@ -164,7 +164,9 @@ for (const base of behaviorBases) {
                 break;
               case 3: {
                 const receipt = JSON.parse(
-                  request.messages.at(-1)!.content!,
+                  request.messages
+                    .filter((m: { role: string }) => m.role !== 'system')
+                    .at(-1)!.content!,
                 ).result;
                 assetId = receipt.assetId;
                 transcriptId = receipt.transcriptId;
@@ -714,7 +716,7 @@ for (const base of behaviorBases) {
         let completionDecision = false;
         try {
           completionDecision = !!JSON.parse(
-            request.messages[1]?.content ?? '{}',
+            request.messages.at(-1)?.content ?? '{}',
           ).completionDecision;
         } catch {
           // Naming requests can contain ordinary prose rather than app context.
@@ -733,7 +735,7 @@ for (const base of behaviorBases) {
         switch (step++) {
           case 0:
             expect(
-              JSON.parse(request.messages[1].content).capabilityMap.actions
+              JSON.parse(request.messages.at(-1).content).capabilityMap.actions
                 .generate_speech.supported,
             ).toBe(true);
             name = 'load_skill';
@@ -745,7 +747,11 @@ for (const base of behaviorBases) {
           case 2:
             if (reuse)
               expect(
-                JSON.parse(request.messages.at(-1).content).savedVoices,
+                JSON.parse(
+                  request.messages
+                    .filter((m: { role: string }) => m.role !== 'system')
+                    .at(-1).content,
+                ).savedVoices,
               ).toContainEqual(
                 expect.objectContaining({
                   id: voicePresetId,
@@ -773,7 +779,9 @@ for (const base of behaviorBases) {
             break;
           case 3: {
             const generated = JSON.parse(
-              request.messages.at(-1).content,
+              request.messages
+                .filter((m: { role: string }) => m.role !== 'system')
+                .at(-1).content,
             ).result;
             if (reuse) expect(generated.voicePresetId).toBe(voicePresetId);
             else voicePresetId = generated.voicePresetId;
@@ -1164,7 +1172,11 @@ for (const base of behaviorBases) {
                   name = 'inspect_speech';
                   break;
                 case 2: {
-                  const state = JSON.parse(request.messages.at(-1)!.content!);
+                  const state = JSON.parse(
+                    request.messages
+                      .filter((message) => message.role === 'tool')
+                      .at(-1)!.content!,
+                  );
                   const recorded = state.savedVoices.find(
                     (p: { source?: { kind?: string } }) =>
                       p.source?.kind === 'dictation',

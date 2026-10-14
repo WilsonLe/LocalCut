@@ -62,10 +62,16 @@ for (const base of behaviorBases) {
           ? 'Usage chat'
           : (goalReviewReply(request)?.content ?? 'Workflow answer.');
         completed++;
+        const missingCache =
+          request.messages[0].content.startsWith(
+            'LocalCut request contract:',
+          ) &&
+          JSON.parse(request.messages[1].content).initialRequest ===
+            secondPrompt;
         await route.fulfill({
           headers: cors,
           contentType: 'text/event-stream',
-          body: `data: ${JSON.stringify({ model: 'test/usage', choices: [{ index: 0, delta: { content: reply }, finish_reason: 'stop' }], usage: { prompt_tokens: 1200, completion_tokens: 200, total_tokens: 1400, cost: 0.002, prompt_tokens_details: { cached_tokens: 400, cache_write_tokens: 100 }, completion_tokens_details: { reasoning_tokens: 50 } } })}\n\ndata: [DONE]\n\n`,
+          body: `data: ${JSON.stringify({ model: 'test/usage', choices: [{ index: 0, delta: { content: reply }, finish_reason: 'stop' }], usage: { prompt_tokens: 1200, completion_tokens: 200, total_tokens: 1400, cost: 0.002, prompt_tokens_details: { ...(missingCache ? {} : { cached_tokens: 400 }), cache_write_tokens: 100 }, completion_tokens_details: { reasoning_tokens: 50 } } })}\n\ndata: [DONE]\n\n`,
         });
       },
     );
@@ -125,6 +131,8 @@ for (const base of behaviorBases) {
     await expect(popover).not.toContainText('Totals are provider-reported');
     await expect(popover).toContainText(firstPrompt);
     await expect(popover).toContainText('Est. USD');
+    await expect(popover).toContainText('Cache hit rate');
+    await expect(popover).toContainText('33.33%');
     const first = popover.locator('[data-usage-request]').first();
     await expect(first.locator(':scope > summary')).toContainText(firstPrompt);
     await first.locator(':scope > summary').focus();
@@ -147,6 +155,8 @@ for (const base of behaviorBases) {
       .filter({ has: page.locator('summary', { hasText: 'Main agent' }) });
     await main.locator('summary').click();
     await expect(main).toContainText('Input cache');
+    await expect(main).toContainText('Cache hit rate');
+    await expect(main).toContainText('33.33%');
     await expect(main).toContainText('$0.000160'); // two main requests, cached input at the saved rate
     await page.keyboard.press('Escape');
     await expect(trigger).toBeFocused();
@@ -235,6 +245,12 @@ for (const base of behaviorBases) {
     await trigger.click();
     await expect(popover).toContainText(`$${(completed * 0.002).toFixed(6)}`);
     expect(sent).toBe(callsBeforeReload);
+    await expect(
+      popover
+        .getByText('Cache hit rate', { exact: true })
+        .first()
+        .locator('..'),
+    ).toContainText('Unavailable');
     await expect(popover.locator('[data-usage-request]')).toHaveCount(2);
     await expect(newestSummary).toContainText(secondPrompt);
     await page.keyboard.press('Escape');

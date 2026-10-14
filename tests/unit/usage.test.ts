@@ -184,3 +184,55 @@ it('Resume carries the latest accounting after delayed callbacks and preserves l
     summarizeUsage([...legacy.usageCalls!, { ...call, id: 'next' }]).cost,
   ).toBe(0.014);
 });
+
+it('weights cache hits by all input tokens and deduplicates calls including writes', () => {
+  const large = {
+    ...call,
+    id: 'large',
+    usage: {
+      promptTokens: 9000,
+      completionTokens: 1,
+      totalTokens: 9001,
+      cachedTokens: 0,
+    },
+  };
+  expect(summarizeUsage([call, call, large]).cacheHitRate).toBe(0.04);
+  expect(summarizeUsage([call]).cacheHitRate).toBe(0.4);
+  expect(summarizeUsage([large]).cacheHitRate).toBe(0);
+});
+
+it('leaves empty, missing, inconsistent and zero-input cache ratios unavailable', () => {
+  expect(summarizeUsage([]).cacheHitRate).toBeUndefined();
+  expect(
+    summarizeUsage([call, { ...call, id: 'unknown', usage: undefined }])
+      .cacheHitRate,
+  ).toBeUndefined();
+  for (const usage of [
+    { promptTokens: 1000, completionTokens: 0, totalTokens: 1000 },
+    { promptTokens: 0, completionTokens: 0, totalTokens: 0, cachedTokens: 0 },
+    {
+      promptTokens: 1000,
+      completionTokens: 0,
+      totalTokens: 1000,
+      cachedTokens: 1001,
+    },
+    {
+      promptTokens: 1000,
+      completionTokens: 0,
+      totalTokens: 1000,
+      cachedTokens: 900,
+      cacheWriteTokens: 101,
+    },
+  ])
+    expect(summarizeUsage([{ ...call, usage }]).cacheHitRate).toBeUndefined();
+});
+
+it.each([-1, NaN, Infinity])(
+  'does not display invalid cache reporting as a percentage: %s',
+  (cachedTokens) => {
+    expect(
+      summarizeUsage([{ ...call, usage: { ...call.usage!, cachedTokens } }])
+        .cacheHitRate,
+    ).toBeUndefined();
+  },
+);

@@ -264,7 +264,13 @@ test('text clarification waits for a typed reply before executing the requested 
       }
       if (await fulfillChatTitle(route)) return;
       const body = route.request().postDataJSON();
-      if (String(body.messages.at(-1)?.content).includes('Yes, add the track'))
+      if (
+        String(
+          body.messages
+            .filter((m: { role: string }) => m.role !== 'system')
+            .at(-1)?.content,
+        ).includes('Yes, add the track')
+      )
         clarified = true;
       if (!clarified)
         await route.fulfill({
@@ -334,6 +340,12 @@ test('rate-limit errors recover silently within the submitted chat turn', async 
   await send(page, 'Add an overlay track.');
   await expect(
     page.getByText('Applied at revision 1', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole('article', { name: 'Assistant response' })
+      .last()
+      .getByRole('button', { name: 'Copy response', exact: true }),
   ).toBeVisible();
   await expect(
     page.getByText('The new overlay track was added.', { exact: true }),

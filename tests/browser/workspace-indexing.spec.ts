@@ -160,8 +160,8 @@ for (const base of behaviorBases) {
         let decision = false;
         try {
           decision =
-            JSON.parse(body.messages[1]?.content ?? '{}').completionDecision ===
-            true;
+            JSON.parse(body.messages.at(-1)?.content ?? '{}')
+              .completionDecision === true;
         } catch {
           // Naming and media-label requests do not carry main-agent context.
         }
@@ -188,7 +188,11 @@ for (const base of behaviorBases) {
           else if (round === 2)
             tool_calls = tools([{ name: 'inspect_library', args: {} }]);
           else if (round === 3) {
-            const library = JSON.parse(body.messages.at(-1).content);
+            const library = JSON.parse(
+              body.messages
+                .filter((m: { role: string }) => m.role !== 'system')
+                .at(-1).content,
+            );
             tool_calls = tools([
               {
                 name: 'resolve_library_assets',
@@ -200,7 +204,11 @@ for (const base of behaviorBases) {
               },
             ]);
           } else if (round === 4) {
-            const manifest = JSON.parse(body.messages.at(-1).content);
+            const manifest = JSON.parse(
+              body.messages
+                .filter((m: { role: string }) => m.role !== 'system')
+                .at(-1).content,
+            );
             expect(manifest.assetCount).toBe(2);
             ids.push(...manifest.assetIds);
             tool_calls = tools(
@@ -212,6 +220,7 @@ for (const base of behaviorBases) {
           } else if (round === 5) {
             expect(
               body.messages
+                .filter((message: { role: string }) => message.role === 'tool')
                 .slice(-2)
                 .map(
                   (message: { content: string }) =>
@@ -263,6 +272,7 @@ for (const base of behaviorBases) {
             expect(round).toBe(7);
             expect(
               body.messages
+                .filter((message: { role: string }) => message.role === 'tool')
                 .slice(-2)
                 .every((message: { content: string }) =>
                   message.content.includes(label.summary),
@@ -271,7 +281,9 @@ for (const base of behaviorBases) {
             reply = 'Both assets are indexed. Their saved evidence is ready.';
           }
         } else {
-          const parts = body.messages.at(-1).content;
+          const parts = body.messages
+            .filter((m: { role: string }) => m.role !== 'system')
+            .at(-1).content;
           const sceneId =
             Array.isArray(parts) && parts.length > 1
               ? /"sceneId":"(scene-\d+)"/.exec(String(parts[0].text))?.[1]
@@ -438,16 +450,24 @@ for (const base of behaviorBases) {
         let reply: string | null;
         let tool_calls: unknown[] | undefined;
         if (body.tools) {
-          const scope = JSON.parse(body.messages[1].content);
+          const scope = JSON.parse(body.messages.at(-1).content);
           if (
-            body.messages.at(-1).role === 'user' &&
-            String(body.messages.at(-1).content).endsWith('Reindex from chat')
+            body.messages
+              .filter((m: { role: string }) => m.role !== 'system')
+              .at(-1).role === 'user' &&
+            String(
+              body.messages
+                .filter((m: { role: string }) => m.role !== 'system')
+                .at(-1).content,
+            ).endsWith('Reindex from chat')
           )
             chatRound = 0;
           const permitted = scope.skillCatalog.some(
             (skill: { id: string }) => skill.id === 'indexing',
           );
-          const last = body.messages.at(-1);
+          const last = body.messages
+            .filter((m: { role: string }) => m.role !== 'system')
+            .at(-1);
           if (last.role === 'user' && !scope.assetIndex) {
             expect(permitted).toBe(true);
             expect(
@@ -529,7 +549,9 @@ for (const base of behaviorBases) {
               : 'Indexing failed. Send a new request to retry.';
         } else {
           evidenceRequests++;
-          const part = body.messages.at(-1).content;
+          const part = body.messages
+            .filter((m: { role: string }) => m.role !== 'system')
+            .at(-1).content;
           const sceneId =
             Array.isArray(part) && part.length > 1
               ? /"sceneId":"(scene-\d+)"/.exec(String(part[0].text))?.[1]
@@ -782,7 +804,11 @@ for (const base of behaviorBases) {
           return;
         }
         requested = true;
-        const part = route.request().postDataJSON().messages.at(-1).content;
+        const part = route
+          .request()
+          .postDataJSON()
+          .messages.filter((m: { role: string }) => m.role !== 'system')
+          .at(-1).content;
         const prompt = Array.isArray(part)
           ? String(part[0]?.text)
           : String(part);
@@ -1053,6 +1079,12 @@ for (const base of behaviorBases) {
       .fill('Find the red graphic');
     await page.getByRole('button', { name: 'Send edit request' }).click();
     await expect(
+      page
+        .getByRole('article', { name: 'Assistant response' })
+        .last()
+        .getByRole('button', { name: 'Copy response', exact: true }),
+    ).toBeVisible();
+    await expect(
       page.getByText('I can use the indexed red scene.'),
     ).toBeVisible();
     expect(JSON.stringify(bodies.at(-1))).toContain('assetIndex');
@@ -1121,7 +1153,9 @@ for (const base of behaviorBases) {
         }
         const body = route.request().postDataJSON();
         bodies.push(body);
-        const part = body.messages.at(-1).content;
+        const part = body.messages
+          .filter((m: { role: string }) => m.role !== 'system')
+          .at(-1).content;
         const sceneId =
           Array.isArray(part) && part.length > 1
             ? /"sceneId":"(scene-\d+)"/.exec(part[0].text)?.[1]
@@ -1289,7 +1323,9 @@ for (const base of behaviorBases) {
           }
           const body = route.request().postDataJSON();
           bodies.push(body);
-          const content = body.messages.at(-1).content;
+          const content = body.messages
+            .filter((m: { role: string }) => m.role !== 'system')
+            .at(-1).content;
           const prompt = Array.isArray(content) ? content[0].text : content;
           const sceneId =
             Array.isArray(content) && content.length > 1
@@ -1444,7 +1480,7 @@ for (const base of behaviorBases) {
         let reply: string | null = null;
         let tool_calls: object[] | undefined;
         if (body.tools) {
-          const scope = JSON.parse(body.messages[1].content);
+          const scope = JSON.parse(body.messages.at(-1).content);
           const loaded = scope.capabilityMap.loadedSkills as string[];
           const invoke = (name: string, args: unknown) => {
             expect(
@@ -1468,7 +1504,11 @@ for (const base of behaviorBases) {
             invoke('inspect_library', {});
             step++;
           } else if (step === 1) {
-            const tree = JSON.parse(body.messages.at(-1).content);
+            const tree = JSON.parse(
+              body.messages
+                .filter((m: { role: string }) => m.role !== 'system')
+                .at(-1).content,
+            );
             expect(tree).toMatchObject({
               status: 'assets_withheld',
               childrenResolved: false,
@@ -1491,7 +1531,11 @@ for (const base of behaviorBases) {
             });
             step++;
           } else if (step === 2) {
-            const manifest = JSON.parse(body.messages.at(-1).content);
+            const manifest = JSON.parse(
+              body.messages
+                .filter((m: { role: string }) => m.role !== 'system')
+                .at(-1).content,
+            );
             manifests.push(manifest);
             expect(manifest).toMatchObject({
               assetIds: [assetId],
@@ -1545,7 +1589,9 @@ for (const base of behaviorBases) {
               'Indexed the Sydney image and saved an evidence-based shot note.';
         } else {
           evidenceRequests++;
-          const part = body.messages.at(-1).content;
+          const part = body.messages
+            .filter((m: { role: string }) => m.role !== 'system')
+            .at(-1).content;
           const sceneId =
             Array.isArray(part) && part.length > 1
               ? /"sceneId":"(scene-\d+)"/.exec(String(part[0].text))?.[1]
