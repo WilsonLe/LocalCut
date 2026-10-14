@@ -2,6 +2,12 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Concise goals and agent replies — 15 October 2026
+
+- Keep each new or changed goal bullet short and concise, with one idea per bullet. Use as many bullets as needed; the complete goal has no 50-word cap. Preserve unaffected saved text instead of rewriting it to impose a style.
+- Keep agent replies no longer than 50 words, including progress, questions, recommendations, final answers and internal completion assessments. Persistent goal/to-do documents and tool arguments remain complete and separate from replies.
+- This is an instruction to agents, not a token cap, word-count parser or truncation step. It refines earlier concise-response and no-cap preferences while retaining execution and caller/provider limits.
+
 ## Minimal revisions to persistent goals and to-dos — 15 October 2026
 
 - Keep goals and to-dos as persistent documents, updating affected text in place when intent, progress, dependencies or blockers change. Preserve unaffected wording, order, completed work and evidence; do not rewrite, paraphrase or reorganize them each iteration.

@@ -4061,6 +4061,9 @@ describe('assistant response style and branches', () => {
     expect(branched).toContain('Reply 1');
     expect(branched).not.toContain('Later original idea');
     expect(branched).toContain('Keep replies short and concise');
+    expect(branched).toContain(
+      'Every user-facing response must be no longer than 50 words',
+    );
     expect(branched).toContain('brief high-level recommendation');
     await original.run('Continue original').completion;
     const continued = JSON.stringify(requests.at(-1)?.messages);
@@ -8244,7 +8247,14 @@ describe('request completion review sessions', () => {
   it.each([false, true])(
     'preserves persistent documents and publishes only changed iteration snapshots (progress: %s)',
     async (progress) => {
-      const goal = '  Make a harbour cut.\nKeep the original ending.\n';
+      const goal =
+        '  Make a harbour cut.\nKeep the original ending.\n' +
+        Array.from(
+          { length: 12 },
+          (_, index) => `- Keep harbour detail number ${index}.`,
+        ).join('\n') +
+        '\n';
+      expect(goal.trim().split(/\s+/).length).toBeGreaterThan(50);
       const nextGoal = goal + 'Require a closing title.\n';
       const todos =
         '## My tasks\n- [ ] Inspect the project\n- [x] Keep the original ending — confirmed\n';
@@ -8268,6 +8278,15 @@ describe('request completion review sessions', () => {
           const data = JSON.parse(request.messages[1]!.content!);
           expect(data.existingGoal).toBe(goal);
           expect(instruction).toContain('Keep unaffected wording');
+          expect(instruction).toContain(
+            'Keep each newly created or changed goal bullet short and concise',
+          );
+          expect(instruction).toContain(
+            'there is no limit on the number of bullets',
+          );
+          expect(instruction).toContain(
+            'no 50-word limit on the complete goal document',
+          );
           expect(request.messages.at(-1)!.content).toContain(
             'Edit existingGoal minimally in place',
           );
@@ -8285,7 +8304,20 @@ describe('request completion review sessions', () => {
             'Edit existingTodos minimally in place',
           );
           yield final(++todoCalls === 1 ? todos : updatedTodos);
-        } else yield* original(request);
+        } else {
+          if (instruction.startsWith('LocalCut completion review:')) {
+            expect(instruction).toContain('no longer than 50 words');
+            expect(request.messages.at(-1)!.content).toContain(
+              'no longer than 50 words',
+            );
+          } else if (!instruction.startsWith('LocalCut ')) {
+            expect(instruction).toContain(
+              'Every user-facing response must be no longer than 50 words',
+            );
+            expect(request.maxOutputTokens).toBeUndefined();
+          }
+          yield* original(request);
+        }
       };
       const initial = { goal, todos };
       const f = make(p, { restoredGoal: initial });
