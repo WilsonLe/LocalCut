@@ -1,3 +1,4 @@
+import { createPlaybackPosition, usePlaybackRange } from './playback-position';
 import { LoadingDialog, onDemandDialog } from './on-demand-dialog';
 import type { StoryboardControls } from './Storyboard';
 import { ProjectTabs } from './ProjectTabs';
@@ -438,7 +439,19 @@ export function Workspace() {
     setSelection(next);
     setSelected(next.includes(id) ? id : next[0]);
   };
-  const [timeUs, setTimeUs] = useState(0);
+  const [playbackPosition] = useState(createPlaybackPosition);
+  const [timeUs, setPausedTimeUs] = useState(0);
+  const setTimeUs = useCallback(
+    (value: number | ((previous: number) => number)) => {
+      const next =
+        typeof value === 'function'
+          ? value(playbackPosition.getSnapshot())
+          : value;
+      playbackPosition.publish(next);
+      setPausedTimeUs(next);
+    },
+    [playbackPosition],
+  );
   const [seekRevision, setSeekRevision] = useState(0);
   const [dialog, setDialogState] = useState<DialogName>(null);
   const [propertiesOpener, setPropertiesOpener] = useState<HTMLElement | null>(
@@ -815,7 +828,7 @@ export function Workspace() {
           }
         : null,
       selectedClipIds: selectedIds,
-      playheadUs: timeUs,
+      playheadUs: playbackPosition.getSnapshot(),
       projectTab,
       mobileTab,
       narrow,
@@ -1131,6 +1144,11 @@ export function Workspace() {
   const selectedClip = viewProject?.tracks
     .flatMap((track) => track.clips)
     .find((clip) => clip.id === selected);
+  const playheadInsideSelection = usePlaybackRange(
+    playbackPosition,
+    selectedClip?.startUs,
+    selectedClip ? selectedClip.startUs + selectedClip.durationUs : undefined,
+  );
   const selectionLocked = !!viewProject?.tracks.some(
     (track) =>
       track.locked && track.clips.some((clip) => selectedIds.includes(clip.id)),
@@ -1294,7 +1312,7 @@ export function Workspace() {
         {
           type: 'splitClip',
           clipId: selected!,
-          atUs: Math.round(timeUs),
+          atUs: Math.round(playbackPosition.getSnapshot()),
           rightClipId: crypto.randomUUID(),
         },
       ]);
@@ -1358,7 +1376,7 @@ export function Workspace() {
           clip: {
             id,
             kind: 'text',
-            startUs: Math.round(timeUs),
+            startUs: Math.round(playbackPosition.getSnapshot()),
             durationUs: 3_000_000,
             width: project!.width,
             height: project!.height * 0.5,
@@ -1552,8 +1570,7 @@ export function Workspace() {
     !selectionLocked &&
     selectedIds.length === 1 &&
     !!selectedClip &&
-    timeUs > selectedClip.startUs &&
-    timeUs < selectedClip.startUs + selectedClip.durationUs;
+    playheadInsideSelection;
   const clearSelection = () => {
     setSelected(undefined);
     setSelection([]);
@@ -1581,7 +1598,11 @@ export function Workspace() {
   const paste = () =>
     void action(async () => {
       if (!project || !clipboard) return;
-      const { operations, ids } = pasteSelection(project, clipboard, timeUs);
+      const { operations, ids } = pasteSelection(
+        project,
+        clipboard,
+        playbackPosition.getSnapshot(),
+      );
       if (!operations.length) return;
       await apply(operations);
       setSelected(ids[0]);
@@ -1595,10 +1616,12 @@ export function Workspace() {
     });
   const trimStartOperations =
     canSplit && selectedClip
-      ? trimAtPlayhead(selectedClip, timeUs, 'start')
+      ? trimAtPlayhead(selectedClip, playbackPosition.getSnapshot(), 'start')
       : [];
   const trimEndOperations =
-    canSplit && selectedClip ? trimAtPlayhead(selectedClip, timeUs, 'end') : [];
+    canSplit && selectedClip
+      ? trimAtPlayhead(selectedClip, playbackPosition.getSnapshot(), 'end')
+      : [];
   const rippleOperations = project
     ? rippleDeleteSelection(project, selectedIds)
     : [];
@@ -1623,7 +1646,7 @@ export function Workspace() {
         ? () =>
             seek(
               Math.min(
-                editBoundary(viewProject, timeUs, -1),
+                editBoundary(viewProject, playbackPosition.getSnapshot(), -1),
                 frameStep(total, 0, viewProject.frameRate, total),
               ),
             )
@@ -1633,7 +1656,7 @@ export function Workspace() {
         ? () =>
             seek(
               Math.min(
-                editBoundary(viewProject, timeUs, 1),
+                editBoundary(viewProject, playbackPosition.getSnapshot(), 1),
                 frameStep(total, 0, viewProject.frameRate, total),
               ),
             )
@@ -1667,11 +1690,27 @@ export function Workspace() {
         : undefined,
     trimStart:
       trimStartOperations.length && !browsed
-        ? () => editSelection(trimStartOperations, true)
+        ? () =>
+            editSelection(
+              trimAtPlayhead(
+                selectedClip!,
+                playbackPosition.getSnapshot(),
+                'start',
+              ),
+              true,
+            )
         : undefined,
     trimEnd:
       trimEndOperations.length && !browsed
-        ? () => editSelection(trimEndOperations, true)
+        ? () =>
+            editSelection(
+              trimAtPlayhead(
+                selectedClip!,
+                playbackPosition.getSnapshot(),
+                'end',
+              ),
+              true,
+            )
         : undefined,
     rippleDelete:
       rippleOperations.length &&
@@ -1693,16 +1732,48 @@ export function Workspace() {
         }
       : undefined,
     previousFrame: project
-      ? () => seek(frameStep(timeUs, -1, viewProject!.frameRate, total))
+      ? () =>
+          seek(
+            frameStep(
+              playbackPosition.getSnapshot(),
+              -1,
+              viewProject!.frameRate,
+              total,
+            ),
+          )
       : undefined,
     nextFrame: project
-      ? () => seek(frameStep(timeUs, 1, viewProject!.frameRate, total))
+      ? () =>
+          seek(
+            frameStep(
+              playbackPosition.getSnapshot(),
+              1,
+              viewProject!.frameRate,
+              total,
+            ),
+          )
       : undefined,
     previousTenFrames: project
-      ? () => seek(frameStep(timeUs, -10, viewProject!.frameRate, total))
+      ? () =>
+          seek(
+            frameStep(
+              playbackPosition.getSnapshot(),
+              -10,
+              viewProject!.frameRate,
+              total,
+            ),
+          )
       : undefined,
     nextTenFrames: project
-      ? () => seek(frameStep(timeUs, 10, viewProject!.frameRate, total))
+      ? () =>
+          seek(
+            frameStep(
+              playbackPosition.getSnapshot(),
+              10,
+              viewProject!.frameRate,
+              total,
+            ),
+          )
       : undefined,
     start: project ? () => seek(0) : undefined,
     end: project
@@ -1768,7 +1839,7 @@ export function Workspace() {
               canSplit,
               canSeparate,
               canGroup,
-              timeUs,
+              playbackPosition.getSnapshot(),
               versions,
               versionsOpen,
               format,
@@ -2338,6 +2409,7 @@ export function Workspace() {
                       project={viewProject}
                       versionId={browsed?.id}
                       timeUs={timeUs}
+                      position={playbackPosition}
                       seekRevision={seekRevision}
                       onTime={setTimeUs}
                       onImport={() => fileInput.current?.click()}
@@ -2352,7 +2424,7 @@ export function Workspace() {
                       versionId={browsed?.id}
                       readOnly={!!browsed || navigation.blocked}
                       selected={selectedIds}
-                      timeUs={timeUs}
+                      position={playbackPosition}
                       busy={busy}
                       onSelect={selectClip}
                       canGroup={canGroup}
@@ -2538,7 +2610,7 @@ export function Workspace() {
             exportError={exportError}
             progress={progress}
             total={total}
-            timeUs={timeUs}
+            timeUs={playbackPosition.getSnapshot()}
             onDialogChange={setDialog}
             onCloseExport={closeExport}
             onStartExport={startExport}

@@ -1,4 +1,9 @@
 import {
+  usePlaybackTime,
+  usePlaybackRange,
+  type PlaybackPosition,
+} from './playback-position';
+import {
   useEffect,
   useMemo,
   useRef,
@@ -75,7 +80,7 @@ interface Props {
   onSeparate: () => void;
   onTransition: (template?: TransitionTemplate) => void;
   onSelectOverlap: (from: string, to: string) => void;
-  timeUs: number;
+  position: PlaybackPosition;
   busy: boolean;
   readOnly?: boolean;
   versionId?: string;
@@ -102,7 +107,7 @@ interface Props {
   ) => void;
 }
 export function Timeline(props: Props) {
-  const { project, assets, selected, timeUs, draggingAsset, onDropAsset } =
+  const { project, assets, selected, position, draggingAsset, onDropAsset } =
     props;
   const busy = props.busy || props.readOnly;
   const [addingTrack, setAddingTrack] = useState(false);
@@ -572,22 +577,12 @@ export function Timeline(props: Props) {
               />
             </div>
           )}
-          {!(
-            selected.length !== 1 ||
-            !selectedClip ||
-            clipBusy ||
-            timeUs <= selectedClip.startUs ||
-            timeUs >= selectedClip.startUs + selectedClip.durationUs
-          ) && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Split clip"
-              onClick={props.onSplit}
-            >
-              <Scissors />
-            </Button>
-          )}
+          <SplitAtPlayhead
+            position={position}
+            clip={selected.length === 1 ? selectedClip : undefined}
+            disabled={clipBusy}
+            onSplit={props.onSplit}
+          />
           {!!selected.length && !clipBusy && (
             <Button
               variant="ghost"
@@ -1083,7 +1078,7 @@ export function Timeline(props: Props) {
                               key={clip.id}
                               project={project}
                               clip={clip}
-                              timeUs={timeUs}
+                              position={position}
                               disabled={!!busy || !!track.locked}
                               busy={props.busy}
                               onProperties={props.onProperties}
@@ -1376,63 +1371,13 @@ export function Timeline(props: Props) {
                   </div>
                 ))}
                 {!!total && (
-                  <>
-                    <div
-                      className="timeline-playhead-handle"
-                      role="slider"
-                      tabIndex={0}
-                      aria-label="Playhead position"
-                      aria-orientation="horizontal"
-                      aria-valuemin={0}
-                      aria-valuemax={total - 1}
-                      aria-valuenow={Math.min(timeUs, total - 1)}
-                      aria-valuetext={formatTime(timeUs)}
-                      style={{
-                        left: `clamp(0px, calc(76px + (100% - 76px) * ${Math.min(1, timeUs / total)} - 22px), calc(100% - 44px))`,
-                      }}
-                      onPointerDown={(event) => {
-                        if (event.button !== 0 || scrubbing.current) return;
-                        const ruler =
-                          rulerElement.current?.getBoundingClientRect();
-                        if (!ruler) return;
-                        event.preventDefault();
-                        // Preserve where the marker was grabbed, even in its padded hit area.
-                        const markerX =
-                          ruler.left + (timeUs / total) * ruler.width;
-                        scrubbing.current = {
-                          id: event.pointerId,
-                          offsetX: event.clientX - markerX,
-                        };
-                        event.currentTarget.setPointerCapture(event.pointerId);
-                        event.currentTarget.focus({ preventScroll: true });
-                      }}
-                      onPointerMove={(event) => {
-                        if (scrubbing.current?.id === event.pointerId)
-                          scrub(event.clientX - scrubbing.current.offsetX);
-                      }}
-                      onPointerUp={(event) => {
-                        if (scrubbing.current?.id !== event.pointerId) return;
-                        scrub(event.clientX - scrubbing.current.offsetX);
-                        scrubbing.current = null;
-                        event.currentTarget.releasePointerCapture(
-                          event.pointerId,
-                        );
-                      }}
-                      onPointerCancel={() => {
-                        scrubbing.current = null;
-                      }}
-                      onLostPointerCapture={() => {
-                        scrubbing.current = null;
-                      }}
-                    />
-                    <div
-                      className="timeline-playhead"
-                      aria-hidden="true"
-                      style={{
-                        left: `calc(76px + (100% - 76px) * ${Math.min(1, timeUs / total)})`,
-                      }}
-                    />
-                  </>
+                  <TimelinePlayhead
+                    position={position}
+                    total={total}
+                    rulerElement={rulerElement}
+                    scrubbingRef={scrubbing}
+                    scrub={scrub}
+                  />
                 )}
               </div>
               {addControls}
@@ -1443,5 +1388,103 @@ export function Timeline(props: Props) {
         addControls
       )}
     </section>
+  );
+}
+
+function SplitAtPlayhead({
+  position,
+  clip,
+  disabled,
+  onSplit,
+}: {
+  position: PlaybackPosition;
+  clip?: Clip;
+  disabled: boolean;
+  onSplit: () => void;
+}) {
+  const inside = usePlaybackRange(
+    position,
+    clip?.startUs,
+    clip ? clip.startUs + clip.durationUs : undefined,
+  );
+  return inside && !disabled ? (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      aria-label="Split clip"
+      onClick={onSplit}
+    >
+      <Scissors />
+    </Button>
+  ) : null;
+}
+function TimelinePlayhead({
+  position,
+  total,
+  rulerElement,
+  scrubbingRef,
+  scrub,
+}: {
+  position: PlaybackPosition;
+  total: number;
+  rulerElement: React.RefObject<HTMLDivElement | null>;
+  scrubbingRef: React.RefObject<{ id: number; offsetX: number } | null>;
+  scrub: (clientX: number) => void;
+}) {
+  const timeUs = usePlaybackTime(position);
+  return (
+    <>
+      <div
+        className="timeline-playhead-handle"
+        role="slider"
+        tabIndex={0}
+        aria-label="Playhead position"
+        aria-orientation="horizontal"
+        aria-valuemin={0}
+        aria-valuemax={total - 1}
+        aria-valuenow={Math.min(timeUs, total - 1)}
+        aria-valuetext={formatTime(timeUs)}
+        style={{
+          left: `clamp(0px, calc(76px + (100% - 76px) * ${Math.min(1, timeUs / total)} - 22px), calc(100% - 44px))`,
+        }}
+        onPointerDown={(event) => {
+          if (event.button !== 0 || scrubbingRef.current) return;
+          const ruler = rulerElement.current?.getBoundingClientRect();
+          if (!ruler) return;
+          event.preventDefault();
+          // Preserve where the marker was grabbed, even in its padded hit area.
+          const markerX = ruler.left + (timeUs / total) * ruler.width;
+          scrubbingRef.current = {
+            id: event.pointerId,
+            offsetX: event.clientX - markerX,
+          };
+          event.currentTarget.setPointerCapture(event.pointerId);
+          event.currentTarget.focus({ preventScroll: true });
+        }}
+        onPointerMove={(event) => {
+          if (scrubbingRef.current?.id === event.pointerId)
+            scrub(event.clientX - scrubbingRef.current.offsetX);
+        }}
+        onPointerUp={(event) => {
+          if (scrubbingRef.current?.id !== event.pointerId) return;
+          scrub(event.clientX - scrubbingRef.current.offsetX);
+          scrubbingRef.current = null;
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        onPointerCancel={() => {
+          scrubbingRef.current = null;
+        }}
+        onLostPointerCapture={() => {
+          scrubbingRef.current = null;
+        }}
+      />
+      <div
+        className="timeline-playhead"
+        aria-hidden="true"
+        style={{
+          left: `calc(76px + (100% - 76px) * ${Math.min(1, timeUs / total)})`,
+        }}
+      />
+    </>
   );
 }

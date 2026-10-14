@@ -1,3 +1,4 @@
+import { usePlaybackTime, type PlaybackPosition } from './playback-position';
 import { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { CSSProperties, Ref } from 'react';
 import {
@@ -22,6 +23,7 @@ interface Props {
   editor: Editor | null;
   project: Project | null;
   timeUs: number;
+  position: PlaybackPosition;
   seekRevision: number;
   onTime: (timeUs: number) => void;
   onImport: () => void;
@@ -39,6 +41,7 @@ export function Preview({
   project,
   timeUs,
   seekRevision,
+  position,
   onTime,
   onImport,
   onError,
@@ -132,11 +135,13 @@ export function Preview({
   }, [editor, project, versionId, displayedTime, total, playing]);
   useEffect(() => {
     if (!playing) return;
+    const playbackPosition = position;
     let animation: number;
     const tick = () => {
       const position = session.current?.currentTimeUs ?? 0;
-      onTimeRef.current(position);
+      playbackPosition.publish(position);
       if (position >= total) {
+        onTimeRef.current(position);
         setPlayingIdentity(null);
         return;
       }
@@ -144,7 +149,7 @@ export function Preview({
     };
     animation = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animation);
-  }, [playing, total]);
+  }, [playing, total, position]);
   const seek = async (position: number) => {
     generation.current++;
     session.current?.pause();
@@ -173,11 +178,16 @@ export function Preview({
           versionId,
         );
         session.current.onError((error) => {
+          onTimeRef.current(
+            session.current?.currentTimeUs ?? position.getSnapshot(),
+          );
           setPlayingIdentity(null);
           onErrorRef.current(error);
         });
       }
-      await session.current.seek(timeUs >= total ? 0 : displayedTime);
+      await session.current.seek(
+        position.getSnapshot() >= total ? 0 : position.getSnapshot(),
+      );
       if (token !== generation.current) return;
       setLoading(true);
       await session.current.play();
@@ -265,7 +275,7 @@ export function Preview({
       </div>
       <div className="playback-controls">
         <span className="timecode">
-          {formatTime(timeUs)}{' '}
+          <PlaybackTimecode position={position} />{' '}
           <span className="text-muted-foreground">/ {formatTime(total)}</span>
         </span>
         <div className="flex items-center gap-1">
@@ -287,7 +297,15 @@ export function Preview({
               size="icon-sm"
               aria-label="Previous frame"
               onClick={() =>
-                void seek(Math.max(0, displayedTime - frameDuration))
+                void seek(
+                  Math.max(
+                    0,
+                    Math.min(
+                      position.getSnapshot(),
+                      Math.max(0, total - frameDuration),
+                    ) - frameDuration,
+                  ),
+                )
               }
             >
               <StepBack />
@@ -312,7 +330,10 @@ export function Preview({
                 void seek(
                   Math.min(
                     Math.max(0, total - frameDuration),
-                    displayedTime + frameDuration,
+                    Math.min(
+                      position.getSnapshot(),
+                      Math.max(0, total - frameDuration),
+                    ) + frameDuration,
                   ),
                 )
               }
@@ -343,4 +364,8 @@ export function Preview({
       </div>
     </section>
   );
+}
+
+function PlaybackTimecode({ position }: { position: PlaybackPosition }) {
+  return formatTime(usePlaybackTime(position));
 }

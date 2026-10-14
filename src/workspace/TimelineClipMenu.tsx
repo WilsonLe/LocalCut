@@ -1,4 +1,10 @@
-import { useRef, useState, type ComponentProps } from 'react';
+import { type PlaybackPosition } from './playback-position';
+import {
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ComponentProps,
+} from 'react';
 import { ContextMenu } from '@base-ui/react/context-menu';
 import {
   MousePointer2,
@@ -15,7 +21,7 @@ const itemClass =
 export function TimelineClipMenu({
   project,
   clip,
-  timeUs,
+  position,
   disabled,
   busy,
   onProperties,
@@ -27,7 +33,7 @@ export function TimelineClipMenu({
 }: Omit<ComponentProps<typeof ContextMenu.Trigger>, 'onSelect' | 'ref'> & {
   project: Project;
   clip: Clip;
-  timeUs: number;
+  position: PlaybackPosition;
   disabled: boolean;
   busy: boolean;
   onProperties: (clipId: string, opener: HTMLElement | null) => void;
@@ -41,6 +47,10 @@ export function TimelineClipMenu({
   const trigger = useRef<HTMLButtonElement>(null);
   const heldTouch = useRef(false);
   const [scope, setScope] = useState<TrackOperationScope | null>(null);
+  const timeUs = useSyncExternalStore(
+    scope ? position.subscribe : idleSubscribe,
+    position.getSnapshot,
+  );
   const stale =
     !!scope &&
     (scope.projectId !== project.id || scope.revision !== project.revision);
@@ -136,7 +146,7 @@ export function TimelineClipMenu({
                   {
                     type: 'splitClip',
                     clipId: clip.id,
-                    atUs: Math.round(timeUs),
+                    atUs: Math.round(position.getSnapshot()),
                     rightClipId: crypto.randomUUID(),
                   },
                 ])
@@ -159,3 +169,5 @@ export function TimelineClipMenu({
     </ContextMenu.Root>
   );
 }
+
+const idleSubscribe = () => () => {};

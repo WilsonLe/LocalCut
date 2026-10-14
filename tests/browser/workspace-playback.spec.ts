@@ -152,3 +152,108 @@ for (const base of behaviorBases) {
     }
   });
 }
+
+for (const base of behaviorBases) {
+  test(`playback edits and frame shortcuts read the live playhead ${base}`, async ({
+    page,
+  }) => {
+    await page.goto(base);
+    const id = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const canvas = new OffscreenCanvas(128, 72),
+          context = canvas.getContext('2d')!;
+        context.fillStyle = 'red';
+        context.fillRect(0, 0, 128, 72);
+        const image = await editor.assets.import(
+          new File([await canvas.convertToBlob()], 'live-clock.png', {
+            type: 'image/png',
+          }),
+        ).completion;
+        const project = await editor.projects.create('Live clock editing', {
+          width: 128,
+          height: 72,
+        });
+        await editor.commands.apply({
+          projectId: project.id,
+          expectedRevision: 0,
+          requestId: 'live-clock',
+          operations: [
+            { type: 'addTrack', track: { id: 'v', kind: 'video' } },
+            {
+              type: 'insertClip',
+              trackId: 'v',
+              clip: {
+                id: 'image',
+                kind: 'image',
+                assetId: image.id,
+                startUs: 0,
+                durationUs: 10000000,
+                width: 128,
+                height: 72,
+              },
+            },
+          ],
+        });
+        return project.id;
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    await page.goto(`${base}#/project/${id}`);
+    const position = async () =>
+      Number(
+        await page
+          .getByRole('slider', { name: 'Playhead position' })
+          .getAttribute('aria-valuenow'),
+      );
+    const play = page.getByRole('button', {
+      name: 'Play preview',
+      exact: true,
+    });
+    const pause = page.getByRole('button', {
+      name: 'Pause preview',
+      exact: true,
+    });
+    await page.locator('[data-clip-id="image"]').click();
+    await play.click();
+    await expect(pause).toBeVisible();
+    await expect.poll(position).toBeGreaterThan(1000000);
+    const before = await position();
+    // A frame shortcut uses the running clock, rather than the paused React value.
+    await page.locator('canvas[aria-label="Video preview"]').focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(play).toBeVisible();
+    expect(await position()).toBeGreaterThan(before);
+    await play.click();
+    await expect(pause).toBeVisible();
+    await expect.poll(position).toBeGreaterThan(before + 500000);
+    const beforeSplit = await position();
+    await page.locator('canvas[aria-label="Video preview"]').focus();
+    await page.keyboard.press('ControlOrMeta+b');
+    await expect(page.locator('.timeline-clip')).toHaveCount(2);
+    const snapshot = await page.evaluate(
+      async ({ base, id }) => {
+        const { createEditor } = (await import(
+          base + 'editor.js'
+        )) as typeof import('../../src/editor');
+        const editor = await createEditor();
+        try {
+          return await editor.projects.snapshot(id);
+        } finally {
+          await editor.dispose();
+        }
+      },
+      { base, id },
+    );
+    const clips = snapshot.tracks[0]!.clips;
+    expect(clips[0]!.durationUs).toBeGreaterThanOrEqual(beforeSplit);
+    expect(clips[0]!.durationUs).toBeLessThan(beforeSplit + 1000000);
+    expect(clips[1]!.startUs).toBe(clips[0]!.durationUs);
+    expect(clips[0]!.durationUs + clips[1]!.durationUs).toBe(10000000);
+    await expect(play).toBeVisible();
+  });
+}
