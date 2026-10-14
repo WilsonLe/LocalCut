@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import {
   confirmProviderDisconnect,
   showOpenRouterTerms,
@@ -14,7 +15,7 @@ const cors = {
   'access-control-allow-headers': 'authorization,content-type',
   'access-control-allow-methods': 'GET,POST,OPTIONS',
 };
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`provider empty state reveals OpenRouter key or login choices on desktop and phone ${base}`, async ({
     page,
     context,
@@ -521,7 +522,7 @@ for (const base of ['/', '/LocalCut/']) {
 
 test.describe('AI settings touch disclosure', () => {
   test.use({ hasTouch: true, viewport: { width: 430, height: 873 } });
-  for (const base of ['/', '/LocalCut/']) {
+  for (const base of behaviorBases) {
     test(`OpenRouter terms open and scroll on touch ${base}`, async ({
       page,
       context,
@@ -558,7 +559,7 @@ test.describe('AI settings touch disclosure', () => {
   }
 });
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`OpenRouter terms policy links are reachable by keyboard ${base}`, async ({
     page,
     context,

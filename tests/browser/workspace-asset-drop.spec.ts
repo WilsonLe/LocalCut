@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { test, expect, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { closeMediaImport } from './workspace-import-helper';
@@ -43,7 +44,7 @@ async function snapshot(page: Page, base: string) {
   }, base);
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`asset drop hover, batch results, picker parity and persistence ${base}`, async ({
     page,
   }, info) => {

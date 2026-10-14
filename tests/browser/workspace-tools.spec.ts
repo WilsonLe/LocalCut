@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { fulfillGoalReview } from './chat-title-fixture';
 import { selectAISettingsTab } from './workspace-settings-helper';
 import { fulfillChatTitle } from './chat-title-fixture';
@@ -13,244 +14,260 @@ const cors = {
   'access-control-allow-methods': 'GET,POST,OPTIONS',
 };
 
-for (const base of ['/', '/LocalCut/']) {
-  test(`chat independently discloses tool inputs, results and failed validation ${base}`, async ({
-    page,
-    context,
-  }, testInfo) => {
-    const errors: string[] = [];
-    page.on('pageerror', (error) => errors.push(error.message));
-    await context.route('https://openrouter.ai/api/v1/models', (route) =>
-      route.fulfill({
-        headers: cors,
-        json: {
-          data: [
-            {
-              id: 'test/tool-details',
-              name: 'Tool details model',
-              context_length: 512000,
-              supported_parameters: ['tools', 'tool_choice'],
-            },
-          ],
-        },
-      }),
-    );
-    let releaseInspection!: () => void;
-    const inspectionReady = new Promise<void>((resolve) => {
-      releaseInspection = resolve;
-    });
-    let rounds = 0;
-    await context.route(
-      'https://openrouter.ai/api/v1/chat/completions',
-      async (route) => {
-        if (await fulfillGoalReview(route)) return;
-        if (route.request().method() === 'OPTIONS') {
-          await route.fulfill({ headers: cors, body: '' });
-          return;
-        }
-        if (await fulfillChatTitle(route)) return;
-        const requestTools = (
-          route.request().postDataJSON() as {
-            tools: { function: { name: string } }[];
+for (const base of behaviorBases) {
+  for (const viewport of ['desktop', 'phone']) {
+    test(`chat independently discloses tool inputs, results and failed validation ${base} ${viewport}`, async ({
+      page,
+      context,
+    }, testInfo) => {
+      const errors: string[] = [];
+      page.on('pageerror', (error) => errors.push(error.message));
+      await context.route('https://openrouter.ai/api/v1/models', (route) =>
+        route.fulfill({
+          headers: cors,
+          json: {
+            data: [
+              {
+                id: 'test/tool-details',
+                name: 'Tool details model',
+                context_length: 512000,
+                supported_parameters: ['tools', 'tool_choice'],
+              },
+            ],
+          },
+        }),
+      );
+      let releaseInspection!: () => void;
+      const inspectionReady = new Promise<void>((resolve) => {
+        releaseInspection = resolve;
+      });
+      let rounds = 0;
+      await context.route(
+        'https://openrouter.ai/api/v1/chat/completions',
+        async (route) => {
+          if (await fulfillGoalReview(route)) return;
+          if (route.request().method() === 'OPTIONS') {
+            await route.fulfill({ headers: cors, body: '' });
+            return;
           }
-        ).tools;
-        if (
-          !requestTools.some((tool) => tool.function.name === 'propose_edits')
-        ) {
+          if (await fulfillChatTitle(route)) return;
+          const requestTools = (
+            route.request().postDataJSON() as {
+              tools: { function: { name: string } }[];
+            }
+          ).tools;
+          if (
+            !requestTools.some((tool) => tool.function.name === 'propose_edits')
+          ) {
+            await route.fulfill({
+              headers: cors,
+              contentType: 'text/event-stream',
+              body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'load-editing', type: 'function', function: { name: 'load_skill', arguments: '{"skillId":"editing"}' } }] }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`,
+            });
+            return;
+          }
+          rounds++;
+          if (rounds === 1) await inspectionReady;
+          const tool = (
+            index: number,
+            id: string,
+            name: string,
+            args: unknown,
+          ) => ({
+            index,
+            id,
+            type: 'function',
+            function: { name, arguments: JSON.stringify(args) },
+          });
+          const delta =
+            rounds === 1
+              ? {
+                  tool_calls: [
+                    tool(0, 'first-inspection', 'inspect_project', {}),
+                    tool(1, 'second-inspection', 'inspect_project', {}),
+                    tool(2, 'failed-validation', 'validate_edits', {
+                      operations: [
+                        { type: 'removeClip', clipId: 'missing-clip' },
+                      ],
+                    }),
+                  ],
+                }
+              : {
+                  content:
+                    'Checked the project. The requested clip does not exist.',
+                };
           await route.fulfill({
             headers: cors,
             contentType: 'text/event-stream',
-            body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'load-editing', type: 'function', function: { name: 'load_skill', arguments: '{"skillId":"editing"}' } }] }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`,
+            body: `data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: rounds === 1 ? 'tool_calls' : 'stop' }] })}\n\ndata: [DONE]\n\n`,
           });
-          return;
-        }
-        rounds++;
-        if (rounds === 1) await inspectionReady;
-        const tool = (
-          index: number,
-          id: string,
-          name: string,
-          args: unknown,
-        ) => ({
-          index,
-          id,
-          type: 'function',
-          function: { name, arguments: JSON.stringify(args) },
-        });
-        const delta =
-          rounds === 1
-            ? {
-                tool_calls: [
-                  tool(0, 'first-inspection', 'inspect_project', {}),
-                  tool(1, 'second-inspection', 'inspect_project', {}),
-                  tool(2, 'failed-validation', 'validate_edits', {
-                    operations: [
-                      { type: 'removeClip', clipId: 'missing-clip' },
-                    ],
-                  }),
-                ],
-              }
-            : {
-                content:
-                  'Checked the project. The requested clip does not exist.',
-              };
-        await route.fulfill({
-          headers: cors,
-          contentType: 'text/event-stream',
-          body: `data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: rounds === 1 ? 'tool_calls' : 'stop' }] })}\n\ndata: [DONE]\n\n`,
-        });
-      },
-    );
-    await page.goto(base);
-    await page
-      .getByRole('button', { name: 'Workspace settings', exact: true })
-      .click();
-    await page.getByRole('menuitem', { name: 'Project', exact: true }).click();
-    await page
-      .getByRole('menuitem', { name: 'New project', exact: true })
-      .click();
-    await page
-      .getByLabel('Project name', { exact: true })
-      .fill('Shared tool-detail project');
-    await page
-      .getByRole('button', { name: 'Create project', exact: true })
-      .click();
-    // Creation may close its dialog before project hydration/navigation finishes.
-    await page.getByRole('button', { name: 'Undo', exact: true }).waitFor();
-    await openAISettings(page);
-    const connection = page.getByRole('dialog', {
-      name: 'AI connection',
-      exact: true,
-    });
-    await prepareOpenRouterKey(page);
-    await connection
-      .getByLabel('OpenRouter API key', { exact: true })
-      .fill('synthetic-tool-detail-key');
-    await connection
-      .getByRole('button', { name: 'Use API key', exact: true })
-      .click();
-    await selectAISettingsTab(page, 'LLM - Chat');
-    const model = connection.getByRole('combobox', {
-      name: 'AI model',
-      exact: true,
-    });
-    await expect(model).toBeEnabled();
-    await model.click();
-    await page
-      .getByRole('option', {
-        name: 'Tool details model · test/tool-details',
+        },
+      );
+      await page.goto(base);
+      await page
+        .getByRole('button', { name: 'Workspace settings', exact: true })
+        .click();
+      await page
+        .getByRole('menuitem', { name: 'Project', exact: true })
+        .click();
+      await page
+        .getByRole('menuitem', { name: 'New project', exact: true })
+        .click();
+      await page
+        .getByLabel('Project name', { exact: true })
+        .fill('Shared tool-detail project');
+      await page
+        .getByRole('button', { name: 'Create project', exact: true })
+        .click();
+      // Creation may close its dialog before project hydration/navigation finishes.
+      await page.getByRole('button', { name: 'Undo', exact: true }).waitFor();
+      await openAISettings(page);
+      const connection = page.getByRole('dialog', {
+        name: 'AI connection',
         exact: true,
-      })
-      .click();
-    await connection.getByRole('button', { name: 'Done', exact: true }).click();
-    if (base === '/LocalCut/') {
-      await page.setViewportSize({ width: 390, height: 844 });
-      await page.getByRole('button', { name: 'Chat', exact: true }).click();
-    }
-    await page
-      .getByLabel('Describe your edit', { exact: true })
-      .fill('Inspect twice and check removing the missing clip.');
-    await page
-      .getByRole('button', { name: 'Send edit request', exact: true })
-      .click();
-    const response = page.getByRole('article', {
-      name: 'Assistant response',
-      exact: true,
-    });
-    await response
-      .getByRole('button', { name: 'Load skills', exact: true })
-      .click();
-    const loadedSkill = response.locator('[data-tool-name="load_skill"]');
-    await loadedSkill
-      .getByRole('button', {
-        name: 'Load skills: Editing · Completed',
+      });
+      await prepareOpenRouterKey(page);
+      await connection
+        .getByLabel('OpenRouter API key', { exact: true })
+        .fill('synthetic-tool-detail-key');
+      await connection
+        .getByRole('button', { name: 'Use API key', exact: true })
+        .click();
+      await selectAISettingsTab(page, 'LLM - Chat');
+      const model = connection.getByRole('combobox', {
+        name: 'AI model',
         exact: true,
-      })
-      .click();
-    await expect(loadedSkill.locator('pre').nth(0)).toContainText(
-      '"skillId": "editing"',
-    );
-    await expect(loadedSkill.locator('pre').nth(1)).toContainText(
-      '"skillId": "editing"',
-    );
-    await testInfo.attach('named skill load', {
-      body: await page.screenshot(),
-      contentType: 'image/png',
+      });
+      await expect(model).toBeEnabled();
+      await model.click();
+      await page
+        .getByRole('option', {
+          name: 'Tool details model · test/tool-details',
+          exact: true,
+        })
+        .click();
+      await connection
+        .getByRole('button', { name: 'Done', exact: true })
+        .click();
+      if (viewport === 'phone') {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.getByRole('button', { name: 'Chat', exact: true }).click();
+      }
+      await page
+        .getByLabel('Describe your edit', { exact: true })
+        .fill('Inspect twice and check removing the missing clip.');
+      await page
+        .getByRole('button', { name: 'Send edit request', exact: true })
+        .click();
+      const response = page.getByRole('article', {
+        name: 'Assistant response',
+        exact: true,
+      });
+      await response
+        .getByRole('button', { name: 'Load skills', exact: true })
+        .click();
+      const loadedSkill = response.locator('[data-tool-name="load_skill"]');
+      await loadedSkill
+        .getByRole('button', {
+          name: 'Load skills: Editing · Completed',
+          exact: true,
+        })
+        .click();
+      await expect(loadedSkill.locator('pre').nth(0)).toContainText(
+        '"skillId": "editing"',
+      );
+      await expect(loadedSkill.locator('pre').nth(1)).toContainText(
+        '"skillId": "editing"',
+      );
+      await testInfo.attach('named skill load', {
+        body: await page.screenshot(),
+        contentType: 'image/png',
+      });
+      await response
+        .getByRole('button', { name: 'Load skills', exact: true })
+        .click();
+      releaseInspection();
+      await expect(
+        response.getByText(
+          'Checked the project. The requested clip does not exist.',
+          { exact: true },
+        ),
+      ).toBeVisible();
+      await response
+        .getByRole('button', { name: '3 of 4 tools completed', exact: true })
+        .click();
+      const inspections = response.locator(
+        '[data-tool-name="inspect_project"]',
+      );
+      await expect(inspections).toHaveCount(2);
+      const first = inspections.nth(0),
+        second = inspections.nth(1);
+      expect(await first.getAttribute('data-tool-call')).not.toEqual(
+        await second.getAttribute('data-tool-call'),
+      );
+      await first
+        .getByRole('button', {
+          name: 'inspect project · Completed',
+          exact: true,
+        })
+        .click();
+      await expect(first.getByText('Input', { exact: true })).toBeVisible();
+      await expect(first.getByText('Result', { exact: true })).toBeVisible();
+      await expect(first.locator('pre').nth(0)).toHaveText('{}');
+      await expect(first.locator('pre').nth(1)).toContainText('"revision": 0');
+      await expect(first.locator('pre').nth(1)).toContainText('"width": 1920');
+      // OpenRouter connection terms enable names in the permitted tool result.
+      await expect(first.locator('pre').nth(1)).toContainText(
+        '"name": "Shared tool-detail project"',
+      );
+      await expect(second.getByText('Result', { exact: true })).toBeHidden();
+      await second
+        .getByRole('button', {
+          name: 'inspect project · Completed',
+          exact: true,
+        })
+        .click();
+      await expect(second.getByText('Result', { exact: true })).toBeVisible();
+      const validation = response.locator('[data-tool-name="validate_edits"]');
+      await validation
+        .getByRole('button', { name: 'validate edits · Failed', exact: true })
+        .click();
+      await expect(validation.locator('pre').nth(0)).toContainText(
+        '"clipId": "missing-clip"',
+      );
+      await expect(
+        validation.getByText('Error', { exact: true }),
+      ).toBeVisible();
+      await expect(validation.locator('pre').nth(1)).toContainText(
+        '"code": "EDIT_REJECTED"',
+      );
+      await expect(validation.locator('pre').nth(1)).toContainText(
+        '"editorCode": "NOT_FOUND"',
+      );
+      await expect(
+        page.getByRole('button', { name: 'Apply proposal', exact: true }),
+      ).toHaveCount(0);
+      await expect(response).not.toContainText('synthetic-tool-detail-key');
+      expect(
+        await response.evaluate((node) => {
+          const text = node.querySelector('[data-chat-response-text]')!;
+          return [...node.querySelectorAll('[data-tool-call]')].every(
+            (tool) =>
+              !!(
+                tool.compareDocumentPosition(text) &
+                Node.DOCUMENT_POSITION_FOLLOWING
+              ),
+          );
+        }),
+      ).toBe(true);
+      expect(rounds).toBe(2);
+      expect(errors).toEqual([]);
+      await testInfo.attach('expanded tool results and validation error', {
+        body: await page.screenshot(),
+        contentType: 'image/png',
+      });
     });
-    await response
-      .getByRole('button', { name: 'Load skills', exact: true })
-      .click();
-    releaseInspection();
-    await expect(
-      response.getByText(
-        'Checked the project. The requested clip does not exist.',
-        { exact: true },
-      ),
-    ).toBeVisible();
-    await response
-      .getByRole('button', { name: '3 of 4 tools completed', exact: true })
-      .click();
-    const inspections = response.locator('[data-tool-name="inspect_project"]');
-    await expect(inspections).toHaveCount(2);
-    const first = inspections.nth(0),
-      second = inspections.nth(1);
-    expect(await first.getAttribute('data-tool-call')).not.toEqual(
-      await second.getAttribute('data-tool-call'),
-    );
-    await first
-      .getByRole('button', { name: 'inspect project · Completed', exact: true })
-      .click();
-    await expect(first.getByText('Input', { exact: true })).toBeVisible();
-    await expect(first.getByText('Result', { exact: true })).toBeVisible();
-    await expect(first.locator('pre').nth(0)).toHaveText('{}');
-    await expect(first.locator('pre').nth(1)).toContainText('"revision": 0');
-    await expect(first.locator('pre').nth(1)).toContainText('"width": 1920');
-    // OpenRouter connection terms enable names in the permitted tool result.
-    await expect(first.locator('pre').nth(1)).toContainText(
-      '"name": "Shared tool-detail project"',
-    );
-    await expect(second.getByText('Result', { exact: true })).toBeHidden();
-    await second
-      .getByRole('button', { name: 'inspect project · Completed', exact: true })
-      .click();
-    await expect(second.getByText('Result', { exact: true })).toBeVisible();
-    const validation = response.locator('[data-tool-name="validate_edits"]');
-    await validation
-      .getByRole('button', { name: 'validate edits · Failed', exact: true })
-      .click();
-    await expect(validation.locator('pre').nth(0)).toContainText(
-      '"clipId": "missing-clip"',
-    );
-    await expect(validation.getByText('Error', { exact: true })).toBeVisible();
-    await expect(validation.locator('pre').nth(1)).toContainText(
-      '"code": "EDIT_REJECTED"',
-    );
-    await expect(validation.locator('pre').nth(1)).toContainText(
-      '"editorCode": "NOT_FOUND"',
-    );
-    await expect(
-      page.getByRole('button', { name: 'Apply proposal', exact: true }),
-    ).toHaveCount(0);
-    await expect(response).not.toContainText('synthetic-tool-detail-key');
-    expect(
-      await response.evaluate((node) => {
-        const text = node.querySelector('[data-chat-response-text]')!;
-        return [...node.querySelectorAll('[data-tool-call]')].every(
-          (tool) =>
-            !!(
-              tool.compareDocumentPosition(text) &
-              Node.DOCUMENT_POSITION_FOLLOWING
-            ),
-        );
-      }),
-    ).toBe(true);
-    expect(rounds).toBe(2);
-    expect(errors).toEqual([]);
-    await testInfo.attach('expanded tool results and validation error', {
-      body: await page.screenshot(),
-      contentType: 'image/png',
-    });
-  });
+  }
 
   test(`chat executes atomic edits without approval controls ${base}`, async ({
     page,

@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import {
   selectAISettingsTab,
   prepareOpenRouterKey,
@@ -241,7 +242,7 @@ async function snapshot(page: Page, base: string): Promise<Project> {
     }
   }, base);
 }
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`ElevenLabs speech configuration presets persist and submit supported options ${base}`, async ({
     page,
     context,
@@ -389,23 +390,23 @@ for (const base of ['/', '/LocalCut/']) {
       dialog.getByLabel('Pronunciation dictionary 1', { exact: true }),
     ).toHaveValue('dictionary-1');
     expect(requests).toHaveLength(0);
-    if (base === '/') {
-      await page.setViewportSize({ width: 1366, height: 900 });
-      await dialog.locator('fieldset').evaluate((element) => {
-        element.parentElement!.scrollTop = 0;
-      });
-      await page.screenshot({
-        path: info.outputPath('elevenlabs-desktop.png'),
-      });
-      await page.setViewportSize({ width: 375, height: 812 });
-      expect(
-        await dialog.evaluate(
-          (element) => element.scrollWidth <= element.clientWidth,
-        ),
-      ).toBe(true);
-      await page.screenshot({ path: info.outputPath('elevenlabs-mobile.png') });
-      await page.setViewportSize({ width: 1366, height: 900 });
-    }
+
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await dialog.locator('fieldset').evaluate((element) => {
+      element.parentElement!.scrollTop = 0;
+    });
+    await page.screenshot({
+      path: info.outputPath('elevenlabs-desktop.png'),
+    });
+    await page.setViewportSize({ width: 375, height: 812 });
+    expect(
+      await dialog.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({ path: info.outputPath('elevenlabs-mobile.png') });
+    await page.setViewportSize({ width: 1366, height: 900 });
+
     await dialog.getByLabel('Script', { exact: true }).fill(narration);
     await expect(dialog.getByLabel('Script', { exact: true })).toHaveAttribute(
       'maxlength',
@@ -788,29 +789,29 @@ for (const base of ['/', '/LocalCut/']) {
       .click();
     await expect(dialog.getByLabel('Speed (×)')).toHaveValue('1.35');
     await expect(dialog.getByLabel('Script', { exact: true })).toHaveValue('');
-    if (base === '/') {
-      await dialog.locator('fieldset').evaluate((element) => {
-        element.parentElement!.scrollTop = 0;
-      });
-      await page.screenshot({
-        path: 'docs/images/workspace-voice-configurations.png',
-      });
-      await page.setViewportSize({ width: 375, height: 812 });
-      await expect(dialog).toBeVisible();
-      expect((await dialog.boundingBox())!.width).toBeLessThanOrEqual(375);
-      expect(
-        await dialog.evaluate(
-          (element) => element.scrollWidth <= element.clientWidth,
-        ),
-      ).toBe(true);
-      await dialog.locator('fieldset').evaluate((element) => {
-        element.parentElement!.scrollTop = 0;
-      });
-      await page.screenshot({
-        path: 'docs/images/workspace-voice-configurations-narrow.png',
-      });
-      await page.setViewportSize({ width: 1366, height: 900 });
-    }
+
+    await dialog.locator('fieldset').evaluate((element) => {
+      element.parentElement!.scrollTop = 0;
+    });
+    await page.screenshot({
+      path: 'docs/images/workspace-voice-configurations.png',
+    });
+    await page.setViewportSize({ width: 375, height: 812 });
+    await expect(dialog).toBeVisible();
+    expect((await dialog.boundingBox())!.width).toBeLessThanOrEqual(375);
+    expect(
+      await dialog.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    ).toBe(true);
+    await dialog.locator('fieldset').evaluate((element) => {
+      element.parentElement!.scrollTop = 0;
+    });
+    await page.screenshot({
+      path: 'docs/images/workspace-voice-configurations-narrow.png',
+    });
+    await page.setViewportSize({ width: 1366, height: 900 });
+
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
     await expect(
       page.getByRole('button', { name: 'Text to speech', exact: true }),
@@ -1376,23 +1377,23 @@ for (const base of ['/', '/LocalCut/']) {
       }),
     ).toBeVisible();
     await other.close();
-    if (base === '/') {
-      await dialog.evaluate((element) => {
-        element.scrollTop = 0;
-      });
-      await page.screenshot({
-        path: 'docs/images/workspace-voice-presets.png',
-      });
-      await page.setViewportSize({ width: 375, height: 812 });
-      await dialog.evaluate((element) => {
-        element.scrollTop = 0;
-      });
-      expect((await dialog.boundingBox())!.width).toBeLessThanOrEqual(375);
-      await page.screenshot({
-        path: 'docs/images/workspace-voice-presets-narrow.png',
-      });
-      await page.setViewportSize({ width: 1366, height: 900 });
-    }
+
+    await dialog.evaluate((element) => {
+      element.scrollTop = 0;
+    });
+    await page.screenshot({
+      path: 'docs/images/workspace-voice-presets.png',
+    });
+    await page.setViewportSize({ width: 375, height: 812 });
+    await dialog.evaluate((element) => {
+      element.scrollTop = 0;
+    });
+    expect((await dialog.boundingBox())!.width).toBeLessThanOrEqual(375);
+    await page.screenshot({
+      path: 'docs/images/workspace-voice-presets-narrow.png',
+    });
+    await page.setViewportSize({ width: 1366, height: 900 });
+
     expect(requests).toHaveLength(2);
     // Delete queue artifacts: a saved favorite owns an independent reference.
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
@@ -1875,7 +1876,7 @@ for (const base of ['/', '/LocalCut/']) {
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`text to speech queues retries persists dismissal and escalates refresh interruption ${base}`, async ({
     page,
     context,
@@ -2012,7 +2013,7 @@ async function reopenSpeech(page: Page) {
     .click();
   return page.getByRole('dialog', { name: 'Text to speech', exact: true });
 }
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`speech uses configured STT without phrase timing options and blocks unprepared local generation ${base}`, async ({
     page,
     context,

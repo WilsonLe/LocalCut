@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { openWorkspaceGroup } from './workspace-settings-helper';
 import { chromium, expect, test } from '@playwright/test';
@@ -147,7 +148,7 @@ async function snapshot(
     }
   }, base);
 }
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`screen recording browser audio guidance before permission ${base}`, async ({
     page,
   }, info) => {
@@ -507,7 +508,7 @@ for (const base of ['/', '/LocalCut/']) {
 
 // A dedicated stable-Chrome instance selects only our synthetic tab. This exercises
 // real getDisplayMedia without recording the user's desktop or replacing capture.
-test('screen recording native tab capture at both static bases', async ({
+test('screen recording native tab capture manual stop and source cessation', async ({
   baseURL,
 }) => {
   test.setTimeout(60000);
@@ -521,7 +522,9 @@ test('screen recording native tab capture at both static bases', async ({
     ],
   });
   try {
-    for (const base of ['/', '/LocalCut/']) {
+    for (const { base, stopMode } of behaviorBases.flatMap((base) =>
+      ['manual', 'source-ended'].map((stopMode) => ({ base, stopMode })),
+    )) {
       const context = await browser.newContext({ reducedMotion: 'reduce' });
       try {
         const origin = baseURL!;
@@ -603,7 +606,7 @@ test('screen recording native tab capture at both static bases', async ({
         ).toBe('browser');
         await expect(dialog.getByRole('status')).toContainText('0:01');
         // Cover real browser whole-source cessation as well as LocalCut stop.
-        if (base === '/LocalCut/') await target.close();
+        if (stopMode === 'source-ended') await target.close();
         else
           await dialog.getByRole('button', { name: 'Stop recording' }).click();
         await expect(

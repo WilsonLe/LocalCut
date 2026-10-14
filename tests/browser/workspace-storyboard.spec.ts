@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { installGoalReviewFixture } from './goal-review-fixture';
 import { openVersions } from './workspace-settings-helper';
 import { test, expect } from '@playwright/test';
@@ -29,7 +30,7 @@ async function snapshot(
     { base, id },
   );
 }
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`workspace storyboard rejects drops and keeps failed fonts local ${base}`, async ({
     page,
   }) => {

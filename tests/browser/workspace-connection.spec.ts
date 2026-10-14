@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import {
   confirmProviderDisconnect,
   showOpenRouterTerms,
@@ -21,7 +22,7 @@ const models = Array.from({ length: 120 }, (_, index) => ({
   supported_parameters: ['tools', 'tool_choice'],
 }));
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   for (const [kind, completionLimit] of [
     ['standard', 32768],
     ['reasoning', 943718],
@@ -254,7 +255,7 @@ for (const base of ['/', '/LocalCut/']) {
   }
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`compact AI connection searches the whole catalog and reveals settings progressively ${base}`, async ({
     page,
     context,

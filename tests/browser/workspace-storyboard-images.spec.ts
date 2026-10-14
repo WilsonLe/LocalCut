@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { installGoalReviewFixture } from './goal-review-fixture';
 import { test, expect } from '@playwright/test';
 
@@ -7,7 +8,7 @@ test.beforeEach(async ({ page }) => {
   await installGoalReviewFixture(page);
 });
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`storyboard images insert through agent and UI with local pixels, history and backups ${base}`, async ({
     page,
   }, testInfo) => {

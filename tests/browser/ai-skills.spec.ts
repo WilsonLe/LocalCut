@@ -1,7 +1,8 @@
+import { behaviorBases } from './coverage-bases';
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`AI domain guidance loads lazily and tools reset each turn ${base}`, async ({
     page,
   }) => {
@@ -269,7 +270,7 @@ for (const base of ['/', '/LocalCut/']) {
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`AI capability recovery continues cross-domain work without private transcript access ${base}`, async ({
     page,
   }) => {

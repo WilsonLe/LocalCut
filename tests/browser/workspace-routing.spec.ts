@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { fulfillChatTitle } from './chat-title-fixture';
 import { openWorkspaceGroup } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
@@ -41,7 +42,7 @@ async function seed(page: Page, base: string) {
 }
 const picker = (page: Page) =>
   page.getByRole('button', { name: 'Open project', exact: true });
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`project routing reopens the recent project and keeps view icons in the header ${base}`, async ({
     page,
   }, info) => {
@@ -563,7 +564,7 @@ for (const base of ['/', '/LocalCut/']) {
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`project switcher dialog preserves editor state and switches projects ${base}`, async ({
     page,
   }, info) => {

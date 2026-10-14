@@ -2,6 +2,11 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Single-base browser testing — 14 October 2026
+
+- Do not repeat browser scenarios at both `/` and `/LocalCut/`. Run normal browser checks once at the deployed `/LocalCut/` base, including routing, callback and worker/asset-loading tests. This supersedes the older paired-path testing preference.
+- Preserve genuinely different themes, viewports, provider failures, keyboard paths and cancellation/recording-stop cases as named fixture variants. Keep both build artifacts and configuration checks; a manually selected two-base diagnostic is optional and not a routine gate.
+
 ## Browser coding and original music — 14 October 2026
 
 - Give the editing agent generic read, write, edit, glob, grep, shell and code-execution tools with access to a persistent project-owned directory. Keep execution entirely in the browser; no local companion or native computer-folder access.

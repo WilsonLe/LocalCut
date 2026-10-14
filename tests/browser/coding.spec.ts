@@ -1,8 +1,9 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 import { installGoalReviewFixture } from './goal-review-fixture';
 
-// Worker/runtime asset resolution is deployment-sensitive: retain both builds.
-for (const base of ['/', '/LocalCut/']) {
+// Run once at the deployed base; code/runtime and persistence assertions remain complete.
+for (const base of behaviorBases) {
   test(`browser agent composes music, persists source, imports and exports audible audio ${base}`, async ({
     page,
   }) => {

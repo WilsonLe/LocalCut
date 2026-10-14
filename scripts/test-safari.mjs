@@ -110,7 +110,7 @@ try {
     width: 1440,
     height: 1000,
   });
-  for (const base of ['/', '/LocalCut/']) {
+  for (const base of ['/LocalCut/']) {
     const namespace = 'test-safari-' + randomUUID();
     await request('POST', `/session/${session}/url`, {
       url: `http://127.0.0.1:${serverPort}${base}`,

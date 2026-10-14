@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { fulfillChatTitle, fulfillGoalReview } from './chat-title-fixture';
 import {
   showOpenRouterTerms,
@@ -211,7 +212,7 @@ async function downloadedVideo(page: Page, data: Buffer, type: string) {
   );
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`timeline previews refresh stale visibility after layout changes ${base}`, async ({
     page,
   }) => {
@@ -1341,7 +1342,7 @@ test('workspace imports image, audio and video, handles invalid input and cancel
   ).toBeEnabled();
 });
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`speed rounding preserves exact source bounds ${base}`, async ({
     page,
   }) => {
@@ -1422,7 +1423,7 @@ for (const base of ['/', '/LocalCut/']) {
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`custom speed ramps and pitch controls persist ${base}`, async ({
     page,
   }, testInfo) => {
@@ -1586,7 +1587,7 @@ for (const base of ['/', '/LocalCut/']) {
 
 test.describe('touch media menu', () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
-  for (const base of ['/', '/LocalCut/']) {
+  for (const base of behaviorBases) {
     test(`workspace asset actions stay visible on touch ${base}`, async ({
       page,
     }) => {

@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { fulfillGoalReview } from './chat-title-fixture';
 import { selectAISettingsTab } from './workspace-settings-helper';
 import { closeMediaImport } from './workspace-import-helper';
@@ -74,7 +75,7 @@ async function setup(page: Page, context: BrowserContext, base: string) {
   await settings.getByRole('button', { name: 'Done', exact: true }).click();
   await page.getByRole('button', { name: 'Expand media', exact: true }).click();
 }
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`chat immutable tool history survives fresh project context and reload ${base}`, async ({
     page,
     context,
@@ -384,170 +385,175 @@ data: [DONE]
       expect(requests[count + 1]).toEqual(requests[count]);
     });
   });
-  test(`chat escalated errors expose primary play retry with captured context ${base}`, async ({
-    page,
-    context,
-  }, info) => {
-    const requests: {
-      session_id: string;
-      tools: unknown[];
-      messages: { role: string; content: string | null }[];
-    }[] = [];
-    let fail = true;
-    const reply = (content: string | null) =>
-      `data: ${JSON.stringify({ choices: [{ index: 0, delta: content === null ? { reasoning: 'No reply' } : { content }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`;
-    await context.route(
-      'https://openrouter.ai/api/v1/chat/completions',
-      async (route) => {
-        if (await fulfillGoalReview(route)) return;
-        const body = route
-          .request()
-          .postDataJSON() as (typeof requests)[number];
-        if (!body.tools?.length) {
-          await route.fulfill({
-            headers: cors,
-            contentType: 'text/event-stream',
-            body: reply('Retry chat'),
-          });
-          return;
+  for (const failureMode of ['empty', 'network']) {
+    test(`chat escalated errors expose primary play retry with captured context ${base} ${failureMode}`, async ({
+      page,
+      context,
+    }, info) => {
+      const requests: {
+        session_id: string;
+        tools: unknown[];
+        messages: { role: string; content: string | null }[];
+      }[] = [];
+      let fail = true;
+      const reply = (content: string | null) =>
+        `data: ${JSON.stringify({ choices: [{ index: 0, delta: content === null ? { reasoning: 'No reply' } : { content }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`;
+      await context.route(
+        'https://openrouter.ai/api/v1/chat/completions',
+        async (route) => {
+          if (await fulfillGoalReview(route)) return;
+          const body = route
+            .request()
+            .postDataJSON() as (typeof requests)[number];
+          if (!body.tools?.length) {
+            await route.fulfill({
+              headers: cors,
+              contentType: 'text/event-stream',
+              body: reply('Retry chat'),
+            });
+            return;
+          }
+          requests.push(body);
+          if (fail && failureMode === 'network') await route.abort('failed');
+          else
+            await route.fulfill({
+              headers: cors,
+              contentType: 'text/event-stream',
+              body: reply(fail ? null : 'Recovered the captured request.'),
+            });
+        },
+      );
+      await setup(page, context, base);
+      const input = page.getByRole('textbox', {
+        name: 'Describe your edit',
+        exact: true,
+      });
+      const send = page.getByRole('button', {
+        name: 'Send edit request',
+        exact: true,
+      });
+      const retry = page.getByRole('button', {
+        name: 'Retry response',
+        exact: true,
+      });
+      const responses = page.getByRole('article', {
+        name: 'Assistant response',
+      });
+      const asset = await page.evaluate(async (base) => {
+        const { createEditor } = await import(base + 'editor.js');
+        const editor = await createEditor();
+        try {
+          const canvas = new OffscreenCanvas(16, 16);
+          const ctx = canvas.getContext('2d')!;
+          ctx.fillStyle = 'red';
+          ctx.fillRect(0, 0, 16, 16);
+          return await editor.assets.import(
+            await canvas.convertToBlob({ type: 'image/png' }),
+            'Retry reference.png',
+          ).completion;
+        } finally {
+          await editor.dispose();
         }
-        requests.push(body);
-        if (fail && base === '/LocalCut/') await route.abort('failed');
-        else
-          await route.fulfill({
-            headers: cors,
-            contentType: 'text/event-stream',
-            body: reply(fail ? null : 'Recovered the captured request.'),
-          });
-      },
-    );
-    await setup(page, context, base);
-    const input = page.getByRole('textbox', {
-      name: 'Describe your edit',
-      exact: true,
-    });
-    const send = page.getByRole('button', {
-      name: 'Send edit request',
-      exact: true,
-    });
-    const retry = page.getByRole('button', {
-      name: 'Retry response',
-      exact: true,
-    });
-    const responses = page.getByRole('article', { name: 'Assistant response' });
-    const asset = await page.evaluate(async (base) => {
-      const { createEditor } = await import(base + 'editor.js');
-      const editor = await createEditor();
-      try {
-        const canvas = new OffscreenCanvas(16, 16);
-        const ctx = canvas.getContext('2d')!;
-        ctx.fillStyle = 'red';
-        ctx.fillRect(0, 0, 16, 16);
-        return await editor.assets.import(
-          await canvas.convertToBlob({ type: 'image/png' }),
-          'Retry reference.png',
-        ).completion;
-      } finally {
-        await editor.dispose();
+      }, base);
+      const transfer = await page.evaluateHandle((id) => {
+        const transfer = new DataTransfer();
+        transfer.setData('application/x-localcut-image', id);
+        return transfer;
+      }, asset.id);
+      await page
+        .locator('.chat-composer')
+        .dispatchEvent('drop', { dataTransfer: transfer });
+      await transfer.dispose();
+      await expect(page.getByLabel('Attached images')).toContainText(
+        'Retry reference.png',
+      );
+      await input.fill('Inspect my attached reference');
+      await expect(send).toBeEnabled();
+      const sendBox = (await send.boundingBox())!;
+      await send.click();
+      await expect(responses.last()).toContainText('Incomplete response');
+      await expect(retry).toBeEnabled();
+      expect(requests).toHaveLength(3);
+      await expect(retry.locator('svg')).toHaveClass(/lucide-play/);
+      await expect(send).toHaveCount(0);
+      const retryBox = (await retry.boundingBox())!;
+      expect(Math.abs(retryBox.x - sendBox.x)).toBeLessThan(2);
+      await dismissNotifications(page);
+      await page
+        .locator('.chat-composer')
+        .screenshot({ path: info.outputPath('retry-primary-desktop.png') });
+      await page.reload();
+      await expect(retry).toBeEnabled();
+      expect(requests).toHaveLength(3); // Reload restores captured retry without inference.
+      await input.fill('A different request');
+      await expect(send).toBeEnabled();
+      await expect(retry).toHaveCount(0);
+      await input.fill('');
+      await expect(retry).toBeEnabled();
+      // Blur while desktop Chat is still visible, before mobile defaults to Edit.
+      await input.blur();
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page
+        .getByRole('navigation', { name: 'Workspace sections' })
+        .getByRole('button', { name: 'Chat', exact: true })
+        .click();
+      await expect(retry).toBeEnabled();
+      const mobileBox = (await retry.boundingBox())!;
+      const composerBox = (await page.locator('.chat-composer').boundingBox())!;
+      expect(
+        composerBox.x + composerBox.width - mobileBox.x - mobileBox.width,
+      ).toBeLessThan(20);
+      expect(mobileBox.x + mobileBox.width).toBeLessThanOrEqual(390);
+      await page
+        .locator('.chat-composer')
+        .screenshot({ path: info.outputPath('retry-primary-mobile.png') });
+      fail = false;
+      if (failureMode === 'empty') {
+        await retry.focus();
+        await page.keyboard.press('Enter');
+      } else {
+        await input.focus();
+        await input.press('Enter');
       }
-    }, base);
-    const transfer = await page.evaluateHandle((id) => {
-      const transfer = new DataTransfer();
-      transfer.setData('application/x-localcut-image', id);
-      return transfer;
-    }, asset.id);
-    await page
-      .locator('.chat-composer')
-      .dispatchEvent('drop', { dataTransfer: transfer });
-    await transfer.dispose();
-    await expect(page.getByLabel('Attached images')).toContainText(
-      'Retry reference.png',
-    );
-    await input.fill('Inspect my attached reference');
-    await expect(send).toBeEnabled();
-    const sendBox = (await send.boundingBox())!;
-    await send.click();
-    await expect(responses.last()).toContainText('Incomplete response');
-    await expect(retry).toBeEnabled();
-    expect(requests).toHaveLength(3);
-    await expect(retry.locator('svg')).toHaveClass(/lucide-play/);
-    await expect(send).toHaveCount(0);
-    const retryBox = (await retry.boundingBox())!;
-    expect(Math.abs(retryBox.x - sendBox.x)).toBeLessThan(2);
-    await dismissNotifications(page);
-    await page
-      .locator('.chat-composer')
-      .screenshot({ path: info.outputPath('retry-primary-desktop.png') });
-    await page.reload();
-    await expect(retry).toBeEnabled();
-    expect(requests).toHaveLength(3); // Reload restores captured retry without inference.
-    await input.fill('A different request');
-    await expect(send).toBeEnabled();
-    await expect(retry).toHaveCount(0);
-    await input.fill('');
-    await expect(retry).toBeEnabled();
-    // Blur while desktop Chat is still visible, before mobile defaults to Edit.
-    await input.blur();
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page
-      .getByRole('navigation', { name: 'Workspace sections' })
-      .getByRole('button', { name: 'Chat', exact: true })
-      .click();
-    await expect(retry).toBeEnabled();
-    const mobileBox = (await retry.boundingBox())!;
-    const composerBox = (await page.locator('.chat-composer').boundingBox())!;
-    expect(
-      composerBox.x + composerBox.width - mobileBox.x - mobileBox.width,
-    ).toBeLessThan(20);
-    expect(mobileBox.x + mobileBox.width).toBeLessThanOrEqual(390);
-    await page
-      .locator('.chat-composer')
-      .screenshot({ path: info.outputPath('retry-primary-mobile.png') });
-    fail = false;
-    if (base === '/') {
-      await retry.focus();
-      await page.keyboard.press('Enter');
-    } else {
-      await input.focus();
-      await input.press('Enter');
-    }
-    await expect(responses.last()).toContainText(
-      'Recovered the captured request.',
-    );
-    await expect(page.getByRole('alert')).toHaveCount(0);
-    await expect(retry).toHaveCount(0);
-    expect(requests).toHaveLength(4);
-    const original = requests[0]!;
-    const recovered = requests[3]!;
-    expect(recovered.session_id).toBe(original.session_id);
-    expect(recovered.messages.at(-1)!.content).toContain(
-      original.messages.at(-1)!.content!,
-    );
-    expect(recovered.messages.at(-1)!.content).toContain(
-      'do not repeat actions with completed receipts',
-    );
-    expect(JSON.stringify(recovered.messages)).toContain(
-      'interrupted before completion',
-    );
-    const originalScope = JSON.parse(
-      original.messages[1]!.content!,
-    ).availableAssetIds;
-    expect(originalScope.length).toBe(1);
-    expect(
-      JSON.parse(recovered.messages[1]!.content!).availableAssetIds,
-    ).toEqual(originalScope);
-    await expect(
-      page
-        .getByRole('article', { name: 'Your message' })
-        .filter({ hasText: 'Inspect my attached reference' }),
-    ).toHaveCount(1);
-    await expect(
-      page
-        .getByRole('article', { name: 'Your message' })
-        .filter({ hasText: 'Retry response' }),
-    ).toHaveCount(1);
-    await expect(responses).toHaveCount(2);
-  });
+      await expect(responses.last()).toContainText(
+        'Recovered the captured request.',
+      );
+      await expect(page.getByRole('alert')).toHaveCount(0);
+      await expect(retry).toHaveCount(0);
+      expect(requests).toHaveLength(4);
+      const original = requests[0]!;
+      const recovered = requests[3]!;
+      expect(recovered.session_id).toBe(original.session_id);
+      expect(recovered.messages.at(-1)!.content).toContain(
+        original.messages.at(-1)!.content!,
+      );
+      expect(recovered.messages.at(-1)!.content).toContain(
+        'do not repeat actions with completed receipts',
+      );
+      expect(JSON.stringify(recovered.messages)).toContain(
+        'interrupted before completion',
+      );
+      const originalScope = JSON.parse(
+        original.messages[1]!.content!,
+      ).availableAssetIds;
+      expect(originalScope.length).toBe(1);
+      expect(
+        JSON.parse(recovered.messages[1]!.content!).availableAssetIds,
+      ).toEqual(originalScope);
+      await expect(
+        page
+          .getByRole('article', { name: 'Your message' })
+          .filter({ hasText: 'Inspect my attached reference' }),
+      ).toHaveCount(1);
+      await expect(
+        page
+          .getByRole('article', { name: 'Your message' })
+          .filter({ hasText: 'Retry response' }),
+      ).toHaveCount(1);
+      await expect(responses).toHaveCount(2);
+    });
+  }
+
   test(`chat title runs asynchronously once with animated scoped replacement ${base}`, async ({
     page,
     context,
