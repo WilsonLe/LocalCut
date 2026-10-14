@@ -518,6 +518,8 @@ test('screen recording native tab capture manual stop and source cessation', asy
     // Headless defaults mute browser output, including the tab audio we test.
     ignoreDefaultArgs: ['--mute-audio'],
     args: [
+      // Keep the tab-capture signal while routing OS playback to a silent sink.
+      '--disable-audio-output',
       '--auto-select-tab-capture-source-by-title=LocalCut capture fixture',
     ],
   });

@@ -2,6 +2,10 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Silent audio probes — 14 October 2026
+
+- Run native capture audio probes with Chrome's `--disable-audio-output` flag so test tones do not play through the speakers. Preserve native recorded-audio and waveform assertions; quiet execution must not reduce capture coverage.
+
 ## Creative music guidance — 14 October 2026
 
 - Encourage music that sounds more considered through complementary layers, motifs, harmonic color, voice leading, phrasing and purposeful development. Keep creative choices flexible; more parts or more theory is not automatically better.
