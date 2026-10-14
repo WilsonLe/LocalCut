@@ -2,6 +2,11 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## OpenRouter sticky sessions — 15 October 2026
+
+- Use OpenRouter session stickiness with the existing stable chat/agent-role identities to improve prompt-cache reuse. Disable upstream fallbacks for chat-completion requests, including indexing, and leave manual provider ordering unset.
+- Keep OpenRouter's session routing rather than adding a permanent provider lock. Affinity can expire after inactivity or change after an error; cache lifetime and unchanged prompt prefixes still govern reuse. Do not promise a cache hit rate without provider evidence.
+
 ## Concise goals and agent replies — 15 October 2026
 
 - Keep each new or changed goal bullet short and concise, with one idea per bullet. Use as many bullets as needed; the complete goal has no 50-word cap. Preserve unaffected saved text instead of rewriting it to impose a style.

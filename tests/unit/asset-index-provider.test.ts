@@ -84,9 +84,30 @@ describe('dedicated indexing transport', () => {
       );
       expect(bodies[0]).toMatchObject({
         model,
-        provider: { data_collection: 'deny', require_parameters: true },
+        provider: {
+          data_collection: 'deny',
+          require_parameters: true,
+          allow_fallbacks: false,
+        },
         session_id: 'index-run-1',
       });
+      await provider.label(
+        {
+          model,
+          prompt: 'Summarize indexed scenes',
+          sessionId: 'index-run-1',
+          media: [],
+          consent: true,
+          maxOutputTokens: 100,
+        },
+        signal(),
+      );
+      expect(bodies[1]).toMatchObject({
+        session_id: 'index-run-1',
+        provider: bodies[0]!.provider,
+      });
+      expect(bodies[0]!.provider).not.toHaveProperty('order');
+      expect(bodies[0]!.provider).not.toHaveProperty('only');
       expect(bodies[0]).not.toHaveProperty('tools');
       expect(JSON.stringify(bodies)).not.toContain('synthetic-index-key');
       expect(JSON.stringify(bodies)).toContain('data:video/mp4;base64,YWJj');

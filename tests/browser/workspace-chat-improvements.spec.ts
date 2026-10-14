@@ -229,6 +229,11 @@ data: [DONE]
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
+        expect(route.request().postDataJSON().provider).toEqual({
+          data_collection: 'deny',
+          require_parameters: true,
+          allow_fallbacks: false,
+        });
         if (await fulfillGoalReview(route)) return;
         const body = route
           .request()
@@ -409,6 +414,11 @@ data: [DONE]
       await context.route(
         'https://openrouter.ai/api/v1/chat/completions',
         async (route) => {
+          expect(route.request().postDataJSON().provider).toEqual({
+            data_collection: 'deny',
+            require_parameters: true,
+            allow_fallbacks: false,
+          });
           if (await fulfillGoalReview(route)) return;
           const body = route
             .request()
@@ -588,6 +598,11 @@ data: [DONE]
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
+        expect(route.request().postDataJSON().provider).toEqual({
+          data_collection: 'deny',
+          require_parameters: true,
+          allow_fallbacks: false,
+        });
         if (await fulfillGoalReview(route)) return;
         const body = route.request().postDataJSON() as (typeof naming)[number];
         if (!body.tools?.length) {
@@ -1522,8 +1537,17 @@ data: [DONE]
       .getByRole('button', { name: 'Send edit request', exact: true })
       .click();
     await expect(
-      page.getByText('Alternative reply.', { exact: true }),
-    ).toBeVisible();
+      page.getByRole('article', { name: 'Assistant response' }),
+    ).toHaveCount(2);
+    await expect(
+      page.getByRole('button', { name: 'Cancel response', exact: true }),
+    ).not.toBeVisible();
+    await expect(
+      page
+        .getByRole('article', { name: 'Assistant response' })
+        .last()
+        .locator('[data-chat-response-text]'),
+    ).toHaveText('Alternative reply.');
     const last = JSON.stringify(requests.at(-1)?.messages);
     expect(last).toContain('First idea');
     expect(last).not.toContain('Later original idea');
@@ -1538,8 +1562,8 @@ data: [DONE]
       page.getByRole('article', { name: 'Assistant response' }),
     ).toHaveCount(2);
     await expect(
-      page.getByText('Alternative reply.', { exact: true }),
-    ).not.toBeVisible();
+      page.getByRole('log', { name: 'Conversation messages' }),
+    ).not.toContainText('Alternative reply.');
     // Import a real local image into the draft; only its metadata/ID may travel remotely.
     const imageBytes = await page.evaluate(async () => {
       const canvas = new OffscreenCanvas(32, 32);

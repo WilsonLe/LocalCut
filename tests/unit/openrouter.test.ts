@@ -66,6 +66,11 @@ describe('OpenRouter transport', () => {
     await collect(client, { ...request(), tools: [] });
     const body = JSON.parse(String(fetch.mock.calls[1]![1]?.body));
     expect(body.tool_choice).toBe('none');
+    expect(body.provider).toEqual({
+      data_collection: 'deny',
+      require_parameters: true,
+      allow_fallbacks: false,
+    });
     expect(body).not.toHaveProperty('tools');
     expect(body).not.toHaveProperty('parallel_tool_calls');
     client.dispose();
@@ -184,9 +189,43 @@ describe('OpenRouter transport', () => {
     ]);
     expect(bodies[2].session_id).toMatch(/^[a-f\d-]{36}$/);
     expect(bodies[3].session_id).not.toBe(bodies[2].session_id);
+    for (const body of bodies)
+      expect(body.provider).toEqual({
+        data_collection: 'deny',
+        require_parameters: true,
+        allow_fallbacks: false,
+      });
     expect(bodies[0]).not.toHaveProperty('user');
     expect(bodies[0]).not.toHaveProperty('stream_options');
     client.dispose();
+  });
+  it('reports an unavailable upstream without widening routing or submitting a fallback request', async () => {
+    const { client, fetch } = setup(() =>
+      Response.json(
+        { error: { message: 'PRIVATE upstream failure' } },
+        { status: 503 },
+      ),
+    );
+    try {
+      await expect(
+        collect(client, { ...request(), sessionId: 'chat:unavailable' }),
+      ).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
+      const calls = fetch.mock.calls.filter(([url]) =>
+        String(url).endsWith('/chat/completions'),
+      );
+      expect(calls).toHaveLength(1);
+      expect(JSON.parse(String(calls[0]![1]?.body))).toMatchObject({
+        session_id: 'chat:unavailable',
+        model: model.id,
+        provider: {
+          data_collection: 'deny',
+          require_parameters: true,
+          allow_fallbacks: false,
+        },
+      });
+    } finally {
+      client.dispose();
+    }
   });
   it.each(['', 'a'.repeat(257), 'private name', 'bad\r\nheader', null, 7])(
     'rejects invalid session IDs before any network request (%s)',
@@ -350,6 +389,11 @@ describe('OpenRouter transport', () => {
       const original = structuredClone(value);
       expect(await collect(client, value)).toHaveLength(2);
       expect(payloads).toHaveLength(2);
+      expect(payloads[0]!.provider).toEqual({
+        data_collection: 'deny',
+        require_parameters: true,
+        allow_fallbacks: false,
+      });
       expect(payloads[1]).toEqual({ ...payloads[0], max_tokens: 107730 });
       expect(value).toEqual(original);
       client.dispose();
@@ -570,6 +614,7 @@ describe('OpenRouter transport', () => {
         expect(body.provider).toEqual({
           data_collection: 'deny',
           require_parameters: true,
+          allow_fallbacks: false,
         });
         if (!parallelSupported && 'parallel_tool_calls' in body)
           return Response.json(

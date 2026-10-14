@@ -203,6 +203,11 @@ for (const base of behaviorBases) {
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
+        expect(route.request().postDataJSON().provider).toEqual({
+          data_collection: 'deny',
+          require_parameters: true,
+          allow_fallbacks: false,
+        });
         if (await fulfillGoalReview(route)) return;
         const body = route.request().postDataJSON();
         // Scenario identity belongs to the stable execution session. Historical
