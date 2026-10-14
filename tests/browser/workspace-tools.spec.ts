@@ -418,11 +418,12 @@ for (const base of ['/', '/LocalCut/']) {
       await page
         .getByRole('button', { name: 'Send edit request', exact: true })
         .click();
-      await expect(
-        page
-          .locator('[aria-label="Chat action"]')
-          .getByRole('status', { name: 'Making it happen…', exact: true }),
-      ).toBeVisible();
+      const actionStatus = page
+        .locator('[aria-label="Chat action"]')
+        .getByRole('status');
+      await expect(actionStatus).toBeVisible();
+      await expect(actionStatus).toHaveAccessibleName(/\S/);
+      await expect(actionStatus.locator('.chat-thinking-glow')).toBeAttached();
       await expect(
         page.getByRole('button', { name: 'Cancel action', exact: true }),
       ).toHaveCount(0);

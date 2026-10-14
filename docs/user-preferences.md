@@ -645,3 +645,8 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Organize clip properties in tabs instead of section accordions.
 - Right-click or press and hold an asset instance on a timeline track to open its action menu, including Properties for that specific instance.
+
+## Responsive chat thinking and streaming — 14 October 2026
+
+- Replace chat agent spinning icons with randomly selected, stage-relevant thinking text and a subtle left-to-right glow, similar to Codex. Respect reduced motion with readable static text.
+- Stream available text from long-running agent sessions, including goal definition, to-do updates and completion checks, directly into chat while they run. Keep provisional drafts separate from the main response and saved authoritative results; avoid long waits with only a loading indicator.
