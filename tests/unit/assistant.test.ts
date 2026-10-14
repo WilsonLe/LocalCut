@@ -7,6 +7,7 @@ import {
   roleArtifacts,
   roleLeafChecks,
 } from '../auxiliary-role-fixture';
+import * as skills from '../../src/ai/skills';
 import type { GoalStage } from '../../src/ai/goal-review';
 function createAssistant(options: Parameters<typeof createRealAssistant>[0]) {
   const provider = options.provider;
@@ -3136,6 +3137,7 @@ describe('incremental assistant skills', () => {
         f.provider.requests[0]!.messages[1]!.content!,
       ).skillCatalog.map((skill: { id: string }) => skill.id),
     ).toEqual([
+      'speech',
       'coding',
       'storyboard',
       'editing',
@@ -4621,6 +4623,7 @@ it.each(
 
 describe('complete capability discovery and recovery', () => {
   const allSkills = new Set<import('../../src/ai/skills').SkillId>([
+    'speech',
     'coding',
     'editing',
     'storyboard',
@@ -4630,6 +4633,7 @@ describe('complete capability discovery and recovery', () => {
     'history',
   ]);
   const full = {
+    speech: true,
     coding: true,
     undo: true,
     redo: true,
@@ -4646,6 +4650,7 @@ describe('complete capability discovery and recovery', () => {
     indexing: true,
   };
   it.each([
+    ['generate_speech', 'speech', 'speech'],
     ['undo', 'history', 'undo'],
     ['redo', 'history', 'redo'],
     ['export', 'export', 'export'],
@@ -4724,6 +4729,7 @@ describe('complete capability discovery and recovery', () => {
       'inspect_capabilities',
       'search_text_library',
       'inspect_transcription',
+      'inspect_speech',
       'inspect_proposals',
       'read_transcript',
       'validate_edits',
@@ -4732,6 +4738,7 @@ describe('complete capability discovery and recovery', () => {
       'propose_action',
     ]);
     expect(Object.keys(open.actions)).toEqual([
+      'generate_speech',
       'coding',
       'library',
       'undo',
@@ -4818,6 +4825,7 @@ describe('complete capability discovery and recovery', () => {
       expect(
         scope.skillCatalog.map((skill: { id: string }) => skill.id),
       ).toEqual([
+        'speech',
         'coding',
         'storyboard',
         'editing',
@@ -4844,7 +4852,10 @@ describe('complete capability discovery and recovery', () => {
         supported: false,
         available: false,
       });
-      expect(scope.userActions).toContain('capture_and_generate_speech');
+      expect(scope.userActions).toContain(
+        'capture_and_choose_source_voice_recordings',
+      );
+      expect(scope.userActions).not.toContain('capture_and_generate_speech');
       expect(JSON.stringify(p.requests)).not.toMatch(
         /Private client project|Private overlay text|Private transcript phrase|Private recording.mov/,
       );
@@ -8361,69 +8372,81 @@ describe('request completion review sessions', () => {
     }
   });
 
-  it('reports completion rejection stage and retains completed edits for a follow-up', async () => {
-    const p = reviewedProvider([
-      [final('', [call('load_skill', { skillId: 'editing' })])],
-      [proposal()],
-      [final('Moved and answered')],
-      [final('Earlier move remains complete')],
-    ]);
-    const original = p.stream;
-    let rejected = false;
-    p.stream = async function* (request) {
-      if (
-        !rejected &&
-        request.messages[0]?.content?.startsWith('LocalCut completion review:')
-      ) {
-        rejected = true;
-        throw new AiError('INVALID_REQUEST', 'Rejected', {
-          status: 400,
-          providerReason: 'invalid_prompt',
+  it.each(['completion_check', 'session_todos'] as const)(
+    'reports %s rejection stage and retains completed edits for a follow-up',
+    async (stage) => {
+      const p = reviewedProvider([
+        [final('', [call('load_skill', { skillId: 'editing' })])],
+        [proposal()],
+        [final('Moved and answered')],
+        [final('Earlier move remains complete')],
+      ]);
+      const original = p.stream;
+      let rejected = false;
+      p.stream = async function* (request) {
+        if (
+          !rejected &&
+          f.project().revision > 0 &&
+          request.messages[0]?.content?.startsWith(
+            stage === 'completion_check'
+              ? 'LocalCut completion review:'
+              : 'LocalCut session to-dos:',
+          )
+        ) {
+          rejected = true;
+          throw new AiError('INVALID_REQUEST', 'Rejected', {
+            status: 400,
+            providerReason: 'invalid_prompt',
+          });
+        }
+        yield* original(request);
+      };
+      const f = make(p);
+      const events: AssistantEvent[] = [];
+      f.assistant.subscribe((e) => events.push(e));
+      try {
+        await expect(
+          f.assistant.run('Move and answer').completion,
+        ).rejects.toMatchObject({
+          code: 'INVALID_REQUEST',
+          details: {
+            stage,
+            status: 400,
+            providerReason: 'invalid_prompt',
+          },
         });
-      }
-      yield* original(request);
-    };
-    const f = make(p);
-    const events: AssistantEvent[] = [];
-    f.assistant.subscribe((e) => events.push(e));
-    try {
-      await expect(
-        f.assistant.run('Move and answer').completion,
-      ).rejects.toMatchObject({
-        code: 'INVALID_REQUEST',
-        details: {
-          stage: 'completion_check',
-          status: 400,
-          providerReason: 'invalid_prompt',
-        },
-      });
-      expect(events).toContainEqual(
-        expect.objectContaining({
-          type: 'tool',
-          name: 'completion_check',
-          phase: 'failed',
-          error: expect.objectContaining({
-            details: expect.objectContaining({ stage: 'completion_check' }),
-          }),
-        }),
-      );
-      await f.assistant.run('Finish the earlier response').completion;
-      expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
-      expect(f.project().revision).toBe(1);
-      const followUp = kind(p, 'LocalCut request contract:').at(-1)!;
-      expect(
-        JSON.parse(followUp.messages[1]!.content!).previousConversation,
-      ).toEqual(
-        expect.arrayContaining([
+        expect(events).toContainEqual(
           expect.objectContaining({
-            content: expect.stringContaining('Moved and answered'),
+            type: 'tool',
+            name: stage,
+            phase: 'failed',
+            error: expect.objectContaining({
+              details: expect.objectContaining({ stage }),
+            }),
           }),
-        ]),
-      );
-    } finally {
-      await f.assistant.dispose();
-    }
-  });
+        );
+        await f.assistant.run('Finish the earlier response').completion;
+        expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
+        expect(f.project().revision).toBe(1);
+        const followUp = kind(p, 'LocalCut request contract:').at(-1)!;
+        expect(
+          JSON.parse(followUp.messages[1]!.content!).previousConversation,
+        ).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              content: expect.stringContaining(
+                stage === 'completion_check'
+                  ? 'Moved and answered'
+                  : 'appliedRevision',
+              ),
+            }),
+          ]),
+        );
+      } finally {
+        await f.assistant.dispose();
+      }
+    },
+  );
 
   it('updates every goal and uses a separate assessment identity before main-agent finalization', async () => {
     const p = reviewedProvider(
@@ -9320,4 +9343,501 @@ describe('request completion review sessions', () => {
       await assistant.dispose();
     },
   );
+});
+
+describe('agent narration access and preserved failure evidence', () => {
+  const generated = {
+    projectId: '',
+    generationId: 'take',
+    assetId: 'narration',
+    transcriptId: 'spoken',
+    libraryRevision: 1,
+    durationUs: 2000000,
+    sampleRate: 24000,
+    channels: 1,
+    model: 'test/tts',
+    voice: 'voice',
+  };
+  const narration = call('propose_action', {
+    summary: 'Generate narration',
+    action: {
+      type: 'generate_speech',
+      options: { script: 'Sydney, five days.', languages: ['English'] },
+    },
+  });
+  it.each(['requested', 'review'] as const)(
+    'discovers, generates and authorizes only returned narration IDs in %s mode',
+    async (execution) => {
+      const f = fixture(),
+        jobs = new Jobs();
+      const speech = {
+        disclosure: 'Authored script and generated audio timing only.',
+        inspect: vi.fn(async () => ({
+          models: [],
+          timingReady: true,
+          timingRoute: 'remote',
+        })),
+        generate: vi.fn(() =>
+          jobs.start(async () => ({ ...generated, projectId: f.project().id })),
+        ),
+      };
+      const p = provider(
+        [
+          [final('', [call('load_skill', { skillId: 'transcription' })])],
+          [final('', [narration])], // wrong domain cannot submit paid generation
+          [final('', [call('load_skill', { skillId: 'speech' })])],
+          [final('', [call('inspect_speech', {}, 'read-speech'), narration])],
+          [final('Saved narration.')],
+        ],
+        false,
+      );
+      const a = createAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test/model',
+        execution,
+        speech,
+      });
+      try {
+        const result = await a.run('Generate narration for this cut')
+          .completion;
+        expect(result.proposalIds).toHaveLength(1);
+        const proposal = a.getProposal(result.proposalIds[0]!);
+        expect(proposal.dataSharing).toBe(speech.disclosure);
+        expect(speech.generate).toHaveBeenCalledTimes(
+          execution === 'requested' ? 1 : 0,
+        );
+        if (execution === 'review') await a.approveProposal(proposal.id);
+        expect(a.getProposal(proposal.id).result).toMatchObject({
+          kind: 'speech',
+          assetId: 'narration',
+          transcriptId: 'spoken',
+        });
+        expect(speech.generate).toHaveBeenCalledTimes(1);
+        expect(JSON.stringify(p.requests)).not.toContain('samples');
+        expect(f.editor.commands.apply).not.toHaveBeenCalled();
+      } finally {
+        await a.dispose();
+        await jobs.dispose();
+      }
+    },
+  );
+  it('blocks repeated failed paid synthesis and retains the real service error', async () => {
+    const f = fixture(),
+      jobs = new Jobs();
+    const speech = {
+      disclosure: 'Script only.',
+      inspect: vi.fn(async () => ({
+        models: [],
+        timingReady: true,
+        timingRoute: 'remote',
+      })),
+      generate: vi.fn(() =>
+        jobs.start(
+          async () => {
+            throw new AiError('INSUFFICIENT_CREDITS', 'Add credits.');
+          },
+          { error: (e) => e as AiError },
+        ),
+      ),
+    };
+    const p = provider(
+      [
+        [final('', [call('load_skill', { skillId: 'speech' })])],
+        [final('', [narration])],
+        [final('', [narration])],
+        [final('Needs an explicit retry.')],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      speech,
+      projectId: f.project().id,
+      model: 'test/model',
+      execution: 'requested',
+    });
+    try {
+      await a.run('Generate narration').completion;
+      expect(speech.generate).toHaveBeenCalledTimes(1);
+      const errors = p.requests.flatMap((r) =>
+        r.messages
+          .filter((m) => m.role === 'tool')
+          .map((m) => JSON.parse(m.content).error?.code),
+      );
+      expect(errors).toContain('INSUFFICIENT_CREDITS');
+      expect(errors).toContain('EDIT_REJECTED');
+    } finally {
+      await a.dispose();
+      await jobs.dispose();
+    }
+  });
+
+  it('allows correction after speech preflight fails before paid submission', async () => {
+    const f = fixture(),
+      jobs = new Jobs();
+    let attempts = 0;
+    const speech = {
+      disclosure: 'Script only.',
+      inspect: vi.fn(async () => ({
+        models: [],
+        timingReady: true,
+        timingRoute: 'remote',
+      })),
+      generate: vi.fn(() =>
+        jobs.start(
+          async () => {
+            if (++attempts === 1)
+              throw new AiError('INVALID_REQUEST', 'Invalid voice.', {
+                paidSubmission: false,
+              });
+            return { ...generated, projectId: f.project().id };
+          },
+          { error: (error) => error as AiError },
+        ),
+      ),
+    };
+    const corrected = call('propose_action', {
+      summary: 'Use discovered voice',
+      action: {
+        type: 'generate_speech',
+        options: {
+          script: 'Sydney, five days.',
+          languages: ['English'],
+          voice: 'Kore',
+        },
+      },
+    });
+    const p = provider(
+      [
+        [final('', [call('load_skill', { skillId: 'speech' })])],
+        [final('', [narration])],
+        [final('', [corrected])],
+        [final('Narration saved.')],
+      ],
+      false,
+    );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      speech,
+      projectId: f.project().id,
+      model: 'test/model',
+      execution: 'requested',
+    });
+    try {
+      await a.run('Generate narration').completion;
+      expect(speech.generate).toHaveBeenCalledTimes(2);
+    } finally {
+      await a.dispose();
+      await jobs.dispose();
+    }
+  });
+  it('reports lazy skill import failure as a reload recovery without raw exception text', async () => {
+    const spy = vi
+      .spyOn(skills, 'loadSkill')
+      .mockRejectedValueOnce(new TypeError('Failed chunk /private?key=secret'));
+    const f = fixture(),
+      p = provider(
+        [
+          [final('', [call('load_skill', { skillId: 'coding' })])],
+          [final('Reload to load the skill.')],
+        ],
+        false,
+      );
+    const a = createAssistant({
+      editor: f.editor,
+      provider: p,
+      projectId: f.project().id,
+      model: 'test/model',
+    });
+    try {
+      await a.run('Compose music').completion;
+      const failure = JSON.parse(
+        p.requests[1]!.messages.at(-1)!.content!,
+      ).error;
+      expect(failure).toMatchObject({
+        code: 'INVALID_RESPONSE',
+        details: { reason: 'skill_load_failed', skillId: 'coding' },
+      });
+      expect(failure.details.recovery.nextStep).toContain('Reload LocalCut');
+      expect(failure.details.recovery.retryAfter).toBe('reload');
+      expect(JSON.stringify(p.requests)).not.toContain('key=secret');
+      expect(
+        JSON.parse(p.requests[1]!.messages[1]!.content!).capabilityMap
+          .loadedSkills,
+      ).toEqual([]);
+    } finally {
+      spy.mockRestore();
+      await a.dispose();
+    }
+  });
+});
+
+it('separates streamed rounds in failed narration without rewriting canonical provider replies', async () => {
+  const f = fixture();
+  const p = provider(
+    [
+      [
+        { type: 'text', text: 'Check' },
+        { type: 'text', text: 'ing.' },
+        final('Checking.', [call('load_skill', { skillId: 'editing' })]),
+      ],
+      [{ type: 'text', text: 'Confirmed.' }],
+    ],
+    false,
+  );
+  const a = createAssistant({
+    editor: f.editor,
+    provider: p,
+    projectId: f.project().id,
+    model: 'test/model',
+  });
+  const text: string[] = [];
+  a.subscribe((e) => {
+    if (e.type === 'text') text.push(e.text);
+  });
+  try {
+    await expect(a.run('Inspect the cut').completion).rejects.toMatchObject({
+      code: 'RESPONSE_INCOMPLETE',
+    });
+    expect(text.join('')).toBe('Checking.\n\nConfirmed.');
+    expect(p.requests[1]!.messages).toContainEqual(
+      expect.objectContaining({ role: 'assistant', content: 'Checking.' }),
+    );
+    await a.run('Continue').completion;
+    expect(
+      p.requests[2]!.messages.some((m) =>
+        m.content?.includes('Checking.\n\nConfirmed.'),
+      ),
+    ).toBe(true);
+  } finally {
+    await a.dispose();
+  }
+});
+
+it('discloses saved voice settings without leaking withheld names or contextual text', async () => {
+  const f = fixture();
+  const speech = {
+    disclosure: 'Script and selected generated reference only.',
+    generate: vi.fn(),
+    inspect: vi.fn(async () => ({
+      models: [],
+      timingReady: true,
+      timingRoute: 'remote',
+      savedVoices: [
+        {
+          id: 'voice-profile',
+          name: 'Private narrator label',
+          archived: false,
+          model: 'elevenlabs/eleven-flash-v2.5',
+          voice: 'george',
+          languages: [],
+          instructions: 'Private delivery preference',
+          elevenlabs: {
+            seed: 0,
+            previous_text: 'Private prior phrase',
+            next_text: 'Private next phrase',
+          },
+          referenceId: 'generated-reference',
+        },
+      ],
+    })),
+  };
+  const p = provider(
+    [
+      [final('', [call('load_skill', { skillId: 'speech' })])],
+      [final('', [call('inspect_speech', {})])],
+      [final('Settings inspected.')],
+    ],
+    false,
+  );
+  const a = createAssistant({
+    editor: f.editor,
+    provider: p,
+    speech,
+    projectId: f.project().id,
+    model: 'test/model',
+  });
+  try {
+    await a.run('Inspect saved voice settings').completion;
+    const profile = JSON.parse(p.requests[2]!.messages.at(-1)!.content!)
+      .savedVoices[0];
+    expect(profile).toMatchObject({
+      id: 'voice-profile',
+      model: 'elevenlabs/eleven-flash-v2.5',
+      voice: 'george',
+      elevenlabs: { seed: 0 },
+      referenceAvailable: true,
+    });
+    expect(profile).not.toHaveProperty('name');
+    expect(profile).not.toHaveProperty('instructions');
+    expect(profile.elevenlabs).not.toHaveProperty('previous_text');
+    expect(profile.elevenlabs).not.toHaveProperty('next_text');
+    expect(JSON.stringify(p.requests)).not.toMatch(
+      /Private narrator|Private delivery|Private prior|Private next/,
+    );
+    expect(speech.generate).not.toHaveBeenCalled();
+  } finally {
+    await a.dispose();
+  }
+});
+
+it('freezes saved voice configuration identity before deferred headless approval', async () => {
+  const f = fixture(),
+    jobs = new Jobs();
+  const version = 'a'.repeat(64);
+  const speech = {
+    disclosure: 'Script and selected generated reference only.',
+    inspect: vi.fn(async () => ({
+      models: [],
+      timingReady: true,
+      timingRoute: 'remote',
+      savedVoices: [
+        {
+          id: 'voice-profile',
+          name: 'Narrator',
+          archived: false,
+          model: 'test/tts',
+          voice: 'voice',
+          languages: ['English'],
+          instructions: '',
+          version,
+        },
+      ],
+    })),
+    generate: vi.fn(
+      (
+        _projectId: string,
+        input: import('../../src/ai/agent-speech').SpeechGeneration,
+      ) =>
+        jobs.start(
+          async () => {
+            expect(input.voiceVersion).toBe(version);
+            throw new AiError(
+              'REVISION_CONFLICT',
+              'Voice changed after approval was staged.',
+              { paidSubmission: false },
+            );
+          },
+          { error: (error) => error as AiError },
+        ),
+    ),
+  };
+  const p = provider(
+    [
+      [final('', [call('load_skill', { skillId: 'speech' })])],
+      [
+        final('', [
+          call('propose_action', {
+            summary: 'Use saved narrator',
+            action: {
+              type: 'generate_speech',
+              options: { script: 'Sydney.', voicePresetId: 'voice-profile' },
+            },
+          }),
+        ]),
+      ],
+      [final('Ready for approval.')],
+    ],
+    false,
+  );
+  const a = createAssistant({
+    editor: f.editor,
+    provider: p,
+    speech,
+    projectId: f.project().id,
+    model: 'test/model',
+  });
+  try {
+    const result = await a.run('Reuse the saved narrator').completion;
+    expect(a.getProposal(result.proposalIds[0]!).action).toMatchObject({
+      type: 'generate_speech',
+      options: { voiceVersion: version },
+    });
+    expect(speech.generate).not.toHaveBeenCalled();
+    await expect(
+      a.approveProposal(result.proposalIds[0]!),
+    ).rejects.toMatchObject({ code: 'REVISION_CONFLICT' });
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+  } finally {
+    await a.dispose();
+    await jobs.dispose();
+  }
+});
+
+it('freezes advertised default voice choices for review even if configuration changes afterward', async () => {
+  const f = fixture(),
+    jobs = new Jobs();
+  let voice = 'Kore';
+  const speech = {
+    disclosure: 'Script only.',
+    inspect: vi.fn(async () => ({
+      models: [{ id: 'test/tts', name: 'Test', voices: ['Kore', 'Puck'] }],
+      selectedModel: 'test/tts',
+      selectedVoice: voice,
+      timingReady: true,
+      timingRoute: 'remote',
+    })),
+    generate: vi.fn(
+      (
+        _projectId: string,
+        input: import('../../src/ai/agent-speech').SpeechGeneration,
+      ) =>
+        jobs.start(async () => ({
+          projectId: f.project().id,
+          generationId: 'take',
+          assetId: 'narration',
+          transcriptId: 'spoken',
+          libraryRevision: 1,
+          durationUs: 1000000,
+          sampleRate: 24000,
+          channels: 1,
+          model: input.model!,
+          voice: input.voice!,
+        })),
+    ),
+  };
+  const p = provider(
+    [
+      [final('', [call('load_skill', { skillId: 'speech' })])],
+      [
+        final('', [
+          call('propose_action', {
+            summary: 'Create narration',
+            action: {
+              type: 'generate_speech',
+              options: { script: 'Sydney.', languages: ['English'] },
+            },
+          }),
+        ]),
+      ],
+      [final('Ready for approval.')],
+    ],
+    false,
+  );
+  const a = createAssistant({
+    editor: f.editor,
+    provider: p,
+    speech,
+    projectId: f.project().id,
+    model: 'test/model',
+  });
+  try {
+    const result = await a.run('Generate narration').completion;
+    expect(a.getProposal(result.proposalIds[0]!).action).toMatchObject({
+      options: { model: 'test/tts', voice: 'Kore' },
+    });
+    voice = 'Puck';
+    await a.approveProposal(result.proposalIds[0]!);
+    expect(a.getProposal(result.proposalIds[0]!).result).toMatchObject({
+      kind: 'speech',
+      voice: 'Kore',
+    });
+  } finally {
+    await a.dispose();
+    await jobs.dispose();
+  }
 });

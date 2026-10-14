@@ -6,6 +6,9 @@ import {
 } from '../ai/usage';
 import type { UsageCall } from '../ai/usage';
 import type { OpenRouterModel } from '../ai';
+
+import { getWorkspacePreferences } from './preferences';
+import { parseProviderConfiguration } from './provider-preferences';
 import { safeChatFailure } from '../core/error-diagnostics';
 import { registerErrorSession } from './error-toast';
 import {
@@ -530,6 +533,16 @@ export default function ConversationSession({
         libraryAccess: 'project',
         context: privacy,
         transcription: connection.transcription,
+        speech: connection.provider.selectedProvider('tts')
+          ? connection.api.createAssistantSpeech(
+              editor,
+              connection,
+              () =>
+                parseProviderConfiguration(
+                  getWorkspacePreferences().preferences.aiProviders,
+                ).routes.tts[0],
+            )
+          : undefined,
         indexing:
           indexConnection &&
           indexConnection.inputModalities.some(

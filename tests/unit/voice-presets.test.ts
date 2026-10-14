@@ -1,3 +1,7 @@
+import {
+  readVoicePresets,
+  subscribeVoicePresets,
+} from '../../src/ai/voice-presets';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   changeVoicePresets,
@@ -214,4 +218,69 @@ describe('voice preset persistence', () => {
     expect(() => changeVoicePresets(() => [])).toThrow('Allow browser storage');
     expect(write).not.toHaveBeenCalled();
   });
+});
+
+it('retains generated voice provenance while excluding script and raw reference data', () => {
+  const generated = {
+    ...preset,
+    referenceId: 'saved-reference',
+    source: {
+      projectId: 'project/1:legacy',
+      assetId: 'audio',
+      transcriptId: 'words',
+      generationId: 'generation',
+      createdAt: 1234,
+      script: 'private',
+      data: 'secret',
+    },
+    script: 'private',
+    reference: { data: 'secret' },
+  };
+  const parsed = parseVoicePresets(record([generated]));
+  expect(parsed[0]).toMatchObject({
+    referenceId: 'saved-reference',
+    source: {
+      projectId: 'project/1:legacy',
+      assetId: 'audio',
+      transcriptId: 'words',
+      generationId: 'generation',
+      createdAt: 1234,
+    },
+  });
+  expect(JSON.stringify(parsed)).not.toMatch(/private|secret/);
+  expect(parsed[0]).not.toHaveProperty('script');
+  expect(parsed[0]).not.toHaveProperty('reference');
+  expect(parsed[0]?.source).not.toHaveProperty('script');
+  expect(parsed[0]?.source).not.toHaveProperty('data');
+  expect(
+    parseVoicePresets(
+      record([
+        { ...generated, source: { ...generated.source, createdAt: NaN } },
+      ]),
+    ),
+  ).toEqual([]);
+});
+it('reads fresh saved voices and does not let a subscriber destroy a committed configuration', () => {
+  let raw = record([preset]);
+  vi.stubGlobal('localStorage', {
+    getItem: () => raw,
+    setItem: (_key: string, next: string) => {
+      raw = next;
+    },
+  });
+  const release = subscribeVoicePresets(() => {
+    throw new Error('consumer');
+  });
+  try {
+    expect(() =>
+      changeVoicePresets((items) =>
+        items.map((item) => ({ ...item, name: 'Saved narrator' })),
+      ),
+    ).not.toThrow();
+    expect(readVoicePresets()[0]?.name).toBe('Saved narrator');
+    raw = record([{ ...preset, name: 'Another tab' }]);
+    expect(readVoicePresets()[0]?.name).toBe('Another tab');
+  } finally {
+    release();
+  }
 });

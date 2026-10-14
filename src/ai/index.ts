@@ -21,3 +21,10 @@ export type * from './context';
 
 export { createServiceRouter } from './providers';
 export type * from './providers';
+
+export { createAssistantSpeech } from './agent-speech';
+export type {
+  AssistantSpeech,
+  SpeechGeneration,
+  GeneratedSpeech,
+} from './agent-speech';
