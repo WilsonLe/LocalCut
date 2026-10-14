@@ -1,6 +1,6 @@
 import { openDB } from 'idb';
 import { EditorError, invariant } from '../core/errors';
-import { codingPath } from '../core/coding';
+import { validateCodingState } from '../core/coding';
 import type { CodingState } from '../core/coding';
 import { checkAbort } from '../services/jobs';
 import { commitWithSignal } from './transaction';
@@ -31,21 +31,15 @@ export async function codingState<T>(
       'INVALID_DOCUMENT',
       'Unsupported coding workspace version',
     );
+    validateCodingState(state);
     return await work(state, async (next, signal) => {
       checkAbort(signal);
       invariant(
-        next.version === 1 &&
-          next.revision === state.revision + 1 &&
-          next.files.every(
-            (file) =>
-              codingPath(file.path) === file.path && file.path !== '/project',
-          ) &&
-          new Set(next.files.map((file) => file.path)).size ===
-            next.files.length &&
-          next.directories.every((path) => codingPath(path) === path),
+        next.revision === state.revision + 1,
         'INVALID_DOCUMENT',
         'Invalid coding workspace snapshot',
       );
+      validateCodingState(next);
       const tx = db.transaction('projects', 'readwrite');
       try {
         const current: CodingState | undefined = await tx.store.get(projectId);

@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { runCoding, codingGlob } from '../../src/services/coding-runtime';
-import { codingPath, codingText } from '../../src/core/coding';
+import {
+  codingPath,
+  codingText,
+  validateCodingState,
+} from '../../src/core/coding';
 import type { CodingState } from '../../src/core/coding';
 import {
   capabilityDiscovery,
@@ -24,6 +28,115 @@ async function source(code: string) {
   ).state;
 }
 describe('browser coding workspace', () => {
+  it('edits dollar sequences literally in single and replaceAll modes', async () => {
+    const replacement = "$& $$ $` $'";
+    for (const replaceAll of [false, true]) {
+      const text = replaceAll ? 'TOKEN TOKEN' : 'a TOKEN z';
+      const state = (
+        await runCoding(initial(), {
+          type: 'write_file',
+          path: 'literal.txt',
+          content: text,
+        })
+      ).state;
+      const edited = await runCoding(state, {
+        type: 'edit_file',
+        path: 'literal.txt',
+        oldText: 'TOKEN',
+        newText: replacement,
+        replaceAll,
+      });
+      const result = await runCoding(edited.state, {
+        type: 'read_file',
+        path: 'literal.txt',
+      });
+      expect(result.content).toBe(
+        replaceAll ? `${replacement} ${replacement}` : `a ${replacement} z`,
+      );
+    }
+  });
+  it('rejects file ancestors without mutating guest files or publishing phantom outputs', async () => {
+    for (const operation of [
+      "fs.writeFile('existing/output.txt','new')",
+      "fs.mkdir('existing/sub')",
+    ]) {
+      let state = await source(operation);
+      state = (
+        await runCoding(state, {
+          type: 'write_file',
+          path: 'existing',
+          content: 'original',
+        })
+      ).state;
+      const failed = await runCoding(state, {
+        type: 'execute_code',
+        path: 'compose.js',
+        args: [],
+      });
+      expect(failed.exitCode).toBe(1);
+      expect(failed.stderr).toContain('Not a directory');
+      expect(failed.state.files.map((f) => f.path)).toEqual([
+        '/project/compose.js',
+        '/project/existing',
+      ]);
+      expect(codingText(failed.state.files[1]!.bytes)).toBe('original');
+      state = (
+        await runCoding(state, {
+          type: 'write_file',
+          path: 'compose.js',
+          content: `try { ${operation}; } catch {} console.log(fs.exists('existing/sub'));fs.writeFile('valid.txt','saved');`,
+        })
+      ).state;
+      const recovered = await runCoding(state, {
+        type: 'execute_code',
+        path: 'compose.js',
+        args: [],
+      });
+      expect(recovered).toMatchObject({ exitCode: 0, stdout: 'false\n' });
+      expect(recovered.state.directories).toEqual(['/project']);
+      expect(
+        codingText(
+          recovered.state.files.find((f) => f.path.endsWith('valid.txt'))!
+            .bytes,
+        ),
+      ).toBe('saved');
+      expect(() =>
+        validateCodingState({
+          ...state,
+          directories: ['/project', '/project/existing'],
+        }),
+      ).toThrow('unique file/directory');
+    }
+  });
+  it('resolves Bash js and its filesystem/module paths from the invoking directory', async () => {
+    let state = (
+      await runCoding(initial(), {
+        type: 'write_file',
+        path: 'sources/score.js',
+        content: `import { note } from './notes.js';fs.writeFile('result.txt',note);console.log(fs.readFile('result.txt','utf8'));`,
+      })
+    ).state;
+    state = (
+      await runCoding(state, {
+        type: 'write_file',
+        path: 'sources/notes.js',
+        content: "export const note='nested';",
+      })
+    ).state;
+    const result = await runCoding(state, {
+      type: 'bash',
+      command: 'cd sources; js score.js',
+    });
+    expect(result).toMatchObject({ exitCode: 0, stdout: 'nested\n' });
+    expect(
+      result.state.files.some((f) => f.path === '/project/sources/result.txt'),
+    ).toBe(true);
+    const inline = await runCoding(result.state, {
+      type: 'bash',
+      command: `cd sources; js -c 'import {note} from "./notes.js"; console.log(note);'`,
+    });
+    expect(inline).toMatchObject({ exitCode: 0, stdout: 'nested\n' });
+  });
   it('supports shell files, pipelines, heredocs, loops, exact edits and searches', async () => {
     const shell = await runCoding(initial(), {
       type: 'bash',

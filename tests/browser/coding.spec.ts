@@ -351,7 +351,47 @@ let peak=0;for(const sample of left)peak=Math.max(peak,Math.abs(sample));fs.writ
         await assistant.approveProposal(turn.proposalIds[0]!);
         const approved = await editor.coding.inspect(project.id);
         await assistant.dispose();
-        return { cancelled, after, conflict, rejected, before, approved };
+        const literal = "$& $$ $` $'";
+        await editor.coding.run(
+          project.id,
+          {
+            type: 'edit_file',
+            path: 'approved.txt',
+            oldText: 'reviewed',
+            newText: literal,
+            replaceAll: false,
+          },
+          4,
+        ).completion;
+        const edited = await editor.coding.query(project.id, {
+          type: 'read_file',
+          path: 'approved.txt',
+        }).completion;
+        await editor.coding.run(
+          project.id,
+          {
+            type: 'write_file',
+            path: 'sources/check.js',
+            content:
+              "let blocked=false;try{fs.writeFile('../other.txt/output.txt','lost');}catch{blocked=true;}console.log('ancestor rejected',blocked);fs.writeFile('nested.txt','ok');console.log(fs.readFile('nested.txt','utf8'));",
+          },
+          5,
+        ).completion;
+        const nested = await editor.coding.run(
+          project.id,
+          { type: 'bash', command: 'cd sources; js check.js' },
+          6,
+        ).completion;
+        return {
+          cancelled,
+          after,
+          conflict,
+          rejected,
+          before,
+          approved,
+          edited: edited.content,
+          nested,
+        };
       } finally {
         await second.dispose();
         await editor.dispose();
@@ -368,5 +408,16 @@ let peak=0;for(const sample of left)peak=Math.max(peak,Math.abs(sample));fs.writ
     expect(
       result.approved.files.some((f) => f.path.endsWith('approved.txt')),
     ).toBe(true);
+    expect(result.edited).toBe("$& $$ $` $'");
+    expect(result.nested).toMatchObject({
+      exitCode: 0,
+      stdout: 'ancestor rejected true\nok\n',
+    });
+    expect(
+      result.nested.files.some((f) => f.path === '/project/sources/nested.txt'),
+    ).toBe(true);
+    expect(result.nested.files.some((f) => f.path.includes('output.txt'))).toBe(
+      false,
+    );
   });
 }

@@ -102,6 +102,39 @@ export interface CodingState {
   files: CodingFile[];
   directories: string[];
 }
+export function validateCodingState(state: CodingState) {
+  const directories = new Set(state.directories);
+  const files = new Set(state.files.map((file) => file.path));
+  const parentsExist = (path: string) => {
+    while (path !== '/project') {
+      path = path.slice(0, path.lastIndexOf('/'));
+      if (!directories.has(path) || files.has(path)) return false;
+    }
+    return true;
+  };
+  if (
+    state.version !== 1 ||
+    !Number.isSafeInteger(state.revision) ||
+    state.revision < 0 ||
+    !directories.has('/project') ||
+    directories.size !== state.directories.length ||
+    files.size !== state.files.length ||
+    state.directories.some(
+      (path) =>
+        codingPath(path) !== path || files.has(path) || !parentsExist(path),
+    ) ||
+    state.files.some(
+      (file) =>
+        codingPath(file.path) !== file.path ||
+        file.path === '/project' ||
+        !(file.bytes instanceof Uint8Array) ||
+        !parentsExist(file.path),
+    )
+  )
+    throw new Error(
+      'Invalid coding filesystem: entries must have directory ancestors and unique file/directory paths.',
+    );
+}
 export interface CodingOutput {
   stdout: string;
   stderr: string;

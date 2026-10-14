@@ -2,7 +2,7 @@ import { Bash, getCommandNames } from 'just-bash/browser';
 import type { IFileSystem, CommandName } from 'just-bash/browser';
 import { newQuickJSWASMModuleFromVariant } from 'quickjs-emscripten-core';
 import variant from '@jitl/quickjs-singlefile-browser-release-sync';
-import { codingPath, codingText } from '../core/coding';
+import { codingPath, codingText, validateCodingState } from '../core/coding';
 import type {
   CodingState,
   CodingOperation,
@@ -25,7 +25,7 @@ globalThis.fs = {
   readFile(path, encoding) { const b=__read(path); return encoding ? __text(path) : new Uint8Array(b); },
   writeFile(path, data) { if(typeof data==='string') data=encoder(data);
     const b=data instanceof ArrayBuffer ? data : data.buffer.slice(data.byteOffset, data.byteOffset+data.byteLength); __write(path,b); },
-  readdir: path => JSON.parse(__list(path || '/project')),
+  readdir: path => JSON.parse(__list(path || '.')),
   exists: path => __exists(path), mkdir: path => __mkdir(path), remove: path => __remove(path)
 };
 globalThis.console = {log: (...args) => __log(args.map(a => typeof a==='string' ? a : JSON.stringify(a)).join(' ')),
@@ -99,6 +99,7 @@ async function javascript(
   filename: string,
   args: string[],
   log: (text: string) => void,
+  cwd = '/project',
 ): Promise<CodingOutput> {
   const initial = await filesIn(fs),
     files = new Map(initial.files.map((file) => [file.path, file.bytes]));
@@ -108,16 +109,20 @@ async function javascript(
   let stdout = '',
     stderr = '';
   const read = (path: string) => {
-    const bytes = files.get(codingPath(path));
+    const bytes = files.get(codingPath(path, cwd));
     if (!bytes) throw new Error('Workspace file not found.');
     return bytes;
   };
   const parents = (path: string) => {
     const parts = path.split('/');
+    const paths: string[] = [];
     while (parts.length > 2) {
       parts.pop();
-      directories.add(parts.join('/'));
+      paths.push(parts.join('/'));
     }
+    for (const parent of paths)
+      if (files.has(parent)) throw new Error(`Not a directory: ${parent}`);
+    for (const parent of paths) directories.add(parent);
   };
   try {
     const bind = (
@@ -139,19 +144,19 @@ async function javascript(
       ),
     );
     bind('__write', (pathHandle, bytesHandle) => {
-      const path = codingPath(vm.getString(pathHandle));
+      const path = codingPath(vm.getString(pathHandle), cwd);
       if (path === '/project' || directories.has(path))
         throw new Error('Choose a file path.');
       const bytes = vm.getArrayBuffer(bytesHandle);
       try {
-        files.set(path, bytes.value.slice());
         parents(path);
+        files.set(path, bytes.value.slice());
       } finally {
         bytes.dispose();
       }
     });
     bind('__list', (handle) => {
-      const root = codingPath(vm.getString(handle));
+      const root = codingPath(vm.getString(handle), cwd);
       const prefix = root + '/';
       if (!directories.has(root))
         throw new Error('Workspace directory not found.');
@@ -168,17 +173,16 @@ async function javascript(
       );
     });
     bind('__exists', (handle) => {
-      const path = codingPath(vm.getString(handle));
+      const path = codingPath(vm.getString(handle), cwd);
       return files.has(path) || directories.has(path) ? vm.true : vm.false;
     });
     bind('__mkdir', (handle) => {
-      const path = codingPath(vm.getString(handle));
+      const path = codingPath(vm.getString(handle), cwd);
       if (files.has(path)) throw new Error('A file exists at this path.');
-      directories.add(path);
       parents(path + '/_');
     });
     bind('__remove', (handle) => {
-      const path = codingPath(vm.getString(handle));
+      const path = codingPath(vm.getString(handle), cwd);
       if (path === '/project')
         throw new Error('Cannot remove the workspace root.');
       for (const name of files.keys())
@@ -248,6 +252,12 @@ async function javascript(
     } finally {
       result.value.dispose();
     }
+    validateCodingState({
+      version: 1,
+      revision: 0,
+      files: [...files].map(([path, bytes]) => ({ path, bytes })),
+      directories: [...directories],
+    });
     await fs.rm('/project', { recursive: true, force: true });
     for (const path of [...directories].sort((a, b) => a.length - b.length))
       await fs.mkdir(path, { recursive: true });
@@ -273,6 +283,7 @@ export async function runCoding(
   operation: CodingOperation | CodingQuery,
   log: (text: string) => void = () => {},
 ): Promise<CodingExecution> {
+  validateCodingState(state);
   const commands = getCommandNames().filter(
     (name) =>
       ![
@@ -294,17 +305,18 @@ export async function runCoding(
     customCommands: [
       {
         name: 'js',
-        execute: async (args) => {
+        execute: async (args, ctx) => {
           const inline = args[0] === '-c';
           const path = inline
-            ? '/project/inline.js'
-            : codingPath(args[0] ?? '');
+            ? codingPath('inline.js', ctx.cwd)
+            : codingPath(args[0] ?? '', ctx.cwd);
           return javascript(
-            bash.fs,
-            inline ? (args[1] ?? '') : await bash.fs.readFile(path),
+            ctx.fs,
+            inline ? (args[1] ?? '') : await ctx.fs.readFile(path),
             path,
             args.slice(inline ? 2 : 1),
             log,
+            ctx.cwd,
           );
         },
       },
@@ -339,8 +351,8 @@ export async function runCoding(
     await bash.fs.writeFile(
       path,
       operation.replaceAll
-        ? text.replaceAll(operation.oldText, operation.newText)
-        : text.replace(operation.oldText, operation.newText),
+        ? text.replaceAll(operation.oldText, () => operation.newText)
+        : text.replace(operation.oldText, () => operation.newText),
     );
   }
   const next = { ...state, ...(await filesIn(bash.fs)) };
