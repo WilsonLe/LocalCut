@@ -119,6 +119,10 @@ for (const base of behaviorBases) {
     });
     await expect(popover).toBeVisible();
     await expect(popover).toContainText('1,200 / 10,000 · 12.0%');
+    await expect(popover).not.toContainText('Latest completed main prompt');
+    await expect(popover).not.toContainText('Totals are provider-reported');
+    await expect(popover).not.toContainText('Explain the editing workflow');
+    await expect(popover).toContainText('Est. USD');
     const first = popover.locator('[data-usage-request]').first();
     await first.locator(':scope > summary').click();
     await expect(first).toContainText('Main agent');
@@ -151,6 +155,7 @@ for (const base of behaviorBases) {
     await trigger.click();
     const requests = popover.locator('[data-usage-request]');
     await expect(requests).toHaveCount(2);
+    await expect(popover).not.toContainText('Explain a second request');
     await requests.last().locator(':scope > summary').click();
     await expect(requests.last()).toContainText('Chat title');
     await expect(requests.last().locator(':scope > summary')).toContainText(

@@ -44,10 +44,8 @@ function UsageTable({ calls }: { calls: UsageCall[] }) {
 }
 export default function UsagePopover({
   messages,
-  running,
 }: {
   messages: UsageMessage[];
-  running: boolean;
 }) {
   const requests = requestUsage(messages);
   const calls = requests.flatMap((request) => request.calls);
@@ -102,12 +100,6 @@ export default function UsagePopover({
               aria-label="Last main context usage"
             />
           )}
-          <p className="text-muted-foreground">
-            Latest completed main prompt; includes cached input.{' '}
-            {running
-              ? 'Running calls update when usage arrives.'
-              : 'Next prompt may differ.'}
-          </p>
         </div>
         <div className="border-t pt-3">
           <div className="flex justify-between gap-2 text-sm">
@@ -137,12 +129,6 @@ export default function UsagePopover({
                   <span className="float-right pl-2 tabular-nums">
                     {money(summary.cost)}
                     {summary.partial ? ' (partial)' : ''}
-                  </span>
-                  <span
-                    className="mt-1 block truncate text-muted-foreground"
-                    title={request.prompt}
-                  >
-                    {request.prompt}
                   </span>
                 </summary>
                 <UsageTable calls={request.calls} />
@@ -185,13 +171,6 @@ export default function UsagePopover({
             );
           })}
         </div>
-        <p className="border-t pt-2 text-xs text-muted-foreground">
-          Totals are provider-reported charges. Category costs estimate saved
-          catalog rates; routing and fees may differ. Input excludes reported
-          cache reads/writes. Output includes reasoning. Missing usage or prices
-          stay unavailable. Interrupted calls without final usage and speech
-          services without token accounting may add charges.
-        </p>
       </PopoverContent>
     </Popover>
   );

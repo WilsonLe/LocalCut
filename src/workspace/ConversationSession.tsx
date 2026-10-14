@@ -1433,7 +1433,7 @@ ${resuming.prompt}`
           >
             <div className="flex items-center gap-1">
               {composerControl}
-              <UsagePopover messages={messages} running={running} />
+              <UsagePopover messages={messages} />
             </div>
             <div className="ml-auto flex items-center gap-1">
               <DictationButton
