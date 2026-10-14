@@ -1,3 +1,11 @@
+import UsagePopover from './UsagePopover';
+import {
+  carryRequestUsage,
+  messageUsageCalls,
+  priceUsageCall,
+} from '../ai/usage';
+import type { UsageCall } from '../ai/usage';
+import type { OpenRouterModel } from '../ai';
 import { safeChatFailure } from '../core/error-diagnostics';
 import { registerErrorSession } from './error-toast';
 import {
@@ -243,6 +251,7 @@ interface SessionProps extends ConversationProps {
   connection: Connection;
   indexConnection: IndexConnection | null;
   model: string;
+  modelInfo?: OpenRouterModel;
   privacy: Required<ContextPolicy>;
   registerSession: (cleanup: () => Promise<void>) => () => void;
   retireSession: (cleanup: () => Promise<void>) => void;
@@ -258,6 +267,7 @@ export default function ConversationSession({
   connection,
   indexConnection,
   model,
+  modelInfo,
   privacy,
   onApplied,
   onError,
@@ -288,6 +298,33 @@ export default function ConversationSession({
         proposalIds: [],
       })),
   );
+  const requestOwner = useRef<string | undefined>(undefined);
+  const recordCall = (owner: string, call: UsageCall) => {
+    if (!mounted.current) return;
+    const priced = priceUsageCall(call, modelInfo);
+    setMessages((current) => {
+      const target = [...current]
+        .reverse()
+        .find(
+          (message) =>
+            message.role === 'assistant' &&
+            (message.requestId ?? message.id) === owner,
+        );
+      return current.map((message) =>
+        message === target
+          ? {
+              ...message,
+              usageCalls: [
+                ...messageUsageCalls(message).filter(
+                  (item) => item.id !== priced.id,
+                ),
+                priced,
+              ],
+            }
+          : message,
+      );
+    });
+  };
   const [attachments, setAttachments] = useState<Asset[]>([]);
   const [dropping, setDropping] = useState(false);
   const [attaching, setAttaching] = useState(
@@ -502,6 +539,7 @@ export default function ConversationSession({
                 consent: () => true,
                 disclosure: `Indexing sends generated stills${indexConnection.inputModalities.includes('video') ? ', video clips with sound' : ' (video frames only; motion and sound are not assessed)'}${indexConnection.inputModalities.includes('audio') ? ', and audio excerpts' : ''} to OpenRouter model ${indexConnection.model}. ${privacy.includeCaptureMetadata ? 'Embedded capture dates and GPS location are also shared. ' : ''}This may incur cost. Original source files remain local.`,
                 run: (assetId, requestId) => {
+                  const owner = requestOwner.current;
                   const indexer = indexConnection.api.createAssetIndexer({
                     editor,
                     provider: indexConnection.provider,
@@ -509,6 +547,9 @@ export default function ConversationSession({
                     consent: () => true,
                     includeCaptureMetadata: privacy.includeCaptureMetadata,
                     onRunId: (runId) => indexRuns.set(requestId, runId),
+                    onUsage: (call) => {
+                      if (owner) recordCall(owner, call);
+                    },
                   });
                   const job = indexer.run(assetId, indexRuns.get(requestId));
                   return {
@@ -610,7 +651,12 @@ export default function ConversationSession({
 
 ${resuming.prompt}`
         : (resuming?.prompt ?? context + text);
+      const previous = resuming
+        ? messages.find((message) => message.id === resuming.turnId)
+        : undefined;
       activeTurn = session.run(requestPrompt);
+      const owner = previous?.requestId ?? previous?.id ?? activeTurn.id;
+      requestOwner.current = owner;
       if (!resuming && !titleAttempted.current) {
         titleAttempted.current = true;
         onTitle(text);
@@ -623,6 +669,7 @@ ${resuming.prompt}`
             model,
             message: text,
             signal: controller.signal,
+            onUsage: (call) => recordCall(owner, call),
           })
           .then((title) => {
             if (mounted.current && !controller.signal.aborted) onTitle(title);
@@ -646,6 +693,7 @@ ${resuming.prompt}`
       setFollowing(true);
       const response: Message = {
         id: activeTurn.id,
+        requestId: owner,
         role: 'assistant',
         text: '',
         status: 'streaming',
@@ -654,7 +702,9 @@ ${resuming.prompt}`
       setMessages((current) =>
         resuming && !retrying
           ? current.map((message) =>
-              message.id === resuming.turnId ? response : message,
+              message.id === resuming.turnId
+                ? carryRequestUsage(message, response)
+                : message,
             )
           : [
               ...current,
@@ -670,6 +720,15 @@ ${resuming.prompt}`
       );
       stop = activeTurn.subscribe((event) => {
         if (!mounted.current) return;
+        if (event.type === 'usage_call') recordCall(owner, event.call);
+        if (event.type === 'usage')
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === event.turnId
+                ? { ...message, usage: event.usage }
+                : message,
+            ),
+          );
         if (event.type === 'continuation')
           setMessages((current) =>
             current.map((message) =>
@@ -1372,7 +1431,10 @@ ${resuming.prompt}`
                 event.preventDefault();
             }}
           >
-            <div className="flex items-center gap-1">{composerControl}</div>
+            <div className="flex items-center gap-1">
+              {composerControl}
+              <UsagePopover messages={messages} />
+            </div>
             <div className="ml-auto flex items-center gap-1">
               <DictationButton
                 editor={editor}

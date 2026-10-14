@@ -1,3 +1,4 @@
+import { usageSchema, usageCallSchema } from '../ai/usage';
 import { openDB } from 'idb';
 import type { DBSchema, IDBPDatabase } from 'idb';
 import { z } from 'zod';
@@ -30,17 +31,9 @@ const messageSchema = z.object({
   sessionGoal: sessionGoalSchema.optional(),
   text: z.string(),
   status: z.enum(['complete', 'streaming', 'interrupted', 'paused', 'failed']),
-  usage: z
-    .object({
-      promptTokens: z.number().nonnegative(),
-      completionTokens: z.number().nonnegative(),
-      totalTokens: z.number().nonnegative(),
-      cost: z.number().optional(),
-      cachedTokens: z.number().int().nonnegative().optional(),
-      cacheWriteTokens: z.number().int().nonnegative().optional(),
-      reasoningTokens: z.number().int().nonnegative().optional(),
-    })
-    .optional(),
+  requestId: z.string().optional(),
+  usageCalls: z.array(usageCallSchema).optional(),
+  usage: usageSchema.optional(),
   failure: z.unknown().transform(safeChatFailure).optional(),
   // Canonical historical exchange, separate from UI activity and live authority.
   exchange: chatExchangeSchema.optional(),

@@ -674,3 +674,8 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Replace chat agent spinning icons with randomly selected, stage-relevant thinking text and a subtle left-to-right glow, similar to Codex. Respect reduced motion with readable static text.
 - Stream available text from long-running agent sessions, including goal definition, to-do updates and completion checks, directly into chat while they run. Keep provisional drafts separate from the main response and saved authoritative results; avoid long waits with only a loading indicator.
+
+## Chat context and cost disclosure — 14 October 2026
+
+- Add a single icon to the chat composer footer beside Pause/Send and keep context/token/cost details inside its popover. Break costs down by user request, including synchronous and asynchronous sub-agents, and separate input, input cache and output.
+- Keep the usage popover compact: omit context/pricing explanatory paragraphs and per-request prompt previews; retain request numbers, numeric context/charges, estimate labels and expandable agent details.

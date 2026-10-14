@@ -224,6 +224,7 @@ export type AssistantEvent =
   | { type: 'proposal'; proposal: EditProposal }
   | { type: 'proposal_progress'; proposalId: string; progress: Progress }
   | { type: 'usage'; turnId: string; usage: Usage }
+  | { type: 'usage_call'; turnId: string; call: import('./usage').UsageCall }
   | { type: 'completed'; result: AssistantResult }
   | { type: 'continuation'; turnId: string; context: AssistantContinuation }
   | { type: 'error'; turnId: string; error: AiError }
@@ -590,7 +591,24 @@ export function createAssistant(options: AssistantOptions) {
         completionTokens: 0,
         totalTokens: 0,
       };
-      const addUsage = (reported: Usage | undefined) => {
+      const addUsage = (
+        reported: Usage | undefined,
+        source: import('./usage').UsageSource = 'main',
+        actualModel = model,
+      ) => {
+        emit(
+          {
+            type: 'usage_call',
+            turnId: id,
+            call: {
+              id: crypto.randomUUID(),
+              source,
+              model: actualModel,
+              usage: reported && structuredClone(reported),
+            },
+          },
+          local,
+        );
         if (reported) {
           for (const key of [
             'promptTokens',
@@ -627,7 +645,10 @@ export function createAssistant(options: AssistantOptions) {
             );
             usage.cost = (usage.cost ?? 0) + reported.cost;
           }
-          emit({ type: 'usage', turnId: id, usage }, local);
+          emit(
+            { type: 'usage', turnId: id, usage: structuredClone(usage) },
+            local,
+          );
         }
       };
       const signal = controller.signal;
@@ -761,7 +782,8 @@ export function createAssistant(options: AssistantOptions) {
                 );
               },
               interrupt: (promise) => interruptible(promise, signal),
-              accountUsage: addUsage,
+              accountUsage: (reported, actualModel) =>
+                addUsage(reported, name, actualModel ?? model),
               checkRequest: (value) =>
                 boundedContext(value, limits.maxContextBytes),
               accountBytes: (value) => {
@@ -1748,7 +1770,7 @@ export function createAssistant(options: AssistantOptions) {
                 'RESPONSE_INCOMPLETE',
                 'Provider did not complete the response.',
               );
-              addUsage(completed.usage);
+              addUsage(completed.usage, 'main', completed.model ?? model);
               if (
                 !completed.message.tool_calls?.length &&
                 (typeof completed.message.content !== 'string' ||

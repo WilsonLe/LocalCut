@@ -97,8 +97,13 @@ function modelsFrom(value: unknown): OpenRouterModel[] {
     )
       model.maxCompletionTokens = item.top_provider.max_completion_tokens;
     if (object(item.pricing)) {
-      const pricing: { prompt?: string; completion?: string } = {};
-      for (const name of ['prompt', 'completion'] as const) {
+      const pricing: NonNullable<OpenRouterModel['pricing']> = {};
+      for (const name of [
+        'prompt',
+        'completion',
+        'input_cache_read',
+        'input_cache_write',
+      ] as const) {
         const price = item.pricing[name];
         if (
           typeof price === 'string' &&

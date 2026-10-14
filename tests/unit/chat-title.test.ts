@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { generateChatTitle } from '../../src/ai/chat-title';
 import type { ChatRequest, ProviderEvent } from '../../src/ai/types';
 
-const complete = (content: string): ProviderEvent => ({
+const complete = (
+  content: string,
+): Extract<ProviderEvent, { type: 'complete' }> => ({
   type: 'complete',
   message: { role: 'assistant', content },
 });
@@ -120,4 +122,34 @@ describe('chat title generation', () => {
     ).rejects.toMatchObject({ code: 'CANCELLED' });
     expect(client.stream).not.toHaveBeenCalled();
   });
+});
+
+it('accounts completed naming usage even when title text is invalid', async () => {
+  const onUsage = vi.fn();
+  await expect(
+    generateChatTitle({
+      provider: provider([
+        {
+          ...complete(''),
+          usage: {
+            promptTokens: 4,
+            completionTokens: 1,
+            totalTokens: 5,
+            cost: 0.01,
+          },
+        },
+      ]),
+      model: 'test/title',
+      message: 'First',
+      signal: new AbortController().signal,
+      onUsage,
+    }),
+  ).rejects.toBeInstanceOf(Error);
+  expect(onUsage).toHaveBeenCalledWith(
+    expect.objectContaining({
+      source: 'title',
+      model: 'test/title',
+      usage: expect.objectContaining({ cost: 0.01 }),
+    }),
+  );
 });
