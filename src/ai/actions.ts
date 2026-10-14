@@ -2,6 +2,8 @@ import type { StoryboardImageOptions } from '../core/storyboard-image';
 import type { LibraryOperation } from '../core/media-library';
 import type { EditReceipt } from '../core/commands';
 import type { Editor } from '../editor';
+import type { CodingOperation } from '../core/coding';
+import type { CodingResult } from '../services/coding';
 import type { ExportOptions } from '../media/export';
 import type {
   StoryboardExportOptions,
@@ -10,6 +12,7 @@ import type {
 
 /** Service actions are reviewable requests, never callable by a model directly. */
 export type AssistantAction =
+  | { type: 'coding'; operation: CodingOperation; expectedRevision: number }
   | { type: 'undo' | 'redo' }
   | { type: 'library'; operation: LibraryOperation; expectedRevision: number }
   | { type: 'export'; options: ExportOptions }
@@ -26,6 +29,13 @@ export type AssistantAction =
   | { type: 'track_mask'; clipId: string };
 
 export type AssistantActionResult =
+  | { kind: 'coding'; workspace: CodingResult }
+  | {
+      kind: 'coding_asset';
+      projectId: string;
+      assetId: string;
+      libraryRevision: number;
+    }
   | { kind: 'edit' | 'history'; receipt: EditReceipt }
   | {
       kind: 'storyboard_image';
@@ -74,6 +84,7 @@ export type AssistantActionResult =
 
 /** An assistant may be embedded with just document editing, or the full engine. */
 export interface AssistantEditor {
+  coding?: Pick<Editor['coding'], 'inspect' | 'query' | 'run' | 'importFile'>;
   storyboard?: Partial<
     Pick<Editor['storyboard'], 'export' | 'store' | 'insertImage'>
   >;
@@ -96,6 +107,7 @@ export interface AssistantEditor {
 }
 
 export interface AssistantCapabilities {
+  coding?: boolean;
   storyboardExport?: boolean;
   storyboardStore?: boolean;
   storyboardInsertImage?: boolean;
@@ -116,6 +128,7 @@ export function assistantCapabilities(
   editor: AssistantEditor,
 ): AssistantCapabilities {
   return {
+    coding: !!editor.coding,
     storyboardExport: !!editor.storyboard?.export,
     storyboardStore: !!editor.storyboard?.store,
     storyboardInsertImage: !!editor.storyboard?.insertImage,

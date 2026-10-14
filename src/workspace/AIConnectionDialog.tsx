@@ -283,10 +283,11 @@ function OpenRouterConnection({
                 <p>
                   By connecting OpenRouter, you agree to share project and media
                   names, overlay, caption and storyboard text (including frame
-                  names), source transcript text, and embedded capture dates and
-                  GPS with your selected OpenRouter model when you send a
-                  request. All these context categories stay enabled while
-                  OpenRouter is connected, including after reload.
+                  names), authored coding workspace sources, file paths and
+                  execution output, source transcript text, and embedded capture
+                  dates and GPS with your selected OpenRouter model when you
+                  send a request. All these context categories stay enabled
+                  while OpenRouter is connected, including after reload.
                 </p>
                 <p>
                   Explicit Index or a chat indexing request can also send

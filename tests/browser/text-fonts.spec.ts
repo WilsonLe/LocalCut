@@ -1,6 +1,7 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`bundled fonts fail explicitly, retry and animate identically on seeking ${base}`, async ({
     page,
     context,

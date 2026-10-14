@@ -415,7 +415,7 @@ test('chat escalated errors preserve applied actions during manual primary retry
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
-for (const { base, openProject } of ['/', '/LocalCut/'].flatMap((base) =>
+for (const { base, openProject } of behaviorBases.flatMap((base) =>
   [false, true].map((openProject) => ({ base, openProject })),
 )) {
   test(`OAuth UI navigates back, strips secrets before exchange, and restores saved credentials on reload ${openProject ? 'with open project' : 'without project'} ${base}`, async ({

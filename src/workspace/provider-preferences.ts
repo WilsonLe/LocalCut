@@ -19,6 +19,7 @@ export function workspaceContextPolicy(
       profile.kind === 'openrouter' && connectedProviders.includes(profile.id),
   );
   return {
+    includeCodingWorkspace: connected,
     includeText: connected,
     includeAssetNames: connected,
     includeTranscripts: connected,

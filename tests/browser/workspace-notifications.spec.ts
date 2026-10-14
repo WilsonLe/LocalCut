@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
@@ -15,188 +16,204 @@ async function importInvalidBackup(page: Page) {
 // System clipboard is shared by Chrome contexts; keep these assertions serial.
 test.describe.configure({ mode: 'serial' });
 
-for (const base of ['/', '/LocalCut/']) {
-  test(`notification history table paginates and scrolls columns ${base}`, async ({
-    page,
-    context,
-  }, testInfo) => {
-    const entries = Array.from({ length: 81 }, (_, index) => ({
-      id: `table-${index}`,
-      type: index === 80 ? 'error' : 'info',
-      message: `Notification ${index}`,
-      description: 'Background activity',
-      createdAt: 1800000000000 - index,
-      updatedAt: 1800000000000 - index,
-      read: false,
-      ...(index === 80
-        ? {
-            report: {
-              summary: 'Saved error',
-              text: 'Saved error\nError: test report',
-            },
-          }
-        : {}),
-    }));
-    await page.addInitScript((entries) => {
-      localStorage.setItem(
-        'localcut.notifications.v1',
-        JSON.stringify({ version: 1, entries }),
-      );
-    }, entries);
-    if (base === '/LocalCut/')
-      await page.addInitScript(() =>
-        localStorage.setItem(
-          'localcut.appearance.v1',
-          JSON.stringify({
-            version: 1,
-            preferences: { mode: 'dark', base: 'slate' },
-          }),
-        ),
-      );
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.goto(base);
-    const bell = page.getByRole('button', { name: /^Notifications/ });
-    await bell.click();
-    const log = page.getByRole('dialog', {
-      name: 'Notifications',
-      exact: true,
-    });
-    const rows = log.getByRole('row', { name: /^Notification \d/ });
-    const pages = log.getByRole('navigation', { name: 'Notifications pages' });
-    const region = log.getByRole('region', { name: 'Notifications columns' });
-    await expect(
-      log.getByRole('table', { name: 'Saved notifications' }),
-    ).toBeVisible();
-    await expect(rows).toHaveCount(10);
-    await expect(rows.first()).toHaveAttribute('aria-label', 'Notification 0');
-    await expect(pages.locator('[aria-current="page"]')).toHaveText('1');
-    await expect(pages.getByText('More pages')).toHaveCount(1);
-    await pages
-      .getByRole('button', { name: 'Go to page 2', exact: true })
-      .focus();
-    await page.keyboard.press('Enter');
-    await expect(rows.first()).toHaveAttribute('aria-label', 'Notification 10');
-    await pages.getByRole('button', { name: 'Go to next page' }).click();
-    await pages
-      .getByRole('button', { name: 'Go to page 4', exact: true })
-      .click();
-    await pages
-      .getByRole('button', { name: 'Go to page 5', exact: true })
-      .click();
-    await expect(pages.getByText('More pages')).toHaveCount(2);
-    await expect(rows.first()).toHaveAttribute('aria-label', 'Notification 40');
-    await page.screenshot({
-      path: testInfo.outputPath('notification-table-desktop.png'),
-    });
-    await page.setViewportSize({ width: 320, height: 480 });
-    await expect(
-      page.getByRole('navigation', { name: 'Workspace sections' }),
-    ).toBeVisible();
-    // The responsive header remounts its dialog trigger at the mobile boundary.
-    if (!(await log.isVisible())) await bell.click();
-    await pages
-      .getByRole('button', { name: 'Go to page 2', exact: true })
-      .click();
-    await pages.getByRole('button', { name: 'Go to next page' }).click();
-    await pages.getByRole('button', { name: 'Go to next page' }).click();
-    await pages.getByRole('button', { name: 'Go to next page' }).click();
-    const right = log.getByRole('button', { name: 'Scroll one column right' });
-    const left = log.getByRole('button', { name: 'Scroll one column left' });
-    const position = () => region.evaluate((element) => element.scrollLeft);
-    await expect(right).toBeVisible();
-    await expect(left).toHaveCount(0);
-    await expect(right).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
-    await expect(right.locator('..')).toHaveCSS(
-      'background-image',
-      /linear-gradient/,
-    );
-    const boundary = await region.evaluate((element) => {
-      const table = element.querySelector('table')!;
-      const scale = element.clientWidth / element.getBoundingClientRect().width;
-      return (
-        (table.querySelectorAll('th')[1]!.getBoundingClientRect().left -
-          table.getBoundingClientRect().left) *
-        scale
-      );
-    });
-    await right.click();
-    await expect.poll(position).toBeCloseTo(boundary, 0);
-    await left.click();
-    await expect.poll(position).toBe(0);
-    await expect(left).toHaveCount(0);
-    // Removing the focused arrow schedules Base UI's popup focus on the next
-    // frame. Let that restoration finish before assigning keyboard ownership.
-    await page.evaluate(
-      () =>
-        new Promise<void>((resolve) =>
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-        ),
-    );
-    await region.focus();
-    await expect(region).toBeFocused();
-    await page.keyboard.press('ArrowRight');
-    await expect.poll(position).toBeGreaterThan(0);
-    const bounds = (await pages.boundingBox())!;
-    expect(bounds.x).toBeGreaterThanOrEqual(0);
-    expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
-    expect(bounds.y + bounds.height).toBeLessThanOrEqual(480);
-    // Retain the workspace's 44 px mobile targets within at most two rows.
-    expect(bounds.height).toBeLessThanOrEqual(90);
-    await page.screenshot({
-      path: testInfo.outputPath('notification-table-mobile.png'),
-    });
-    await pages
-      .getByRole('button', { name: 'Go to page 9', exact: true })
-      .click();
-    await expect(rows).toHaveCount(1);
-    await expect(
-      pages.getByRole('button', { name: 'Go to next page' }),
-    ).toHaveCount(0);
-    await log
-      .getByRole('button', { name: 'View stack trace: Notification 80' })
-      .click();
-    const details = page.getByRole('dialog', {
-      name: 'Error details',
-      exact: true,
-    });
-    await expect(details.getByLabel('Full error report')).toContainText(
-      'Error: test report',
-    );
-    await details.getByRole('button', { name: 'Close', exact: true }).click();
-    await bell.click();
-    await expect(pages.locator('[aria-current="page"]')).toHaveText('1');
-    await pages
-      .getByRole('button', { name: 'Go to page 9', exact: true })
-      .click();
-    const other = await context.newPage();
-    await other.goto(base);
-    await other.evaluate(
-      (entries) =>
+for (const base of behaviorBases) {
+  for (const theme of ['light', 'dark']) {
+    test(`notification history table paginates and scrolls columns ${base} ${theme}`, async ({
+      page,
+      context,
+    }, testInfo) => {
+      const entries = Array.from({ length: 81 }, (_, index) => ({
+        id: `table-${index}`,
+        type: index === 80 ? 'error' : 'info',
+        message: `Notification ${index}`,
+        description: 'Background activity',
+        createdAt: 1800000000000 - index,
+        updatedAt: 1800000000000 - index,
+        read: false,
+        ...(index === 80
+          ? {
+              report: {
+                summary: 'Saved error',
+                text: 'Saved error\nError: test report',
+              },
+            }
+          : {}),
+      }));
+      await page.addInitScript((entries) => {
         localStorage.setItem(
           'localcut.notifications.v1',
           JSON.stringify({ version: 1, entries }),
-        ),
-      entries.slice(0, 11),
-    );
-    await expect(pages.locator('[aria-current="page"]')).toHaveText('2');
-    await expect(rows).toHaveCount(1);
-    await other.evaluate(
-      (entries) =>
-        localStorage.setItem(
-          'localcut.notifications.v1',
-          JSON.stringify({ version: 1, entries }),
-        ),
-      entries,
-    );
-    await expect(rows).toHaveCount(10);
-    await expect(pages.locator('[aria-current="page"]')).toHaveText('2');
-    await log
-      .getByRole('button', { name: 'Clear history', exact: true })
-      .click();
-    await expect(log).toContainText('No notifications yet.');
-    await expect(pages).toHaveCount(0);
-    await other.close();
-  });
+        );
+      }, entries);
+      if (theme === 'dark')
+        await page.addInitScript(() =>
+          localStorage.setItem(
+            'localcut.appearance.v1',
+            JSON.stringify({
+              version: 1,
+              preferences: { mode: 'dark', base: 'slate' },
+            }),
+          ),
+        );
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.goto(base);
+      const bell = page.getByRole('button', { name: /^Notifications/ });
+      await bell.click();
+      const log = page.getByRole('dialog', {
+        name: 'Notifications',
+        exact: true,
+      });
+      const rows = log.getByRole('row', { name: /^Notification \d/ });
+      const pages = log.getByRole('navigation', {
+        name: 'Notifications pages',
+      });
+      const region = log.getByRole('region', { name: 'Notifications columns' });
+      await expect(
+        log.getByRole('table', { name: 'Saved notifications' }),
+      ).toBeVisible();
+      await expect(rows).toHaveCount(10);
+      await expect(rows.first()).toHaveAttribute(
+        'aria-label',
+        'Notification 0',
+      );
+      await expect(pages.locator('[aria-current="page"]')).toHaveText('1');
+      await expect(pages.getByText('More pages')).toHaveCount(1);
+      await pages
+        .getByRole('button', { name: 'Go to page 2', exact: true })
+        .focus();
+      await page.keyboard.press('Enter');
+      await expect(rows.first()).toHaveAttribute(
+        'aria-label',
+        'Notification 10',
+      );
+      await pages.getByRole('button', { name: 'Go to next page' }).click();
+      await pages
+        .getByRole('button', { name: 'Go to page 4', exact: true })
+        .click();
+      await pages
+        .getByRole('button', { name: 'Go to page 5', exact: true })
+        .click();
+      await expect(pages.getByText('More pages')).toHaveCount(2);
+      await expect(rows.first()).toHaveAttribute(
+        'aria-label',
+        'Notification 40',
+      );
+      await page.screenshot({
+        path: testInfo.outputPath('notification-table-desktop.png'),
+      });
+      await page.setViewportSize({ width: 320, height: 480 });
+      await expect(
+        page.getByRole('navigation', { name: 'Workspace sections' }),
+      ).toBeVisible();
+      // The responsive header remounts its dialog trigger at the mobile boundary.
+      if (!(await log.isVisible())) await bell.click();
+      await pages
+        .getByRole('button', { name: 'Go to page 2', exact: true })
+        .click();
+      await pages.getByRole('button', { name: 'Go to next page' }).click();
+      await pages.getByRole('button', { name: 'Go to next page' }).click();
+      await pages.getByRole('button', { name: 'Go to next page' }).click();
+      const right = log.getByRole('button', {
+        name: 'Scroll one column right',
+      });
+      const left = log.getByRole('button', { name: 'Scroll one column left' });
+      const position = () => region.evaluate((element) => element.scrollLeft);
+      await expect(right).toBeVisible();
+      await expect(left).toHaveCount(0);
+      await expect(right).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+      await expect(right.locator('..')).toHaveCSS(
+        'background-image',
+        /linear-gradient/,
+      );
+      const boundary = await region.evaluate((element) => {
+        const table = element.querySelector('table')!;
+        const scale =
+          element.clientWidth / element.getBoundingClientRect().width;
+        return (
+          (table.querySelectorAll('th')[1]!.getBoundingClientRect().left -
+            table.getBoundingClientRect().left) *
+          scale
+        );
+      });
+      await right.click();
+      await expect.poll(position).toBeCloseTo(boundary, 0);
+      await left.click();
+      await expect.poll(position).toBe(0);
+      await expect(left).toHaveCount(0);
+      // Removing the focused arrow schedules Base UI's popup focus on the next
+      // frame. Let that restoration finish before assigning keyboard ownership.
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
+      await region.focus();
+      await expect(region).toBeFocused();
+      await page.keyboard.press('ArrowRight');
+      await expect.poll(position).toBeGreaterThan(0);
+      const bounds = (await pages.boundingBox())!;
+      expect(bounds.x).toBeGreaterThanOrEqual(0);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
+      expect(bounds.y + bounds.height).toBeLessThanOrEqual(480);
+      // Retain the workspace's 44 px mobile targets within at most two rows.
+      expect(bounds.height).toBeLessThanOrEqual(90);
+      await page.screenshot({
+        path: testInfo.outputPath('notification-table-mobile.png'),
+      });
+      await pages
+        .getByRole('button', { name: 'Go to page 9', exact: true })
+        .click();
+      await expect(rows).toHaveCount(1);
+      await expect(
+        pages.getByRole('button', { name: 'Go to next page' }),
+      ).toHaveCount(0);
+      await log
+        .getByRole('button', { name: 'View stack trace: Notification 80' })
+        .click();
+      const details = page.getByRole('dialog', {
+        name: 'Error details',
+        exact: true,
+      });
+      await expect(details.getByLabel('Full error report')).toContainText(
+        'Error: test report',
+      );
+      await details.getByRole('button', { name: 'Close', exact: true }).click();
+      await bell.click();
+      await expect(pages.locator('[aria-current="page"]')).toHaveText('1');
+      await pages
+        .getByRole('button', { name: 'Go to page 9', exact: true })
+        .click();
+      const other = await context.newPage();
+      await other.goto(base);
+      await other.evaluate(
+        (entries) =>
+          localStorage.setItem(
+            'localcut.notifications.v1',
+            JSON.stringify({ version: 1, entries }),
+          ),
+        entries.slice(0, 11),
+      );
+      await expect(pages.locator('[aria-current="page"]')).toHaveText('2');
+      await expect(rows).toHaveCount(1);
+      await other.evaluate(
+        (entries) =>
+          localStorage.setItem(
+            'localcut.notifications.v1',
+            JSON.stringify({ version: 1, entries }),
+          ),
+        entries,
+      );
+      await expect(rows).toHaveCount(10);
+      await expect(pages.locator('[aria-current="page"]')).toHaveText('2');
+      await log
+        .getByRole('button', { name: 'Clear history', exact: true })
+        .click();
+      await expect(log).toContainText('No notifications yet.');
+      await expect(pages).toHaveCount(0);
+      await other.close();
+    });
+  }
 
   test(`error stack trace and persistent notification history ${base}`, async ({
     page,

@@ -3134,6 +3134,7 @@ describe('incremental assistant skills', () => {
         f.provider.requests[0]!.messages[1]!.content!,
       ).skillCatalog.map((skill: { id: string }) => skill.id),
     ).toEqual([
+      'coding',
       'storyboard',
       'editing',
       'export',
@@ -4618,6 +4619,7 @@ it.each(
 
 describe('complete capability discovery and recovery', () => {
   const allSkills = new Set<import('../../src/ai/skills').SkillId>([
+    'coding',
     'editing',
     'storyboard',
     'export',
@@ -4626,6 +4628,7 @@ describe('complete capability discovery and recovery', () => {
     'history',
   ]);
   const full = {
+    coding: true,
     undo: true,
     redo: true,
     export: true,
@@ -4688,8 +4691,25 @@ describe('complete capability discovery and recovery', () => {
     },
   );
   it('covers every canonical tool/action and separately reports sharing, storage and explicit budgets', () => {
-    const open = capabilityDiscovery(true, full, allSkills, true, true);
+    const open = capabilityDiscovery(
+      true,
+      full,
+      allSkills,
+      true,
+      true,
+      false,
+      true,
+    );
     expect(Object.keys(open.tools)).toEqual([
+      'inspect_coding_workspace',
+      'read_file',
+      'glob',
+      'grep',
+      'write_file',
+      'edit_file',
+      'bash',
+      'execute_code',
+      'import_workspace_file',
       'load_skill',
       'search_asset_index',
       'read_asset_index',
@@ -4710,6 +4730,7 @@ describe('complete capability discovery and recovery', () => {
       'propose_action',
     ]);
     expect(Object.keys(open.actions)).toEqual([
+      'coding',
       'library',
       'undo',
       'redo',
@@ -4728,7 +4749,7 @@ describe('complete capability discovery and recovery', () => {
       ),
     ).toBe(true);
     expect(
-      toolDefinitions(true, full, allSkills, true).map(
+      toolDefinitions(true, full, allSkills, true, true, true).map(
         (tool) => tool.function.name,
       ),
     ).toEqual(Object.keys(open.tools));
@@ -4795,6 +4816,7 @@ describe('complete capability discovery and recovery', () => {
       expect(
         scope.skillCatalog.map((skill: { id: string }) => skill.id),
       ).toEqual([
+        'coding',
         'storyboard',
         'editing',
         'export',
@@ -4804,6 +4826,7 @@ describe('complete capability discovery and recovery', () => {
       ]);
       expect(scope.capabilityMap.loadedSkills).toEqual([]);
       expect(scope.privacy).toEqual({
+        includeCodingWorkspace: false,
         rawMediaAvailable: false,
         includeText: false,
         includeAssetNames: false,

@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import {
   confirmProviderDisconnect,
   showOpenRouterTerms,
@@ -47,7 +48,7 @@ async function connect(page: Page) {
   return dialog;
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(
     '@journey ' +
       [
@@ -196,7 +197,7 @@ for (const base of ['/', '/LocalCut/']) {
         await page.goto(base);
         const second = await secondaryTab(context, page);
         await second.emulateMedia({ reducedMotion: 'reduce' });
-        await second.goto(base === '/' ? '/LocalCut/' : '/');
+        await second.goto(base);
         await resize(page).press('ArrowLeft');
         await expect(resize(second)).toHaveAttribute(
           'aria-valuetext',

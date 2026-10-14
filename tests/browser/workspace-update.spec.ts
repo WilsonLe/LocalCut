@@ -1,6 +1,7 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`browser-managed updates keep headers clear and preserve projects on reload ${base}`, async ({
     page,
   }, testInfo) => {

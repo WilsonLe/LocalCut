@@ -1,6 +1,7 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`whiteboard loading skeleton stays regional and resolves after cold import ${base}`, async ({
     page,
   }, testInfo) => {
@@ -286,7 +287,7 @@ for (const base of ['/', '/LocalCut/']) {
   });
 }
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`cached project navigation supersedes active project restoration ${base}`, async ({
     page,
   }) => {

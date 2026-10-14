@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { test, expect } from '@playwright/test';
 import type { Editor, Project, Asset } from '../../src/editor/index';
 declare global {
@@ -7,7 +8,7 @@ declare global {
     asset: Asset;
   }
 }
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   test(`inert initial workspace ${base}`, async ({ page }) => {
     const errors: string[] = [],
       requests: string[] = [],

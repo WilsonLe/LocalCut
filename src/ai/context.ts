@@ -7,6 +7,8 @@ import { AiError } from './errors';
 
 /** Each option independently opts the corresponding local text into remote context. */
 export interface ContextPolicy {
+  /** Authored coding sources, paths, search results and execution output. */
+  includeCodingWorkspace?: boolean;
   includeText?: boolean;
   includeAssetNames?: boolean;
   includeTranscripts?: boolean;

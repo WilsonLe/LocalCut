@@ -296,6 +296,7 @@ describe('portable single-provider migration', () => {
         false,
       );
     expect(workspaceContextPolicy(result.profiles, ['two'])).toEqual({
+      includeCodingWorkspace: true,
       includeText: true,
       includeAssetNames: true,
       includeTranscripts: true,

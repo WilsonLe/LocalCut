@@ -1,3 +1,4 @@
+import { behaviorBases } from './coverage-bases';
 import { expect, test, type Page, type Locator } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
@@ -121,7 +122,7 @@ const surfaces = [
   },
 ];
 
-for (const base of ['/', '/LocalCut/']) {
+for (const base of behaviorBases) {
   for (const surface of surfaces) {
     test(`first dialog opening avoids the Suspense floor: ${surface.name} ${base}`, async ({
       page,

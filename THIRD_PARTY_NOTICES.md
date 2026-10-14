@@ -39,3 +39,7 @@ The build adapter in `scripts/storyboard-assets.ts` redirects the pinned vendor'
 ## Embedded photo metadata
 
 ExifReader 4.46.0, Mattias Wallander and contributors, MPL-2.0. Used locally for EXIF dates and GPS; source: https://github.com/mattiasw/ExifReader/tree/v4.46.0. Its unmodified package retains upstream licensing; the shipped [license](public/notices/exifreader-LICENSE) accompanies distributions.
+
+## Browser coding runtime
+
+just-bash 3.6.0 (Vercel and contributors, Apache-2.0) supplies the browser shell; quickjs-emscripten-core and @jitl/quickjs-singlefile-browser-release-sync 0.32.0 (Jake Teton-Landis and contributors, MIT) embed QuickJS (Fabrice Bellard and Charlie Gordon, MIT). The runtime and its browser-bundled dependencies retain their notices in [coding licenses](public/notices/coding-LICENSES.txt). Native optional compression modules are not used or built. Sources: https://github.com/vercel-labs/just-bash and https://github.com/justjake/quickjs-emscripten.

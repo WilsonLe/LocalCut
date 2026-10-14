@@ -11,3 +11,5 @@
 - Read [API lifecycle](../../docs/api.md) and [transcription contracts](../../docs/transcription.md) before changing these behaviors.
 - Focused checks: `pnpm test tests/unit/services.test.ts tests/unit/publication.test.ts tests/unit/preview-latency.test.ts tests/unit/worker-publication.test.ts`.
 - For worker protocol or preview scheduling changes, also select the corresponding production Chrome scenario using the [test guide](../../docs/development.md).
+
+- `coding-runtime.ts` owns browser shell interpretation and isolated QuickJS bindings. Never evaluate guest JavaScript in the application or worker JavaScript realm or pass browser/provider/storage capabilities into QuickJS. `coding.ts` uses the shared WorkerClient with a dedicated terminable worker per operation and the atomic project coding snapshot owner; cancellation must stop execution before unpublished output commits.
