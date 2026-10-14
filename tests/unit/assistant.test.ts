@@ -7751,6 +7751,89 @@ describe('request completion review sessions', () => {
   const kind = (p: ReturnType<typeof reviewedProvider>, marker: string) =>
     p.requests.filter((r) => r.messages[0]?.content?.startsWith(marker));
 
+  it('ends auxiliary evidence with its own task after contaminated notes and a direct user question', async () => {
+    const historical = {
+      role: 'assistant' as const,
+      content: 'No music generator is available. Add a music file.',
+    };
+    const exchange = [
+      { role: 'user' as const, content: 'I expect music' },
+      historical,
+    ];
+    const contaminated = {
+      goal: historical.content,
+      todos:
+        'I will verify my capabilities.\n<｜DSML｜ calls><｜DSML｜ invoke name="load_skill">editing</｜DSML｜ invoke></｜DSML｜ calls>',
+    };
+    const frozen = structuredClone({ exchange, contaminated });
+    const question =
+      'Generate it yourself, can you not? Background music is fine.';
+    const p = reviewedProvider([[final('A music file is needed.')]]);
+    const original = p.stream;
+    const goal = '## Goal\nFinish the Sydney cut with background music.';
+    const todos =
+      '## To-dos\n- [x] Storyboard and silent cut verified.\n- [ ] Add background music — blocked: no source or synthesis capability.';
+    p.stream = async function* (request) {
+      const instruction = request.messages[0]?.content ?? '';
+      if (instruction.startsWith('LocalCut request contract:')) {
+        p.requests.push(structuredClone(request));
+        yield final(goal);
+      } else if (instruction.startsWith('LocalCut session to-dos:')) {
+        p.requests.push(structuredClone(request));
+        yield final(todos);
+      } else yield* original(request);
+    };
+    const f = make(p, {
+      restoredTurns: [
+        {
+          id: 'old',
+          user: 'I expect music',
+          assistant: historical.content,
+          exchange,
+        },
+      ],
+      restoredGoal: contaminated,
+    });
+    try {
+      const result = await f.assistant.run(question).completion;
+      expect(result.text).toBe('A music file is needed.');
+      const auxiliary = p.requests.filter((r) =>
+        r.messages[0]?.content?.startsWith('LocalCut '),
+      );
+      expect(
+        new Set(auxiliary.map((r) => r.messages[0]!.content!.split(':')[0])),
+      ).toHaveLength(3);
+      for (const request of auxiliary) {
+        expect(request.tools).toEqual([]);
+        expect(request.messages.map((m) => m.role)).toEqual([
+          'system',
+          'user',
+          'user',
+        ]);
+        const evidence = JSON.parse(request.messages[1]!.content!);
+        expect(evidence.initialRequest).toBe(question);
+        expect(request.messages[1]!.content).not.toContain('<｜DSML｜');
+        expect(request.messages[2]!.content).toContain('internal document');
+        expect(request.messages[2]!.content).not.toContain(question);
+      }
+      const firstTodos = kind(p, 'LocalCut session to-dos:')[0]!;
+      expect(JSON.parse(firstTodos.messages[1]!.content!).existingTodos).toBe(
+        contaminated.todos,
+      );
+      const execution = p.requests.find((r) => r.tools.length)!;
+      expect(execution.messages).toContainEqual(historical);
+      expect(JSON.parse(execution.messages[1]!.content!)).toMatchObject({
+        requestContract: goal,
+        sessionTodos: todos,
+      });
+      expect(f.assistant.snapshot().sessionGoal).toEqual({ goal, todos });
+      expect({ exchange, contaminated }).toEqual(frozen);
+      expect(f.editor.commands.apply).not.toHaveBeenCalled();
+    } finally {
+      await f.assistant.dispose();
+    }
+  });
+
   it('updates the persistent goal before execution and carries it through reload, forks and explicit clearing', async () => {
     const p = reviewedProvider([
       [final('First answer')],

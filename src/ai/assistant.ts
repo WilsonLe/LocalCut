@@ -3,7 +3,7 @@ import { applyOperations } from '../core/commands';
 import type { EditOperation } from '../core/commands';
 import { inferenceRetryDelay } from './inference-retry';
 import {
-  goalEvidence,
+  goalMessages,
   goalResponse,
   goalContractPrompt,
   goalReviewPrompt,
@@ -734,10 +734,7 @@ export function createAssistant(options: AssistantOptions) {
             model,
             tools: [],
             maxOutputTokens: limits.maxOutputTokens,
-            messages: [
-              { role: 'system' as const, content: instruction },
-              { role: 'user' as const, content: goalEvidence(data) },
-            ],
+            messages: goalMessages(instruction, data),
           };
           boundedContext(request, limits.maxContextBytes);
           try {
