@@ -1721,7 +1721,9 @@ describe('headless assistant boundaries', () => {
     f.assistant.subscribe((event) => events.push(event));
     const result = await f.assistant.run('Edit').completion;
     expect(result.usage.totalTokens).toBe(8);
-    expect(events.map((e) => e.type)).toEqual([
+    expect(
+      events.filter((e) => e.type !== 'usage_call').map((e) => e.type),
+    ).toEqual([
       'state',
       'tool',
       'review_progress',
@@ -8834,6 +8836,23 @@ describe('request completion review sessions', () => {
     const events: AssistantEvent[] = [];
     f.assistant.subscribe((e) => events.push(e));
     const result = await f.assistant.run('Move and answer').completion;
+    const calls = events.filter((event) => event.type === 'usage_call');
+    expect(calls).toHaveLength(7);
+    expect(new Set(calls.map((event) => event.call.id)).size).toBe(7);
+    expect(calls.map((event) => event.call.source)).toEqual(
+      expect.arrayContaining([
+        'main',
+        'request_contract',
+        'session_todos',
+        'completion_check',
+      ]),
+    );
+    expect(
+      calls.reduce((sum, event) => sum + event.call.usage!.cost!, 0),
+    ).toBeCloseTo(0.07);
+    const snapshots = events.filter((event) => event.type === 'usage');
+    expect(snapshots[0]!.usage.totalTokens).toBe(5);
+    expect(snapshots.at(-1)!.usage.totalTokens).toBe(35);
     expect(result.usage).toMatchObject({
       promptTokens: 14,
       completionTokens: 21,

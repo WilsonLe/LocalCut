@@ -8,12 +8,14 @@ export async function generateChatTitle({
   message,
   signal,
   sessionId,
+  onUsage,
 }: {
   provider: Pick<OpenRouterClient, 'stream'>;
   model: string;
   message: string;
   signal: AbortSignal;
   sessionId?: string;
+  onUsage?: (call: import('./usage').UsageCall) => void;
 }): Promise<string> {
   const checkCancellation = () => {
     if (signal.aborted)
@@ -39,6 +41,12 @@ export async function generateChatTitle({
   )) {
     checkCancellation();
     if (event.type !== 'complete') continue;
+    onUsage?.({
+      id: crypto.randomUUID(),
+      source: 'title',
+      model: event.model ?? model,
+      usage: event.usage,
+    });
     aiInvariant(
       title === undefined && !event.message.tool_calls?.length,
       'INVALID_RESPONSE',

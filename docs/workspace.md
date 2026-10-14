@@ -392,3 +392,9 @@ Chat action rows keep sharing and diagnostic metadata under Details. Active work
 ## Chat thinking and live drafts
 
 Running chat, review and editing actions show varied stage-relevant text with a subtle left-to-right glow. Reduced-motion and forced-color modes keep readable static text. Goal definition, to-do updates and completion assessments show provisional text directly in the chat as it arrives, without opening a disclosure. The main reply remains separate. Accepted auxiliary text remains available in the completion details and goal/to-do header popovers; failed attempts and cancelled drafts clear without becoming saved session state. Existing scroll-follow controls retain reading position when the user scrolls away.
+
+## Chat context and costs
+
+The composer footer's **Context and costs** icon opens a popover with the latest completed main prompt's token count and model capacity, chat charges, per-user-request totals and expandable main/goal/to-do/review/naming/indexing usage. Background completions stay with their initiating request; Retry/Resume costs remain in that request. Reloading/forking preserves recorded usage without inference. Context is a last-reported snapshot, including cached input, rather than cumulative tokens or an estimate of the next prompt.
+
+Totals use provider-reported USD charges. Input, cache read/write and output costs are estimates from the catalog rates saved with each call; routed pricing and fees can differ. Reasoning is included in output, and cache reads/writes are excluded from ordinary input. Missing counts/prices remain unavailable; partially reported totals are marked partial. Interrupted calls without final usage and speech services without token accounting may add charges. No extra billing request or paid work is triggered by opening the popover.

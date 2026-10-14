@@ -7,6 +7,7 @@ import type {
   IndexRequestManifest,
 } from '../../src/core/asset-index';
 import { createAssetIndexer } from '../../src/ai/asset-indexer';
+import type { UsageCall } from '../../src/ai/usage';
 import { captureFixture } from '../capture-metadata-fixture';
 
 const safeLabel: IndexLabel = {
@@ -17,7 +18,11 @@ const safeLabel: IndexLabel = {
   tags: [],
   sound: 'quiet',
 };
-function harness(status: AssetIndexRun['status'], sharing = false) {
+function harness(
+  status: AssetIndexRun['status'],
+  sharing = false,
+  onUsage?: (call: UsageCall) => void,
+) {
   const run: AssetIndexRun = {
     version: 1,
     id: 'existing',
@@ -124,6 +129,7 @@ function harness(status: AssetIndexRun['status'], sharing = false) {
     model: 'synthetic',
     consent: () => true,
     includeCaptureMetadata: sharing,
+    onUsage,
   });
   return { indexer, run, label, recordRequest, setStatus };
 }
@@ -192,4 +198,34 @@ describe('capture sharing on index retries', () => {
       await h.indexer.dispose();
     }
   });
+});
+
+it('reports completed label charges before parsing and emits no charge for retained results', async () => {
+  const onUsage = vi.fn();
+  const cached = harness('complete', true, onUsage);
+  await cached.indexer.run('asset', 'existing').completion;
+  expect(onUsage).not.toHaveBeenCalled();
+  cached.indexer.dispose();
+  const fresh = harness('failed', true, onUsage);
+  fresh.label.mockResolvedValue({
+    text: 'invalid labels',
+    model: 'synthetic',
+    usage: {
+      promptTokens: 4,
+      completionTokens: 2,
+      totalTokens: 6,
+      cost: 0.003,
+    },
+  } as Awaited<ReturnType<typeof fresh.label>>);
+  await expect(
+    fresh.indexer.run('asset', 'existing').completion,
+  ).rejects.toBeInstanceOf(Error);
+  expect(onUsage).toHaveBeenCalledWith(
+    expect.objectContaining({
+      source: 'indexing',
+      model: 'synthetic',
+      usage: expect.objectContaining({ cost: 0.003 }),
+    }),
+  );
+  fresh.indexer.dispose();
 });
