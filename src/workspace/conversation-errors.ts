@@ -13,6 +13,8 @@ export function errorText(error: unknown): string {
       ? error.details
       : undefined;
   if (details && typeof details === 'object' && 'stage' in details) {
+    if (details.stage === 'context_compaction')
+      return 'Chat context compaction failed. Use Retry response to continue. Original history and completed actions remain saved.';
     if (details.stage === 'request_contract')
       return `The session goal update failed. ${message} Any completed actions remain saved.`;
     if (details.stage === 'session_todos')

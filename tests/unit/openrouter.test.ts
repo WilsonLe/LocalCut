@@ -300,6 +300,153 @@ describe('OpenRouter transport', () => {
       client.dispose();
     },
   );
+  it.each([false, true])(
+    'repairs default output admission once before streaming (tool-free=%s)',
+    async (toolFree) => {
+      const payloads: Record<string, unknown>[] = [];
+      const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
+        if (String(input).endsWith('/models'))
+          return Response.json({
+            data: [
+              {
+                ...model,
+                supported_parameters: ['tools', 'tool_choice', 'max_tokens'],
+                context_length: 1048576,
+                top_provider: { max_completion_tokens: 131072 },
+              },
+            ],
+          });
+        const body = JSON.parse(String(init?.body));
+        payloads.push(body);
+        if (payloads.length === 1)
+          return Response.json(
+            {
+              error: {
+                code: 400,
+                metadata: {
+                  provider_error_code: 'context_length_exceeded',
+                  raw: JSON.stringify({
+                    error: {
+                      code: 'context_length_exceeded',
+                      message:
+                        "This model's maximum context length is 1048576 tokens, but the request requires 1071918 tokens (940846 input including image/vision expansion + 131072 for the completion). Reduce the input length or max_tokens.",
+                    },
+                  }),
+                },
+              },
+            },
+            { status: 400 },
+          );
+        return streamResponse();
+      });
+      const client = createOpenRouter({ fetch });
+      client.setKey('synthetic-key');
+      const value = {
+        ...request(),
+        sessionId: 'retry:preserved',
+        tools: toolFree ? [] : request().tools,
+        maxOutputTokens: undefined,
+      };
+      const original = structuredClone(value);
+      expect(await collect(client, value)).toHaveLength(2);
+      expect(payloads).toHaveLength(2);
+      expect(payloads[1]).toEqual({ ...payloads[0], max_tokens: 107730 });
+      expect(value).toEqual(original);
+      client.dispose();
+    },
+  );
+  it.each([
+    { input: 940846, explicit: 1000, support: true },
+    { input: 1048576, explicit: undefined, support: true },
+    { input: 1048577, explicit: undefined, support: true },
+    { input: 940846, explicit: undefined, support: false },
+  ])(
+    'does not repair caller budgets, input overflow or unsupported output controls %#',
+    async ({ input: inputTokens, explicit, support }) => {
+      let submissions = 0;
+      const fetch = vi.fn<typeof globalThis.fetch>(async (input) => {
+        if (String(input).endsWith('/models'))
+          return Response.json({
+            data: [
+              {
+                ...model,
+                supported_parameters: [
+                  'tools',
+                  'tool_choice',
+                  ...(support ? ['max_tokens'] : []),
+                ],
+              },
+            ],
+          });
+        submissions++;
+        return Response.json(
+          {
+            error: {
+              code: 'context_length_exceeded',
+              message: `This model's maximum context length is 1048576 tokens, but the request requires ${inputTokens + 131072} tokens (${inputTokens} input + 131072 for the completion). Reduce the input length or max_tokens.`,
+            },
+          },
+          { status: 400 },
+        );
+      });
+      const client = createOpenRouter({ fetch });
+      client.setKey('synthetic-key');
+      await expect(
+        collect(client, { ...request(), maxOutputTokens: explicit }),
+      ).rejects.toMatchObject({
+        code: 'INVALID_REQUEST',
+        details: { providerReason: 'context_length_exceeded' },
+      });
+      expect(submissions).toBe(1);
+      client.dispose();
+    },
+  );
+  it('bounds the correction and never exposes nested raw provider text', async () => {
+    let submissions = 0;
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input) => {
+      if (String(input).endsWith('/models'))
+        return Response.json({
+          data: [
+            {
+              ...model,
+              supported_parameters: ['tools', 'tool_choice', 'max_tokens'],
+            },
+          ],
+        });
+      submissions++;
+      return Response.json(
+        {
+          error: {
+            metadata: {
+              provider_error_code: 'context_length_exceeded',
+              raw: JSON.stringify({
+                error: {
+                  code: 'context_length_exceeded',
+                  message:
+                    "This model's maximum context length is 512000 tokens, but the request requires 531072 tokens (400000 input + 131072 for the completion). Reduce the input length or max_tokens.",
+                  secret: 'PRIVATE',
+                },
+              }),
+            },
+          },
+        },
+        { status: 400 },
+      );
+    });
+    const client = createOpenRouter({ fetch });
+    client.setKey('synthetic-key');
+    const error = await collect(client, {
+      ...request(),
+      maxOutputTokens: undefined,
+    }).catch((e) => e);
+    expect(error).toMatchObject({
+      code: 'INVALID_REQUEST',
+      details: { providerReason: 'context_length_exceeded' },
+    });
+    expect(JSON.stringify(error)).not.toContain('PRIVATE');
+    expect(submissions).toBe(2);
+    client.dispose();
+  });
   it('delegates oversized chat context and request admission to the provider', async () => {
     const { client, fetch } = setup();
     await collect(client, {

@@ -146,3 +146,14 @@ it('explains to-do update failures while preserving completed work', () => {
   expect(text).toContain('Retry response');
   expect(text).not.toContain('SECRET');
 });
+
+it('reports compaction recovery while retaining the original archive boundary', () => {
+  expect(
+    errorText({
+      code: 'INVALID_RESPONSE',
+      details: { stage: 'context_compaction' },
+    }),
+  ).toBe(
+    'Chat context compaction failed. Use Retry response to continue. Original history and completed actions remain saved.',
+  );
+});

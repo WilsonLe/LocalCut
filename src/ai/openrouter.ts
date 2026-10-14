@@ -824,15 +824,48 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
       }
       const op = operation(signal, true);
       try {
-        const response = await op.fetch('/chat/completions', {
-          method: 'POST',
-          headers: {
-            ...(key ? { Authorization: `Bearer ${key}` } : {}),
-            'Content-Type': 'application/json',
-            Accept: 'text/event-stream',
-          },
-          body,
-        });
+        const submit = (payload: string) =>
+          op.fetch('/chat/completions', {
+            method: 'POST',
+            headers: {
+              ...(key ? { Authorization: `Bearer ${key}` } : {}),
+              'Content-Type': 'application/json',
+              Accept: 'text/event-stream',
+            },
+            body: payload,
+          });
+        let response: Response;
+        try {
+          response = await submit(body);
+        } catch (error) {
+          op.check();
+          const admission =
+            error instanceof AiError ? error.details.tokenAdmission : undefined;
+          const remaining =
+            object(admission) &&
+            typeof admission.contextTokens === 'number' &&
+            typeof admission.inputTokens === 'number'
+              ? admission.contextTokens - admission.inputTokens
+              : 0;
+          // Repair only a rejected, unstarted inference with an unspecified
+          // output budget. Keep the entire request and caller limits immutable.
+          if (
+            !(error instanceof AiError) ||
+            error.details.status !== 400 ||
+            error.details.providerReason !== 'context_length_exceeded' ||
+            requestedTokens !== undefined ||
+            !Number.isSafeInteger(remaining) ||
+            remaining <= 0 ||
+            !model.supportedParameters.includes('max_tokens')
+          )
+            throw error;
+          const payload = JSON.parse(body) as Record<string, unknown>;
+          payload.max_tokens = Math.min(
+            remaining,
+            model.maxCompletionTokens ?? remaining,
+          );
+          response = await submit(JSON.stringify(payload));
+        }
         if (
           response.headers
             .get('content-type')

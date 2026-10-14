@@ -38,9 +38,9 @@ for (const base of behaviorBases) {
             {
               id: 'test/review',
               name: 'Review test model',
-              context_length: 512000,
+              context_length: 1048576,
               top_provider: { max_completion_tokens: 512000 },
-              supported_parameters: ['tools', 'tool_choice'],
+              supported_parameters: ['tools', 'tool_choice', 'max_tokens'],
             },
           ],
         },
@@ -55,6 +55,13 @@ for (const base of behaviorBases) {
     let rejectReview = false;
     let rejectExecution = false;
     let rejectTodos = false;
+    let compactionRequests = 0;
+    let compactingRetry = false;
+    let budgetCorrections = 0;
+    let releaseCompaction!: () => void;
+    const compactionGate = new Promise<void>((resolve) => {
+      releaseCompaction = resolve;
+    });
     let executionRejections = 0;
     const sessions: { execution: string[]; review: string[] } = {
       execution: [],
@@ -73,8 +80,42 @@ for (const base of behaviorBases) {
           return;
         }
         const request = route.request().postDataJSON();
-        expect(request).not.toHaveProperty('max_tokens');
         const instruction = request.messages[0]?.content ?? '';
+        if (instruction.startsWith('LocalCut context compaction:')) {
+          compactionRequests++;
+          expect(request.tool_choice).toBe('none');
+          if (compactingRetry) await compactionGate;
+          await reply(
+            route,
+            'The original request is an overlay track and closing title. These are already applied and confirmed. Keep the completed title and video; verify without replay. Latest request checks the saved overlay.',
+          );
+          return;
+        }
+        if (compactingRetry && request.max_tokens === undefined) {
+          budgetCorrections++;
+          await route.fulfill({
+            headers: cors,
+            status: 400,
+            json: {
+              error: {
+                code: 400,
+                metadata: {
+                  provider_error_code: 'context_length_exceeded',
+                  raw: JSON.stringify({
+                    error: {
+                      code: 'context_length_exceeded',
+                      message:
+                        "This model's maximum context length is 512000 tokens, but the request requires 631072 tokens (500000 input including image/vision expansion + 131072 for the completion). Reduce the input length or max_tokens.",
+                    },
+                  }),
+                },
+              },
+            },
+          });
+          return;
+        }
+        if (compactingRetry) expect(request.max_tokens).toBe(12000);
+        else expect(request).not.toHaveProperty('max_tokens');
         if (instruction.startsWith('LocalCut request contract:')) {
           parses++;
           updates.push(JSON.parse(request.messages[1].content));
@@ -673,6 +714,35 @@ for (const base of behaviorBases) {
     await expect(page.locator('form [role="alert"]')).toContainText(
       'conversation size',
     );
+    // A synthetic old snapshot pushes the working history across 192k while
+    // keeping the original completed receipts in native IndexedDB.
+    await page.evaluate(async () => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const open = indexedDB.open('localcut-chats-v1');
+        open.onsuccess = () => resolve(open.result);
+        open.onerror = () => reject(open.error);
+      });
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('sessions', 'readwrite'),
+          store = tx.objectStore('sessions'),
+          rows = store.getAll();
+        rows.onsuccess = () => {
+          for (const row of rows.result) {
+            const message = row.content.messages.find(
+              (entry: { exchange?: unknown[] }) => entry.exchange?.length,
+            );
+            message.exchange.unshift({
+              role: 'user',
+              content: 'ARCHIVE_ONLY_SNAPSHOT_' + 'x'.repeat(700000),
+            });
+            store.put(row);
+          }
+        };
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+    });
     await page.reload();
     await expect(
       page.getByRole('button', { name: 'Retry response', exact: true }),
@@ -682,10 +752,37 @@ for (const base of behaviorBases) {
     );
     await expect(page.locator('body')).not.toContainText('PRIVATE_TODO_ECHO');
     rejectTodos = false;
+    compactingRetry = true;
     await dismissNotifications(page);
     await page
       .getByRole('button', { name: 'Retry response', exact: true })
       .click();
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Compacting chat context…' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Cancel response', exact: true }),
+    ).toBeEnabled();
+    await page.screenshot({
+      path: testInfo.outputPath('compacting-context.png'),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page
+      .getByRole('navigation', { name: 'Workspace sections' })
+      .getByRole('button', { name: 'Chat', exact: true })
+      .click();
+    // Hiding Chat at the responsive transition preserves the existing pause
+    // contract. Explicit Resume restarts the unfinished compaction safely.
+    await page
+      .getByRole('button', { name: 'Resume response', exact: true })
+      .click();
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Compacting chat context…' }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath('compacting-context-mobile.png'),
+    });
+    releaseCompaction();
     await expect(
       page.getByRole('article', { name: 'Assistant response' }).last(),
     ).toContainText('The overlay track and closing title are now added.');
@@ -701,6 +798,104 @@ for (const base of behaviorBases) {
         .last()
         .getByRole('button', { name: 'Copy response', exact: true }),
     ).toBeVisible();
+    expect(editCalls).toBe(1);
+    expect(compactionRequests).toBeGreaterThan(0);
+    expect(budgetCorrections).toBeGreaterThan(2);
+    const completedCompactions = compactionRequests;
+    await page.reload();
+    await page
+      .getByRole('navigation', { name: 'Workspace sections' })
+      .getByRole('button', { name: 'Chat', exact: true })
+      .click();
+    expect(compactionRequests).toBe(completedCompactions);
+    await page
+      .getByLabel('Describe your edit', { exact: true })
+      .fill('Verify the saved title again');
+    await page
+      .getByRole('button', { name: 'Send edit request', exact: true })
+      .click();
+    await expect(
+      page
+        .getByRole('article', { name: 'Assistant response' })
+        .last()
+        .getByRole('button', { name: 'Copy response', exact: true }),
+    ).toBeVisible();
+    expect(compactionRequests).toBe(completedCompactions);
+    expect(editCalls).toBe(1);
+    const compactionPersistence = await page.evaluate(async () => {
+      const db = await new Promise<IDBDatabase>((resolve) => {
+        const open = indexedDB.open('localcut-chats-v1');
+        open.onsuccess = () => resolve(open.result);
+      });
+      const rows = await new Promise<
+        {
+          content: {
+            compaction: { summary: string };
+            messages: { exchange?: { content?: string }[] }[];
+          };
+        }[]
+      >((resolve) => {
+        const request = db
+          .transaction('sessions')
+          .objectStore('sessions')
+          .getAll();
+        request.onsuccess = () => resolve(request.result);
+      });
+      db.close();
+      return {
+        checkpoint: rows[0]!.content.compaction,
+        hasOriginal: rows[0]!.content.messages.some(
+          (message: { exchange?: { content?: string }[] }) =>
+            message.exchange?.some(
+              (entry) =>
+                entry.content?.startsWith('ARCHIVE_ONLY_SNAPSHOT_') &&
+                entry.content.length > 700000,
+            ),
+        ),
+      };
+    });
+    expect(compactionPersistence.checkpoint.summary).toContain(
+      'completed title',
+    );
+    expect(compactionPersistence.hasOriginal).toBe(true);
+    // Compatible response branches must save the reused checkpoint, even when
+    // the live assistant does not need another compaction operation.
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page
+      .getByRole('article', { name: 'Assistant response' })
+      .last()
+      .getByRole('button', { name: 'Branch response', exact: true })
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'Chat sessions', exact: true }),
+    ).toContainText('Branch of');
+    await page
+      .getByRole('textbox', { name: 'Describe your edit', exact: true })
+      .fill('Verify the title in this branch');
+    await page
+      .getByRole('button', { name: 'Send edit request', exact: true })
+      .click();
+    await expect(
+      page
+        .getByRole('article', { name: 'Assistant response' })
+        .last()
+        .getByRole('button', { name: 'Copy response', exact: true }),
+    ).toBeVisible();
+    expect(compactionRequests).toBe(completedCompactions);
+    await page.reload();
+    await page
+      .getByRole('textbox', { name: 'Describe your edit', exact: true })
+      .fill('Verify the branch again after reload');
+    await page
+      .getByRole('button', { name: 'Send edit request', exact: true })
+      .click();
+    await expect(
+      page
+        .getByRole('article', { name: 'Assistant response' })
+        .last()
+        .getByRole('button', { name: 'Copy response', exact: true }),
+    ).toBeVisible();
+    expect(compactionRequests).toBe(completedCompactions);
     expect(editCalls).toBe(1);
   });
 }

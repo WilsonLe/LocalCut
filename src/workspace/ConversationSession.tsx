@@ -293,6 +293,9 @@ export default function ConversationSession({
   const [sessionGoal, setSessionGoal] = useState(
     initialBranch?.sessionGoal ?? initialContent.sessionGoal,
   );
+  const [compaction, setCompaction] = useState(
+    initialBranch?.checkpoint.compaction ?? initialContent.compaction,
+  );
   const [prompt, setPrompt] = useState(initialContent.prompt);
   const [messages, setMessages] = useState<Message[]>(
     initialBranch?.messages ??
@@ -339,6 +342,7 @@ export default function ConversationSession({
   const [proposals, setProposals] = useState<Record<string, EditProposal>>({});
   useImperativeHandle(exportRef, () => () => ({
     messages,
+    compaction,
     proposals,
     draft: prompt,
     attachments,
@@ -439,6 +443,7 @@ export default function ConversationSession({
       prompt,
       messages,
       sessionGoal,
+      compaction,
       attachmentIds: attachments.map((asset) => asset.id),
       historyTurnIds:
         assistant.current?.snapshot().historyTurnIds ??
@@ -452,6 +457,7 @@ export default function ConversationSession({
     sessionId,
     messages,
     sessionGoal,
+    compaction,
     prompt,
     attachments,
     attachmentsReady,
@@ -526,6 +532,8 @@ export default function ConversationSession({
           ? undefined
           : initial.current.historyIndexScope,
         restoredGoal: initial.current.sessionGoal,
+        restoredCompaction: initial.current.compaction,
+        contextWindowTokens: modelInfo?.contextLength,
         provider: connection.provider,
         projectId: project.id,
         model,
@@ -767,6 +775,7 @@ ${resuming.prompt}`
                 : message,
             ),
           );
+        if (event.type === 'compaction') setCompaction(event.checkpoint);
         if (event.type === 'session_goal') {
           setSessionGoal(event.goal);
           setMessages((current) =>
@@ -1013,24 +1022,37 @@ ${resuming.prompt}`
                   : 'group/response space-y-3 text-sm leading-relaxed'
               }
             >
-              {!!message.tools?.filter((tool) => !isGoalReview(tool))
-                .length && (
+              {!!message.tools?.filter(
+                (tool) =>
+                  !isGoalReview(tool) && tool.name !== 'compact_context',
+              ).length && (
                 <AccordionDisclosure
                   summary={
                     <span className="flex items-center gap-2">
                       <Terminal className="size-3.5" />
-                      {message.tools.filter((tool) => !isGoalReview(tool))
-                        .length === 1
+                      {message.tools.filter(
+                        (tool) =>
+                          !isGoalReview(tool) &&
+                          tool.name !== 'compact_context',
+                      ).length === 1
                         ? toolLabel(
-                            message.tools.find((tool) => !isGoalReview(tool))!,
+                            message.tools.find(
+                              (tool) =>
+                                !isGoalReview(tool) &&
+                                tool.name !== 'compact_context',
+                            )!,
                           )
-                        : `${message.tools.filter((tool) => !isGoalReview(tool) && tool.phase === 'completed').length} of ${message.tools.filter((tool) => !isGoalReview(tool)).length} tools completed`}
+                        : `${message.tools.filter((tool) => !isGoalReview(tool) && tool.name !== 'compact_context' && tool.phase === 'completed').length} of ${message.tools.filter((tool) => !isGoalReview(tool) && tool.name !== 'compact_context').length} tools completed`}
                     </span>
                   }
                 >
                   <div className="space-y-2 border-l pl-3">
                     {message.tools
-                      .filter((tool) => !isGoalReview(tool))
+                      .filter(
+                        (tool) =>
+                          !isGoalReview(tool) &&
+                          tool.name !== 'compact_context',
+                      )
                       .map((tool) => (
                         <div
                           key={tool.callId}
@@ -1055,6 +1077,37 @@ ${resuming.prompt}`
                   </div>
                 </AccordionDisclosure>
               )}
+              {message.tools
+                ?.filter((tool) => tool.name === 'compact_context')
+                .map((tool) => (
+                  <AccordionDisclosure
+                    key={tool.callId}
+                    summary={
+                      <span
+                        role={
+                          tool.phase === 'started' &&
+                          message.status === 'streaming'
+                            ? 'status'
+                            : undefined
+                        }
+                        aria-live="polite"
+                        className="text-sm text-muted-foreground"
+                      >
+                        {tool.phase === 'started' &&
+                        message.status === 'streaming'
+                          ? 'Compacting chat context…'
+                          : tool.phase === 'completed'
+                            ? 'Chat context compacted'
+                            : 'Chat compaction interrupted — retry to continue'}
+                        {tool.phase === 'started' && tool.input?.parts
+                          ? ` (${String(tool.input.part)}/${String(tool.input.parts)})`
+                          : ''}
+                      </span>
+                    }
+                  >
+                    <ToolDetails tool={tool} />
+                  </AccordionDisclosure>
+                ))}
               <CompletionDetails
                 tools={message.tools ?? []}
                 streaming={message.status === 'streaming'}
