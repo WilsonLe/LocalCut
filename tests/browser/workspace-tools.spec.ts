@@ -188,6 +188,9 @@ for (const base of behaviorBases) {
         .click();
       releaseInspection();
       await expect(
+        response.getByRole('button', { name: 'Copy response', exact: true }),
+      ).toBeVisible();
+      await expect(
         response.getByText(
           'Checked the project. The requested clip does not exist.',
           { exact: true },

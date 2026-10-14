@@ -85,13 +85,16 @@ for (const base of behaviorBases) {
             });
             return;
           }
-          const last = body.messages.at(-1);
+          const last = body.messages
+            .filter((m: { role: string }) => m.role !== 'system')
+            .at(-1);
           if (
             truncate &&
             (kind === 'standard' ||
               (last?.role === 'tool' &&
-                body.messages.at(-2)?.tool_calls?.[0]?.function.name ===
-                  'propose_edits'))
+                body.messages
+                  .filter((m: { role: string }) => m.role !== 'system')
+                  .at(-2)?.tool_calls?.[0]?.function.name === 'propose_edits'))
           ) {
             await route.fulfill({
               headers: cors,
@@ -104,8 +107,9 @@ for (const base of behaviorBases) {
             const load = last?.role === 'user';
             const propose =
               last?.role === 'tool' &&
-              body.messages.at(-2)?.tool_calls?.[0]?.function.name ===
-                'load_skill';
+              body.messages
+                .filter((m: { role: string }) => m.role !== 'system')
+                .at(-2)?.tool_calls?.[0]?.function.name === 'load_skill';
             const tools = load
               ? [
                   {

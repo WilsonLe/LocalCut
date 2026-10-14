@@ -17,29 +17,39 @@ const money = (value?: number) =>
 function UsageTable({ calls }: { calls: UsageCall[] }) {
   const summary = summarizeUsage(calls);
   return (
-    <table className="w-full text-xs tabular-nums">
-      <caption className="sr-only">
-        Token counts and estimated costs in USD
-      </caption>
-      <thead>
-        <tr className="text-muted-foreground">
-          <th className="py-1 text-left font-normal">Tokens</th>
-          <th className="text-right font-normal">Count</th>
-          <th className="text-right font-normal">Est. USD</th>
-        </tr>
-      </thead>
-      <tbody>
-        {summary.categories
-          .filter((row) => row.label !== 'Cache write' || row.tokens !== 0)
-          .map((row) => (
-            <tr key={row.label}>
-              <th className="py-1 text-left font-normal">{row.label}</th>
-              <td className="text-right">{count(row.tokens)}</td>
-              <td className="text-right">{money(row.cost)}</td>
-            </tr>
-          ))}
-      </tbody>
-    </table>
+    <div className="text-xs tabular-nums">
+      <div className="flex justify-between gap-2 py-1">
+        <span>Cache hit rate</span>
+        <span>
+          {summary.cacheHitRate === undefined
+            ? 'Unavailable'
+            : `${(summary.cacheHitRate * 100).toFixed(2)}%`}
+        </span>
+      </div>
+      <table className="w-full">
+        <caption className="sr-only">
+          Token counts and estimated costs in USD
+        </caption>
+        <thead>
+          <tr className="text-muted-foreground">
+            <th className="py-1 text-left font-normal">Tokens</th>
+            <th className="text-right font-normal">Count</th>
+            <th className="text-right font-normal">Est. USD</th>
+          </tr>
+        </thead>
+        <tbody>
+          {summary.categories
+            .filter((row) => row.label !== 'Cache write' || row.tokens !== 0)
+            .map((row) => (
+              <tr key={row.label}>
+                <th className="py-1 text-left font-normal">{row.label}</th>
+                <td className="text-right">{count(row.tokens)}</td>
+                <td className="text-right">{money(row.cost)}</td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 export default function UsagePopover({

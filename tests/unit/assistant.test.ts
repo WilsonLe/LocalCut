@@ -1,7 +1,7 @@
 import { captureFixture } from '../capture-metadata-fixture';
 import { describe, expect, it, vi } from 'vitest';
 import { createAssistant as createRealAssistant } from '../../src/ai/assistant';
-import { goalReviewReply } from '../goal-review-fixture';
+import { goalReviewReply, requestContextMessage } from '../goal-review-fixture';
 import {
   auxiliaryRoleLeaves,
   roleArtifacts,
@@ -301,7 +301,7 @@ function provider(rounds: ProviderEvent[][], loadDomains = true) {
           rounds[0]?.flatMap((event) =>
             event.type === 'complete' ? (event.message.tool_calls ?? []) : [],
           ) ?? [];
-        const scope = JSON.parse(request.messages[1]!.content!);
+        const scope = JSON.parse(requestContextMessage(request).content!);
         const catalog = scope.skillCatalog as { id: string }[];
         const loaded = new Set<string>(scope.capabilityMap.loadedSkills);
         const required = new Set<string>();
@@ -1035,7 +1035,13 @@ describe('headless assistant boundaries', () => {
       const result = await f.assistant.run('Edit').completion;
       expect(result.proposalIds).toEqual([]);
       expect(f.editor.commands.apply).not.toHaveBeenCalled();
-      expect(f.provider.requests.at(-1)!.messages.at(-1)).toMatchObject({
+      expect(
+        f.provider.requests
+          .at(-1)!
+          .messages.slice()
+          .reverse()
+          .find((m) => m.role === 'tool'),
+      ).toMatchObject({
         role: 'tool',
         content: expect.stringContaining('error'),
       });
@@ -1269,7 +1275,11 @@ describe('headless assistant boundaries', () => {
     ).toEqual([]);
     expect(f.project()).toEqual(original);
     expect(f.editor.commands.apply).not.toHaveBeenCalled();
-    const response = f.provider.requests.at(-1)!.messages.at(-1)!;
+    const response = f.provider.requests
+      .at(-1)!
+      .messages.slice()
+      .reverse()
+      .find((m) => m.role === 'tool')!;
     expect(response).toMatchObject({
       role: 'tool',
       content: expect.stringContaining('EDIT_REJECTED'),
@@ -1853,7 +1863,12 @@ describe('headless assistant boundaries', () => {
     expect(
       request.messages.some((m) => m.content?.includes('Earlier request')),
     ).toBe(true);
-    expect(request.messages.at(-1)?.content).toContain('Current request');
+    expect(
+      request.messages
+        .slice()
+        .reverse()
+        .find((m) => m.role === 'user')?.content,
+    ).toContain('Current request');
     expect(assistant.canBranch(first.id)).toBe(true);
     expect(assistant.snapshot().historyTurnIds).toEqual([first.id, current.id]);
     const checkpoint = assistant.branch(current.id);
@@ -2513,7 +2528,13 @@ describe('headless assistant boundaries', () => {
       model: 'test/model',
     });
     await a.run('Evaluate').completion;
-    const response = JSON.parse(p.requests.at(-1)!.messages.at(-1)!.content!);
+    const response = JSON.parse(
+      p.requests
+        .at(-1)!
+        .messages.slice()
+        .reverse()
+        .find((m) => m.role === 'tool')!.content!,
+    );
     expect(response.tracks[0].clips[0].values.opacity).toBe(0.75);
     expect(response.transitions).toEqual([
       expect.objectContaining({
@@ -2545,8 +2566,8 @@ describe('headless assistant boundaries', () => {
       'TOOL_NOT_ALLOWED',
     );
     expect(
-      JSON.parse(f.provider.requests[0]!.messages[1]!.content!).capabilityMap
-        .actions.undo,
+      JSON.parse(requestContextMessage(f.provider.requests[0]!).content!)
+        .capabilityMap.actions.undo,
     ).toMatchObject({ supported: false, available: false });
   });
   it('requires explicit approval for history and preserves its request ID and committed receipt', async () => {
@@ -3109,8 +3130,8 @@ describe('incremental assistant skills', () => {
       'Transition templates are editable recipes',
     );
     expect(
-      JSON.parse(f.provider.requests[3]!.messages[1]!.content!).capabilityMap
-        .loadedSkills,
+      JSON.parse(requestContextMessage(f.provider.requests[3]!).content!)
+        .capabilityMap.loadedSkills,
     ).toEqual([]);
     expect(f.editor.commands.validate).toHaveBeenCalledTimes(1);
     expect(f.editor.commands.apply).not.toHaveBeenCalled();
@@ -3153,9 +3174,11 @@ describe('incremental assistant skills', () => {
         message.role === 'tool' && message.tool_call_id === 'unloaded-search',
     );
     expect(searchResponse?.content).toContain('TOOL_NOT_ALLOWED');
-    expect(f.provider.requests[1]!.messages.at(-1)!.content).toContain(
-      'TOOL_NOT_ALLOWED',
-    );
+    expect(
+      f.provider.requests[1]!.messages.slice()
+        .reverse()
+        .find((m) => m.role === 'tool')!.content,
+    ).toContain('TOOL_NOT_ALLOWED');
     expect(names(f.provider.requests[1]!)).toContain('propose_edits');
     await f.assistant.dispose();
   });
@@ -3168,7 +3191,7 @@ describe('incremental assistant skills', () => {
     await f.assistant.run('Export').completion;
     expect(
       JSON.parse(
-        f.provider.requests[0]!.messages[1]!.content!,
+        requestContextMessage(f.provider.requests[0]!).content!,
       ).skillCatalog.map((skill: { id: string }) => skill.id),
     ).toEqual([
       'speech',
@@ -3186,8 +3209,8 @@ describe('incremental assistant skills', () => {
     ).map((message) => JSON.parse(message.content));
     expect(results[0]).toMatchObject({ skillId: 'export', status: 'loaded' });
     expect(
-      JSON.parse(f.provider.requests[1]!.messages[1]!.content!).capabilityMap
-        .actions.export,
+      JSON.parse(requestContextMessage(f.provider.requests[1]!).content!)
+        .capabilityMap.actions.export,
     ).toMatchObject({ supported: false, available: false });
     expect(results[1].error.code).toBe('INVALID_TOOL_ARGUMENTS');
     await f.assistant.dispose();
@@ -3232,9 +3255,11 @@ describe('incremental assistant skills', () => {
     expect(serialized).toContain('redo');
     expect(serialized).not.toContain('prepare_transcription');
     expect(serialized).not.toContain('export');
-    expect(p.requests[2]!.messages.at(-1)!.content).toContain(
-      'TOOL_NOT_ALLOWED',
-    );
+    expect(
+      p.requests[2]!.messages.slice()
+        .reverse()
+        .find((m) => m.role === 'tool')!.content,
+    ).toContain('TOOL_NOT_ALLOWED');
     expect(f.editor.transcription.prepare).not.toHaveBeenCalled();
     expect(JSON.stringify(p.requests[2]!.tools)).toContain(
       'prepare_transcription',
@@ -3360,9 +3385,11 @@ describe('incremental assistant skills', () => {
     ]);
     await f.assistant.run('Load').completion;
     expect(names(f.provider.requests[1]!)).toEqual(baseTools);
-    expect(f.provider.requests[1]!.messages.at(-1)!.content).toContain(
-      'INVALID_TOOL_ARGUMENTS',
-    );
+    expect(
+      f.provider.requests[1]!.messages.slice()
+        .reverse()
+        .find((m) => m.role === 'tool')!.content,
+    ).toContain('INVALID_TOOL_ARGUMENTS');
     const p = provider(
       [[final('', [load('editing'), load('editing', 'again')])]],
       false,
@@ -3487,7 +3514,7 @@ it('retains historical index narration while recomputing current evidence after 
     await assistant.run('Describe the current source').completion;
     expect(JSON.stringify(p.requests[1])).toContain('A stale red subject');
     expect(
-      JSON.parse(p.requests[1]!.messages[1]!.content!).assetIndex
+      JSON.parse(requestContextMessage(p.requests[1]!).content!).assetIndex
         .indexedAssetCount,
     ).toBe(0);
   } finally {
@@ -3667,7 +3694,7 @@ it('retains historical index observations and narration after cancellation and r
   );
   expect(JSON.stringify(p.requests[0])).toContain('Private retired narration');
   expect(
-    JSON.parse(p.requests[0]!.messages[1]!.content!).assetIndex
+    JSON.parse(requestContextMessage(p.requests[0]!).content!).assetIndex
       .indexedAssetCount,
   ).toBe(0);
   expect(
@@ -4126,7 +4153,12 @@ it('uses shared generated-speech phrase metadata to propose a padded trim withou
           call('read_transcript', { transcriptId: 'transcript' }),
         ]);
       else if (round === 3) {
-        const source = JSON.parse(request.messages.at(-1)!.content!);
+        const source = JSON.parse(
+          request.messages
+            .slice()
+            .reverse()
+            .find((m) => m.role === 'tool')!.content!,
+        );
         expect(source.speech.script).toBe('Authored phrase');
         expect(source.speech.measuredCues[0].timeUs).toBe(250000);
         const cue = source.cues[0];
@@ -4404,7 +4436,8 @@ describe('approved chat asset indexing', () => {
     try {
       const turn = await a.run('Index all assets').completion;
       expect(
-        JSON.parse(p.requests[0]!.messages[1]!.content!).availableAssetIds,
+        JSON.parse(requestContextMessage(p.requests[0]!).content!)
+          .availableAssetIds,
       ).toEqual(['asset', 'attached']);
       expect(turn.proposalIds).toHaveLength(2);
       expect(a.snapshot().proposals.map((proposal) => proposal.action)).toEqual(
@@ -4441,7 +4474,7 @@ describe('approved chat asset indexing', () => {
         await f.assistant.run('Index').completion;
         expect(
           JSON.parse(
-            f.provider.requests[0]!.messages[1]!.content!,
+            requestContextMessage(f.provider.requests[0]!).content!,
           ).skillCatalog.some(
             (skill: { id: string }) => skill.id === 'indexing',
           ),
@@ -4855,7 +4888,7 @@ describe('complete capability discovery and recovery', () => {
     try {
       await a.run('Help with editing, Storyboard, export, speech and Undo')
         .completion;
-      const scope = JSON.parse(p.requests[0]!.messages[1]!.content!);
+      const scope = JSON.parse(requestContextMessage(p.requests[0]!).content!);
       expect(
         scope.skillCatalog.map((skill: { id: string }) => skill.id),
       ).toEqual([
@@ -4935,7 +4968,9 @@ describe('complete capability discovery and recovery', () => {
     try {
       const result = await a.run('Export the video').completion;
       const failure = JSON.parse(
-        p.requests[2]!.messages.at(-1)!.content!,
+        p.requests[2]!.messages.slice()
+          .reverse()
+          .find((m) => m.role === 'tool')!.content!,
       ).error;
       expect(failure.code).toBe('TOOL_NOT_ALLOWED');
       expect(failure.details.recovery.action).toMatchObject({
@@ -4949,8 +4984,8 @@ describe('complete capability discovery and recovery', () => {
         ),
       ).toEqual(['skill_not_loaded']);
       expect(
-        JSON.parse(p.requests[3]!.messages[1]!.content!).capabilityMap.actions
-          .export.available,
+        JSON.parse(requestContextMessage(p.requests[3]!).content!).capabilityMap
+          .actions.export.available,
       ).toBe(true);
       expect(result.proposalIds).toHaveLength(1);
       expect(a.getProposal(result.proposalIds[0]!).action).toEqual({
@@ -4998,7 +5033,9 @@ describe('complete capability discovery and recovery', () => {
     try {
       const result = await a.run('Export the video').completion;
       const failure = JSON.parse(
-        p.requests[1]!.messages.at(-1)!.content!,
+        p.requests[1]!.messages.slice()
+          .reverse()
+          .find((m) => m.role === 'tool')!.content!,
       ).error;
       expect(failure.details.recovery.action).toMatchObject({
         supported: true,
@@ -5071,12 +5108,15 @@ describe('complete capability discovery and recovery', () => {
       const next = await a.run('Continue editing').completion;
       expect(next.proposalIds).toHaveLength(1);
       expect(
-        JSON.parse(p.requests[4]!.messages[1]!.content!).capabilityMap
+        JSON.parse(requestContextMessage(p.requests[4]!).content!).capabilityMap
           .loadedSkills,
       ).toEqual([]);
       expect(
-        JSON.parse(p.requests[5]!.messages.at(-1)!.content!).error.details
-          .recovery.requiredSkills,
+        JSON.parse(
+          p.requests[5]!.messages.slice()
+            .reverse()
+            .find((m) => m.role === 'tool')!.content!,
+        ).error.details.recovery.requiredSkills,
       ).toEqual(['editing']);
       expect(f.editor.commands.apply).not.toHaveBeenCalled();
     } finally {
@@ -5613,7 +5653,8 @@ describe('requested chat execution', () => {
     });
     const result = await a.run('Move').completion;
     expect(
-      JSON.parse(requests[1]!.messages[1]!.content!).selectedProject.revision,
+      JSON.parse(requestContextMessage(requests[1]!).content!).selectedProject
+        .revision,
     ).toBe(0);
     expect(f.editor.commands.apply).not.toHaveBeenCalled();
     expect(f.project().revision).toBe(1);
@@ -6039,8 +6080,8 @@ describe('requested chat execution', () => {
         );
       else
         expect(
-          JSON.parse(requests.at(-1)!.messages[1]!.content!).assetIndex
-            .indexedAssetCount,
+          JSON.parse(requestContextMessage(requests.at(-1)!).content!)
+            .assetIndex.indexedAssetCount,
         ).toBe(0);
       if (change === 'remove')
         expect(a.snapshot().proposals[0]!.result).toMatchObject({
@@ -6678,7 +6719,7 @@ describe('container resolution through the assistant', () => {
     const p = {
       async *stream(request: ChatRequest) {
         requests.push(structuredClone(request));
-        const scope = JSON.parse(request.messages[1]!.content!);
+        const scope = JSON.parse(requestContextMessage(request).content!);
         const tools = request.tools?.map((tool) => tool.function.name) ?? [];
         // First attempt verifies frozen-round recovery; subsequent rounds follow trusted discovery.
         if (stage === 0) {
@@ -6805,7 +6846,8 @@ describe('container resolution through the assistant', () => {
     ).completion;
     // The next turn starts with no tool authority or resolved asset scope.
     expect(
-      JSON.parse(requests.at(-1)!.messages[1]!.content!).availableAssetIds,
+      JSON.parse(requestContextMessage(requests.at(-1)!).content!)
+        .availableAssetIds,
     ).toEqual([]);
     await a.dispose();
   });
@@ -7451,12 +7493,12 @@ describe('immutable conversation continuity', () => {
       name = 'Updated source.mov';
       const second = await a.run('do all 3').completion;
       for (const request of p.requests.slice(3))
-        expect(request.messages.slice(2, 2 + frozen.length)).toEqual(frozen);
+        expect(request.messages.slice(1, 1 + frozen.length)).toEqual(frozen);
       expect(
         p.requests[3]!.tools.some((t) => t.function.name === 'inspect_asset'),
       ).toBe(false);
       expect(
-        JSON.parse(p.requests[6]!.messages[1]!.content!).assetIndex
+        JSON.parse(requestContextMessage(p.requests[6]!).content!).assetIndex
           .indexedAssetCount,
       ).toBe(2);
       expect(p.requests[6]!.messages).toContainEqual(originalReply);
@@ -7469,9 +7511,10 @@ describe('immutable conversation continuity', () => {
       first.exchange[0]!.content = 'Caller mutation';
       await a.run('how about now? all 3').completion;
       const current = p.requests.at(-1)!;
-      expect(current.messages.slice(2, 2 + frozen.length)).toEqual(frozen);
+      expect(current.messages.slice(1, 1 + frozen.length)).toEqual(frozen);
       expect(
-        JSON.parse(current.messages[1]!.content!).assetIndex.indexedAssetCount,
+        JSON.parse(requestContextMessage(current).content!).assetIndex
+          .indexedAssetCount,
       ).toBe(1);
       expect(JSON.stringify(current.messages)).toContain(offer);
       const chat = newChatSession('matching-scope');
@@ -7523,14 +7566,15 @@ describe('immutable conversation continuity', () => {
         expect(reloaded.snapshot().proposals).toEqual([]);
         await reloaded.run('Continue all three').completion;
         expect(
-          reloadProvider.requests[0]!.messages.slice(2, 2 + frozen.length),
+          reloadProvider.requests[0]!.messages.slice(1, 1 + frozen.length),
         ).toEqual(frozen);
         expect(reloadProvider.requests[0]!.messages).toContainEqual(
           originalReply,
         );
         expect(
-          JSON.parse(reloadProvider.requests[0]!.messages[1]!.content!)
-            .capabilityMap.loadedSkills,
+          JSON.parse(
+            requestContextMessage(reloadProvider.requests[0]!).content!,
+          ).capabilityMap.loadedSkills,
         ).toEqual([]);
         expect(
           reloadProvider.requests[0]!.tools.some(
@@ -7592,8 +7636,8 @@ describe('immutable conversation continuity', () => {
           (message) => message.role === 'tool',
         )!;
         expect(frozen).toContainEqual(originalReply);
-        expect(frozen).toContainEqual(requests[0]!.messages[1]);
-        expect(frozen).toContainEqual(requests[1]!.messages[1]);
+        expect(frozen).toContainEqual(requestContextMessage(requests[0]!));
+        expect(frozen).toContainEqual(requestContextMessage(requests[1]!));
         expect(frozen).toContainEqual({ role: 'user', content: prompt });
         const saved = savedInterruptedTurn(
           events,
@@ -7603,7 +7647,7 @@ describe('immutable conversation continuity', () => {
         );
         saved.content.messages[1]!.status = 'failed';
         await a.run('Now continue with the inspection').completion;
-        expect(requests.at(-1)!.messages.slice(2, 2 + frozen.length)).toEqual(
+        expect(requests.at(-1)!.messages.slice(1, 1 + frozen.length)).toEqual(
           frozen,
         );
         const reloadProvider = provider([[final('Still remembered')]], false);
@@ -7617,11 +7661,12 @@ describe('immutable conversation continuity', () => {
         });
         await reloaded.run('Continue after reload').completion;
         expect(
-          reloadProvider.requests[0]!.messages.slice(2, 2 + frozen.length),
+          reloadProvider.requests[0]!.messages.slice(1, 1 + frozen.length),
         ).toEqual(frozen);
         expect(
-          JSON.parse(reloadProvider.requests[0]!.messages[1]!.content!)
-            .capabilityMap.loadedSkills,
+          JSON.parse(
+            requestContextMessage(reloadProvider.requests[0]!).content!,
+          ).capabilityMap.loadedSkills,
         ).toEqual([]);
         expect(f.editor.commands.apply).not.toHaveBeenCalled();
       } finally {
@@ -7789,7 +7834,7 @@ describe('request completion review sessions', () => {
         else if (instruction.startsWith('LocalCut completion review:'))
           yield final(reviews.shift() ?? verdict('unknown'));
         else {
-          const context = JSON.parse(request.messages[1]!.content!);
+          const context = JSON.parse(requestContextMessage(request).content!);
           const next = execution[0]?.find((event) => event.type === 'complete');
           if (
             context.completionDecision &&
@@ -7886,19 +7931,23 @@ describe('request completion review sessions', () => {
           'user',
           'user',
         ]);
-        const evidence = JSON.parse(request.messages[1]!.content!);
+        const evidence = JSON.parse(requestContextMessage(request).content!);
         expect(evidence.initialRequest).toBe(question);
-        expect(request.messages[1]!.content).not.toContain('<｜DSML｜');
+        expect(requestContextMessage(request).content).not.toContain(
+          '<｜DSML｜',
+        );
         expect(request.messages[2]!.content).toContain('internal document');
         expect(request.messages[2]!.content).not.toContain(question);
       }
       const firstTodos = kind(p, 'LocalCut session to-dos:')[0]!;
-      expect(JSON.parse(firstTodos.messages[1]!.content!).existingTodos).toBe(
-        contaminated.todos,
-      );
+      expect(
+        JSON.parse(requestContextMessage(firstTodos).content!).existingTodos,
+      ).toBe(contaminated.todos);
       const execution = p.requests.find((r) => r.tools.length)!;
       expect(execution.messages).toContainEqual(historical);
-      expect(JSON.parse(execution.messages[1]!.content!)).toMatchObject({
+      expect(
+        JSON.parse(requestContextMessage(execution).content!),
+      ).toMatchObject({
         requestContract: goal,
         sessionTodos: todos,
       });
@@ -7947,7 +7996,7 @@ describe('request completion review sessions', () => {
                 : undefined;
           if (role) yield final(roleArtifacts[role]);
           else {
-            const context = JSON.parse(request.messages[1]!.content!);
+            const context = JSON.parse(requestContextMessage(request).content!);
             yield final(
               context.completionDecision
                 ? 'Harbour title and Sunset ending remain; Music bed is blocked on a missing source.'
@@ -7978,12 +8027,16 @@ describe('request completion review sessions', () => {
         const firstTasks = requests.find((request) =>
           request.messages[0]?.content?.startsWith('LocalCut session to-dos:'),
         )!;
-        expect(JSON.parse(firstGoal.messages[1]!.content!)).toMatchObject({
+        expect(
+          JSON.parse(requestContextMessage(firstGoal).content!),
+        ).toMatchObject({
           existingGoal: text,
           initialRequest: latest,
           previousConversation: frozen,
         });
-        expect(JSON.parse(firstTasks.messages[1]!.content!)).toMatchObject({
+        expect(
+          JSON.parse(requestContextMessage(firstTasks).content!),
+        ).toMatchObject({
           existingTodos: text,
           requestContract: roleArtifacts.request_contract,
         });
@@ -8038,12 +8091,14 @@ describe('request completion review sessions', () => {
             'LocalCut completion review:',
           ),
         )!;
-        expect(JSON.parse(assessment.messages[1]!.content!)).toMatchObject({
+        expect(
+          JSON.parse(requestContextMessage(assessment).content!),
+        ).toMatchObject({
           requestContract: roleArtifacts.request_contract,
           sessionTodos: roleArtifacts.session_todos,
         });
         expect(
-          JSON.parse(assessment.messages[1]!.content!).conversation,
+          JSON.parse(requestContextMessage(assessment).content!).conversation,
         ).toContainEqual({
           role: 'assistant',
           content: 'I can add Music bed if you say go.',
@@ -8051,9 +8106,12 @@ describe('request completion review sessions', () => {
         const decision = requests.find(
           (request) =>
             !request.messages[0]?.content?.startsWith('LocalCut ') &&
-            JSON.parse(request.messages[1]!.content!).completionDecision,
+            JSON.parse(requestContextMessage(request).content!)
+              .completionDecision,
         )!;
-        expect(JSON.parse(decision.messages[1]!.content!)).toMatchObject({
+        expect(
+          JSON.parse(requestContextMessage(decision).content!),
+        ).toMatchObject({
           requestContract: roleArtifacts.request_contract,
           sessionTodos: roleArtifacts.session_todos,
           completionReview: roleArtifacts.completion_check,
@@ -8140,9 +8198,11 @@ describe('request completion review sessions', () => {
       const executions = p.requests.filter(
         (r) =>
           r.tools.length &&
-          !JSON.parse(r.messages[1]!.content!).completionDecision,
+          !JSON.parse(requestContextMessage(r).content!).completionDecision,
       );
-      expect(JSON.parse(executions[1]!.messages[1]!.content!)).toMatchObject({
+      expect(
+        JSON.parse(requestContextMessage(executions[1]!).content!),
+      ).toMatchObject({
         requestContract: expect.stringContaining('Persistent goal 2'),
         sessionTodos: expect.stringContaining('- [ ]'),
       });
@@ -8217,7 +8277,9 @@ describe('request completion review sessions', () => {
         checks: 1,
       });
       const execution = p.requests.filter((r) => r.tools.length);
-      expect(JSON.parse(execution[1]!.messages[1]!.content!).sessionTodos).toBe(
+      expect(
+        JSON.parse(requestContextMessage(execution[1]!).content!).sessionTodos,
+      ).toBe(
         'Task notes: inspect current state and answer. No checkbox syntax.',
       );
       expect(f.assistant.snapshot().sessionGoal?.todos).toBe(
@@ -8270,9 +8332,11 @@ describe('request completion review sessions', () => {
       const decision = p.requests.find(
         (r) =>
           !r.messages[0]?.content?.startsWith('LocalCut ') &&
-          JSON.parse(r.messages[1]!.content!).completionDecision,
+          JSON.parse(requestContextMessage(r).content!).completionDecision,
       )!;
-      expect(JSON.parse(decision.messages[1]!.content!)).toMatchObject({
+      expect(
+        JSON.parse(requestContextMessage(decision).content!),
+      ).toMatchObject({
         requestContract: goal,
         sessionTodos: todos,
         completionReview: assessment,
@@ -8392,11 +8456,11 @@ describe('request completion review sessions', () => {
       await f.assistant.run('Please finish the earlier answer').completion;
       const parse = kind(p, 'LocalCut request contract:')[0]!;
       const review = kind(p, 'LocalCut completion review:')[0]!;
-      expect(parse.messages[1]!.content).not.toContain('<｜DSML｜');
+      expect(requestContextMessage(parse).content).not.toContain('<｜DSML｜');
       expect(
-        JSON.parse(parse.messages[1]!.content!).previousConversation,
+        JSON.parse(requestContextMessage(parse).content!).previousConversation,
       ).toEqual(frozen);
-      expect(review.messages[1]!.content).not.toContain('<｜DSML｜');
+      expect(requestContextMessage(review).content).not.toContain('<｜DSML｜');
       const execution = p.requests.find((r) => r.tools.length)!;
       expect(execution.messages).toContainEqual(historical);
       expect(exchange).toEqual(frozen);
@@ -8464,7 +8528,8 @@ describe('request completion review sessions', () => {
         expect(f.project().revision).toBe(1);
         const followUp = kind(p, 'LocalCut request contract:').at(-1)!;
         expect(
-          JSON.parse(followUp.messages[1]!.content!).previousConversation,
+          JSON.parse(requestContextMessage(followUp).content!)
+            .previousConversation,
         ).toEqual(
           expect.arrayContaining([
             expect.objectContaining({
@@ -8481,6 +8546,73 @@ describe('request completion review sessions', () => {
       }
     },
   );
+
+  it('preserves the entire prior request prefix and sends only new to-do evidence with stable role routing', async () => {
+    const p = reviewedProvider([
+      [final('', [call('inspect_project', {}, 'first-read')])],
+      [final('', [call('inspect_project', {}, 'second-read')])],
+      [final('Project inspected.')],
+    ]);
+    const f = make(p, { sessionId: 'cache-chat' });
+    try {
+      const result = await f.assistant.run('Inspect without edits').completion;
+      const main = p.requests.filter(
+        (r) => !r.messages[0]?.content?.startsWith('LocalCut '),
+      );
+      expect(main).toHaveLength(4);
+      expect(main[1]!.messages.slice(0, main[0]!.messages.length)).toEqual(
+        main[0]!.messages,
+      );
+      expect(main[2]!.messages.slice(0, main[1]!.messages.length)).toEqual(
+        main[1]!.messages,
+      );
+      expect(main[1]!.tools).toEqual(main[0]!.tools);
+      expect(main[2]!.tools).toEqual(main[1]!.tools);
+      const latest = main[2]!.messages.at(-1)!;
+      expect(latest.role).toBe('system');
+      expect(JSON.parse(latest.content!).selectedProject.revision).toBe(0);
+      const todos = kind(p, 'LocalCut session to-dos:');
+      expect(new Set(todos.map((r) => r.sessionId)).size).toBe(1);
+      expect(todos[0]!.sessionId).not.toBe(main[0]!.sessionId);
+      const data = todos.map((r) => JSON.parse(r.messages[1]!.content!));
+      expect(data[0].conversation).toContainEqual({
+        role: 'user',
+        content: 'Inspect without edits',
+      });
+      expect(data[1].conversation).not.toContainEqual({
+        role: 'user',
+        content: 'Inspect without edits',
+      });
+      expect(JSON.stringify(data[1].conversation)).toContain('first-read');
+      expect(JSON.stringify(data[2].conversation)).toContain('second-read');
+      expect(data[1].currentContext).not.toHaveProperty('skillCatalog');
+      expect(data[1].capabilityMap.tools.inspect_project.available).toBe(true);
+      expect(data[1].capabilityMap.tools.propose_edits.available).toBe(false);
+      const restored = createRealAssistant({
+        editor: f.editor,
+        provider: p,
+        projectId: f.project().id,
+        model: 'test/model',
+        sessionId: 'cache-chat',
+        branch: f.assistant.branch(result.id),
+        execution: 'requested',
+      });
+      try {
+        await restored.run('Continue after reload').completion;
+        expect(kind(p, 'LocalCut session to-dos:').at(-1)!.sessionId).toBe(
+          todos[0]!.sessionId,
+        );
+        const goalIds = kind(p, 'LocalCut request contract:').map(
+          (r) => r.sessionId,
+        );
+        expect(new Set(goalIds).size).toBe(1);
+      } finally {
+        await restored.dispose();
+      }
+    } finally {
+      await f.assistant.dispose();
+    }
+  });
 
   it('updates every goal and uses a separate assessment identity before main-agent finalization', async () => {
     const p = reviewedProvider(
@@ -8500,9 +8632,10 @@ describe('request completion review sessions', () => {
     const checks = kind(p, 'LocalCut completion review:');
     expect(parses).toHaveLength(2);
     expect(checks).toHaveLength(2);
-    expect(parses[0]!.sessionId).toBe(checks[0]!.sessionId);
-    expect(parses[1]!.sessionId).toBe(checks[1]!.sessionId);
-    expect(parses[0]!.sessionId).not.toBe(parses[1]!.sessionId);
+    expect(parses[0]!.sessionId).not.toBe(checks[0]!.sessionId);
+    expect(parses[1]!.sessionId).not.toBe(checks[1]!.sessionId);
+    expect(parses[0]!.sessionId).toBe(parses[1]!.sessionId);
+    expect(checks[0]!.sessionId).toBe(checks[1]!.sessionId);
     expect(
       parses.every(
         (r) =>
@@ -8582,7 +8715,7 @@ describe('request completion review sessions', () => {
           );
           return;
         }
-        const state = JSON.parse(request.messages[1]!.content!);
+        const state = JSON.parse(requestContextMessage(request).content!);
         if (instruction.startsWith('LocalCut completion review:')) {
           yield final(
             state.actions.length === 3 &&
@@ -8668,7 +8801,8 @@ describe('request completion review sessions', () => {
     expect(
       mutations.map(
         (request) =>
-          JSON.parse(request.messages[1]!.content!).selectedProject.revision,
+          JSON.parse(requestContextMessage(request).content!).selectedProject
+            .revision,
       ),
     ).toEqual([0, 1, 2, 3, 3]);
     expect(
@@ -8830,11 +8964,12 @@ describe('request completion review sessions', () => {
         const decisions = p.requests.filter(
           (r) =>
             !r.messages[0]?.content?.startsWith('LocalCut ') &&
-            JSON.parse(r.messages[1]!.content!).completionDecision,
+            JSON.parse(requestContextMessage(r).content!).completionDecision,
         );
         expect(decisions).toHaveLength(1);
         expect(
-          JSON.parse(decisions[0]!.messages[1]!.content!).completionReview,
+          JSON.parse(requestContextMessage(decisions[0]!).content!)
+            .completionReview,
         ).toBe(value);
         expect(f.editor.commands.apply).not.toHaveBeenCalled();
       } finally {
@@ -9123,7 +9258,7 @@ describe('request completion review sessions', () => {
     await f.assistant.run('Continue').completion;
     const parse = kind(p, 'LocalCut request contract:')[0]!;
     expect(
-      JSON.parse(parse.messages[1]!.content!).previousConversation,
+      JSON.parse(requestContextMessage(parse).content!).previousConversation,
     ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -9590,7 +9725,9 @@ describe('agent narration access and preserved failure evidence', () => {
     try {
       await a.run('Compose music').completion;
       const failure = JSON.parse(
-        p.requests[1]!.messages.at(-1)!.content!,
+        p.requests[1]!.messages.slice()
+          .reverse()
+          .find((m) => m.role === 'tool')!.content!,
       ).error;
       expect(failure).toMatchObject({
         code: 'INVALID_RESPONSE',
@@ -9600,7 +9737,7 @@ describe('agent narration access and preserved failure evidence', () => {
       expect(failure.details.recovery.retryAfter).toBe('reload');
       expect(JSON.stringify(p.requests)).not.toContain('key=secret');
       expect(
-        JSON.parse(p.requests[1]!.messages[1]!.content!).capabilityMap
+        JSON.parse(requestContextMessage(p.requests[1]!).content!).capabilityMap
           .loadedSkills,
       ).toEqual([]);
     } finally {
@@ -9697,8 +9834,11 @@ it('discloses saved voice settings without leaking withheld names or contextual 
   });
   try {
     await a.run('Inspect saved voice settings').completion;
-    const profile = JSON.parse(p.requests[2]!.messages.at(-1)!.content!)
-      .savedVoices[0];
+    const profile = JSON.parse(
+      p.requests[2]!.messages.slice()
+        .reverse()
+        .find((m) => m.role === 'tool')!.content!,
+    ).savedVoices[0];
     expect(profile).toMatchObject({
       id: 'voice-profile',
       model: 'elevenlabs/eleven-flash-v2.5',

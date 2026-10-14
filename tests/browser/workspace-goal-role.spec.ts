@@ -65,7 +65,11 @@ for (const base of behaviorBases) {
         )
           return;
         requests++;
-        const data = JSON.parse(request.messages[1].content);
+        const data = JSON.parse(
+          instruction.startsWith('LocalCut ')
+            ? request.messages[1].content
+            : request.messages.at(-1).content,
+        );
         const auxiliary = instruction.startsWith('LocalCut ');
         if (auxiliary) {
           expect(request.tool_choice).toBe('none');

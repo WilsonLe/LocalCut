@@ -150,7 +150,7 @@ data: [DONE]
     await input.fill('I expect a polished timeline');
     await send.click();
     await expect(responses.last()).toContainText('Cohesive grade.');
-    const oldContext = requests[0]!.messages[1]!;
+    const oldContext = requests[0]!.messages.at(-1)!;
     const oldReply = requests[1]!.messages.find(
       (m) => m.role === 'tool' && m.tool_call_id === 'inspect-0',
     )!;
@@ -210,7 +210,7 @@ data: [DONE]
     expect(restored.messages).toContainEqual(freshReply);
     expect(JSON.stringify(restored.messages)).toContain(offer);
     expect(
-      JSON.parse(restored.messages[1]!.content!).capabilityMap.loadedSkills,
+      JSON.parse(restored.messages.at(-1)!.content!).capabilityMap.loadedSkills,
     ).toEqual([]);
   });
   test(`chat continuation remembers interrupted work and empty replies recover ${base}`, async ({
@@ -242,7 +242,9 @@ data: [DONE]
           return;
         }
         requests.push(body);
-        const prompt = body.messages.at(-1)?.content;
+        const prompt = body.messages
+          .filter((m: { role: string }) => m.role !== 'system')
+          .at(-1)?.content;
         if (prompt?.startsWith('Design a five-day Sydney storyboard')) {
           await new Promise<void>((resolve) => pending.push(resolve));
           await route.abort('failed').catch(() => {});
@@ -367,7 +369,12 @@ data: [DONE]
           expect(JSON.stringify(requests.at(-1)!.messages)).toContain(
             'interrupted before completion',
           );
-          expect(requests.at(-1)!.messages.at(-1)?.content).toBe(followup);
+          expect(
+            requests
+              .at(-1)!
+              .messages.filter((m: { role: string }) => m.role !== 'system')
+              .at(-1)?.content,
+          ).toBe(followup);
           expect(requests).toHaveLength(count + 1);
         },
       );
@@ -525,21 +532,29 @@ data: [DONE]
       const original = requests[0]!;
       const recovered = requests[3]!;
       expect(recovered.session_id).toBe(original.session_id);
-      expect(recovered.messages.at(-1)!.content).toContain(
-        original.messages.at(-1)!.content!,
+      expect(
+        recovered.messages
+          .filter((m: { role: string }) => m.role !== 'system')
+          .at(-1)!.content,
+      ).toContain(
+        original.messages
+          .filter((m: { role: string }) => m.role !== 'system')
+          .at(-1)!.content!,
       );
-      expect(recovered.messages.at(-1)!.content).toContain(
-        'do not repeat actions with completed receipts',
-      );
+      expect(
+        recovered.messages
+          .filter((m: { role: string }) => m.role !== 'system')
+          .at(-1)!.content,
+      ).toContain('do not repeat actions with completed receipts');
       expect(JSON.stringify(recovered.messages)).toContain(
         'interrupted before completion',
       );
       const originalScope = JSON.parse(
-        original.messages[1]!.content!,
+        original.messages.at(-1)!.content!,
       ).availableAssetIds;
       expect(originalScope.length).toBe(1);
       expect(
-        JSON.parse(recovered.messages[1]!.content!).availableAssetIds,
+        JSON.parse(recovered.messages.at(-1)!.content!).availableAssetIds,
       ).toEqual(originalScope);
       await expect(
         page
@@ -577,7 +592,9 @@ data: [DONE]
         const body = route.request().postDataJSON() as (typeof naming)[number];
         if (!body.tools?.length) {
           naming.push(body);
-          const first = body.messages.at(-1)!.content;
+          const first = body.messages
+            .filter((m: { role: string }) => m.role !== 'system')
+            .at(-1)!.content;
           if (first === 'Fail naming') {
             await route.fulfill({
               headers: cors,
@@ -1023,8 +1040,15 @@ data: [DONE]
           page.getByRole('article', { name: 'Your message' }),
         ).toHaveCount(messageCount);
         await expect(responses).toHaveCount(responseCount);
-        expect(requests.at(-1)?.messages.at(-1)).toEqual(
-          originalRequest.messages.at(-1),
+        expect(
+          requests
+            .at(-1)
+            ?.messages.filter((m: { role: string }) => m.role !== 'system')
+            .at(-1),
+        ).toEqual(
+          originalRequest.messages
+            .filter((m: { role: string }) => m.role !== 'system')
+            .at(-1),
         );
         expect(JSON.stringify(requests.at(-1)?.messages)).toContain(
           'interrupted before completion',
@@ -1037,9 +1061,12 @@ data: [DONE]
         await expect(send).toBeEnabled();
         await send.click();
         await expect(responses.last()).toContainText('Ready to continue.');
-        expect(requests.at(-1)?.messages.at(-1)?.content).toBe(
-          `New request after ${navigation}`,
-        );
+        expect(
+          requests
+            .at(-1)
+            ?.messages.filter((m: { role: string }) => m.role !== 'system')
+            .at(-1)?.content,
+        ).toBe(`New request after ${navigation}`);
         await page.setViewportSize({ width: 1440, height: 900 });
       });
     }
@@ -1064,9 +1091,12 @@ data: [DONE]
       await send.click();
       await expect(responses.last()).toContainText('Ready to continue.');
       expect(requests).toHaveLength(count + 1);
-      expect(requests.at(-1)?.messages.at(-1)?.content).toBe(
-        'Changed direction',
-      );
+      expect(
+        requests
+          .at(-1)
+          ?.messages.filter((m: { role: string }) => m.role !== 'system')
+          .at(-1)?.content,
+      ).toBe('Changed direction');
     });
     await input.fill('Fail in foreground');
     await send.click();
@@ -1334,7 +1364,9 @@ data: [DONE]
           .request()
           .postDataJSON() as (typeof requests)[number];
         requests.push(body);
-        const current = body.messages.at(-1);
+        const current = body.messages
+          .filter((m: { role: string }) => m.role !== 'system')
+          .at(-1);
         const final = current?.role === 'tool';
         const answer = String(
           body.messages.filter((m) => m.role === 'user').at(-1)?.content,
@@ -1437,6 +1469,9 @@ data: [DONE]
     const response = page
       .getByRole('article', { name: 'Assistant response' })
       .first();
+    await expect(
+      response.getByRole('button', { name: 'Copy response', exact: true }),
+    ).toBeVisible();
     await expect(
       response
         .locator('[data-chat-response-text]')
