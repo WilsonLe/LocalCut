@@ -4,14 +4,13 @@ import type { CodingQuery } from '../core/coding';
 import { applyOperations } from '../core/commands';
 import type { EditOperation } from '../core/commands';
 import { inferenceRetryDelay } from './inference-retry';
-import {
-  goalEvidence,
-  goalResponse,
-  goalContractPrompt,
-  goalReviewPrompt,
-  todoPrompt,
+import { goalMessages, goalResponse } from './goal-review';
+import type {
+  GoalCompletion,
+  GoalVerdict,
+  GoalStage,
+  SessionGoal,
 } from './goal-review';
-import type { GoalCompletion, GoalVerdict, SessionGoal } from './goal-review';
 import { libraryContext, resolveLibraryAssets } from './library-context';
 import { libraryDescendants } from '../core/media-library';
 import type { LibraryOperation, LibrarySnapshot } from '../core/media-library';
@@ -712,8 +711,7 @@ export function createAssistant(options: AssistantOptions) {
             context.availableAssetIds,
           ]);
         const review = async (
-          name: 'request_contract' | 'completion_check' | 'session_todos',
-          instruction: string,
+          name: GoalStage,
           data: unknown,
           after?: (value: string) => Promise<{ contextChanged: boolean }>,
         ): Promise<string> => {
@@ -740,10 +738,7 @@ export function createAssistant(options: AssistantOptions) {
             model,
             tools: [],
             maxOutputTokens: limits.maxOutputTokens,
-            messages: [
-              { role: 'system' as const, content: instruction },
-              { role: 'user' as const, content: goalEvidence(data) },
-            ],
+            messages: goalMessages(name, data),
           };
           boundedContext(request, limits.maxContextBytes);
           try {
@@ -1583,7 +1578,7 @@ export function createAssistant(options: AssistantOptions) {
           }
         };
         const [requestContract] = await Promise.all([
-          review('request_contract', goalContractPrompt, {
+          review('request_contract', {
             initialRequest: prompt,
             existingGoal: sessionGoal?.goal,
             previousConversation: history.flat(),
@@ -1598,7 +1593,7 @@ export function createAssistant(options: AssistantOptions) {
         };
         publishGoal({ goal: requestContract, todos: sessionGoal?.todos ?? '' });
         const updateTodos = () =>
-          review('session_todos', todoPrompt, {
+          review('session_todos', {
             initialRequest: prompt,
             requestContract,
             existingTodos: sessionGoal?.todos,
@@ -1819,7 +1814,6 @@ export function createAssistant(options: AssistantOptions) {
               reviewedContext = reviewContextIdentity();
               completionReview = await review(
                 'completion_check',
-                goalReviewPrompt,
                 {
                   initialRequest: prompt,
                   requestContract,
