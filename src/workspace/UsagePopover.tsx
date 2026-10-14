@@ -125,7 +125,10 @@ export default function UsagePopover({
               >
                 <Tooltip
                   content={
-                    <span className="whitespace-pre-wrap [overflow-wrap:anywhere]">
+                    <span
+                      tabIndex={0}
+                      className="block max-h-[50vh] overflow-y-auto whitespace-pre-wrap [overflow-wrap:anywhere]"
+                    >
                       {label}
                     </span>
                   }

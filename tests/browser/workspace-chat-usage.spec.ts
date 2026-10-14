@@ -17,7 +17,7 @@ for (const base of behaviorBases) {
     context,
   }, testInfo) => {
     const firstPrompt = 'Explain the editing workflow';
-    const secondPrompt = `Explain a second request with detailed editing steps, keeping the original user message available in the usage tooltip.\nInclude this reference: ${'long-reference-'.repeat(20)}`;
+    const secondPrompt = `Explain a second request with detailed editing steps, keeping the original user message available in the usage tooltip.\nInclude this reference: ${'long-reference-'.repeat(160)}\nEnd of the original user message.`;
     await context.route('https://openrouter.ai/api/v1/models', (route) =>
       route.fulfill({
         headers: cors,
@@ -184,6 +184,35 @@ for (const base of behaviorBases) {
     await expect(page.getByRole('tooltip')).toHaveText(secondPrompt);
     const tooltipBox = (await page.getByRole('tooltip').boundingBox())!;
     expect(tooltipBox.width).toBeLessThanOrEqual(256);
+    expect(tooltipBox.y).toBeGreaterThanOrEqual(0);
+    expect(tooltipBox.y + tooltipBox.height).toBeLessThanOrEqual(
+      page.viewportSize()!.height,
+    );
+    const fullMessage = page.getByRole('tooltip').locator('span');
+    expect(
+      await fullMessage.evaluate(
+        (element) => element.scrollHeight > element.clientHeight,
+      ),
+    ).toBe(true);
+    const expectScrolledToEnd = async () => {
+      await expect
+        .poll(() =>
+          fullMessage.evaluate(
+            (element) =>
+              element.scrollHeight - element.clientHeight - element.scrollTop,
+          ),
+        )
+        .toBeLessThanOrEqual(1);
+    };
+    await fullMessage.hover();
+    await page.mouse.wheel(0, 10000);
+    await expectScrolledToEnd();
+    await fullMessage.evaluate((element) => {
+      element.scrollTop = 0;
+    });
+    await fullMessage.focus();
+    await page.keyboard.press('End');
+    await expectScrolledToEnd();
     await testInfo.attach('usage-message-tooltip', {
       body: await page.screenshot(),
       contentType: 'image/png',
