@@ -1859,8 +1859,18 @@ export function createAssistant(options: AssistantOptions) {
           }),
           refreshExecutionContext(),
         ]);
+        let goalPublished = false;
         const publishGoal = (goal: SessionGoal) => {
           check();
+          // Each turn needs its initial snapshot for history/forks, even when
+          // unchanged. Later no-op maintenance must not republish that document.
+          if (
+            goalPublished &&
+            sessionGoal?.goal === goal.goal &&
+            sessionGoal.todos === goal.todos
+          )
+            return;
+          goalPublished = true;
           sessionGoal = goal;
           emit({ type: 'session_goal', turnId: id, goal }, local);
         };

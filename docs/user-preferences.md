@@ -2,6 +2,12 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Minimal revisions to persistent goals and to-dos — 15 October 2026
+
+- Keep goals and to-dos as persistent documents, updating affected text in place when intent, progress, dependencies or blockers change. Preserve unaffected wording, order, completed work and evidence; do not rewrite, paraphrase or reorganize them each iteration.
+- Leave the document exactly unchanged when no material update is needed. Formatting suggestions apply when creating the initial document, rather than restyling existing notes.
+- This refines the persistent-session and plain-text preferences below; maintenance still checks new evidence and user changes.
+
 ## Prompt cache reuse — 14 October 2026
 
 - Keep stable instructions and conversation history ahead of changing current state to improve provider prompt-cache reuse. Fresh state must remain authoritative, with existing sharing, skill-loading and execution boundaries.
