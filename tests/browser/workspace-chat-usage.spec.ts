@@ -11,6 +11,7 @@ const cors = {
   'access-control-allow-headers': 'authorization,content-type',
   'access-control-allow-methods': 'GET,POST,OPTIONS',
 };
+test.use({ hasTouch: true });
 for (const base of behaviorBases) {
   test(`chat usage popover attributes background agents and costs per request ${base}`, async ({
     page,
@@ -126,28 +127,46 @@ for (const base of behaviorBases) {
     await expect(popover).toContainText(firstPrompt);
     await expect(popover).toContainText('Est. USD');
     const first = popover.locator('[data-usage-request]').first();
-    await expect(first.locator(':scope > summary')).toContainText(firstPrompt);
-    await first.locator(':scope > summary').focus();
+    const detail = page.getByRole('dialog', {
+      name: 'Message usage',
+      exact: true,
+    });
+    await expect(first).toContainText(firstPrompt);
+    await first.focus();
     await expect(page.getByRole('tooltip')).toHaveText(firstPrompt);
     await page.keyboard.press('Enter');
-    await expect(first).toHaveAttribute('open', '');
-    await page.keyboard.press('Space');
-    await expect(first).not.toHaveAttribute('open');
-    await first.locator(':scope > summary').click();
-    await expect(first).toContainText('Main agent');
-    await expect(first).toContainText('Goal agent');
-    await expect(first).toContainText('To-do agent');
-    await expect(first).toContainText('Review agent');
+    await expect(detail).toBeVisible();
+    await expect(first).toHaveAttribute('aria-expanded', 'true');
+    await expect(detail).toContainText(firstPrompt);
+    await expect(detail).toContainText('Main agent');
+    await expect(detail).toContainText('Goal agent');
+    await expect(detail).toContainText('To-do agent');
+    await expect(detail).toContainText('Review agent');
+    await expect(popover).not.toContainText('Main agent');
+    await expect(popover.locator('details, summary')).toHaveCount(0);
+    await expect(detail.locator('details, summary')).toHaveCount(0);
     const beforeTitle = completed;
-    await expect(first.locator(':scope > summary')).toContainText(
-      `$${(beforeTitle * 0.002).toFixed(6)}`,
-    );
-    const main = first
-      .locator('details')
-      .filter({ has: page.locator('summary', { hasText: 'Main agent' }) });
-    await main.locator('summary').click();
+    await expect(first).toContainText(`$${(beforeTitle * 0.002).toFixed(6)}`);
+    const main = detail.getByRole('region', {
+      name: 'Main agent',
+      exact: true,
+    });
     await expect(main).toContainText('Input cache');
     await expect(main).toContainText('$0.000160'); // two main requests, cached input at the saved rate
+    await page.keyboard.press('Escape');
+    await expect(detail).not.toBeVisible();
+    await expect(popover).toBeVisible();
+    await expect(first).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(detail).toBeVisible();
+    await detail.getByRole('button', { name: 'Close message usage' }).click();
+    await expect(detail).not.toBeVisible();
+    await expect(first).toBeFocused();
+    // Focus return reveals the existing message tooltip; Escape dismisses it first.
+    await expect(page.getByRole('tooltip')).toHaveText(firstPrompt);
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('tooltip')).not.toBeVisible();
+    await expect(popover).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(trigger).toBeFocused();
     await page
@@ -164,11 +183,9 @@ for (const base of behaviorBases) {
     await trigger.click();
     const requests = popover.locator('[data-usage-request]');
     await expect(requests).toHaveCount(2);
-    const newestSummary = requests.first().locator(':scope > summary');
+    const newestSummary = requests.first();
     await expect(newestSummary).toContainText(secondPrompt);
-    await expect(requests.last().locator(':scope > summary')).toContainText(
-      firstPrompt,
-    );
+    await expect(requests.last()).toContainText(firstPrompt);
     const messageLabel = newestSummary.locator('.truncate');
     const expectTruncated = async () => {
       const size = await messageLabel.evaluate((element) => ({
@@ -217,22 +234,40 @@ for (const base of behaviorBases) {
       body: await page.screenshot(),
       contentType: 'image/png',
     });
-    await requests.last().locator(':scope > summary').click();
-    await expect(requests.last()).toContainText('Chat title');
-    await expect(requests.last().locator(':scope > summary')).toContainText(
+    await requests.last().click();
+    await expect(detail).toContainText('Chat title');
+    await expect(requests.last()).toContainText(
       `$${((beforeTitle + 1) * 0.002).toFixed(6)}`,
     );
-    await expect(requests.first()).not.toContainText('Chat title');
+    await newestSummary.click();
+    await expect(
+      page.getByRole('dialog', { name: 'Message usage' }),
+    ).toHaveCount(1);
+    await expect(detail).toContainText(secondPrompt);
+    await expect(detail).not.toContainText('Chat title');
+    await expect(requests.last()).toHaveAttribute('aria-expanded', 'false');
+    const expectBounds = async (popup: typeof popover) => {
+      const box = (await popup.boundingBox())!;
+      const viewport = page.viewportSize()!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+    };
+    await expectBounds(popover);
+    await expectBounds(detail);
     await testInfo.attach('usage-popover-desktop', {
-      body: await popover.screenshot({
+      body: await page.screenshot({
         path: testInfo.outputPath('usage-popover-desktop.png'),
       }),
       contentType: 'image/png',
     });
     await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
     const callsBeforeReload = sent;
     await page.reload();
     await trigger.click();
+    await expect(detail).not.toBeVisible();
     await expect(popover).toContainText(`$${(completed * 0.002).toFixed(6)}`);
     expect(sent).toBe(callsBeforeReload);
     await expect(popover.locator('[data-usage-request]')).toHaveCount(2);
@@ -249,17 +284,43 @@ for (const base of behaviorBases) {
     await expect(newestSummary).toBeFocused();
     await expect(page.getByRole('tooltip')).toHaveText(secondPrompt);
     await page.keyboard.press('Enter');
-    await expect(requests.first()).toHaveAttribute('open', '');
-    await page.keyboard.press('Space');
-    await expect(requests.first()).not.toHaveAttribute('open');
-    const box = (await popover.boundingBox())!;
-    expect(box.x).toBeGreaterThanOrEqual(0);
-    expect(box.x + box.width).toBeLessThanOrEqual(390);
-    expect(box.y).toBeGreaterThanOrEqual(0);
-    expect(box.y + box.height).toBeLessThanOrEqual(844);
+    await expect(detail).toBeVisible();
+    await expectBounds(popover);
+    await expectBounds(detail);
+    const original = detail.getByLabel('Original message');
+    await original.focus();
+    await page.keyboard.press('End');
+    await expect
+      .poll(() =>
+        original.evaluate(
+          (element) =>
+            element.scrollHeight - element.clientHeight - element.scrollTop,
+        ),
+      )
+      .toBeLessThanOrEqual(1);
+    await detail
+      .getByRole('region', { name: 'Review agent', exact: true })
+      .scrollIntoViewIfNeeded();
+    await expect(
+      detail.getByRole('button', { name: 'Close message usage' }),
+    ).toBeInViewport();
+    await expectBounds(detail);
     await testInfo.attach('usage-popover-mobile', {
-      body: await popover.screenshot(),
+      body: await page.screenshot({
+        path: testInfo.outputPath('usage-popover-mobile.png'),
+      }),
       contentType: 'image/png',
     });
+    await page.keyboard.press('Escape');
+    await expect(newestSummary).toBeFocused();
+    await newestSummary.tap();
+    await expect(detail).toBeVisible();
+    await trigger.tap();
+    await expect(popover).not.toBeVisible();
+    await expect(detail).not.toBeVisible();
+    await trigger.tap();
+    await expect(popover).toBeVisible();
+    await expect(detail).not.toBeVisible();
+    expect(sent).toBe(callsBeforeReload);
   });
 }

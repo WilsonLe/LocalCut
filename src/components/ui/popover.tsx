@@ -3,6 +3,7 @@ import { cn } from 'cn';
 
 const Popover = PopoverPrimitive.Root;
 const PopoverTrigger = PopoverPrimitive.Trigger;
+const PopoverClose = PopoverPrimitive.Close;
 const PopoverTitle = PopoverPrimitive.Title;
 const PopoverDescription = PopoverPrimitive.Description;
 function PopoverContent({
@@ -37,6 +38,7 @@ function PopoverContent({
 export {
   Popover,
   PopoverTrigger,
+  PopoverClose,
   PopoverContent,
   PopoverTitle,
   PopoverDescription,
