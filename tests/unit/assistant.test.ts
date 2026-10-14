@@ -1774,7 +1774,7 @@ describe('headless assistant boundaries', () => {
       'tool',
       'review_progress',
       'tool',
-      'session_goal',
+      // The final maintenance result is unchanged and adds no goal snapshot.
       'completed',
       'state',
     ]);
@@ -4061,6 +4061,9 @@ describe('assistant response style and branches', () => {
     expect(branched).toContain('Reply 1');
     expect(branched).not.toContain('Later original idea');
     expect(branched).toContain('Keep replies short and concise');
+    expect(branched).toContain(
+      'Every user-facing response must be no longer than 50 words',
+    );
     expect(branched).toContain('brief high-level recommendation');
     await original.run('Continue original').completion;
     const continued = JSON.stringify(requests.at(-1)?.messages);
@@ -8240,6 +8243,153 @@ describe('request completion review sessions', () => {
       await f.assistant.dispose();
     }
   });
+
+  it.each([false, true])(
+    'preserves persistent documents and publishes only changed iteration snapshots (progress: %s)',
+    async (progress) => {
+      const goal =
+        '  Make a harbour cut.\nKeep the original ending.\n' +
+        Array.from(
+          { length: 12 },
+          (_, index) => `- Keep harbour detail number ${index}.`,
+        ).join('\n') +
+        '\n';
+      expect(goal.trim().split(/\s+/).length).toBeGreaterThan(50);
+      const nextGoal = goal + 'Require a closing title.\n';
+      const todos =
+        '## My tasks\n- [ ] Inspect the project\n- [x] Keep the original ending — confirmed\n';
+      const updatedTodos = progress
+        ? todos.replace(
+            '[ ] Inspect the project',
+            '[x] Inspect the project — read receipt',
+          )
+        : todos;
+      const p = reviewedProvider([
+        [final('', [call('inspect_project', {}, 'persistent-read')])],
+        [final('Inspected')],
+        [final('Title requirement retained')],
+      ]);
+      const original = p.stream;
+      let todoCalls = 0;
+      p.stream = async function* (request) {
+        const instruction = request.messages[0]?.content ?? '';
+        if (instruction.startsWith('LocalCut request contract:')) {
+          p.requests.push(structuredClone(request));
+          const data = JSON.parse(request.messages[1]!.content!);
+          expect(data.existingGoal).toBe(goal);
+          expect(instruction).toContain('Keep unaffected wording');
+          expect(instruction).toContain(
+            'Keep each newly created or changed goal bullet short and concise',
+          );
+          expect(instruction).toContain(
+            'there is no limit on the number of bullets',
+          );
+          expect(instruction).toContain(
+            'no 50-word limit on the complete goal document',
+          );
+          expect(request.messages.at(-1)!.content).toContain(
+            'Edit existingGoal minimally in place',
+          );
+          yield final(
+            data.initialRequest === 'Require a closing title' ? nextGoal : goal,
+          );
+        } else if (instruction.startsWith('LocalCut session to-dos:')) {
+          p.requests.push(structuredClone(request));
+          const data = JSON.parse(request.messages[1]!.content!);
+          expect(data.existingTodos).toBe(todoCalls > 1 ? updatedTodos : todos);
+          expect(instruction).toContain(
+            'If nothing material changed, return the existing document exactly',
+          );
+          expect(request.messages.at(-1)!.content).toContain(
+            'Edit existingTodos minimally in place',
+          );
+          yield final(++todoCalls === 1 ? todos : updatedTodos);
+        } else {
+          if (instruction.startsWith('LocalCut completion review:')) {
+            expect(instruction).toContain('no longer than 50 words');
+            expect(request.messages.at(-1)!.content).toContain(
+              'no longer than 50 words',
+            );
+          } else if (!instruction.startsWith('LocalCut ')) {
+            expect(instruction).toContain(
+              'Every user-facing response must be no longer than 50 words',
+            );
+            expect(request.maxOutputTokens).toBeUndefined();
+          }
+          yield* original(request);
+        }
+      };
+      const initial = { goal, todos };
+      const f = make(p, { restoredGoal: initial });
+      const events: AssistantEvent[] = [];
+      f.assistant.subscribe((event) => events.push(event));
+      try {
+        const first = await f.assistant.run('Inspect the project').completion;
+        const expected = { goal, todos: updatedTodos };
+        expect(f.assistant.snapshot().sessionGoal).toEqual(expected);
+        expect(events.filter((event) => event.type === 'session_goal')).toEqual(
+          [
+            { type: 'session_goal', turnId: first.id, goal: initial },
+            ...(progress
+              ? [{ type: 'session_goal', turnId: first.id, goal: expected }]
+              : []),
+          ],
+        );
+        expect(todoCalls).toBeGreaterThan(2);
+        const executions = p.requests.filter((request) => request.tools.length);
+        expect(
+          JSON.parse(requestContextMessage(executions[1]!).content!)
+            .sessionTodos,
+        ).toBe(updatedTodos);
+        expect(
+          first.exchange!.some(
+            (message) =>
+              message.role === 'tool' &&
+              message.tool_call_id === 'persistent-read',
+          ),
+        ).toBe(true);
+        const fork = createRealAssistant({
+          editor: f.editor,
+          provider: p,
+          projectId: f.project().id,
+          model: 'test/model',
+          branch: f.assistant.branch(first.id),
+        });
+        const restored = createRealAssistant({
+          editor: f.editor,
+          provider: p,
+          projectId: f.project().id,
+          model: 'test/model',
+          restoredGoal: f.assistant.snapshot().sessionGoal,
+        });
+        try {
+          const count = p.requests.length;
+          expect(fork.snapshot().sessionGoal).toEqual(expected);
+          expect(restored.snapshot().sessionGoal).toEqual(expected);
+          expect(p.requests).toHaveLength(count);
+          const followUp = await restored.run('Require a closing title')
+            .completion;
+          expect(restored.snapshot().sessionGoal).toEqual({
+            goal: nextGoal,
+            todos: updatedTodos,
+          });
+          expect(followUp.completion?.contract).toBe(nextGoal);
+          const restoredGoalRequest = kind(p, 'LocalCut request contract:').at(
+            -1,
+          )!;
+          expect(
+            JSON.parse(restoredGoalRequest.messages[1]!.content!).existingGoal,
+          ).toBe(goal);
+          expect(fork.snapshot().sessionGoal).toEqual(expected);
+        } finally {
+          await fork.dispose();
+          await restored.dispose();
+        }
+      } finally {
+        await f.assistant.dispose();
+      }
+    },
+  );
 
   it('joins asynchronous to-do text before the next iteration without requiring checkboxes', async () => {
     const p = reviewedProvider([
