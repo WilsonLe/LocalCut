@@ -49,7 +49,8 @@ export type RecoveryDetails = {
     | 'request_contract'
     | 'session_todos'
     | 'completion_check'
-    | 'assistant_response';
+    | 'assistant_response'
+    | 'context_compaction';
   providerReason?: (typeof providerReasons)[number];
   parameter?: (typeof requestParameters)[number];
 };
@@ -86,7 +87,8 @@ export function safeRecoveryDetails(
     metadata.stage === 'request_contract' ||
     metadata.stage === 'session_todos' ||
     metadata.stage === 'completion_check' ||
-    metadata.stage === 'assistant_response'
+    metadata.stage === 'assistant_response' ||
+    metadata.stage === 'context_compaction'
   )
     details.stage = metadata.stage;
   if (

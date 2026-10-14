@@ -15,6 +15,21 @@ function createAssistant(options: Parameters<typeof createRealAssistant>[0]) {
     ...options,
     provider: {
       async *stream(request, signal) {
+        if (
+          request.messages[0]?.content?.startsWith(
+            'LocalCut context compaction:',
+          )
+        ) {
+          yield {
+            type: 'complete' as const,
+            message: {
+              role: 'assistant' as const,
+              content:
+                'Historical context compacted for this synthetic fixture; completed tool observations stay in the immutable archive.',
+            },
+          };
+          return;
+        }
         const reply = goalReviewReply(request);
         if (reply) {
           yield { type: 'complete' as const, message: reply };
@@ -944,9 +959,12 @@ describe('headless assistant boundaries', () => {
     const completed = events.filter(
       (event) =>
         event.phase === 'completed' &&
-        !['request_contract', 'session_todos', 'completion_check'].includes(
-          event.name,
-        ),
+        ![
+          'request_contract',
+          'session_todos',
+          'completion_check',
+          'compact_context',
+        ].includes(event.name),
     );
     expect(completed).toHaveLength(7);
     expect(completed.some((event) => event.resultOmitted)).toBe(false);
@@ -1967,7 +1985,11 @@ describe('headless assistant boundaries', () => {
         a.getProposal(response.proposalIds[0]!).batch.operations,
       ).toHaveLength(1001);
       expect(p.requests.length).toBe(28);
-      expect(p.requests.at(-1)!.messages.length).toBeGreaterThan(256);
+      expect(response.exchange.length).toBeGreaterThan(256);
+      expect(a.snapshot().compaction).toBeDefined();
+      expect(p.requests.at(-1)!.messages.length).toBeLessThan(
+        response.exchange.length,
+      );
       expect(p.requests.every((request) => request.tools.length > 0)).toBe(
         true,
       );
@@ -1979,11 +2001,23 @@ describe('headless assistant boundaries', () => {
       for (let index = 0; index < 61; index++)
         await a.run(`Request ${index}`).completion;
       expect(a.snapshot().historyTurns).toBe(61);
+      // The working request is compacted, while an earlier branch still retains
+      // the exact first exchange from the immutable archive.
+      const earlierProvider = provider([[final()]]);
+      const earlier = createAssistant({
+        editor: f.editor,
+        provider: earlierProvider,
+        projectId: f.project().id,
+        model: 'model',
+        branch: a.branch(a.snapshot().historyTurnIds[0]!),
+      });
+      await earlier.run('Inspect earlier context').completion;
       expect(
-        p.requests
+        earlierProvider.requests
           .at(-1)!
           .messages.some((message) => message.content === 'Request 0'),
       ).toBe(true);
+      await earlier.dispose();
     } finally {
       await a.dispose();
     }

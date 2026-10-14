@@ -2,6 +2,13 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Automatic working-context compaction — 14 October 2026
+
+- Automatically compact model working context when it reaches 192,000 estimated tokens, 75% of the original 256k working budget. This supersedes the no-compaction parts of the 12 October no-cap preference; retain uncapped output and execution with provider/caller limits.
+- Preserve the full original messages, supplied snapshots and tool receipts locally. Compaction creates a separate semantic working summary; it never rewrites or deletes the archive or grants execution authority.
+- Persist and reuse the checkpoint for subsequent messages, explicit Retry and reload. Compact again only when the saved summary plus new working context crosses the threshold, not simply because the full archive remains large.
+- Show visible compaction progress and retain cancellation and actionable recovery. Use the same selected model and existing sharing scope; include compaction usage in chat accounting.
+
 ## Silent audio probes — 14 October 2026
 
 - Run native capture audio probes with Chrome's `--disable-audio-output` flag so test tones do not play through the speakers. Preserve native recorded-audio and waveform assertions; quiet execution must not reduce capture coverage.

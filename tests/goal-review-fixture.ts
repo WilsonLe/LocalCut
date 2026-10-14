@@ -16,18 +16,27 @@ export function goalReviewReply(
         return {
           role: 'assistant',
           content:
+            context.candidateResponse ??
             [...request.messages]
               .reverse()
               .find(
                 (message) =>
                   message.role === 'assistant' && !message.tool_calls?.length,
-              )?.content ?? 'Scripted final answer',
+              )?.content ??
+            'Scripted final answer',
         };
     } catch {
       /* Non-context request, such as chat naming. */
     }
   }
   if (request.tools?.length) return;
+  if (instruction.startsWith('LocalCut context compaction:')) {
+    return {
+      role: 'assistant',
+      content:
+        'The scripted request continues with current state and confirmed receipts. Historical tool observations are archived. Never replay completed paid actions; inspect current state before any new edit.',
+    };
+  }
   if (instruction.startsWith('LocalCut request contract:')) {
     return {
       role: 'assistant',
@@ -39,7 +48,7 @@ export function goalReviewReply(
     const data = JSON.parse(request.messages[1]!.content!);
     return {
       role: 'assistant',
-      content: `## To-dos\n- [${data.conversation?.length > 1 ? 'x' : ' '}] Fulfill the scripted request`,
+      content: `## To-dos\n- [${(data.conversation?.length ?? data.previousConversation?.length ?? 0) > 1 ? 'x' : ' '}] Fulfill the scripted request`,
     };
   }
   if (instruction.startsWith('LocalCut completion review:')) {

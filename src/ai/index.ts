@@ -1,6 +1,7 @@
 /** Optional AI entry. Importing this module never starts work or opens storage. */
 export { createOpenRouter } from './openrouter';
 export type { ElevenLabsSettings } from './elevenlabs';
+export type { ChatCompaction } from './chat-context';
 export { createAssistant } from './assistant';
 export { generateChatTitle } from './chat-title';
 export { createAssetIndexer } from './asset-indexer';
