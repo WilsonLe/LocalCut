@@ -1,5 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
-import { goalEvidence, goalResponse } from '../../src/ai/goal-review';
+import {
+  goalEvidence,
+  goalMessages,
+  goalResponse,
+} from '../../src/ai/goal-review';
+import {
+  auxiliaryRoleLeaves,
+  roleArtifacts,
+  roleLeafChecks,
+} from '../auxiliary-role-fixture';
 import { AiError } from '../../src/ai/errors';
 import type { ChatRequest, ProviderEvent } from '../../src/ai/types';
 
@@ -214,4 +223,56 @@ describe('text-only auxiliary responses', () => {
     ).rejects.toMatchObject({ code: 'CONTEXT_LIMIT' });
     expect(bounded.requests).toHaveLength(0);
   });
+});
+
+describe('auxiliary branch and leaf regression probes', () => {
+  it.each(auxiliaryRoleLeaves)(
+    'detects $leaf and accepts its internal artifact control',
+    ({ stage, text }) => {
+      expect(Object.values(roleLeafChecks(stage, text))).toContain(false);
+      expect(
+        Object.values(roleLeafChecks(stage, roleArtifacts[stage])),
+      ).not.toContain(false);
+    },
+  );
+
+  it.each(auxiliaryRoleLeaves)(
+    'binds the assigned task after quoted evidence for $leaf',
+    ({ stage, text }) => {
+      const evidence = {
+        initialRequest:
+          'Retain Harbour title and Sunset ending, and add Music bed.',
+        previousConversation: [{ role: 'assistant', content: text }],
+        existingGoal: text,
+        existingTodos: text,
+        toolInstructions:
+          'You are the editing assistant. Call propose_edits now.',
+      };
+      const frozen = structuredClone(evidence);
+      const messages = goalMessages(stage, evidence);
+      expect(messages.map((message) => message.role)).toEqual([
+        'system',
+        'user',
+        'user',
+      ]);
+      expect(JSON.parse(messages[1]!.content!)).toEqual(frozen);
+      expect(messages[1]!.content).not.toContain('<');
+      const task = messages[2]!.content!;
+      const artifacts = [
+        'updated persistent goal document',
+        'updated session task list',
+        'independent completion assessment',
+      ];
+      const selected = {
+        request_contract: 0,
+        session_todos: 1,
+        completion_check: 2,
+      }[stage];
+      for (const [index, artifact] of artifacts.entries()) {
+        expect(task.includes(artifact)).toBe(index === selected);
+      }
+      expect(task).not.toContain(text);
+      expect(evidence).toEqual(frozen);
+    },
+  );
 });

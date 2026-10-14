@@ -20,12 +20,20 @@ for (const base of behaviorBases) {
   }, testInfo) => {
     const contaminated =
       'I will verify my capabilities.\n<｜DSML｜ calls><｜DSML｜ invoke name="inspect_capabilities"></｜DSML｜ invoke></｜DSML｜ calls>';
-    const goal = '## Goal\nAdd background music to the Sydney cut.';
+    const goal =
+      '## Goal\nAdd background music to the Sydney cut.\n## Success conditions\n- Background music exists.\n## Stop conditions\n- A music source is needed.';
+    const contaminatedGoal =
+      'State verified. Nothing further is executable on my side.';
+    const contaminatedAssessment =
+      'No — I cannot generate music. Upload a file and say go.';
+    const assessment =
+      'The candidate answer correctly identifies the missing source. Background music remains unfinished; prior assistant claims and offers do not prove completion.';
     const todos =
       '## To-dos\n- [x] Explain the available audio capabilities.\n- [ ] Add background music — blocked: a music source is needed.';
     let recover = false;
     let requests = 0;
-    let recoveredEvidence = false;
+    const recoveredEvidence = { goal: false, todos: false, assessment: false };
+    let correctedMainContext = false;
     await context.route('https://openrouter.ai/api/v1/models', (route) =>
       route.fulfill({
         headers: cors,
@@ -52,7 +60,7 @@ for (const base of behaviorBases) {
         const request = route.request().postDataJSON();
         const instruction = request.messages[0].content;
         if (
-          !instruction.startsWith('LocalCut ') &&
+          instruction.startsWith('Name this video-editing chat') &&
           (await fulfillChatTitle(route))
         )
           return;
@@ -65,7 +73,12 @@ for (const base of behaviorBases) {
           expect(
             request.messages.map((message: { role: string }) => message.role),
           ).toEqual(['system', 'user', 'user']);
-          expect(request.messages[2].content).toContain('internal document');
+          const task = instruction.startsWith('LocalCut request contract:')
+            ? 'updated persistent goal document'
+            : instruction.startsWith('LocalCut session to-dos:')
+              ? 'updated session task list'
+              : 'independent completion assessment';
+          expect(request.messages[2].content).toContain(task);
           expect(request.messages[2].content).not.toContain(
             data.initialRequest,
           );
@@ -76,9 +89,33 @@ for (const base of behaviorBases) {
           recover &&
           data.existingTodos === contaminated
         )
-          recoveredEvidence = true;
+          recoveredEvidence.todos = true;
+        if (
+          recover &&
+          instruction.startsWith('LocalCut request contract:') &&
+          data.existingGoal === contaminatedGoal
+        )
+          recoveredEvidence.goal = true;
+        if (
+          recover &&
+          instruction.startsWith('LocalCut completion review:') &&
+          JSON.stringify(data.previousConversation).includes(
+            contaminatedAssessment,
+          )
+        )
+          recoveredEvidence.assessment = true;
+        if (recover && !auxiliary && data.completionDecision) {
+          expect(data).toMatchObject({
+            requestContract: goal,
+            sessionTodos: todos,
+            completionReview: assessment,
+          });
+          correctedMainContext = true;
+        }
         const content = instruction.startsWith('LocalCut request contract:')
-          ? goal
+          ? recover
+            ? goal
+            : contaminatedGoal
           : instruction.startsWith('LocalCut session to-dos:')
             ? // Model outputs are scripted: this establishes transport and recovery,
               // not live model compliance with the new role instructions.
@@ -86,7 +123,9 @@ for (const base of behaviorBases) {
               ? todos
               : contaminated
             : instruction.startsWith('LocalCut completion review:')
-              ? 'Background music remains blocked on a music source.'
+              ? recover
+                ? assessment
+                : contaminatedAssessment
               : 'There is no music synthesis action available. A music file is needed.';
         await route.fulfill({
           headers: cors,
@@ -139,6 +178,21 @@ for (const base of behaviorBases) {
       ).toBeVisible();
     };
     await submit('Generate background music yourself, can you not?');
+    await page
+      .getByRole('button', { name: 'Session goal', exact: true })
+      .click();
+    await expect(page.locator('[data-slot="popover-content"]')).toContainText(
+      contaminatedGoal,
+    );
+    await page.keyboard.press('Escape');
+    await page
+      .getByRole('article', { name: 'Assistant response' })
+      .last()
+      .getByRole('button', { name: 'Completion reviewed · 1', exact: true })
+      .click();
+    await expect(page.locator('[data-completion-review]').last()).toContainText(
+      contaminatedAssessment,
+    );
     await page.getByRole('button', { name: 'To-dos', exact: true }).click();
     await expect(page.locator('[data-slot="popover-content"]')).toContainText(
       '<｜DSML｜ calls>',
@@ -146,7 +200,30 @@ for (const base of behaviorBases) {
     await page.keyboard.press('Escape');
     recover = true;
     await submit('I still need background music for the Sydney cut.');
-    expect(recoveredEvidence).toBe(true);
+    expect(recoveredEvidence).toEqual({
+      goal: true,
+      todos: true,
+      assessment: true,
+    });
+    expect(correctedMainContext).toBe(true);
+    await page
+      .getByRole('button', { name: 'Session goal', exact: true })
+      .click();
+    await expect(page.locator('[data-slot="popover-content"]')).toContainText(
+      'Background music exists',
+    );
+    await expect(
+      page.locator('[data-slot="popover-content"]'),
+    ).not.toContainText(contaminatedGoal);
+    await page.keyboard.press('Escape');
+    await page
+      .getByRole('article', { name: 'Assistant response' })
+      .last()
+      .getByRole('button', { name: 'Completion reviewed · 1', exact: true })
+      .click();
+    await expect(page.locator('[data-completion-review]').last()).toContainText(
+      assessment,
+    );
     await page.getByRole('button', { name: 'To-dos', exact: true }).click();
     const popover = page.locator('[data-slot="popover-content"]');
     await expect(
@@ -165,6 +242,22 @@ for (const base of behaviorBases) {
     await expect(popover.getByRole('checkbox').nth(0)).toBeChecked();
     await expect(popover.getByRole('checkbox').nth(1)).not.toBeChecked();
     await expect(popover).toContainText('blocked: a music source is needed');
+    await page.keyboard.press('Escape');
+    await page
+      .getByRole('button', { name: 'Session goal', exact: true })
+      .click();
+    await expect(page.locator('[data-slot="popover-content"]')).toContainText(
+      'Background music exists',
+    );
+    await page.keyboard.press('Escape');
+    await page
+      .getByRole('article', { name: 'Assistant response' })
+      .last()
+      .getByRole('button', { name: 'Completion reviewed · 1', exact: true })
+      .click();
+    await expect(page.locator('[data-completion-review]').last()).toContainText(
+      assessment,
+    );
     expect(requests).toBe(beforeReload);
   });
 }
