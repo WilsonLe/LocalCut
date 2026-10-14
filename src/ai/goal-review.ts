@@ -86,7 +86,7 @@ async function readGoalResponse({
   interrupt: <V>(promise: Promise<V>) => Promise<V>;
   check: () => void;
   accountBytes: (value: unknown) => void;
-  accountUsage: (usage?: Usage) => void;
+  accountUsage: (usage?: Usage, model?: string) => void;
   checkRequest?: (request: ChatRequest) => void;
   /** Provisional display text only; terminal validation still owns acceptance. */
   onProgress?: (text: string) => void;
@@ -124,7 +124,7 @@ async function readGoalResponse({
     'RESPONSE_INCOMPLETE',
     'Completion reviewer did not finish.',
   );
-  accountUsage(complete.usage);
+  accountUsage(complete.usage, complete.model);
   aiInvariant(
     complete.message.role === 'assistant' &&
       !complete.message.tool_calls?.length,

@@ -70,7 +70,12 @@ export interface OpenRouterModel {
   supportsTools: boolean;
   inputModalities?: string[];
   /** Provider prices as decimal USD strings, without floating-point rounding. */
-  pricing?: { prompt?: string; completion?: string };
+  pricing?: {
+    prompt?: string;
+    completion?: string;
+    input_cache_read?: string;
+    input_cache_write?: string;
+  };
 }
 export interface ConnectionStatus {
   connected: boolean;

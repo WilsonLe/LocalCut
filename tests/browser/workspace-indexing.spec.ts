@@ -141,6 +141,14 @@ for (const base of behaviorBases) {
       release = resolve;
     });
     const ids: string[] = [];
+    let releaseDecision!: () => void;
+    const decisionGate = new Promise<void>((resolve) => {
+      releaseDecision = resolve;
+    });
+    let announceDecision!: () => void;
+    const decisionStarted = new Promise<void>((resolve) => {
+      announceDecision = resolve;
+    });
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
@@ -148,8 +156,20 @@ for (const base of behaviorBases) {
           await route.fulfill({ headers: cors });
           return;
         }
-        if (await fulfillChatTitle(route)) return;
         const body = route.request().postDataJSON();
+        let decision = false;
+        try {
+          decision =
+            JSON.parse(body.messages[1]?.content ?? '{}').completionDecision ===
+            true;
+        } catch {
+          // Naming and media-label requests do not carry main-agent context.
+        }
+        if (decision) {
+          announceDecision();
+          await decisionGate;
+        }
+        if (await fulfillChatTitle(route)) return;
         let reply: string | null = null;
         let tool_calls: object[] | undefined;
         const tools = (calls: { name: string; args: unknown }[]) =>
@@ -339,6 +359,19 @@ for (const base of behaviorBases) {
         ),
       ),
     ).toBe(true);
+    // Streamed candidate text is not a terminal response. Hold the main-agent
+    // completion decision, then join it before exercising completed-chat reload.
+    await decisionStarted;
+    await expect(
+      page.getByRole('button', { name: 'Cancel response', exact: true }),
+    ).toBeVisible();
+    releaseDecision();
+    await expect(
+      page.getByRole('button', { name: 'Cancel response', exact: true }),
+    ).toHaveCount(0);
+    await expect(response.locator('[data-chat-response-text]')).toHaveText(
+      text,
+    );
     await testInfo.attach('parallel index results above final text', {
       body: await page.screenshot({
         path: testInfo.outputPath('parallel-index.png'),
