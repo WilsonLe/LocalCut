@@ -14,6 +14,7 @@ export const usageCallSchema = z.object({
   id: z.string().min(1),
   source: z.enum([
     'main',
+    'compaction',
     'request_contract',
     'session_todos',
     'completion_check',
@@ -37,6 +38,7 @@ export type UsageSource = z.infer<typeof usageCallSchema>['source'];
 export type UsageCall = z.infer<typeof usageCallSchema>;
 export const usageLabels: Record<UsageSource, string> = {
   main: 'Main agent',
+  compaction: 'Context compaction',
   request_contract: 'Goal agent',
   session_todos: 'To-do agent',
   completion_check: 'Review agent',

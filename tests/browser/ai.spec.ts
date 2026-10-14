@@ -194,6 +194,7 @@ for (const base of behaviorBases) {
     await mockCatalog(context);
     let step = 0;
     let scenario = '';
+    let scenarioSession = '';
     const requests: {
       scenario: string;
       tools: unknown[];
@@ -204,11 +205,15 @@ for (const base of behaviorBases) {
       async (route) => {
         if (await fulfillGoalReview(route)) return;
         const body = route.request().postDataJSON();
-        const prompt = body.messages.findLast(
-          (message: { role: string }) => message.role === 'user',
-        ).content as string;
-        if (prompt !== scenario) {
-          scenario = prompt;
+        // Scenario identity belongs to the stable execution session. Historical
+        // context snapshots and compaction summaries are not new user requests.
+        if (body.session_id !== scenarioSession) {
+          scenarioSession = body.session_id;
+          scenario = body.messages.find(
+            (message: { role: string; content: string }) =>
+              message.role === 'user' &&
+              ['long', 'rounds', 'calls', 'overflow'].includes(message.content),
+          ).content;
           step = 0;
         }
         step++;
@@ -283,6 +288,8 @@ for (const base of behaviorBases) {
         provider.setKey(key);
         const project = await editor.projects.create('Budget regression');
         const outcomes = [];
+        let archivedLongMessages = 0,
+          compactedLong = false;
         try {
           for (const scenario of ['long', 'rounds', 'calls', 'overflow']) {
             const assistant = createAssistant({
@@ -303,6 +310,10 @@ for (const base of behaviorBases) {
               const before = (await editor.projects.snapshot(project.id))
                 .revision;
               const response = await assistant.run(scenario).completion;
+              if (scenario === 'long') {
+                archivedLongMessages = response.exchange.length;
+                compactedLong = !!assistant.snapshot().compaction;
+              }
               const unchanged =
                 (await editor.projects.snapshot(project.id)).revision ===
                 before;
@@ -331,6 +342,8 @@ for (const base of behaviorBases) {
           const saved = await editor.projects.snapshot(project.id);
           return {
             outcomes,
+            archivedLongMessages,
+            compactedLong,
             revision: saved.revision,
             tracks: saved.tracks.map((track) => track.id),
           };
@@ -369,7 +382,11 @@ for (const base of behaviorBases) {
     const longRequests = requests.filter(
       (request) => request.scenario === 'long',
     );
-    expect(longRequests.at(-1)!.messages.length).toBeGreaterThan(256);
+    expect(result.archivedLongMessages).toBeGreaterThan(256);
+    expect(result.compactedLong).toBe(true);
+    expect(longRequests.at(-1)!.messages.length).toBeLessThan(
+      result.archivedLongMessages,
+    );
     expect(longRequests.every((request) => request.tools.length > 0)).toBe(
       true,
     );

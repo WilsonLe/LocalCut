@@ -1,6 +1,7 @@
 import { strToU8, zipSync } from 'fflate';
 import type { Asset } from '../core/model';
 import type { EditProposal } from '../ai';
+import type { ChatCompaction } from '../ai/chat-context';
 import type { SavedChatMessage } from '../storage/chats';
 import type { TaskQueue } from './task-queue';
 import { safeChatFailure } from '../core/error-diagnostics';
@@ -11,6 +12,7 @@ export interface ChatExportMessage extends SavedChatMessage {
   proposalIds: string[];
 }
 export interface ChatExportSource {
+  compaction?: ChatCompaction;
   messages: ChatExportMessage[];
   proposals: Record<string, EditProposal>;
   draft: string;
@@ -30,6 +32,7 @@ export function captureChatExport(
   return structuredClone({
     version: 1 as const,
     ...metadata,
+    compaction: source.compaction,
     messages: source.messages.map((message) => ({
       id: message.id,
       role: message.role,
@@ -109,6 +112,13 @@ export function chatExportMarkdown(snapshot: ChatExportSnapshot) {
     if (message.usage)
       lines.push('', '### Usage', '', jsonBlock(message.usage));
   }
+  if (snapshot.compaction)
+    lines.push(
+      '',
+      '## Working context checkpoint',
+      '',
+      jsonBlock(snapshot.compaction),
+    );
   if (snapshot.proposals.length)
     lines.push('', '## Proposals', '', jsonBlock(snapshot.proposals));
   if (snapshot.draft.text || snapshot.draft.attachments.length) {

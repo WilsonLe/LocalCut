@@ -67,14 +67,37 @@ export function httpError(
   if (diagnostic && typeof diagnostic === 'object') {
     const error = diagnostic as Record<string, unknown>;
     const metadata = error.metadata;
+    const provider =
+      metadata && typeof metadata === 'object'
+        ? (metadata as Record<string, unknown>)
+        : undefined;
+    let nested: Record<string, unknown> | undefined;
+    if (typeof provider?.raw === 'string' && provider.raw.length <= 16_384) {
+      try {
+        const parsed: unknown = JSON.parse(provider.raw);
+        if (
+          parsed &&
+          typeof parsed === 'object' &&
+          'error' in parsed &&
+          parsed.error &&
+          typeof parsed.error === 'object'
+        )
+          nested = parsed.error as Record<string, unknown>;
+      } catch {
+        /* Unknown provider payloads remain private. */
+      }
+    }
     // Providers use code, type or metadata.error_type for machine categories.
     // Prefer a recognized category; an unknown wrapper must not hide it.
     for (const category of [
       metadata && typeof metadata === 'object' && 'error_type' in metadata
         ? metadata.error_type
         : undefined,
+      provider?.provider_error_code,
       error.code,
       error.type,
+      nested?.code,
+      nested?.type,
     ]) {
       const safe = safeRecoveryDetails({ providerReason: category });
       if (safe.providerReason) {
@@ -83,6 +106,35 @@ export function httpError(
       }
     }
     Object.assign(details, safeRecoveryDetails({ parameter: error.param }));
+    // Together reports exact token admission in this fixed form. Retain only
+    // integers, never its raw message. Unknown formats cannot authorize repair.
+    const tokenMessage = nested?.message ?? error.message;
+    if (
+      status === 400 &&
+      details.providerReason === 'context_length_exceeded' &&
+      typeof tokenMessage === 'string'
+    ) {
+      const counts =
+        /^This model's maximum context length is (\d+) tokens, but the request requires (\d+) tokens \((\d+) input(?: including image\/vision expansion)? \+ (\d+) for the completion\)\. Reduce the input length or max_tokens\.$/.exec(
+          tokenMessage,
+        );
+      if (counts) {
+        const [contextTokens, totalTokens, inputTokens, completionTokens] =
+          counts.slice(1).map(Number) as [number, number, number, number];
+        if (
+          [contextTokens, totalTokens, inputTokens, completionTokens].every(
+            (value) => Number.isSafeInteger(value) && value > 0,
+          ) &&
+          inputTokens + completionTokens === totalTokens &&
+          totalTokens > contextTokens
+        )
+          details.tokenAdmission = {
+            contextTokens,
+            inputTokens,
+            completionTokens,
+          };
+      }
+    }
   }
   if (Number.isFinite(seconds) && seconds >= 0)
     details.retryAfterSeconds = Math.min(Math.ceil(seconds), 86_400);

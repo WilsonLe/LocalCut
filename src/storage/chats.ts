@@ -3,7 +3,7 @@ import { openDB } from 'idb';
 import type { DBSchema, IDBPDatabase } from 'idb';
 import { z } from 'zod';
 import { safeChatFailure } from '../core/error-diagnostics';
-import { chatExchangeSchema } from '../ai/chat-context';
+import { chatExchangeSchema, chatCompactionSchema } from '../ai/chat-context';
 
 const identity = z.string().min(1).max(200);
 const toolSchema = z.object({
@@ -48,6 +48,7 @@ const messageSchema = z.object({
   tools: z.array(toolSchema).optional(),
 });
 export const chatContentSchema = z.object({
+  compaction: chatCompactionSchema.optional(),
   prompt: z.string(),
   sessionGoal: sessionGoalSchema.optional(),
   attachmentIds: z.array(identity),

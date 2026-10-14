@@ -1094,6 +1094,7 @@ export function Conversation(props: ConversationProps) {
                           historyTurnIds: branch.historyTurnIds,
                           historyIndexScope: branch.historyIndexScope,
                           sessionGoal: branch.sessionGoal,
+                          compaction: branch.checkpoint.compaction,
                         },
                         `Branch of ${session.title}`,
                       );
