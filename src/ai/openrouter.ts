@@ -26,6 +26,12 @@ import type {
 } from './types.ts';
 
 const API = 'https://openrouter.ai/api/v1';
+// Let session_id drive sticky routing; manual provider order would override it.
+const CHAT_PROVIDER_POLICY = Object.freeze({
+  data_collection: 'deny',
+  require_parameters: true,
+  allow_fallbacks: false,
+});
 export const OPENROUTER_LIMITS = Object.freeze({
   requestBytes: 2_097_152,
   timeoutMs: 120_000,
@@ -240,7 +246,7 @@ export function validateRequest(request: ChatRequest): string {
             parallel_tool_calls: false,
           }
         : { tool_choice: 'none' }),
-      provider: { data_collection: 'deny', require_parameters: true },
+      provider: CHAT_PROVIDER_POLICY,
     });
   } catch {
     throw new AiError('INVALID_REQUEST', 'AI request could not be serialized.');
@@ -684,7 +690,7 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
         ],
         max_tokens: request.maxOutputTokens,
         stream: true,
-        provider: { data_collection: 'deny', require_parameters: true },
+        provider: CHAT_PROVIDER_POLICY,
       });
       aiInvariant(
         new TextEncoder().encode(body).byteLength <=
