@@ -3,7 +3,7 @@ export const skillCatalog = [
   {
     id: 'coding',
     description:
-      'Read, write, edit, glob, grep, browser Bash and arbitrary isolated JavaScript in the persistent project coding directory; compose/synthesize original music and sound effects with code, render WAV, retain sources, and import generated files into Media.',
+      'Read, write, edit, glob, grep, browser Bash and arbitrary isolated JavaScript in the persistent project coding directory; compose, score or improve original music and sound effects with approachable creative questions, layered arrangement and code synthesis; render WAV, retain sources, and import generated files into Media.',
   },
   {
     id: 'storyboard',
