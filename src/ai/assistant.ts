@@ -96,6 +96,8 @@ export interface AssistantLimits {
 }
 export interface AssistantBranch {
   readonly id: string;
+  /** Advisory working memory, never the opaque branch execution identity. */
+  readonly compaction?: ChatCompaction;
 }
 const branches = new WeakMap<
   AssistantBranch,
@@ -814,6 +816,8 @@ export function createAssistant(options: AssistantOptions) {
                   },
                   signal,
                   check,
+                  checkRequest: (value) =>
+                    boundedContext(value, limits.maxContextBytes),
                   interrupt: (promise) => interruptible(promise, signal),
                   accountBytes: (value) => {
                     outputBytes += byteLength(value);
@@ -880,6 +884,21 @@ export function createAssistant(options: AssistantOptions) {
               { ...safe.details, stage: 'context_compaction' },
             );
           }
+        };
+        const workingEvidence = async () => {
+          const previous = history.flat();
+          const projected = await projectWorking([
+            ...previous,
+            ...conversation,
+          ]);
+          const covered = compaction?.coveredMessages ?? 0;
+          const boundary =
+            (compaction?.summary ? 1 : 0) +
+            Math.max(0, previous.length - covered);
+          return {
+            previousConversation: projected.slice(0, boundary),
+            conversation: projected.slice(boundary),
+          };
         };
         const review = async (
           name: GoalStage,
@@ -1838,11 +1857,7 @@ export function createAssistant(options: AssistantOptions) {
             initialRequest: prompt,
             requestContract,
             existingTodos: sessionGoal?.todos,
-            previousConversation: await projectWorking([
-              ...history.flat(),
-              ...conversation,
-            ]),
-            conversation: [],
+            ...(await workingEvidence()),
             currentContext: context,
             execution: options.execution ?? 'review',
             paidActionFailed,
@@ -2071,11 +2086,7 @@ export function createAssistant(options: AssistantOptions) {
                   candidateResponse: message.content,
                   requestContract,
                   sessionTodos: sessionGoal?.todos,
-                  previousConversation: [],
-                  conversation: await projectWorking([
-                    ...history.flat(),
-                    ...conversation,
-                  ]),
+                  ...(await workingEvidence()),
                   currentContext: context,
                   capabilityMap: discovery(finishing),
                   execution: options.execution ?? 'review',
@@ -3024,7 +3035,15 @@ export function createAssistant(options: AssistantOptions) {
         'INVALID_REQUEST',
         'This response is outside the retained history.',
       );
-      const branch = Object.freeze({ id: crypto.randomUUID() });
+      const branchCompaction =
+        compaction &&
+        compaction.coveredMessages <= history.slice(0, index + 1).flat().length
+          ? structuredClone(compaction)
+          : undefined;
+      const branch = Object.freeze({
+        id: crypto.randomUUID(),
+        compaction: branchCompaction,
+      });
       branches.set(branch, {
         history: structuredClone(history.slice(0, index + 1)),
         ids: historyIds.slice(0, index + 1),
@@ -3034,7 +3053,7 @@ export function createAssistant(options: AssistantOptions) {
           .slice(0, index + 1)
           .filter((id) => interruptedIds.has(id)),
         memory,
-        compaction: structuredClone(compaction),
+        compaction: structuredClone(branchCompaction),
         projectId,
         model,
         policy: JSON.stringify(policy),

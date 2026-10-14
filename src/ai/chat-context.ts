@@ -132,7 +132,7 @@ export const chatCompactionSchema = z.object({
   version: z.literal(1),
   coveredMessages: z.number().int().nonnegative(),
   sourceHash: z.string().regex(/^[a-f0-9]{64}$/),
-  summary: z.string(),
+  summary: z.string().refine((value) => !!value.trim()),
 });
 export type ChatCompaction = z.infer<typeof chatCompactionSchema>;
 
@@ -226,7 +226,18 @@ export async function compactWorkingContext({
         workingContextTokens(messages.slice(value)) < threshold / 3,
     ) ?? messages.length;
   if (pending.size) end = boundaries.at(-1)!;
-  const source = JSON.stringify(messages.slice(covered, end));
+  // Opaque provider reasoning is continuation metadata, never semantic evidence
+  // or exportable prose. The source hash still binds the untouched originals.
+  const evidence = messages.slice(covered, end).map((message) =>
+    message.role === 'assistant'
+      ? {
+          role: message.role,
+          content: message.content,
+          ...(message.tool_calls ? { tool_calls: message.tool_calls } : {}),
+        }
+      : message,
+  );
+  const source = JSON.stringify(evidence);
   // UTF-16 slices are quoted evidence, not executable chat protocol. Keep each
   // fragment comfortably below the selected provider's physical context window.
   const chars = Math.max(1, Math.min(384_000, Math.floor(contextWindow / 2)));

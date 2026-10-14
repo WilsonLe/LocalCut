@@ -9875,3 +9875,34 @@ it('freezes advertised default voice choices for review even if configuration ch
     await jobs.dispose();
   }
 });
+
+it('enforces an explicit context-byte budget before sending any compaction fragment', async () => {
+  const f = fixture();
+  const stream = vi.fn(async function* () {
+    yield final('Unexpected request');
+  });
+  const assistant = createRealAssistant({
+    editor: f.editor,
+    provider: { stream },
+    projectId: f.project().id,
+    model: 'model',
+    limits: { maxContextBytes: 100000 },
+    restoredTurns: [
+      {
+        id: 'old',
+        user: 'Old request',
+        assistant: 'Old reply',
+        exchange: [{ role: 'user', content: 'x'.repeat(700000) }],
+      },
+    ],
+  });
+  try {
+    await expect(assistant.run('Continue').completion).rejects.toMatchObject({
+      code: 'CONTEXT_LIMIT',
+      details: { stage: 'context_compaction' },
+    });
+    expect(stream).not.toHaveBeenCalled();
+  } finally {
+    await assistant.dispose();
+  }
+});

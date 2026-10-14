@@ -858,5 +858,44 @@ for (const base of behaviorBases) {
       'completed title',
     );
     expect(compactionPersistence.hasOriginal).toBe(true);
+    // Compatible response branches must save the reused checkpoint, even when
+    // the live assistant does not need another compaction operation.
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page
+      .getByRole('article', { name: 'Assistant response' })
+      .last()
+      .getByRole('button', { name: 'Branch response', exact: true })
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'Chat sessions', exact: true }),
+    ).toContainText('Branch of');
+    await page
+      .getByRole('textbox', { name: 'Describe your edit', exact: true })
+      .fill('Verify the title in this branch');
+    await page
+      .getByRole('button', { name: 'Send edit request', exact: true })
+      .click();
+    await expect(
+      page
+        .getByRole('article', { name: 'Assistant response' })
+        .last()
+        .getByRole('button', { name: 'Copy response', exact: true }),
+    ).toBeVisible();
+    expect(compactionRequests).toBe(completedCompactions);
+    await page.reload();
+    await page
+      .getByRole('textbox', { name: 'Describe your edit', exact: true })
+      .fill('Verify the branch again after reload');
+    await page
+      .getByRole('button', { name: 'Send edit request', exact: true })
+      .click();
+    await expect(
+      page
+        .getByRole('article', { name: 'Assistant response' })
+        .last()
+        .getByRole('button', { name: 'Copy response', exact: true }),
+    ).toBeVisible();
+    expect(compactionRequests).toBe(completedCompactions);
+    expect(editCalls).toBe(1);
   });
 }

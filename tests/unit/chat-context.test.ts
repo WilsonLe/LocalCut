@@ -171,3 +171,34 @@ describe('persistent working context compaction', () => {
     expect(messages).toEqual(before);
   });
 });
+
+it('keeps opaque reasoning out of summaries while hashing and preserving its original archive', async () => {
+  const messages: ChatMessage[] = [
+    user('Original request'),
+    {
+      role: 'assistant',
+      content: 'Verified visible reply',
+      reasoning: 'HIDDEN_REASONING',
+      reasoning_content: 'HIDDEN_CONTENT',
+      reasoning_details: [
+        { type: 'reasoning.encrypted', data: 'HIDDEN_SIGNATURE' },
+      ],
+    },
+    user('z'.repeat(700000)),
+  ];
+  const original = structuredClone(messages);
+  const fragments: string[] = [];
+  const result = await compactWorkingContext({
+    messages,
+    summarize: async (evidence) => {
+      fragments.push(evidence.fragment);
+      return 'Verified visible reply.';
+    },
+    check: () => {},
+    onStart: () => {},
+  });
+  expect(fragments.join('')).toContain('Verified visible reply');
+  expect(fragments.join('')).not.toContain('HIDDEN_');
+  expect(JSON.stringify(result.checkpoint)).not.toContain('HIDDEN_');
+  expect(messages).toEqual(original);
+});

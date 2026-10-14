@@ -293,7 +293,9 @@ export default function ConversationSession({
   const [sessionGoal, setSessionGoal] = useState(
     initialBranch?.sessionGoal ?? initialContent.sessionGoal,
   );
-  const [compaction, setCompaction] = useState(initialContent.compaction);
+  const [compaction, setCompaction] = useState(
+    initialBranch?.checkpoint.compaction ?? initialContent.compaction,
+  );
   const [prompt, setPrompt] = useState(initialContent.prompt);
   const [messages, setMessages] = useState<Message[]>(
     initialBranch?.messages ??
