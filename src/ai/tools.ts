@@ -14,6 +14,7 @@ import {
   chromaKeySchema,
 } from '../core/effects';
 import { z } from 'zod';
+import { speechGenerationSchema } from './agent-speech';
 import {
   codingOperations,
   codingQueries,
@@ -64,6 +65,12 @@ const exportOptionsSchema = z
   })
   .strict();
 const actionSchema = z.discriminatedUnion('type', [
+  z
+    .object({
+      type: z.literal('generate_speech'),
+      options: speechGenerationSchema,
+    })
+    .strict(),
   z
     .object({
       type: z.literal('coding'),
@@ -166,6 +173,7 @@ const schemas = {
         'indexing',
         'history',
         'coding',
+        'speech',
       ]),
     })
     .strict(),
@@ -215,6 +223,7 @@ const schemas = {
     })
     .strict(),
   inspect_transcription: emptySchema,
+  inspect_speech: emptySchema,
   inspect_proposals: emptySchema,
   read_transcript: transcriptSchema,
   validate_edits: operationsSchema,
@@ -266,6 +275,7 @@ const toolScheduling = {
   inspect_timeline: 'read',
   inspect_asset: 'read',
   inspect_transcription: 'read',
+  inspect_speech: 'read',
   read_transcript: 'read',
   search_asset_index: 'read',
   read_asset_index: 'read',
@@ -388,6 +398,13 @@ export function capabilityDiscovery(
     };
   };
   const actions = {
+    generate_speech: access({
+      skills: ['speech'],
+      support: [
+        !!capabilities.speech,
+        'Connect a host with the configured OpenRouter speech generation service. TTS is distinct from transcription and coding.',
+      ],
+    }),
     coding: access({
       skills: ['coding'],
       support: [
@@ -575,6 +592,13 @@ export function capabilityDiscovery(
         'This session cannot probe export codecs. Use the workspace Export control or a host with export support.',
       ],
     },
+    inspect_speech: {
+      skills: ['speech'],
+      support: [
+        !!capabilities.speech,
+        'Connect a host with speech model/voice discovery and generation.',
+      ],
+    },
     inspect_transcription: {
       skills: ['transcription'],
       support: [
@@ -677,6 +701,8 @@ export function toolDefinitions(
       'Read the complete capabilityMap for every known tool and service action, including host support, required skills, permission blockers and recovery. Also describes canonical edit properties/rules and approval boundaries. Read before claiming any workflow is unavailable.',
     search_text_library:
       'Search the shared text templates or font catalog by name/labels. Paginated read-only results include stable font IDs or complete template styles for insertClip/updateClip. Empty query browses every entry. No private text, media, downloads or inference.',
+    inspect_speech:
+      'Inspect advertised speech models/voices, configured selection and phrase-timing readiness. No paid speech generation or raw media upload.',
     inspect_transcription:
       'Check whether local transcription assets are cached. Does not download or initialize a model.',
     inspect_proposals:

@@ -12,6 +12,10 @@ import type {
 
 /** Service actions are reviewable requests, never callable by a model directly. */
 export type AssistantAction =
+  | {
+      type: 'generate_speech';
+      options: import('./agent-speech').SpeechGeneration;
+    }
   | { type: 'coding'; operation: CodingOperation; expectedRevision: number }
   | { type: 'undo' | 'redo' }
   | { type: 'library'; operation: LibraryOperation; expectedRevision: number }
@@ -29,6 +33,7 @@ export type AssistantAction =
   | { type: 'track_mask'; clipId: string };
 
 export type AssistantActionResult =
+  | ({ kind: 'speech' } & import('./agent-speech').GeneratedSpeech)
   | { kind: 'coding'; workspace: CodingResult }
   | {
       kind: 'coding_asset';
@@ -107,6 +112,7 @@ export interface AssistantEditor {
 }
 
 export interface AssistantCapabilities {
+  speech?: boolean;
   coding?: boolean;
   storyboardExport?: boolean;
   storyboardStore?: boolean;

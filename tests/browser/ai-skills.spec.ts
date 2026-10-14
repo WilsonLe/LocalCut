@@ -10,13 +10,17 @@ for (const base of behaviorBases) {
     const manifest = JSON.parse(
       await readFile(`${root}/.vite/manifest.json`, 'utf8'),
     ) as Record<string, { file: string }>;
-    const skillFiles = ['editing', 'export', 'transcription', 'history'].map(
-      (id) => {
-        const entry = manifest[`src/ai/skills/${id}.ts`];
-        expect(entry, `Separate dynamic skill module: ${id}`).toBeDefined();
-        return base + entry!.file;
-      },
-    );
+    const skillFiles = [
+      'editing',
+      'export',
+      'transcription',
+      'history',
+      'speech',
+    ].map((id) => {
+      const entry = manifest[`src/ai/skills/${id}.ts`];
+      expect(entry, `Separate dynamic skill module: ${id}`).toBeDefined();
+      return base + entry!.file;
+    });
     const requested: string[] = [];
     page.on('request', (request) =>
       requested.push(new URL(request.url()).pathname),

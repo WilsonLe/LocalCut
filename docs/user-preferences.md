@@ -6,6 +6,14 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Run native capture audio probes with Chrome's `--disable-audio-output` flag so test tones do not play through the speakers. Preserve native recorded-audio and waveform assertions; quiet execution must not reduce capture coverage.
 
+## Agent voice reuse — 14 October 2026
+
+- The agent must save generated voice metadata so later requests can reliably discover and reuse voices. Preserve complete supported configuration, generation provenance and stable IDs; keep script/audio in their separate owners. Save generated references for supported speaker reuse and retain exact recorded takes. State that ordinary settings reuse or reference synthesis cannot guarantee an identical new recording.
+
+## Root-cause bug resolution — 14 October 2026
+
+- Audit the final user/agent exchange and trace failures to their shared owners. Inventory related consumers and plausible sibling symptoms, fix the in-scope ones, and explain proven root causes separately from investigative leads. Preserve uncertainty when the trace cannot establish a cause.
+
 ## Creative music guidance — 14 October 2026
 
 - Encourage music that sounds more considered through complementary layers, motifs, harmonic color, voice leading, phrasing and purposeful development. Keep creative choices flexible; more parts or more theory is not automatically better.

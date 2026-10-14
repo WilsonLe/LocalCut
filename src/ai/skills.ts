@@ -1,6 +1,11 @@
 /** Only catalog metadata is eager. Guidance lives in separately imported modules. */
 export const skillCatalog = [
   {
+    id: 'speech',
+    description:
+      'Generate narration with configured OpenRouter text-to-speech, inspect models/voices and phrase-timing readiness, save measured audio and transcripts in Media, then place and mix through editing tools.',
+  },
+  {
     id: 'coding',
     description:
       'Read, write, edit, glob, grep, browser Bash and arbitrary isolated JavaScript in the persistent project coding directory; compose, score or improve original music and sound effects with approachable creative questions, layered arrangement and code synthesis; render WAV, retain sources, and import generated files into Media.',
@@ -39,6 +44,8 @@ export type SkillId = (typeof skillCatalog)[number]['id'];
 
 export async function loadSkill(id: SkillId): Promise<string> {
   switch (id) {
+    case 'speech':
+      return (await import('./skills/speech')).instructions;
     case 'coding':
       return (await import('./skills/coding')).instructions;
     case 'storyboard':
