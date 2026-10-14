@@ -29,6 +29,7 @@ export interface VoicePreset extends VoiceSettings {
     transcriptId: string;
     generationId: string;
     createdAt: number;
+    kind?: 'generated' | 'dictation';
   };
 }
 const validSource = (source: NonNullable<VoicePreset['source']>) =>
@@ -38,7 +39,10 @@ const validSource = (source: NonNullable<VoicePreset['source']>) =>
     return typeof value === 'string' && value.length > 0 && value.length <= 200;
   }) &&
   Number.isSafeInteger(source.createdAt) &&
-  source.createdAt >= 0;
+  source.createdAt >= 0 &&
+  (source.kind === undefined ||
+    source.kind === 'generated' ||
+    source.kind === 'dictation');
 const bounded = (value: unknown, max: number): value is string =>
   typeof value === 'string' && value.length <= max;
 export function validVoiceTiming(value: unknown): value is VoiceTiming {
@@ -130,6 +134,7 @@ export function parseVoicePresets(raw: string | null): VoicePreset[] {
                 transcriptId: p.source.transcriptId,
                 generationId: p.source.generationId,
                 createdAt: p.source.createdAt,
+                ...(p.source.kind ? { kind: p.source.kind } : {}),
               },
             }
           : {}),

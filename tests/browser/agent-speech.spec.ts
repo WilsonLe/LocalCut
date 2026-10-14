@@ -961,6 +961,7 @@ for (const base of behaviorBases) {
   test(`agent saved voices reuse generated references with new scripts and reject missing or archived profiles ${base}`, async ({
     page,
   }) => {
+    await installGoalReviewFixture(page);
     await page.goto(base);
     const result = await page.evaluate(async (path) => {
       const { createEditor } = (await import(
@@ -1104,7 +1105,129 @@ for (const base of behaviorBases) {
         } catch (e) {
           missing = (e as { code: string }).code === 'INVALID_REQUEST';
         }
+        const recording = await api.renderSpeech(
+          { samples: pcm, sampleRate: 24000 },
+          { mode: 'speed', speed: 1 },
+          new AbortController().signal,
+        );
+        const captured = await api.saveDictationVoice(
+          editor,
+          project.id,
+          crypto.randomUUID(),
+          recording.file,
+          'My recorded words.',
+          'en-AU',
+          new AbortController().signal,
+        );
+        const discovered = (
+          await speech.inspect(new AbortController().signal)
+        ).savedVoices!.find((p) => p.id === captured.voicePresetId)!;
+        let settingsCloneRejected = false;
+        try {
+          await speech.generate(project.id, {
+            script: 'Not a cloning request.',
+            voicePresetId: captured.voicePresetId,
+            reuseMode: 'settings',
+          }).completion;
+        } catch (e) {
+          settingsCloneRejected =
+            (e as { code: string }).code === 'INVALID_REQUEST';
+        }
+        let cloneRound = 0;
+        let agentDiscoveredRecording = false;
+        const cloning = api.createAssistant({
+          editor,
+          speech,
+          projectId: project.id,
+          model: 'test/clone',
+          execution: 'requested',
+          context: {
+            includeText: true,
+            includeAssetNames: true,
+            includeTranscripts: true,
+          },
+          provider: {
+            async *stream(request) {
+              const review = await window.localcutGoalReviewReply(request);
+              if (review) {
+                yield { type: 'complete' as const, message: review };
+                return;
+              }
+              let name: string | undefined,
+                args: object = {};
+              switch (cloneRound++) {
+                case 0:
+                  name = 'load_skill';
+                  args = { skillId: 'speech' };
+                  break;
+                case 1:
+                  name = 'inspect_speech';
+                  break;
+                case 2: {
+                  const state = JSON.parse(request.messages.at(-1)!.content!);
+                  const recorded = state.savedVoices.find(
+                    (p: { source?: { kind?: string } }) =>
+                      p.source?.kind === 'dictation',
+                  );
+                  agentDiscoveredRecording =
+                    !!recorded.referenceAvailable && !!recorded.source.assetId;
+                  name = 'propose_action';
+                  args = {
+                    summary: 'Clone my recorded voice',
+                    action: {
+                      type: 'generate_speech',
+                      options: {
+                        script: 'New words in my voice.',
+                        voicePresetId: recorded.id,
+                        reuseMode: 'reference',
+                      },
+                    },
+                  };
+                  break;
+                }
+              }
+              yield {
+                type: 'complete' as const,
+                message: {
+                  role: 'assistant' as const,
+                  content: name
+                    ? null
+                    : 'Your recorded voice was cloned into Media.',
+                  ...(name
+                    ? {
+                        tool_calls: [
+                          {
+                            id: crypto.randomUUID(),
+                            type: 'function' as const,
+                            function: { name, arguments: JSON.stringify(args) },
+                          },
+                        ],
+                      }
+                    : {}),
+                },
+              };
+            },
+          },
+        });
+        try {
+          await cloning.run(
+            'Clone my voice from the saved dictation recording, saying: New words in my voice.',
+          ).completion;
+        } finally {
+          cloning.dispose();
+        }
+        const microphoneRequest = requests[2]!;
         return {
+          captured,
+          agentDiscoveredRecording,
+          discovered,
+          settingsCloneRejected,
+          microphoneReference: {
+            model: microphoneRequest.model,
+            script: microphoneRequest.script,
+            transcript: microphoneRequest.reference!.transcript,
+            header: atob(microphoneRequest.reference!.data).slice(0, 12),
+          },
           first,
           second,
           original,
@@ -1141,7 +1264,16 @@ for (const base of behaviorBases) {
     expect(result.referenceTranscript).toBe('First generation.');
     expect(result.newScript).toBe('New words, same voice.');
     expect(result.wavHeader).toMatch(/^RIFF.{4}WAVE$/s);
-    expect(result.count).toBe(2);
+    expect(result.count).toBe(3);
+    expect(result.discovered.source?.kind).toBe('dictation');
+    expect(result.agentDiscoveredRecording).toBe(true);
+    expect(result.settingsCloneRejected).toBe(true);
+    expect(result.microphoneReference).toMatchObject({
+      model: 'fish-audio/s2.1-pro',
+      script: 'New words in my voice.',
+      transcript: 'My recorded words.',
+    });
+    expect(result.microphoneReference.header).toMatch(/^RIFF.{4}WAVE$/s);
     expect(result.wrongModel).toBe(true);
     expect(result.staleRejected).toBe(true);
     expect(result.renamedVersion).toBe(result.version);
@@ -1161,7 +1293,7 @@ for (const base of behaviorBases) {
       },
     });
     expect(result.metadataContainsScript).toBe(false);
-    expect(result.originalMediaCount).toBe(1);
+    expect(result.originalMediaCount).toBe(3);
     expect(result.secondMediaCount).toBe(1);
   });
 }

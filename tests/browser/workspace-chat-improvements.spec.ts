@@ -1,3 +1,4 @@
+import { installDictationMicrophone } from './dictation-fixture';
 import { behaviorBases } from './coverage-bases';
 import { fulfillGoalReview } from './chat-title-fixture';
 import { selectAISettingsTab } from './workspace-settings-helper';
@@ -1077,10 +1078,11 @@ data: [DONE]
       }),
     ).toBeVisible();
   });
-  test(`uncapped typed and dictated chat draft ${base}`, async ({
+  test(`uncapped typed and dictated chat draft, dictation recording persistence ${base}`, async ({
     page,
     context,
   }) => {
+    await installDictationMicrophone(context);
     await context.addInitScript(() => {
       class Recognition {
         onresult?: (event: unknown) => void;
@@ -1094,7 +1096,8 @@ data: [DONE]
           );
         }
         stop() {
-          this.onend?.();
+          // Real browser recognition delivers final/end events after Stop returns.
+          setTimeout(() => this.onend?.(), 300);
         }
         abort() {
           this.onend?.();
@@ -1117,9 +1120,169 @@ data: [DONE]
       .getByRole('button', { name: 'Dictate message', exact: true })
       .click();
     await expect(input).toHaveValue(draft + ' Dictated tail');
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          (
+            window as unknown as { dictationFixture: { seconds(): number } }
+          ).dictationFixture.seconds(),
+        ),
+      )
+      .toBeGreaterThan(0.25);
     await page
       .getByRole('button', { name: 'Stop dictation', exact: true })
       .click();
+    await page
+      .getByRole('button', { name: 'Collapse chat', exact: true })
+      .click();
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const record = JSON.parse(
+            localStorage.getItem('localcut.voice-presets.v1') ?? '{}',
+          );
+          return (
+            record.presets?.filter(
+              (p: { source?: { kind?: string } }) =>
+                p.source?.kind === 'dictation',
+            ).length ?? 0
+          );
+        }),
+      )
+      .toBe(1);
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          (
+            window as unknown as { dictationFixture: { stopped(): number } }
+          ).dictationFixture.stopped(),
+        ),
+      )
+      .toBe(1);
+    await page
+      .getByRole('button', { name: 'Expand chat', exact: true })
+      .click();
+    const voiceId = await page.evaluate(
+      () =>
+        JSON.parse(localStorage.getItem('localcut.voice-presets.v1')!)
+          .presets[0].id as string,
+    );
+    await page.reload();
+    const saved = await page.evaluate(
+      async ({ base, voiceId }) => {
+        const api = (await import(
+          base + 'ai.js'
+        )) as typeof import('../../src/ai');
+        const { createEditor } = (await import(
+          base + 'editor.js'
+        )) as typeof import('../../src/editor');
+        const editor = await createEditor({ namespace: 'localcut' });
+        try {
+          const speech = api.createAssistantSpeech(editor, {
+            api,
+            provider: {
+              selectedProvider: () => 'openrouter',
+              transcriptionDisclosure: 'Remote timing.',
+              listSpeechModels: async () => [],
+              synthesizeSpeech: async () => {
+                throw new Error('No paid request');
+              },
+              transcribe: async () => {
+                throw new Error('No transcription');
+              },
+            },
+          });
+          const state = await speech.inspect(new AbortController().signal);
+          const preset = state.savedVoices!.find((p) => p.id === voiceId)!;
+          const asset = await editor.assets.inspect(preset.source!.assetId);
+          const transcript = await editor.transcription.transcript(
+            preset.source!.transcriptId,
+          );
+          const library = await editor.library
+            .forProject(preset.source!.projectId)
+            .list();
+          return {
+            preset,
+            asset: { status: asset.status, kind: asset.kind },
+            text: transcript?.cues[0]?.text,
+            inMedia: library.entries.some(
+              (entry) => entry.kind === 'asset' && entry.assetId === asset.id,
+            ),
+          };
+        } finally {
+          await editor.dispose();
+        }
+      },
+      { base, voiceId },
+    );
+    expect(saved.preset).toMatchObject({
+      id: voiceId,
+      model: 'fish-audio/s2.1-pro',
+      referenceId: voiceId,
+      source: { kind: 'dictation' },
+    });
+    expect(saved.preset.version).toMatch(/^[a-f0-9]{64}$/);
+    expect(saved.asset).toEqual({ status: 'ready', kind: 'audio' });
+    expect(saved.text).toBe('Dictated tail');
+    expect(saved.inMedia).toBe(true);
+    // Hiding an unfinished recording discards it and releases the live stream.
+    await page
+      .getByRole('button', { name: 'Dictate message', exact: true })
+      .click();
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          (
+            window as unknown as { dictationFixture: { seconds(): number } }
+          ).dictationFixture.seconds(),
+        ),
+      )
+      .toBeGreaterThan(0.1);
+    await page
+      .getByRole('button', { name: 'Collapse chat', exact: true })
+      .click();
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          (
+            window as unknown as { dictationFixture: { stopped(): number } }
+          ).dictationFixture.stopped(),
+        ),
+      )
+      .toBe(1);
+    await page
+      .getByRole('button', { name: 'Expand chat', exact: true })
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'Dictate message', exact: true }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(
+        () =>
+          JSON.parse(localStorage.getItem('localcut.voice-presets.v1')!).presets
+            .length,
+      ),
+    ).toBe(1);
+    await page.evaluate(() =>
+      Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
+        value: async () => {
+          throw new DOMException('Denied', 'NotAllowedError');
+        },
+      }),
+    );
+    await page
+      .getByRole('button', { name: 'Dictate message', exact: true })
+      .click();
+    await expect(page.getByRole('alert')).toContainText(
+      'Allow microphone recording',
+    );
+    expect(
+      await page.evaluate(
+        () =>
+          JSON.parse(localStorage.getItem('localcut.voice-presets.v1')!).presets
+            .length,
+      ),
+    ).toBe(1);
   });
 
   test(`chat response actions, branch isolation, dictation and image dragging ${base}`, async ({
@@ -1127,6 +1290,7 @@ data: [DONE]
     context,
   }, info) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await installDictationMicrophone(context);
     await context.addInitScript(() => {
       class Recognition {
         lang = '';
@@ -1143,7 +1307,11 @@ data: [DONE]
           );
         }
         stop() {
-          this.onend?.();
+          Object.assign(window, { dictationEndPending: true });
+          setTimeout(() => {
+            Object.assign(window, { dictationEndPending: false });
+            this.onend?.();
+          }, 1000);
         }
         abort() {
           this.onend?.();
@@ -1213,11 +1381,22 @@ data: [DONE]
       .getByRole('button', { name: 'Dictate message', exact: true })
       .click();
     await expect(input).toHaveValue('Dictated idea');
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          (
+            window as unknown as { dictationFixture: { seconds(): number } }
+          ).dictationFixture.seconds(),
+        ),
+      )
+      .toBeGreaterThan(0.25);
     await page
       .getByRole('button', { name: 'Stop dictation', exact: true })
       .click();
     await input.fill('First idea');
-    const micBounds = (await mic.boundingBox())!;
+    const micBounds = (await page
+      .getByRole('button', { name: /^(Dictate message|Stop dictation)$/ })
+      .boundingBox())!;
     const sendBounds = (await page
       .getByRole('button', { name: 'Send edit request', exact: true })
       .boundingBox())!;
@@ -1234,14 +1413,34 @@ data: [DONE]
         .getByRole('button', { name: 'Commands', exact: true })
         .boundingBox())!.x,
     );
+    expect(
+      await page.evaluate(
+        () =>
+          (window as unknown as { dictationEndPending: boolean })
+            .dictationEndPending,
+      ),
+    ).toBe(true);
     await page
       .getByRole('button', { name: 'Send edit request', exact: true })
       .click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            JSON.parse(
+              localStorage.getItem('localcut.voice-presets.v1') ??
+                '{"presets":[]}',
+            ).presets.length,
+        ),
+      )
+      .toBe(1);
     const response = page
       .getByRole('article', { name: 'Assistant response' })
       .first();
     await expect(
-      response.getByText('Short reply.', { exact: true }),
+      response
+        .locator('[data-chat-response-text]')
+        .getByText('Short reply.', { exact: true }),
     ).toBeVisible();
     const tools = response.getByRole('button', {
       name: 'inspect project',
@@ -1249,6 +1448,7 @@ data: [DONE]
     });
     const toolsBox = await tools.boundingBox(),
       textBox = await response
+        .locator('[data-chat-response-text]')
         .getByText('Short reply.', { exact: true })
         .boundingBox();
     expect(toolsBox!.y).toBeLessThan(textBox!.y);
@@ -1341,7 +1541,9 @@ data: [DONE]
         )!;
         const id = (
           await editor.library.forProject(summary.id).list()
-        ).entries.find((entry) => entry.assetId)?.assetId;
+        ).entries.find(
+          (entry) => entry.kind === 'asset' && entry.name === 'Reference.png',
+        )?.assetId;
         return await editor.assets.inspect(id!);
       } finally {
         await editor.dispose();

@@ -24,6 +24,7 @@ export { createServiceRouter } from './providers';
 export type * from './providers';
 
 export { createAssistantSpeech } from './agent-speech';
+export { saveDictationVoice } from './dictation-voice';
 export type {
   AssistantSpeech,
   SpeechGeneration,

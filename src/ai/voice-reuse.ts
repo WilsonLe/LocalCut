@@ -20,7 +20,7 @@ export function savedVoices() {
   }
 }
 
-/** Only the existing generated-reference sidecar is readable; never project originals. */
+/** Only the existing explicitly saved reference sidecar is readable; never project originals. */
 export async function voiceReference(preset: VoicePreset, signal: AbortSignal) {
   aiInvariant(
     preset.referenceId,
@@ -33,7 +33,7 @@ export async function voiceReference(preset: VoicePreset, signal: AbortSignal) {
   aiInvariant(
     reference && reference.file.size <= SPEECH_REFERENCE_BYTES,
     'INVALID_REQUEST',
-    'The saved generated voice reference is missing or too large. Restore it or reuse the saved settings.',
+    'The saved voice reference is missing or too large. Restore it or reuse the saved settings.',
   );
   const bytes = new Uint8Array(await reference.file.arrayBuffer());
   signal.throwIfAborted();

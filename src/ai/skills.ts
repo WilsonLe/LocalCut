@@ -3,7 +3,7 @@ export const skillCatalog = [
   {
     id: 'speech',
     description:
-      'Generate narration with configured OpenRouter text-to-speech, inspect models/voices and phrase-timing readiness, save measured audio and transcripts in Media, then place and mix through editing tools.',
+      'Generate narration or clone a user voice from saved composer dictation recordings with configured OpenRouter text-to-speech, inspect models/voices and phrase-timing readiness, save measured audio and transcripts in Media, then place and mix through editing tools.',
   },
   {
     id: 'coding',

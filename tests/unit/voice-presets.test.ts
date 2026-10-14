@@ -284,3 +284,22 @@ it('reads fresh saved voices and does not let a subscriber destroy a committed c
     release();
   }
 });
+
+it('preserves dictation provenance and rejects unrecognized recording kinds', () => {
+  const source = {
+    projectId: 'project',
+    assetId: 'recording',
+    transcriptId: 'words',
+    generationId: 'capture',
+    createdAt: 1,
+    kind: 'dictation',
+  };
+  expect(parseVoicePresets(record([{ ...preset, source }]))[0]?.source).toEqual(
+    source,
+  );
+  expect(
+    parseVoicePresets(
+      record([{ ...preset, source: { ...source, kind: 'unknown' } }]),
+    ),
+  ).toEqual([]);
+});

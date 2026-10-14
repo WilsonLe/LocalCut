@@ -1504,6 +1504,7 @@ ${resuming.prompt}`
             <div className="ml-auto flex items-center gap-1">
               <DictationButton
                 editor={editor}
+                projectId={project.id}
                 active={active}
                 disabled={readOnly || running || applying}
                 onText={(text) => {
