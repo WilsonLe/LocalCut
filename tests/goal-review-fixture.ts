@@ -1,4 +1,29 @@
-import type { AssistantMessage, ChatRequest } from '../src/ai/types';
+import type {
+  AssistantMessage,
+  ChatMessage,
+  ChatRequest,
+} from '../src/ai/types';
+
+/** Read the latest main snapshot; auxiliary evidence keeps its own framing. */
+export function requestContextMessage(
+  request: Pick<ChatRequest, 'messages'>,
+): ChatMessage {
+  if (!request.messages[0]?.content?.startsWith('LocalCut ')) {
+    const snapshot = request.messages
+      .slice()
+      .reverse()
+      .find((message) => {
+        if (message.role !== 'system') return false;
+        try {
+          return !!JSON.parse(message.content).selectedProject;
+        } catch {
+          return false;
+        }
+      });
+    if (snapshot) return snapshot;
+  }
+  return request.messages[1]!;
+}
 
 /** Legacy scenario scripts own execution. Supply an explicit successful auxiliary
  * review without consuming their rounds; completion regressions script real verdicts. */
@@ -11,7 +36,9 @@ export function goalReviewReply(
   // main-agent decision round. Completion journeys script that decision directly.
   if (!instruction.startsWith('LocalCut ')) {
     try {
-      const context = JSON.parse(request.messages[1]?.content ?? '{}');
+      const context = JSON.parse(
+        requestContextMessage(request)?.content ?? '{}',
+      );
       if (context.completionDecision)
         return {
           role: 'assistant',

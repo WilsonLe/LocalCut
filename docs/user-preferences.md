@@ -8,6 +8,12 @@ This is the project record of the user's durable product and workflow choices. U
 - Include standalone audio assessments for speech, music, effects and sound quality through the same attachment and Media paths.
 - Keep imported references off the timeline until requested. Import, attachment and reload do not start paid analysis. Report timestamped sampled observations and distinguish them from creative recommendations and unassessed motion/sound.
 
+## Prompt cache reuse — 14 October 2026
+
+- Keep stable instructions and conversation history ahead of changing current state to improve provider prompt-cache reuse. Fresh state must remain authoritative, with existing sharing, skill-loading and execution boundaries.
+- Retain stable routing identities per chat and agent role across rounds, follow-ups and reload. Reduce repeated auxiliary context and use new receipts for task maintenance while preserving complete original exchanges locally.
+- Show provider-reported cache hit rates in chat, request and agent usage drilldowns. Distinguish unavailable reporting from zero hits; verify gains rather than promise a percentage.
+
 ## Automatic working-context compaction — 14 October 2026
 
 - Automatically compact model working context when it reaches 192,000 estimated tokens, 75% of the original 256k working budget. This supersedes the no-compaction parts of the 12 October no-cap preference; retain uncapped output and execution with provider/caller limits.

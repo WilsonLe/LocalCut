@@ -134,7 +134,7 @@ for (const { stage, leaf, text } of auxiliaryRoleLeaves) {
                 } else {
                   const context = role
                     ? undefined
-                    : JSON.parse(request.messages[1]!.content!);
+                    : JSON.parse(request.messages.at(-1)!.content!);
                   yield {
                     type: 'complete',
                     message: {

@@ -206,7 +206,7 @@ for (const base of behaviorBases) {
           (await fulfillChatTitle(route))
         )
           return;
-        const context = JSON.parse(request.messages[1].content);
+        const context = JSON.parse(request.messages.at(-1).content);
         if (exhausted && context.completionDecision) {
           await reply(route, undefined, [
             { name: 'inspect_project', arguments: '{}' },
@@ -378,7 +378,7 @@ for (const base of behaviorBases) {
     ).toBeVisible();
     expect(editCalls).toBe(1);
     expect(titleCalls).toBe(1);
-    expect(new Set(sessions.review).size).toBe(1);
+    expect(new Set(sessions.review).size).toBe(2);
     expect(sessions.review[0]).not.toBe(sessions.execution[0]);
     expect(payloads[0]!.initialRequest).toBe(
       'Add an overlay track and closing title',

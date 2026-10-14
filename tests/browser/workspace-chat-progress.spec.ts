@@ -52,7 +52,11 @@ for (const base of behaviorBases) {
           (await fulfillChatTitle(route))
         )
           return;
-        const data = JSON.parse(request.messages[1].content);
+        const data = JSON.parse(
+          instruction.startsWith('LocalCut ')
+            ? request.messages[1].content
+            : request.messages.at(-1).content,
+        );
         const content = instruction.startsWith('LocalCut request contract:')
           ? '## Goal\nExplain the editing workflow.\n## Success conditions\n- Answer the question.\n## Stop conditions\n- None'
           : instruction.startsWith('LocalCut session to-dos:')

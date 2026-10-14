@@ -102,12 +102,36 @@ export function usageCategories(call: UsageCall) {
 export function summarizeUsage(calls: readonly UsageCall[]) {
   const unique = [...new Map(calls.map((call) => [call.id, call])).values()];
   const reported = unique.filter((call) => call.usage?.cost !== undefined);
+  const completeCacheUsage =
+    unique.length > 0 &&
+    unique.every(
+      ({ usage: u }) =>
+        u !== undefined &&
+        u.cachedTokens !== undefined &&
+        [u.promptTokens, u.cachedTokens, u.cacheWriteTokens ?? 0].every(
+          (tokens) => Number.isFinite(tokens) && tokens >= 0,
+        ) &&
+        u.cachedTokens + (u.cacheWriteTokens ?? 0) <= u.promptTokens,
+    );
+  const inputTokens = unique.reduce(
+    (sum, call) => sum + (call.usage?.promptTokens ?? 0),
+    0,
+  );
+  const cachedTokens = unique.reduce(
+    (sum, call) => sum + (call.usage?.cachedTokens ?? 0),
+    0,
+  );
   return {
     calls: unique,
     cost: reported.length
       ? reported.reduce((sum, call) => sum + call.usage!.cost!, 0)
       : undefined,
     partial: reported.length !== unique.length,
+    // Weighted by input tokens, including cache writes; missing reporting isn't zero.
+    cacheHitRate:
+      completeCacheUsage && inputTokens > 0
+        ? cachedTokens / inputTokens
+        : undefined,
     tokens: unique.reduce(
       (sum, call) => sum + (call.usage?.totalTokens ?? 0),
       0,

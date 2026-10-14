@@ -265,6 +265,9 @@ test('CYOBot chat structure keeps local sessions, markdown, drafts and keyboard 
     name: 'Conversation messages',
     exact: true,
   });
+  await expect(
+    log.getByRole('button', { name: 'Copy response', exact: true }),
+  ).toBeVisible();
   await expect(log.getByRole('heading', { name: 'Edit notes' })).toBeVisible();
   await expect(log.locator('strong')).toHaveText('shorter cuts');
   await expect(log.getByRole('listitem')).toHaveCount(2);

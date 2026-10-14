@@ -79,7 +79,9 @@ for (const base of behaviorBases) {
             }
 
             requests.push(structuredClone(request));
-            if (JSON.parse(request.messages[1]!.content!).completionDecision) {
+            if (
+              JSON.parse(request.messages.at(-1)!.content!).completionDecision
+            ) {
               yield {
                 type: 'complete' as const,
                 message: {
@@ -104,7 +106,11 @@ for (const base of behaviorBases) {
             ][round++];
             const discoveredFont =
               name === 'propose_edits'
-                ? JSON.parse(request.messages.at(-1)!.content!).items[0].id
+                ? JSON.parse(
+                    request.messages
+                      .filter((m: { role: string }) => m.role !== 'system')
+                      .at(-1)!.content!,
+                  ).items[0].id
                 : undefined;
             yield {
               type: 'complete' as const,
@@ -225,8 +231,8 @@ for (const base of behaviorBases) {
         return requests.map((request) => ({
           tools: request.tools.map((tool) => tool.function.name),
           payload: JSON.stringify(request),
-          currentSkills: JSON.parse(request.messages[1]!.content!).capabilityMap
-            .loadedSkills,
+          currentSkills: JSON.parse(request.messages.at(-1)!.content!)
+            .capabilityMap.loadedSkills,
           skillLoads: request.messages.filter(
             (message) =>
               message.role === 'tool' &&
@@ -343,7 +349,9 @@ for (const base of behaviorBases) {
             }
 
             requests.push(structuredClone(request));
-            if (JSON.parse(request.messages[1]!.content!).completionDecision) {
+            if (
+              JSON.parse(request.messages.at(-1)!.content!).completionDecision
+            ) {
               yield {
                 type: 'complete' as const,
                 message: {
@@ -360,7 +368,7 @@ for (const base of behaviorBases) {
               };
               return;
             }
-            const scope = JSON.parse(request.messages[1]!.content!);
+            const scope = JSON.parse(request.messages.at(-1)!.content!);
             let calls: import('../../src/ai').ToolCall[] | undefined;
             switch (step++) {
               case 0:
@@ -380,7 +388,9 @@ for (const base of behaviorBases) {
                 break;
               case 2: {
                 const failure = JSON.parse(
-                  request.messages.at(-1)!.content!,
+                  request.messages
+                    .filter((m: { role: string }) => m.role !== 'system')
+                    .at(-1)!.content!,
                 ).error;
                 if (
                   failure.code !== 'TOOL_NOT_ALLOWED' ||
@@ -455,8 +465,11 @@ for (const base of behaviorBases) {
                   ).error
                 )
                   throw new Error('Readiness or Storyboard inspection failed');
-                const font = JSON.parse(request.messages.at(-1)!.content!)
-                  .items[0].id;
+                const font = JSON.parse(
+                  request.messages
+                    .filter((m: { role: string }) => m.role !== 'system')
+                    .at(-1)!.content!,
+                ).items[0].id;
                 calls = [
                   invoke('propose_edits', {
                     summary:
@@ -497,7 +510,9 @@ for (const base of behaviorBases) {
                 break;
               case 8: {
                 const error = JSON.parse(
-                  request.messages.at(-1)!.content!,
+                  request.messages
+                    .filter((m: { role: string }) => m.role !== 'system')
+                    .at(-1)!.content!,
                 ).error;
                 if (
                   error.details.recovery.blockers[0].reason !==
@@ -509,8 +524,11 @@ for (const base of behaviorBases) {
               }
               case 9:
                 if (
-                  JSON.parse(request.messages.at(-1)!.content!).error?.code !==
-                  'TOOL_NOT_ALLOWED'
+                  JSON.parse(
+                    request.messages
+                      .filter((m: { role: string }) => m.role !== 'system')
+                      .at(-1)!.content!,
+                  ).error?.code !== 'TOOL_NOT_ALLOWED'
                 )
                   throw new Error(
                     'Sibling load broadened frozen round authority',
