@@ -17,6 +17,230 @@ async function importInvalidBackup(page: Page) {
 test.describe.configure({ mode: 'serial' });
 
 for (const base of behaviorBases) {
+  test(`saved task failures stay quiet on restart while fresh failures notify ${base}`, async ({
+    page,
+  }) => {
+    let providerRequests = 0;
+    page.on('request', (request) => {
+      if (request.url().includes('openrouter.ai/api/v1/chat/completions'))
+        providerRequests++;
+    });
+    await page.goto(base);
+    const projectId = await page.evaluate(async (base) => {
+      const { createEditor, TaskQueue } = await import(base + 'editor.js');
+      const editor = await createEditor({ namespace: 'localcut' });
+      const id = (await editor.projects.create('Restart notifications')).id;
+      await editor.dispose();
+      const tasks = new TaskQueue('localcut', { pollMs: 10 });
+      tasks.register('notification-failure', {
+        lane: 'remote',
+        recovery: 'manual',
+        maxAttempts: 1,
+        execute: async () => {
+          throw Object.assign(new Error('Synthetic request rejected'), {
+            code: 'INVALID_REQUEST',
+          });
+        },
+      });
+      for (let i = 0; i < 2; i++)
+        await tasks
+          .enqueue('notification-failure', {}, { label: 'Assistant response' })
+          .completion.catch(() => {});
+      let entered!: () => void;
+      const started = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      tasks.register('notification-paused', {
+        lane: 'remote',
+        recovery: 'manual',
+        execute: async (
+          _input: unknown,
+          { signal }: { signal: AbortSignal },
+        ) => {
+          entered();
+          await new Promise<void>((_resolve, reject) =>
+            signal.addEventListener(
+              'abort',
+              () => reject(new Error('Stopped')),
+              { once: true },
+            ),
+          );
+        },
+      });
+      const paused = tasks.enqueue(
+        'notification-paused',
+        {},
+        { label: 'Assistant response' },
+      );
+      await started;
+      await tasks.dispose();
+      await paused.completion.catch(() => {});
+      return id;
+    }, base);
+    await page.goto(`${base}#/project/${projectId}`);
+    const project = page.getByRole('button', {
+      name: 'Open project',
+      exact: true,
+    });
+    const errors = page.locator('[data-sonner-toast][data-type="error"]');
+    const bell = page.getByRole('button', { name: /^Notifications/ });
+    const log = page.getByRole('dialog', {
+      name: 'Notifications',
+      exact: true,
+    });
+    // Opening the task table is a readiness barrier through the live queue owner.
+    const readQueue = async () => {
+      await page
+        .getByRole('button', { name: 'Task queue', exact: true })
+        .click();
+      const dialog = page.getByRole('dialog', {
+        name: 'Task queue',
+        exact: true,
+      });
+      await expect(
+        dialog.getByRole('row', { name: 'Assistant response', exact: true }),
+      ).toHaveCount(3);
+      await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    };
+    await expect(project).toContainText('Restart notifications');
+    await readQueue();
+    await expect(errors).toHaveCount(0);
+    await bell.click();
+    await expect(log).toContainText('No notifications yet.');
+    await log.getByRole('button', { name: 'Close', exact: true }).click();
+    // Another queue in the same origin proves live cross-tab polling escalation.
+    const freshId = await page.evaluate(async (base) => {
+      const { TaskQueue } = await import(base + 'editor.js');
+      const tasks = new TaskQueue('localcut', { pollMs: 10 });
+      tasks.register('notification-failure', {
+        lane: 'remote',
+        recovery: 'manual',
+        maxAttempts: 1,
+        execute: async () => {
+          throw Object.assign(new Error('Fresh original stack'), {
+            code: 'INVALID_REQUEST',
+          });
+        },
+      });
+      const job = tasks.enqueue(
+        'notification-failure',
+        {},
+        { label: 'Fresh assistant response' },
+      );
+      await job.completion.catch(() => {});
+      Object.assign(window, { notificationQueue: tasks });
+      return job.id;
+    }, base);
+    await expect(errors).toHaveCount(1);
+    await expect(errors).toContainText('Fresh assistant response');
+    await dismissNotifications(page);
+    await page.evaluate(async (id) => {
+      const tasks = (
+        window as unknown as {
+          notificationQueue: import('../../src/services/task-queue').TaskQueue;
+        }
+      ).notificationQueue;
+      await (await tasks.retry(id)).completion.catch(() => {});
+      await tasks.dispose();
+    }, freshId);
+    await expect(errors).toHaveCount(1);
+    await errors
+      .getByRole('button', { name: 'View stack trace', exact: true })
+      .click();
+    const details = page.getByRole('dialog', {
+      name: 'Error details',
+      exact: true,
+    });
+    await expect(details.getByLabel('Full error report')).toContainText(
+      'Fresh original stack',
+    );
+    await details.getByRole('button', { name: 'Close', exact: true }).click();
+    await dismissNotifications(page);
+    await bell.click();
+    await expect(log).toContainText('Fresh assistant response');
+    await expect(bell.locator('[data-notification-unread]')).toHaveCount(0);
+    await log.getByRole('button', { name: 'Close', exact: true }).click();
+    const history = await page.evaluate(() =>
+      localStorage.getItem('localcut.notifications.v1'),
+    );
+    await page.reload();
+    await expect(project).toContainText('Restart notifications');
+    await page.getByRole('button', { name: 'Task queue', exact: true }).click();
+    const queue = page.getByRole('dialog', { name: 'Task queue', exact: true });
+    await expect(
+      queue.getByRole('row', { name: 'Fresh assistant response', exact: true }),
+    ).toContainText('failed');
+    await queue.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(errors).toHaveCount(0);
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem('localcut.notifications.v1'),
+      ),
+    ).toBe(history);
+    await expect(bell.locator('[data-notification-unread]')).toHaveCount(0);
+    // A new document and a project remount must also preserve the same history.
+    await page.goto(`${base}#/projects`);
+    await page.goto(`${base}#/project/${projectId}`);
+    await expect(project).toContainText('Restart notifications');
+    await bell.click();
+    await expect(log).toContainText('Fresh assistant response');
+    await log.getByRole('button', { name: /^View stack trace:/ }).click();
+    await expect(details.getByLabel('Full error report')).toContainText(
+      'Fresh original stack',
+    );
+    await details.getByRole('button', { name: 'Close', exact: true }).click();
+    await bell.click();
+    await log
+      .getByRole('button', { name: 'Clear history', exact: true })
+      .click();
+    await log.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.reload();
+    await expect(project).toContainText('Restart notifications');
+    await readQueue();
+    await expect(errors).toHaveCount(0);
+    await bell.click();
+    await expect(log).toContainText('No notifications yet.');
+    await log.getByRole('button', { name: 'Close', exact: true }).click();
+    // Simulate closing a tab before its manual task could save a terminal state.
+    await page.evaluate(async (freshId) => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open('localcut-tasks-v1', 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const transaction = db.transaction('tasks', 'readwrite');
+          const store = transaction.objectStore('tasks');
+          const read = store.get(freshId);
+          read.onsuccess = () =>
+            store.put({
+              ...read.result,
+              id: 'abandoned-notification',
+              label: 'Abandoned assistant response',
+              state: 'running',
+              stage: 'Working',
+              error: undefined,
+            });
+          transaction.oncomplete = () => resolve();
+          transaction.onerror = () => reject(transaction.error);
+        });
+      } finally {
+        db.close();
+      }
+    }, freshId);
+    await page.reload();
+    await expect(project).toContainText('Restart notifications');
+    await expect(errors).toHaveCount(1);
+    await expect(errors).toContainText('Abandoned assistant response');
+    await expect(errors).toContainText('Task interrupted');
+    await dismissNotifications(page);
+    await page.reload();
+    await expect(project).toContainText('Restart notifications');
+    await readQueue();
+    await expect(errors).toHaveCount(0);
+    expect(providerRequests).toBe(0);
+  });
   for (const theme of ['light', 'dark']) {
     test(`notification history table paginates and scrolls columns ${base} ${theme}`, async ({
       page,

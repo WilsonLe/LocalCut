@@ -244,7 +244,7 @@ Run `pnpm test tests/unit/chat-title.test.ts tests/unit/providers.test.ts`, then
 
 ## Notification history checks
 
-For error diagnostics and notification history, run `pnpm test tests/unit/error-diagnostics.test.ts tests/unit/notification-history.test.ts tests/unit/services.test.ts tests/unit/task-queue.test.ts tests/unit/worker-publication.test.ts`, then `pnpm test:ui --grep 'notification history|concurrent notification reports'`. The Chrome scenario covers the deployed base, original stack/session capture, clipboard success/check/reset and denial, dismissal, persisted reopening, informational notifications, unread dots, clear history, narrow layouts and simultaneous reports under a shared write lock. Notification history is user-owned lifecycle UI; it grants no assistant edit operation.
+For error diagnostics and notification history, run `pnpm test tests/unit/error-diagnostics.test.ts tests/unit/notification-history.test.ts tests/unit/services.test.ts tests/unit/task-queue.test.ts tests/unit/worker-publication.test.ts`, then `pnpm test:ui --grep 'notification history|concurrent notification reports|saved task failures stay quiet'`. The Chrome scenario covers the deployed base, original stack/session capture, clipboard success/check/reset and denial, dismissal, persisted reopening, informational notifications, unread dots, clear history, narrow layouts and simultaneous reports under a shared write lock. The saved-task journey additionally verifies quiet startup/reopening, fresh polling/retry failures, unchanged original reports and read flags across reload, clear-history persistence and no inference requests. Notification history is user-owned lifecycle UI; it grants no assistant edit operation.
 
 ## Capture metadata checks
 

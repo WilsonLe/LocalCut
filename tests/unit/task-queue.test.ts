@@ -115,6 +115,114 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 describe('durable task queue', () => {
+  it('separates restored failures from fresh failures, retries and recovered interruptions', async () => {
+    const storage = new MemoryStore(),
+      q = queue(storage);
+    const stopped: TaskRecord = {
+      version: 1,
+      id: 'saved-failure',
+      kind: 'remote',
+      label: 'Assistant response',
+      lane: 'remote',
+      state: 'failed',
+      stage: 'Needs attention',
+      attempts: 1,
+      maxAttempts: 1,
+      createdAt: 1,
+      updatedAt: 1,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'Saved failure',
+        action: 'Retry',
+      },
+    };
+    await storage.create(stopped, {});
+    await storage.create(
+      { ...stopped, id: 'saved-interruption', state: 'interrupted' },
+      {},
+    );
+    await storage.create(
+      { ...stopped, id: 'abandoned', state: 'running', error: undefined },
+      {},
+    );
+    const events: { id: string; state: string; initialSnapshot: boolean }[] =
+      [];
+    q.subscribe((task, event) =>
+      events.push({
+        id: task.id,
+        state: task.state,
+        initialSnapshot: event?.initialSnapshot ?? false,
+      }),
+    );
+    let calls = 0;
+    q.register('remote', {
+      lane: 'remote',
+      recovery: 'manual',
+      maxAttempts: 1,
+      execute: async () => {
+        calls++;
+        throw Object.assign(new Error('Fresh rejection'), {
+          code: 'INVALID_REQUEST',
+        });
+      },
+    });
+    q.start();
+    await wait(async () => (await q.get('abandoned'))?.state === 'interrupted');
+    const failures = () =>
+      events.filter(
+        (event) =>
+          ['failed', 'interrupted'].includes(event.state) &&
+          !event.initialSnapshot,
+      );
+    expect(failures()).toEqual([
+      { id: 'abandoned', state: 'interrupted', initialSnapshot: false },
+    ]);
+    expect(calls).toBe(0);
+    const caughtUp: string[] = [];
+    const stop = q.subscribe(
+      (task, event) => {
+        expect(event.initialSnapshot).toBe(false);
+        caughtUp.push(task.id);
+      },
+      { replayChanges: true },
+    );
+    stop();
+    expect(caughtUp).toEqual(['abandoned']);
+    await q.remove('abandoned');
+    const removed: string[] = [];
+    q.subscribe((task) => removed.push(task.id), { replayChanges: true })();
+    expect(removed).toEqual([]);
+    await q.poll();
+    expect(failures()).toHaveLength(1);
+    await expect(
+      q.enqueue('remote', {}, { label: 'Fresh failure' }).completion,
+    ).rejects.toThrow('Fresh rejection');
+    expect(failures()).toHaveLength(2);
+    await expect((await q.retry(stopped.id)).completion).rejects.toThrow(
+      'Fresh rejection',
+    );
+    expect(failures().at(-1)).toEqual({
+      id: stopped.id,
+      state: 'failed',
+      initialSnapshot: false,
+    });
+    expect(calls).toBe(2);
+    // Failures created in another active queue are fresh polling changes.
+    await storage.create({ ...stopped, id: 'other-tab' }, {});
+    await q.poll();
+    expect(failures().at(-1)?.id).toBe('other-tab');
+    await storage.remove('other-tab');
+    await q.poll();
+    const remaining: string[] = [];
+    q.subscribe((task) => remaining.push(task.id), { replayChanges: true })();
+    expect(remaining).not.toContain('other-tab');
+    expect(
+      events
+        .filter((event) => event.initialSnapshot)
+        .map((event) => event.id)
+        .sort(),
+    ).toEqual(['abandoned', 'saved-failure', 'saved-interruption']);
+  });
   it('lets queued indexing overlap across assets while retaining same-asset exclusion', async () => {
     const q = queue();
     const jobs = new Jobs();

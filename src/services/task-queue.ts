@@ -84,6 +84,10 @@ const cacheCompatible = (task: TaskRecord, handler: TaskHandler) =>
 export const taskTerminal = (state: TaskState) =>
   ['completed', 'failed', 'interrupted', 'cancelled'].includes(state);
 export type TaskQueueError = NonNullable<TaskRecord['error']>;
+export interface TaskEvent {
+  /** Saved startup state, rather than a newly observed transition. */
+  initialSnapshot: boolean;
+}
 const knownCodes = new Set([
   'INVALID_DOCUMENT',
   'INVALID_COMMAND',
@@ -182,7 +186,7 @@ export class TaskQueue {
   private handlers = new Map<string, TaskHandler>();
   private errorListeners = new Set<(error: TaskQueueError) => void>();
   private volatileFailures = new Map<string, TaskRecord>();
-  private listeners = new Set<(task: TaskRecord) => void>();
+  private listeners = new Set<(task: TaskRecord, event: TaskEvent) => void>();
   private active = new Map<string, AbortController>();
   private work = new Set<Promise<void>>();
   private lanes = new Set<string>();
@@ -201,6 +205,8 @@ export class TaskQueue {
   private owned = new Set<string>();
   private pendingWrites = new Set<Promise<unknown>>();
   private lastSeen = new Map<string, string>();
+  private snapshotPublished = false;
+  private changes = new Map<string, TaskRecord>();
   constructor(
     private namespace: string,
     private options: TaskQueueOptions = {},
@@ -287,19 +293,31 @@ export class TaskQueue {
       }
     }
   }
-  subscribe(listener: (task: TaskRecord) => void) {
+  subscribe(
+    listener: (task: TaskRecord, event: TaskEvent) => void,
+    options: { replayChanges?: boolean } = {},
+  ) {
     this.listeners.add(listener);
+    if (options.replayChanges)
+      for (const task of this.changes.values()) {
+        try {
+          listener(structuredClone(task), { initialSnapshot: false });
+        } catch {
+          /* isolate consumers */
+        }
+      }
     return () => {
       this.listeners.delete(listener);
     };
   }
-  private publish(task: TaskRecord) {
+  private publish(task: TaskRecord, initialSnapshot = false) {
     const signature = JSON.stringify(task);
     if (this.lastSeen.get(task.id) === signature) return;
     this.lastSeen.set(task.id, signature);
+    if (!initialSnapshot) this.changes.set(task.id, structuredClone(task));
     for (const listener of this.listeners) {
       try {
-        listener(structuredClone(task));
+        listener(structuredClone(task), { initialSnapshot });
       } catch {
         /* isolate consumers */
       }
@@ -650,6 +668,7 @@ export class TaskQueue {
     this.results.delete(id);
     this.volatileFailures.delete(id);
     this.lastSeen.delete(id);
+    this.changes.delete(id);
   }
   private async lock(name: string, work: () => Promise<void>) {
     if (!this.locks)
@@ -674,10 +693,17 @@ export class TaskQueue {
       finishScan = resolve;
     });
     try {
+      const previousChanges = new Map(this.changes);
       const tasks = await this.list();
+      const ids = new Set(tasks.map((task) => task.id));
+      for (const [id, task] of previousChanges)
+        if (!ids.has(id) && this.changes.get(id) === task)
+          this.changes.delete(id);
+      const initialSnapshot = !this.snapshotPublished;
+      this.snapshotPublished = true;
       for (const task of tasks) {
         if (this.disposed) return;
-        this.publish(task);
+        this.publish(task, initialSnapshot);
         if (task.cancelRequested) this.active.get(task.id)?.abort();
         if (this.active.has(task.id)) continue;
         const handler =
@@ -961,6 +987,7 @@ export class TaskQueue {
     this.errorListeners.clear();
     this.results.clear();
     this.cacheIndex.clear();
+    this.changes.clear();
     await this.storage.close();
   }
 }
