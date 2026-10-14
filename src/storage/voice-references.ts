@@ -13,7 +13,7 @@ export interface VoiceReference {
 interface VoiceReferenceDatabase extends DBSchema {
   references: { key: string; value: VoiceReference };
 }
-/** Only explicitly saved generated takes; independent of projects/task eviction. */
+/** Explicitly saved generated takes and successful user composer recordings; independent of projects/task eviction. */
 async function database() {
   return openDB<VoiceReferenceDatabase>('localcut-voice-references-v1', 1, {
     upgrade(db) {
@@ -24,10 +24,12 @@ async function database() {
 export async function saveVoiceReference(
   id: string,
   reference: VoiceReference,
+  createOnly = false,
 ) {
   const db = await database();
   try {
-    await db.put('references', reference, id);
+    if (createOnly) await db.add('references', reference, id);
+    else await db.put('references', reference, id);
   } finally {
     db.close();
   }

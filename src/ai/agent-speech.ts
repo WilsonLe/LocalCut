@@ -108,7 +108,7 @@ export interface AssistantSpeech {
   ): import('../services/jobs').Job<GeneratedSpeech>;
 }
 
-/** Host-owned route. No provider credentials, source uploads or voice references in tools. */
+/** Host-owned route. No provider credentials, arbitrary source uploads or voice bytes in tools. */
 export function createAssistantSpeech(
   editor: Editor,
   connection: SpeechConnection,
@@ -142,7 +142,7 @@ export function createAssistantSpeech(
   };
   return {
     disclosure:
-      'Sends the authored narration script, language and voice settings to the connected OpenRouter TTS model. Phrase timing uses the configured STT route, which may send newly generated audio to OpenRouter. Provider charges may apply. A specifically selected saved generated speaker reference and its matching transcript may be sent for reference-model reuse. Original project media is never uploaded.',
+      'Sends the authored narration script, language and voice settings to the connected OpenRouter TTS model. Phrase timing uses the configured STT route, which may send newly generated audio to OpenRouter. Provider charges may apply. A specifically selected saved generated or composer-dictation speaker reference and its matching transcript may be sent for requested cloning. Other project originals are never uploaded.',
     inspect,
     generate(projectId, value) {
       let generationId: string | undefined;
@@ -226,13 +226,19 @@ export function createAssistantSpeech(
             'REVISION_CONFLICT',
             'The saved voice settings changed. Inspect the current voice and request a fresh proposal before synthesis.',
           );
+          aiInvariant(
+            preset?.source?.kind !== 'dictation' ||
+              input.reuseMode === 'reference',
+            'INVALID_REQUEST',
+            'Use reference mode only when the user requests cloning from a selected dictation recording.',
+          );
           const referenceReuse =
             input.reuseMode === 'reference' ||
             preset?.model === REFERENCE_SPEECH_MODEL;
           aiInvariant(
             !referenceReuse || preset,
             'INVALID_REQUEST',
-            'Reference reuse requires a specifically selected saved generated voice.',
+            'Reference reuse requires a specifically selected saved voice reference.',
           );
           const modelId =
             input.model ||
@@ -243,7 +249,7 @@ export function createAssistantSpeech(
           aiInvariant(
             model && (!model.referenceVoice || !!preset?.referenceId),
             'MODEL_REQUIRED',
-            'Choose an advertised speech model. Reference synthesis requires a selected saved generated voice.',
+            'Choose an advertised speech model. Reference synthesis requires a selected saved voice reference.',
           );
           aiInvariant(
             input.reuseMode !== 'reference' || model.referenceVoice,

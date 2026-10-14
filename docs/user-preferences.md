@@ -694,3 +694,7 @@ This is the project record of the user's durable product and workflow choices. U
 
 - Add a single icon to the chat composer footer beside Pause/Send and keep context/token/cost details inside its popover. Break costs down by user request, including synchronous and asynchronous sub-agents, and separate input, input cache and output.
 - Keep the usage popover compact: omit context/pricing explanatory paragraphs; identify each request by the user's message, truncate overflowing labels with an ellipsis and show the full message in a hover/focus tooltip. This supersedes numbered request labels. Retain numeric context/charges, estimate labels and expandable agent details.
+
+## Composer recordings for voice cloning — 14 October 2026
+
+- Retain successful composer speech-to-text microphone recordings locally as Media assets with their matching transcript. Let the chat agent discover and use those saved recordings when the user requests cloning their voice, through a supported OpenRouter reference model. Dictation alone must not start cloning.

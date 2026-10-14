@@ -4887,7 +4887,7 @@ describe('complete capability discovery and recovery', () => {
         available: false,
       });
       expect(scope.userActions).toContain(
-        'capture_and_choose_source_voice_recordings',
+        'capture_microphone_or_choose_new_source_voice_recordings',
       );
       expect(scope.userActions).not.toContain('capture_and_generate_speech');
       expect(JSON.stringify(p.requests)).not.toMatch(

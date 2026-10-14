@@ -702,7 +702,7 @@ export function toolDefinitions(
     search_text_library:
       'Search the shared text templates or font catalog by name/labels. Paginated read-only results include stable font IDs or complete template styles for insertClip/updateClip. Empty query browses every entry. No private text, media, downloads or inference.',
     inspect_speech:
-      'Inspect advertised speech models/voices, configured selection and phrase-timing readiness. No paid speech generation or raw media upload.',
+      'Inspect advertised speech models/voices, configured selection, saved generated/user dictation voice references and phrase-timing readiness. No paid speech generation or raw media upload.',
     inspect_transcription:
       'Check whether local transcription assets are cached. Does not download or initialize a model.',
     inspect_proposals:
