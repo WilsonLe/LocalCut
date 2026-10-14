@@ -16,6 +16,8 @@ for (const base of behaviorBases) {
     page,
     context,
   }, testInfo) => {
+    const firstPrompt = 'Explain the editing workflow';
+    const secondPrompt = `Explain a second request with detailed editing steps, keeping the original user message available in the usage tooltip.\nInclude this reference: ${'long-reference-'.repeat(160)}\nEnd of the original user message.`;
     await context.route('https://openrouter.ai/api/v1/models', (route) =>
       route.fulfill({
         headers: cors,
@@ -100,7 +102,7 @@ for (const base of behaviorBases) {
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await page
       .getByLabel('Describe your edit', { exact: true })
-      .fill('Explain the editing workflow');
+      .fill(firstPrompt);
     await page
       .getByRole('button', { name: 'Send edit request', exact: true })
       .click();
@@ -121,9 +123,16 @@ for (const base of behaviorBases) {
     await expect(popover).toContainText('1,200 / 10,000 · 12.0%');
     await expect(popover).not.toContainText('Latest completed main prompt');
     await expect(popover).not.toContainText('Totals are provider-reported');
-    await expect(popover).not.toContainText('Explain the editing workflow');
+    await expect(popover).toContainText(firstPrompt);
     await expect(popover).toContainText('Est. USD');
     const first = popover.locator('[data-usage-request]').first();
+    await expect(first.locator(':scope > summary')).toContainText(firstPrompt);
+    await first.locator(':scope > summary').focus();
+    await expect(page.getByRole('tooltip')).toHaveText(firstPrompt);
+    await page.keyboard.press('Enter');
+    await expect(first).toHaveAttribute('open', '');
+    await page.keyboard.press('Space');
+    await expect(first).not.toHaveAttribute('open');
     await first.locator(':scope > summary').click();
     await expect(first).toContainText('Main agent');
     await expect(first).toContainText('Goal agent');
@@ -143,7 +152,7 @@ for (const base of behaviorBases) {
     await expect(trigger).toBeFocused();
     await page
       .getByLabel('Describe your edit', { exact: true })
-      .fill('Explain a second request');
+      .fill(secondPrompt);
     await page
       .getByRole('button', { name: 'Send edit request', exact: true })
       .click();
@@ -155,7 +164,59 @@ for (const base of behaviorBases) {
     await trigger.click();
     const requests = popover.locator('[data-usage-request]');
     await expect(requests).toHaveCount(2);
-    await expect(popover).not.toContainText('Explain a second request');
+    const newestSummary = requests.first().locator(':scope > summary');
+    await expect(newestSummary).toContainText(secondPrompt);
+    await expect(requests.last().locator(':scope > summary')).toContainText(
+      firstPrompt,
+    );
+    const messageLabel = newestSummary.locator('.truncate');
+    const expectTruncated = async () => {
+      const size = await messageLabel.evaluate((element) => ({
+        client: element.clientWidth,
+        scroll: element.scrollWidth,
+        overflow: getComputedStyle(element).textOverflow,
+      }));
+      expect(size.scroll).toBeGreaterThan(size.client);
+      expect(size.overflow).toBe('ellipsis');
+    };
+    await expectTruncated();
+    await messageLabel.hover();
+    await expect(page.getByRole('tooltip')).toHaveText(secondPrompt);
+    const tooltipBox = (await page.getByRole('tooltip').boundingBox())!;
+    expect(tooltipBox.width).toBeLessThanOrEqual(256);
+    expect(tooltipBox.y).toBeGreaterThanOrEqual(0);
+    expect(tooltipBox.y + tooltipBox.height).toBeLessThanOrEqual(
+      page.viewportSize()!.height,
+    );
+    const fullMessage = page.getByRole('tooltip').locator('span');
+    expect(
+      await fullMessage.evaluate(
+        (element) => element.scrollHeight > element.clientHeight,
+      ),
+    ).toBe(true);
+    const expectScrolledToEnd = async () => {
+      await expect
+        .poll(() =>
+          fullMessage.evaluate(
+            (element) =>
+              element.scrollHeight - element.clientHeight - element.scrollTop,
+          ),
+        )
+        .toBeLessThanOrEqual(1);
+    };
+    await fullMessage.hover();
+    await page.mouse.wheel(0, 10000);
+    await expectScrolledToEnd();
+    await fullMessage.evaluate((element) => {
+      element.scrollTop = 0;
+    });
+    await fullMessage.focus();
+    await page.keyboard.press('End');
+    await expectScrolledToEnd();
+    await testInfo.attach('usage-message-tooltip', {
+      body: await page.screenshot(),
+      contentType: 'image/png',
+    });
     await requests.last().locator(':scope > summary').click();
     await expect(requests.last()).toContainText('Chat title');
     await expect(requests.last().locator(':scope > summary')).toContainText(
@@ -175,11 +236,22 @@ for (const base of behaviorBases) {
     await expect(popover).toContainText(`$${(completed * 0.002).toFixed(6)}`);
     expect(sent).toBe(callsBeforeReload);
     await expect(popover.locator('[data-usage-request]')).toHaveCount(2);
+    await expect(newestSummary).toContainText(secondPrompt);
     await page.keyboard.press('Escape');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole('button', { name: 'Chat', exact: true }).click();
     await trigger.click();
     await expect(popover).toBeVisible();
+    await expectTruncated();
+    await newestSummary.focus();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
+    await expect(newestSummary).toBeFocused();
+    await expect(page.getByRole('tooltip')).toHaveText(secondPrompt);
+    await page.keyboard.press('Enter');
+    await expect(requests.first()).toHaveAttribute('open', '');
+    await page.keyboard.press('Space');
+    await expect(requests.first()).not.toHaveAttribute('open');
     const box = (await popover.boundingBox())!;
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(390);

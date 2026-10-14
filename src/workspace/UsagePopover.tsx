@@ -114,23 +114,37 @@ export default function UsagePopover({
               Send a request to see usage.
             </p>
           )}
-          {[...requests].reverse().map((request, index) => {
+          {[...requests].reverse().map((request) => {
             const summary = summarizeUsage(request.calls);
+            const label = request.prompt || 'Message unavailable';
             return (
               <details
                 key={request.id}
                 className="text-xs"
                 data-usage-request={request.id}
               >
-                <summary className="cursor-pointer rounded-sm py-1 focus-visible:outline-2">
-                  <span className="font-medium">
-                    Request {requests.length - index}
-                  </span>
-                  <span className="float-right pl-2 tabular-nums">
-                    {money(summary.cost)}
-                    {summary.partial ? ' (partial)' : ''}
-                  </span>
-                </summary>
+                <Tooltip
+                  content={
+                    <span
+                      tabIndex={0}
+                      className="block max-h-[50vh] overflow-y-auto whitespace-pre-wrap [overflow-wrap:anywhere]"
+                    >
+                      {label}
+                    </span>
+                  }
+                >
+                  <summary className="cursor-pointer rounded-sm py-1 focus-visible:outline-2">
+                    <span className="inline-flex w-[calc(100%-1rem)] items-baseline gap-2 align-bottom">
+                      <span className="min-w-0 flex-1 truncate font-medium">
+                        {label}
+                      </span>
+                      <span className="shrink-0 tabular-nums">
+                        {money(summary.cost)}
+                        {summary.partial ? ' (partial)' : ''}
+                      </span>
+                    </span>
+                  </summary>
+                </Tooltip>
                 <UsageTable calls={request.calls} />
                 <div
                   className="mt-2 space-y-1 border-l pl-2"
