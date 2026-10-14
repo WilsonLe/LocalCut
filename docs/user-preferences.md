@@ -2,6 +2,12 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Creative music guidance — 14 October 2026
+
+- Encourage music that sounds more considered through complementary layers, motifs, harmonic color, voice leading, phrasing and purposeful development. Keep creative choices flexible; more parts or more theory is not automatically better.
+- Be inquisitive about the feeling and sound the user wants, using everyday language and concrete listening choices. Translate preferences into musical decisions without requiring music-theory knowledge. Reuse known preferences and proceed when the user gives a clear brief or delegates creative choices.
+- Match soundtrack sections to the actual cut/storyboard cues. Preserve editable source and support feedback and revision; distinguish technical verification from listening and subjective musical quality.
+
 ## Single-base browser testing — 14 October 2026
 
 - Do not repeat browser scenarios at both `/` and `/LocalCut/`. Run normal browser checks once at the deployed `/LocalCut/` base, including routing, callback and worker/asset-loading tests. This supersedes the older paired-path testing preference.
