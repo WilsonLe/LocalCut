@@ -1,0 +1,180 @@
+{
+  "baseline_head": "2df67c167221bb0abd83845e14ed1ddffcb64e0a",
+  "browser": "Google Chrome 155.0.8059.41",
+  "host": "Mac17,9, Apple Silicon, 48 GiB RAM",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "workload": "generated native 1080p30 MP4, 48 kHz stereo silence, 60 timeline labels; plain and warm grade/saturation variants",
+  "method": "three 5s steady windows after warmup; 64x36 bitmap hash observed at repaint; no concurrent agent/browser workloads",
+  "before": [
+    {
+      "workload": "plain",
+      "trial": 1,
+      "fps": 30.196980301969802,
+      "canvasWritesPerSecond": 59.99400059994001,
+      "frames": 151,
+      "elapsedMs": 5000.5,
+      "p95GapMs": 33.5,
+      "maxGapMs": 33.60000002384186,
+      "playbackAdvanceUs": 5002667,
+      "bitmapWidth": 1920,
+      "bitmapHeight": 1080
+    },
+    {
+      "workload": "plain",
+      "trial": 2,
+      "fps": 29.991002699190243,
+      "canvasWritesPerSecond": 59.98200539838049,
+      "frames": 150,
+      "elapsedMs": 5001.5,
+      "p95GapMs": 50.09999990463257,
+      "maxGapMs": 50.200000047683716,
+      "playbackAdvanceUs": 4997333,
+      "bitmapWidth": 1920,
+      "bitmapHeight": 1080
+    },
+    {
+      "workload": "plain",
+      "trial": 3,
+      "fps": 30.187924830067974,
+      "canvasWritesPerSecond": 59.97600959616153,
+      "frames": 151,
+      "elapsedMs": 5002,
+      "p95GapMs": 35,
+      "maxGapMs": 50.5,
+      "playbackAdvanceUs": 5002667,
+      "bitmapWidth": 1920,
+      "bitmapHeight": 1080
+    },
+    {
+      "workload": "graded",
+      "trial": 1,
+      "fps": 19.794853338320817,
+      "canvasWritesPerSecond": 19.794853338320817,
+      "frames": 99,
+      "elapsedMs": 5001.299999952316,
+      "p95GapMs": 52.300000071525574,
+      "maxGapMs": 62.800000071525574,
+      "playbackAdvanceUs": 5002666,
+      "bitmapWidth": 1920,
+      "bitmapHeight": 1080
+    },
+    {
+      "workload": "graded",
+      "trial": 2,
+      "fps": 19.595688948337926,
+      "canvasWritesPerSecond": 19.595688948337926,
+      "frames": 98,
+      "elapsedMs": 5001.100000023842,
+      "p95GapMs": 63.5,
+      "maxGapMs": 71.20000004768372,
+      "playbackAdvanceUs": 4997333,
+      "bitmapWidth": 1920,
+      "bitmapHeight": 1080
+    },
+    {
+      "workload": "graded",
+      "trial": 3,
+      "fps": 19.795644958486704,
+      "canvasWritesPerSecond": 19.795644958486704,
+      "frames": 99,
+      "elapsedMs": 5001.099999904633,
+      "p95GapMs": 51.800000071525574,
+      "maxGapMs": 66.10000002384186,
+      "playbackAdvanceUs": 5002667,
+      "bitmapWidth": 1920,
+      "bitmapHeight": 1080
+    }
+  ],
+  "after": [
+    {
+      "workload": "plain",
+      "trial": 1,
+      "fps": 29.988004798080766,
+      "canvasWritesPerSecond": 29.988004798080766,
+      "frames": 150,
+      "elapsedMs": 5002,
+      "p95GapMs": 33.5,
+      "maxGapMs": 34.199999928474426,
+      "playbackAdvanceUs": 4997333,
+      "bitmapWidth": 960,
+      "bitmapHeight": 540
+    },
+    {
+      "workload": "plain",
+      "trial": 2,
+      "fps": 29.990403070874315,
+      "canvasWritesPerSecond": 29.990403070874315,
+      "frames": 150,
+      "elapsedMs": 5001.600000023842,
+      "p95GapMs": 33.5,
+      "maxGapMs": 33.60000002384186,
+      "playbackAdvanceUs": 4997334,
+      "bitmapWidth": 960,
+      "bitmapHeight": 540
+    },
+    {
+      "workload": "plain",
+      "trial": 3,
+      "fps": 29.992801727299415,
+      "canvasWritesPerSecond": 29.992801727299415,
+      "frames": 150,
+      "elapsedMs": 5001.200000047684,
+      "p95GapMs": 33.5,
+      "maxGapMs": 33.5,
+      "playbackAdvanceUs": 5002667,
+      "bitmapWidth": 960,
+      "bitmapHeight": 540
+    },
+    {
+      "workload": "graded",
+      "trial": 1,
+      "fps": 29.988004798080766,
+      "canvasWritesPerSecond": 29.988004798080766,
+      "frames": 150,
+      "elapsedMs": 5002,
+      "p95GapMs": 33.39999997615814,
+      "maxGapMs": 33.5,
+      "playbackAdvanceUs": 4997333,
+      "bitmapWidth": 960,
+      "bitmapHeight": 540
+    },
+    {
+      "workload": "graded",
+      "trial": 2,
+      "fps": 29.988604329782696,
+      "canvasWritesPerSecond": 29.988604329782696,
+      "frames": 150,
+      "elapsedMs": 5001.900000095367,
+      "p95GapMs": 33.39999997615814,
+      "maxGapMs": 33.40000009536743,
+      "playbackAdvanceUs": 5002667,
+      "bitmapWidth": 960,
+      "bitmapHeight": 540
+    },
+    {
+      "workload": "graded",
+      "trial": 3,
+      "fps": 29.986805805159754,
+      "canvasWritesPerSecond": 29.986805805159754,
+      "frames": 150,
+      "elapsedMs": 5002.200000047684,
+      "p95GapMs": 34.10000002384186,
+      "maxGapMs": 35.10000002384186,
+      "playbackAdvanceUs": 4997333,
+      "bitmapWidth": 960,
+      "bitmapHeight": 540
+    }
+  ],
+  "runtime_source_sha256": {
+    "src/services/preview.ts": "76e3755ff87e6274df5c443b33d07b708165654c85d9aa2a85c1c9f72008207d",
+    "src/editor/index.ts": "fb33ef98d303e767057c014e2d4cd854f87560397b66e1cc08753d5e4e57a7a0",
+    "src/workspace/playback-position.ts": "b9a33cfceeaafc9f53ca2c4e744c37ec147af05285b617018b9654c46a93b622",
+    "src/workspace/Preview.tsx": "70ce6806a55fcec7beed94e855b267d9a78677cf14bc935dec540bbf62bd352e",
+    "src/workspace/Timeline.tsx": "815cd9239120fe24c7128571e52cd69680c05f94d0c6e715ac54946e3fa954f6",
+    "src/workspace/TimelineClipMenu.tsx": "c1c3c564d3e4beeefdd4f0e177eca51579801f294de799b0227bc1319fd289c9",
+    "src/workspace/Workspace.tsx": "8d0a3606cb3f38cfbf19de2b9c27490b579ae79629dc6101c1c269ae0d32ad67"
+  }
+}

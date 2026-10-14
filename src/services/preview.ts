@@ -34,7 +34,10 @@ export function createPreviewSession(
     disposed = false,
     animation = 0,
     generation = 0,
-    audioFrame = 0;
+    audioFrame = 0,
+    nextVideoFrame = 0;
+  const bufferedFrames: FrameResult[] = [];
+  let preparingAudio: number | undefined, preparingVideo: number | undefined;
   let controller = new AbortController();
   const listeners = new Set<(error: EditorError) => void>();
   const sources = new Set<AudioBufferSourceNode>();
@@ -63,6 +66,7 @@ export function createPreviewSession(
       source.disconnect();
     }
     sources.clear();
+    for (const result of bufferedFrames.splice(0)) result.image.close();
   };
   // The native clock keeps moving while decoding. Stop the timeline at the
   // scheduled PCM boundary until pump can resume it with the next block.
@@ -93,7 +97,10 @@ export function createPreviewSession(
     const until = Math.min(durationUs(snapshot), time() + 500000),
       limit = Math.ceil((until * 48000) / 1e6);
     while (playing && token === generation && audioFrame < limit) {
-      const count = Math.min(12000, limit - audioFrame),
+      const count = Math.min(
+          12000,
+          Math.ceil((durationUs(snapshot) * 48000) / 1e6) - audioFrame,
+        ),
         start = audioFrame;
       const channels = await audio(snapshot, start, count, controller.signal);
       if (!playing || token !== generation) break;
@@ -121,31 +128,83 @@ export function createPreviewSession(
       audioFrame += count;
     }
   };
-  const tick = async (token: number) => {
-    if (!playing || !snapshot || token !== generation) return;
+  const fail = (error: unknown, token: number) => {
+    if (!playing || token !== generation) return;
+    position = time();
+    stop();
+    report(error);
+  };
+  const prepareVideo = async (token: number) => {
+    if (preparingVideo === token || !snapshot) return;
+    preparingVideo = token;
+    const p = snapshot,
+      signal = controller.signal;
+    const frameUs = (1e6 * p.frameRate.den) / p.frameRate.num;
+    try {
+      while (playing && token === generation && bufferedFrames.length < 3) {
+        // Catch up after slow decoding instead of rendering every missed frame.
+        nextVideoFrame = Math.max(nextVideoFrame, Math.floor(time() / frameUs));
+        // Decode at or just after the rational source boundary. Rounding down
+        // by even half a microsecond can repeat the preceding native sample.
+        const timestamp = Math.ceil(
+          (nextVideoFrame * 1e6 * p.frameRate.den) / p.frameRate.num,
+        );
+        if (timestamp >= durationUs(p)) break;
+        nextVideoFrame++;
+        const result = await frame(p, timestamp, signal);
+        if (!playing || token !== generation || disposed) {
+          result.image.close();
+          break;
+        }
+        bufferedFrames.push(result);
+      }
+    } catch (error) {
+      fail(error, token);
+    } finally {
+      if (preparingVideo === token) preparingVideo = undefined;
+    }
+  };
+  const prepareAudio = async (token: number) => {
+    if (preparingAudio === token) return;
+    preparingAudio = token;
     try {
       await pump(token);
-      if (token !== generation) return;
-      await present(snapshot, time(), token);
     } catch (error) {
-      if (playing && token === generation) {
-        position = time();
-        stop();
-        report(error);
-        throw asEditorError(error);
+      fail(error, token);
+    } finally {
+      if (preparingAudio === token) preparingAudio = undefined;
+    }
+  };
+  const tick = (token: number) => {
+    if (!playing || !snapshot || token !== generation) return;
+    const current = time();
+    let ready: FrameResult | undefined;
+    while (bufferedFrames[0] && bufferedFrames[0].timeUs <= current) {
+      ready?.image.close();
+      ready = bufferedFrames.shift();
+    }
+    if (ready) {
+      try {
+        canvas
+          .getContext('2d')!
+          .drawImage(ready.image, 0, 0, canvas.width, canvas.height);
+      } catch (error) {
+        fail(error, token);
+      } finally {
+        ready.image.close();
       }
-      return;
     }
     if (!playing || token !== generation) return;
-    if (time() >= durationUs(snapshot)) {
+    if (current >= durationUs(snapshot)) {
       position = durationUs(snapshot);
       stop();
       return;
     }
-    animation = requestAnimationFrame(() => {
-      // tick reports failures before rejecting; background promises are observed.
-      void tick(token).catch(() => {});
-    });
+    // Refill bounded audio/video independently of repaint. The worker still
+    // serializes native composition; at most one request per producer is pending.
+    void prepareAudio(token);
+    void prepareVideo(token);
+    animation = requestAnimationFrame(() => tick(token));
   };
   return {
     async play() {
@@ -195,7 +254,17 @@ export function createPreviewSession(
       origin = audioContext.currentTime + 0.05;
       audioFrame = Math.round((position * 48000) / 1e6);
       playing = true;
-      await tick(token);
+      try {
+        await pump(token);
+      } catch (error) {
+        if (token !== generation || disposed) return;
+        fail(error, token);
+        throw asEditorError(error);
+      }
+      if (token !== generation || disposed) return;
+      nextVideoFrame =
+        Math.floor(position / ((1e6 * p.frameRate.den) / p.frameRate.num)) + 1;
+      tick(token);
     },
     pause() {
       if (playing) position = time();

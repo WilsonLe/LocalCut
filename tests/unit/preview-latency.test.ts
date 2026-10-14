@@ -10,7 +10,10 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function setup() {
+function setup(
+  frameWait?: (timeUs: number) => Promise<void> | undefined,
+  delayAudio = true,
+) {
   const callbacks: FrameRequestCallback[] = [];
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
     callbacks.push(callback);
@@ -37,6 +40,7 @@ function setup() {
   const starts: { at: number; count: number; sample: number }[] = [];
   const presented: number[] = [];
   const closed: number[] = [];
+  const rendered: number[] = [];
   const pending = deferred<Float32Array[]>();
   const context = {
     state: 'running',
@@ -63,7 +67,7 @@ function setup() {
     },
   };
   const audio = vi.fn(async (_project, start: number, count: number) => {
-    if (audio.mock.calls.length === 4) return pending.promise;
+    if (delayAudio && audio.mock.calls.length === 4) return pending.promise;
     return [
       new Float32Array(count).fill(start),
       new Float32Array(count).fill(start),
@@ -81,16 +85,21 @@ function setup() {
       }),
     } as unknown as HTMLCanvasElement,
     context as unknown as AudioContext,
-    async (_project, timeUs) => ({
-      timeUs,
-      revision: 0,
-      image: {
+    async (_project, timeUs) => {
+      rendered.push(timeUs);
+      const wait = frameWait?.(timeUs);
+      if (wait) await wait;
+      return {
         timeUs,
-        close() {
-          closed.push(timeUs);
-        },
-      } as unknown as ImageBitmap,
-    }),
+        revision: 0,
+        image: {
+          timeUs,
+          close() {
+            closed.push(timeUs);
+          },
+        } as unknown as ImageBitmap,
+      };
+    },
     audio,
   );
   return {
@@ -99,6 +108,7 @@ function setup() {
     starts,
     presented,
     closed,
+    rendered,
     pending,
     audio,
     animate() {
@@ -127,8 +137,11 @@ it('holds at an underrun and resumes consecutive audio with a current video fram
 
   h.context.currentTime = 1.46;
   expect(h.session.currentTimeUs).toBe(500000);
+  h.animate();
+  await vi.waitFor(() => expect(h.rendered).toContain(500000));
   h.releaseAudio();
-  await vi.waitFor(() => expect(h.presented).toHaveLength(3));
+  await vi.waitFor(() => expect(h.starts).toHaveLength(4));
+  h.animate();
 
   expect(h.starts.map((source) => source.sample)).toEqual([
     0, 12000, 24000, 36000,
@@ -145,7 +158,11 @@ it('holds at an underrun and resumes consecutive audio with a current video fram
   h.context.currentTime = 1.64;
   expect(h.session.currentTimeUs).toBe(630000);
   h.session.dispose();
-  expect(h.closed).toEqual(h.presented);
+  await vi.waitFor(() =>
+    expect([...h.closed].sort((a, b) => a - b)).toEqual(
+      [...h.rendered].sort((a, b) => a - b),
+    ),
+  );
 });
 
 it.each(['pause', 'dispose'] as const)(
@@ -157,12 +174,13 @@ it.each(['pause', 'dispose'] as const)(
     h.animate();
     await vi.waitFor(() => expect(h.audio).toHaveBeenCalledTimes(4));
     h.context.currentTime = 1.46;
+    const before = [...h.presented];
     h.session[action]();
     h.releaseAudio();
     await Promise.resolve();
     await Promise.resolve();
     expect(h.starts).toHaveLength(2);
-    expect(h.presented).toHaveLength(2);
+    expect(h.presented).toEqual(before);
     expect(h.session.currentTimeUs).toBe(500000);
     h.session.dispose();
   },
@@ -200,3 +218,65 @@ it('keeps a seek position fixed during the initial audio scheduling lead', async
   expect(h.session.currentTimeUs).toBe(525000);
   h.session.dispose();
 });
+
+it('prepares a bounded frame buffer and only paints due project frames', async () => {
+  const h = setup();
+  await h.session.play();
+  await vi.waitFor(() => expect(h.rendered).toHaveLength(4));
+  expect(h.presented).toEqual([0]);
+  h.context.currentTime = 0.07;
+  h.animate();
+  expect(h.presented).toEqual([0]);
+  h.context.currentTime = 0.09;
+  h.animate();
+  expect(h.presented).toEqual([0, 33334]);
+  await vi.waitFor(() => expect(h.rendered).toHaveLength(5));
+  h.context.currentTime = 0.25;
+  h.animate();
+  // Drop overdue buffered frames and paint the newest available due frame.
+  expect(h.presented.at(-1)).toBe(133334);
+  h.session.dispose();
+  await Promise.resolve();
+  await vi.waitFor(() =>
+    expect([...h.closed].sort((a, b) => a - b)).toEqual(
+      [...h.rendered].sort((a, b) => a - b),
+    ),
+  );
+});
+
+it('keeps repaint independent of a delayed audio refill', async () => {
+  const h = setup();
+  await h.session.play();
+  await vi.waitFor(() => expect(h.rendered).toHaveLength(4));
+  h.context.currentTime = 0.46;
+  h.animate();
+  await vi.waitFor(() => expect(h.audio).toHaveBeenCalledTimes(4));
+  await vi.waitFor(() => expect(h.rendered).toContain(466667));
+  h.context.currentTime = 0.54;
+  h.animate();
+  expect(h.presented.at(-1)).toBe(466667);
+  expect(h.session.currentTimeUs).toBe(490000);
+  h.session.dispose();
+  h.releaseAudio();
+});
+
+it.each(['pause', 'dispose', 'seek'] as const)(
+  '%s discards an in-flight prefetched frame',
+  async (action) => {
+    const gate = deferred<void>();
+    const h = setup(
+      (timeUs) => (timeUs === 33334 ? gate.promise : undefined),
+      false,
+    );
+    await h.session.play();
+    await vi.waitFor(() => expect(h.rendered).toContain(33334));
+    if (action === 'seek') await h.session.seek(800000);
+    else h.session[action]();
+    const before = [...h.presented];
+    gate.resolve();
+    await vi.waitFor(() => expect(h.closed).toContain(33334));
+    expect(h.presented).toEqual(before);
+    expect(h.presented.at(-1)).toBe(action === 'seek' ? 800000 : 0);
+    h.session.dispose();
+  },
+);

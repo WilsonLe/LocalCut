@@ -320,25 +320,6 @@ export async function createEditor(options: EditorOptions = {}) {
       { acceptCommittedResult: operation === 'import' },
     );
   };
-  const render = async (p: Project, t: number, signal: AbortSignal) =>
-    interactive.run<FrameResult>(
-      'frame',
-      { namespace, project: p, timeUs: t },
-      signal,
-      () => {},
-    );
-  const mix = async (
-    p: Project,
-    start: number,
-    count: number,
-    signal: AbortSignal,
-  ) =>
-    interactive.run<Float32Array[]>(
-      'audio',
-      { namespace, project: p, startFrame: start, count },
-      signal,
-      () => {},
-    );
   const speechRun = <T>(operation: string, payload: object) => {
     active();
     return jobs.start<T>((signal, progress) => {
@@ -1142,8 +1123,33 @@ export async function createEditor(options: EditorOptions = {}) {
               : store.getProject(projectId),
           canvas,
           audioContext,
-          render,
-          mix,
+          (p, timeUs, signal) =>
+            interactive.run<FrameResult>(
+              'frame',
+              {
+                namespace,
+                project: p,
+                timeUs,
+                width: canvas.width,
+                height: canvas.height,
+              },
+              signal,
+              () => {},
+            ),
+          (p, startFrame, count, signal) =>
+            interactive.run<Float32Array[]>(
+              'audio',
+              {
+                namespace,
+                project: p,
+                startFrame,
+                count,
+                width: canvas.width,
+                height: canvas.height,
+              },
+              signal,
+              () => {},
+            ),
         );
         sessions.add(session);
         return session;
