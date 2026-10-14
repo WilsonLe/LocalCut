@@ -1,5 +1,16 @@
 import { dismissNotifications } from './workspace-notifications-helper';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+
+async function importInvalidBackup(page: Page) {
+  await page
+    .getByLabel('Import project backup', { exact: true })
+    .setInputFiles({
+      name: 'invalid-project.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from('invalid project backup'),
+    });
+}
 
 // System clipboard is shared by Chrome contexts; keep these assertions serial.
 test.describe.configure({ mode: 'serial' });
@@ -216,14 +227,9 @@ for (const base of ['/', '/LocalCut/']) {
     await expect(
       page.getByRole('button', { name: 'Open project', exact: true }),
     ).toContainText('Diagnostic session');
-    await page.route('**/build-info.json?*', (route) =>
-      route.fulfill({ status: 500, body: 'private provider body' }),
-    );
-    await page
-      .getByRole('button', { name: 'Check for update', exact: true })
-      .click();
+    await importInvalidBackup(page);
     const toast = page.locator('[data-sonner-toast][data-type="error"]').last();
-    await expect(toast).toContainText('Could not check for updates');
+    await expect(toast).toContainText('Invalid project JSON');
     await expect(bell.locator('[data-notification-unread]')).toBeVisible();
     await toast
       .getByRole('button', { name: 'View stack trace', exact: true })
@@ -241,11 +247,18 @@ for (const base of ['/', '/LocalCut/']) {
     expect(
       await report.evaluate((element) => getComputedStyle(element).whiteSpace),
     ).toBe('pre');
-    await expect(report).toContainText('Error: Build information unavailable');
+    await expect(report).toContainText('EditorError: Invalid project JSON');
     await expect(report).toContainText(id);
     await expect(report).toContainText('playheadUs');
     await expect(report).toContainText('revision');
-    await expect(report).not.toContainText('private provider body');
+    const build = JSON.parse(
+      readFileSync(
+        `${base === '/' ? 'dist-root' : 'dist'}/build-info.json`,
+        'utf8',
+      ),
+    ) as { commit: string };
+    await expect(report).toContainText(build.commit);
+    await expect(report).not.toContainText('invalid project backup');
     const fullText = await report.textContent();
     await details
       .getByRole('button', { name: 'Copy error details', exact: true })
@@ -277,7 +290,7 @@ for (const base of ['/', '/LocalCut/']) {
     await dismissNotifications(page);
     await expect(toast).toHaveCount(0);
     await bell.click();
-    await expect(log).toContainText('Could not check for updates');
+    await expect(log).toContainText('Invalid project JSON');
     await expect(bell.locator('[data-notification-unread]')).toHaveCount(0);
     await log.getByRole('button', { name: /^View stack trace:/ }).click();
     await expect(report).toHaveText(fullText!);
@@ -291,21 +304,18 @@ for (const base of ['/', '/LocalCut/']) {
       page.getByRole('button', { name: 'Undo', exact: true }),
     ).toBeVisible();
     await bell.click();
-    await expect(log).toContainText('Could not check for updates');
+    await expect(log).toContainText('Invalid project JSON');
     await log.getByRole('button', { name: /^View stack trace:/ }).click();
     await expect(report).toHaveText(fullText!);
     await details.getByRole('button', { name: 'Close', exact: true }).click();
-    await page.unroute('**/build-info.json?*');
-    await page
-      .getByRole('button', { name: 'Check for update', exact: true })
-      .click();
+    await page.keyboard.press('ControlOrMeta+s');
     await expect(
       page.locator('[data-sonner-toast][data-type="success"]'),
-    ).toContainText('LocalCut is up to date');
+    ).toContainText('Project saved');
     await expect(bell.locator('[data-notification-unread]')).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
     await bell.click();
-    await expect(log).toContainText('LocalCut is up to date');
+    await expect(log).toContainText('Project saved');
     const bounds = (await log.boundingBox())!;
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
@@ -354,12 +364,7 @@ for (const base of ['/', '/LocalCut/']) {
       });
     });
     await page.goto(base);
-    await page.route('**/build-info.json?*', (route) =>
-      route.fulfill({ status: 500, body: 'Private body' }),
-    );
-    await page
-      .getByRole('button', { name: 'Check for update', exact: true })
-      .click();
+    await importInvalidBackup(page);
     const bell = page.getByRole('button', { name: /^Notifications/ });
     await expect(bell.locator('[data-notification-unread]')).toBeVisible();
     await bell.click();
@@ -374,7 +379,7 @@ for (const base of ['/', '/LocalCut/']) {
       exact: true,
     });
     await expect(details.getByLabel('Full error report')).toContainText(
-      'Build information unavailable',
+      'Invalid project JSON',
     );
     await details.getByRole('button', { name: 'Close', exact: true }).click();
     await bell.click();
@@ -399,15 +404,14 @@ for (const base of ['/', '/LocalCut/']) {
       name: 'Notifications',
       exact: true,
     });
-    await expect(otherLog).toContainText('Could not check for updates');
+    await expect(otherLog).toContainText('Invalid project JSON');
     await otherLog.getByRole('button', { name: 'Close', exact: true }).click();
-    await page.unroute('**/build-info.json?*');
-    await page
-      .getByRole('button', { name: 'Check for update', exact: true })
-      .click();
+    await importInvalidBackup(page);
     await expect(otherBell.locator('[data-notification-unread]')).toBeVisible();
     await otherBell.click();
-    await expect(otherLog).toContainText('LocalCut is up to date');
+    await expect(
+      otherLog.getByRole('button', { name: /^View stack trace:/ }),
+    ).toHaveCount(2);
     await expect(bell.locator('[data-notification-unread]')).toHaveCount(0);
     await otherLog
       .getByRole('button', { name: 'Clear history', exact: true })
@@ -422,14 +426,6 @@ for (const base of ['/', '/LocalCut/']) {
   }) => {
     const other = await context.newPage();
     await Promise.all([page.goto(base), other.goto(base)]);
-    await Promise.all([
-      page.route('**/build-info.json?*', (route) =>
-        route.fulfill({ status: 500, body: 'Private body' }),
-      ),
-      other.route('**/build-info.json?*', (route) =>
-        route.fulfill({ status: 500, body: 'Private body' }),
-      ),
-    ]);
     await page.evaluate(async () => {
       let ready!: () => void, release!: () => void;
       const started = new Promise<void>((resolve) => {
@@ -447,14 +443,7 @@ for (const base of ['/', '/LocalCut/']) {
       });
       await started;
     });
-    await Promise.all([
-      page
-        .getByRole('button', { name: 'Check for update', exact: true })
-        .click(),
-      other
-        .getByRole('button', { name: 'Check for update', exact: true })
-        .click(),
-    ]);
+    await Promise.all([importInvalidBackup(page), importInvalidBackup(other)]);
     await expect(
       page.locator('[data-sonner-toast][data-type="error"]'),
     ).toBeVisible();
@@ -489,7 +478,7 @@ for (const base of ['/', '/LocalCut/']) {
     );
     expect(
       records.every((entry) =>
-        entry.report.text.includes('Build information unavailable'),
+        entry.report.text.includes('Invalid project JSON'),
       ),
     ).toBe(true);
     await page.reload();

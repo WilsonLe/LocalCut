@@ -2,6 +2,10 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Browser-managed application updates — 14 October 2026
+
+- Remove LocalCut's Check for update feature, including its header control, update prompt and deployment-check requests. Use Chrome's installed-app update controls. This supersedes the application-update control and prompt preferences below.
+
 ## Plain text goals, to-dos and reviews — 14 October 2026
 
 - Return and retain goals, to-dos and completion assessments as ordinary text values. Do not enforce headings, checkbox syntax, JSON shapes, completion keywords or extract meaning from their content in application code. Formatting belongs in agent instructions and is advisory.

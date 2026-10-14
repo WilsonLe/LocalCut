@@ -164,7 +164,7 @@ The inventory below accounts for every Chrome/acceptance spec at this change. Th
 | [workspace-track-operations.spec.ts](../tests/browser/workspace-track-operations.spec.ts)                       | deduplicate: path-independent behavior; deployment contracts covered separately          |
 | [workspace-transfer-interactions.spec.ts](../tests/browser/workspace-transfer-interactions.spec.ts)             | deduplicate: path-independent behavior; deployment contracts covered separately          |
 | [workspace-transfer.spec.ts](../tests/browser/workspace-transfer.spec.ts)                                       | deduplicate: path-independent behavior; deployment contracts covered separately          |
-| [workspace-update.spec.ts](../tests/browser/workspace-update.spec.ts)                                           | retain: distinct base-conditioned assertions or fixtures                                 |
+| [workspace-update.spec.ts](../tests/browser/workspace-update.spec.ts)                                           | retain: browser-managed updates and project reload at both static bases                  |
 | [workspace-upload.spec.ts](../tests/browser/workspace-upload.spec.ts)                                           | deduplicate: path-independent behavior; deployment contracts covered separately          |
 | [workspace.spec.ts](../tests/browser/workspace.spec.ts)                                                         | retain: distinct base-conditioned assertions or fixtures                                 |
 | [deployment-cache.spec.ts](../tests/browser/deployment-cache.spec.ts)                                           | retain: paired-path native cached/uncached transfer control                              |

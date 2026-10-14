@@ -5,7 +5,7 @@ import {
   errorDiagnostic,
   redactDiagnosticText,
 } from '../core/error-diagnostics';
-import { runningCommit } from './update';
+declare const __LOCALCUT_COMMIT__: string | null;
 
 export interface ErrorReport {
   summary: string;
@@ -61,7 +61,7 @@ export function showErrorToast(
             occurredAt: new Date().toISOString(),
             error: diagnostic,
             session: {
-              build: runningCommit,
+              build: __LOCALCUT_COMMIT__,
               hostingPath: window.location.pathname,
               browser: navigator.userAgent,
               language: navigator.language,
