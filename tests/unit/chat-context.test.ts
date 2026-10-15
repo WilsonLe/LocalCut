@@ -287,7 +287,8 @@ it('compacts useful evidence without changing snapshots inflating the summarizer
       }),
     }),
   );
-  const messages = [source, ...receipt, ...snapshots];
+  const extra = user('Unknown new evidence ' + 'y'.repeat(300000));
+  const messages = [source, ...snapshots, extra, ...receipt];
   const original = structuredClone(messages);
   const fragments: string[] = [];
   const options = {
@@ -303,8 +304,9 @@ it('compacts useful evidence without changing snapshots inflating the summarizer
   const result = await compactWorkingContext(options);
   expect(result.compacted).toBe(true);
   expect(fragments).toHaveLength(1);
-  expect(JSON.parse(fragments[0]!)).toEqual([source, ...receipt]);
-  expect(fragments[0]!.length).toBeLessThan(610000);
+  expect(JSON.parse(fragments[0]!)).toEqual([source, extra]);
+  expect(result.messages.slice(-receipt.length)).toEqual(receipt);
+  expect(fragments[0]!.length).toBeLessThan(910000);
   expect(messages).toEqual(original);
   expect(result.checkpoint!.coveredMessages).toBeGreaterThan(3);
   const changed = structuredClone(messages);
@@ -316,4 +318,45 @@ it('compacts useful evidence without changing snapshots inflating the summarizer
   });
   // Even a projected-out snapshot remains part of the exact checkpoint identity.
   expect(invalidated.compacted).toBe(true);
+});
+
+it('keeps a large latest tool group exact and avoids repeated no-progress compaction', async () => {
+  const call: ChatMessage = {
+    role: 'assistant',
+    content: null,
+    reasoning: 'opaque'.repeat(130000),
+    tool_calls: [
+      {
+        id: 'dry',
+        type: 'function',
+        function: {
+          name: 'validate_edits',
+          arguments:
+            '{"operations":[{"type":"renameProject","name":"keep exact"}]}',
+        },
+      },
+    ],
+  };
+  const outcome: ChatMessage = {
+    role: 'tool',
+    tool_call_id: 'dry',
+    content: '{"validationId":"current-plan","expectedRevision":0}',
+  };
+  const messages = [user('Original intent'), call, outcome];
+  const before = structuredClone(messages);
+  const summarize = vi.fn(
+    async () => 'Original intent retained; use the current validated edit.',
+  );
+  const options = { messages, summarize, check: () => {}, onStart: () => {} };
+  const first = await compactWorkingContext(options);
+  expect(first.compacted).toBe(true);
+  expect(first.messages.slice(-2)).toEqual([call, outcome]);
+  expect(messages).toEqual(before);
+  const next = await compactWorkingContext({
+    ...options,
+    checkpoint: first.checkpoint,
+  });
+  expect(next.compacted).toBe(false);
+  expect(summarize).toHaveBeenCalledTimes(1);
+  expect(next.messages).toEqual(first.messages);
 });

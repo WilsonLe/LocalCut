@@ -1,3 +1,4 @@
+import { validationInvariant } from '../core/edit-validation';
 import { remapStoryboardAssets } from '../core/storyboard';
 import { openDB } from 'idb';
 import type { IDBPDatabase } from 'idb';
@@ -703,10 +704,11 @@ export class Store {
           'INVALID_COMMAND',
           'Clip and asset types differ',
         );
-        invariant(
+        validationInvariant(
           !clip.sourceOutUs || clip.sourceOutUs <= asset.durationUs,
+          'source_bounds',
+          {},
           'INVALID_COMMAND',
-          'Clip exceeds source duration',
         );
       }
     }

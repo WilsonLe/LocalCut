@@ -24,6 +24,7 @@ import type {
   Transition,
   Parameter,
 } from './model';
+import { schemaValidation } from './edit-validation';
 import { invariant, EditorError } from './errors';
 import { evaluateKeys, sourceTimeUs } from './timing';
 import {
@@ -329,7 +330,10 @@ export const batchSchema = z
   .strict();
 export function parseBatch(input: unknown): CommandBatch {
   const r = batchSchema.safeParse(input);
-  if (!r.success) throw new EditorError('INVALID_COMMAND', r.error.message);
+  if (!r.success)
+    throw new EditorError('INVALID_COMMAND', r.error.message, {
+      validation: schemaValidation(r.error.issues),
+    });
   return r.data;
 }
 export function canonical(value: unknown): string {

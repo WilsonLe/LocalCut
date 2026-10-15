@@ -54,6 +54,11 @@ Use the [current preference index](current-preferences.md) to find relevant cont
 - Preserve prompt caching: sent main messages stay immutable between compactions, stable instructions/history precede fresh state, and chat/role routing IDs remain stable. Reduce known redundant historical execution guidance only in compaction/auxiliary evidence; retain unknown evidence and receipts.
 - Initialize the to-do agent for each request, then trigger it every two completed execution rounds. Flush pending evidence before completion review; reuse an unchanged reviewed final response without another checklist call.
 
+## Actionable editing recovery — 16 October 2026
+
+- Give Klip concrete safe validation failures and recovery steps so it can correct edits without operator diagnosis.
+- Preserve validated work through compaction, avoid redundant batch reconstruction and keep bookkeeping from preventing the requested edit. Retain strict editing, privacy, cancellation and immutable-history boundaries.
+
 ## Automatic working-context compaction — 14 October 2026
 
 - Automatically compact model working context when it reaches 192,000 estimated tokens, 75% of the original 256k working budget. This supersedes the no-compaction parts of the 12 October no-cap preference; retain uncapped output and execution with provider/caller limits.

@@ -1,3 +1,4 @@
+import { validationInvariant, schemaValidation } from './edit-validation';
 import { captureMetadataSchema } from './capture-metadata';
 import { storyboardSchema, validateStoryboard } from './storyboard';
 import { z } from 'zod';
@@ -368,7 +369,9 @@ export type ProjectBackup = z.infer<typeof backupSchema>;
 export function validateBackup(value: unknown): ProjectBackup {
   const result = backupSchema.safeParse(value);
   if (!result.success)
-    throw new EditorError('INVALID_DOCUMENT', result.error.message);
+    throw new EditorError('INVALID_DOCUMENT', result.error.message, {
+      validation: schemaValidation(result.error.issues),
+    });
   const backup = result.data;
   backup.project = validateProject(backup.project);
   const assets = new Map(backup.assets.map((a) => [a.id, a]));
@@ -448,7 +451,9 @@ export function validateBackup(value: unknown): ProjectBackup {
 export function validateProject(value: unknown): Project {
   const result = projectSchema.safeParse(value);
   if (!result.success)
-    throw new EditorError('INVALID_DOCUMENT', result.error.message);
+    throw new EditorError('INVALID_DOCUMENT', result.error.message, {
+      validation: schemaValidation(result.error.issues),
+    });
   const project = result.data,
     ids = new Set<string>();
   const unique = (key: string) => {
@@ -457,9 +462,9 @@ export function validateProject(value: unknown): Project {
   };
   unique(project.id);
   if (project.storyboard) validateStoryboard(project.storyboard);
-  for (const track of project.tracks) {
+  for (const [trackIndex, track] of project.tracks.entries()) {
     unique(track.id);
-    for (const clip of track.clips) {
+    for (const [clipIndex, clip] of track.clips.entries()) {
       unique(clip.id);
       invariant(
         Number.isSafeInteger(clip.startUs + clip.durationUs),
@@ -473,19 +478,19 @@ export function validateProject(value: unknown): Project {
           'Media clip requires asset ID',
         );
       if (['video', 'audio'].includes(clip.kind)) {
-        invariant(
+        validationInvariant(
           clip.sourceOutUs !== undefined && clip.sourceOutUs > clip.sourceInUs,
-          'INVALID_DOCUMENT',
-          'Media source range required',
+          'media_source_range',
+          { trackIndex, clipIndex },
         );
-        invariant(
+        validationInvariant(
           !!clip.loop ||
             Math.abs(
               nominalSourceBounds(clip).spanUs / averageSpeed(clip) -
                 clip.durationUs,
             ) <= 1,
-          'INVALID_DOCUMENT',
-          'Duration must match source range and speed',
+          'source_duration',
+          { trackIndex, clipIndex },
         );
       }
       if (clip.loop) {
@@ -533,23 +538,23 @@ export function validateProject(value: unknown): Project {
         'INVALID_DOCUMENT',
         'Crop outside source',
       );
-      invariant(
+      validationInvariant(
         clip.fadeInUs + clip.fadeOutUs <=
           (clip.fadeEnvelope?.durationUs ?? clip.durationUs) &&
           (!clip.fadeEnvelope ||
             clip.fadeEnvelope.offsetUs + clip.durationUs <=
               clip.fadeEnvelope.durationUs),
-        'INVALID_DOCUMENT',
-        'Fades exceed duration',
+        'fades_duration',
+        { trackIndex, clipIndex },
       );
       for (const [parameter, keys] of Object.entries(clip.keyframes)) {
         let previous = -1;
         for (const key of keys) {
           unique(key.id);
-          invariant(
+          validationInvariant(
             key.timeUs > previous && key.timeUs <= clip.durationUs,
-            'INVALID_DOCUMENT',
-            'Keyframes must be ordered and within clip',
+            'keyframe_bounds',
+            { trackIndex, clipIndex },
           );
           previous = key.timeUs;
           const trial = clipSchema.safeParse({
@@ -597,17 +602,17 @@ export function validateProject(value: unknown): Project {
       'A group requires at least two clips',
     );
   }
-  for (const t of project.transitions) {
+  for (const [transitionIndex, t] of project.transitions.entries()) {
     unique(t.id);
-    invariant(
+    validationInvariant(
       transitionPairs(project).some(
         (pair) =>
           pair.trackId === t.trackId &&
           pair.fromClipId === t.fromClipId &&
           pair.toClipId === t.toClipId,
       ),
-      'INVALID_DOCUMENT',
-      'Transition requires adjacent ordered overlap of visual media clips on one video track without a third clip',
+      'transition_overlap',
+      { transitionIndex },
     );
     invariant(
       !project.transitions.some(

@@ -62,7 +62,9 @@ for (const base of behaviorBases) {
           const evidence = JSON.parse(request.messages[1].content);
           expect(request.tool_choice).toBe('none');
           expect(evidence.fragment).toContain('ARCHIVE_ONLY_SOURCE_');
-          expect(evidence.fragment).toContain('checked-title');
+          // Completed receipts remain exact in the recent suffix; they need not
+          // enter this older prefix merely to satisfy a message-count heuristic.
+          expect(evidence.fragment).not.toContain('checked-title');
           expect(evidence.fragment).not.toContain('OLD_CHANGING_SNAPSHOT_');
           expect(evidence.fragment.length).toBeLessThan(720000);
           if (compactionRequests === 1) {
@@ -82,7 +84,7 @@ for (const base of behaviorBases) {
           await route.fulfill({
             headers: cors,
             contentType: 'text/event-stream',
-            body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'The closing title and overlay are completed at revision 2; preserve them and verify without replay.' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+            body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'Earlier reference material has been summarized. Preserve current saved work; verify without replay.' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
           });
           return;
         }
@@ -111,6 +113,14 @@ for (const base of behaviorBases) {
                 m.content === 'Verify the saved title without changing it.',
             )
           ) {
+            if (compactionRequests)
+              expect(
+                request.messages.some(
+                  (message: { role: string; content: string }) =>
+                    message.role === 'tool' &&
+                    message.content.includes('checked-title'),
+                ),
+              ).toBe(true);
             restoredProgress = scope.recordedProgress;
             content = 'The saved closing title is retained.';
           } else if (scope.completionDecision)
@@ -446,7 +456,7 @@ for (const base of behaviorBases) {
         ),
       };
     });
-    expect(stored.checkpoint.summary).toContain('completed at revision 2');
+    expect(stored.checkpoint.summary).toContain('Earlier reference material');
     expect(stored.hasOriginal).toBe(true);
     expect(stored.hasSnapshot).toBe(true);
     await page.setViewportSize({ width: 1920, height: 1080 });

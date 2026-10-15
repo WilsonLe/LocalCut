@@ -106,6 +106,7 @@ export interface AssistantToolHost extends Pick<
 > {
   id: string;
   signal: AbortSignal;
+  preparedEdits: Map<string, CommandBatch>;
   declaredTools: ReadonlySet<string>;
   snapshot: Project;
   indexes: AssetIndexRun[];

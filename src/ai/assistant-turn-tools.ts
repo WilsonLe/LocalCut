@@ -59,6 +59,7 @@ export function createAssistantToolHandler(tools: AssistantToolHost) {
     refreshExecutionContext,
     referencedTranscripts,
     validate,
+    preparedEdits,
     requireProposalSlot,
     freezeLibraryScope,
     staged,
@@ -479,7 +480,10 @@ export function createAssistantToolHandler(tools: AssistantToolHost) {
         const { batch, validated } = await validate(
           args.operations as unknown[],
         );
+        const validationId = crypto.randomUUID();
+        preparedEdits.set(validationId, structuredClone(batch));
         return {
+          validationId,
           expectedRevision: batch.expectedRevision,
           affectedIds: validated.affectedIds,
           ...(args.includeProject
@@ -494,8 +498,24 @@ export function createAssistantToolHandler(tools: AssistantToolHost) {
       }
       case 'propose_edits': {
         requireProposalSlot();
+        const prepared =
+          args.validationId === undefined
+            ? undefined
+            : preparedEdits.get(args.validationId as string);
+        aiInvariant(
+          args.validationId === undefined || prepared,
+          'EDIT_REJECTED',
+          'Validation ID is unknown, consumed or from another turn. Validate the intended operations again.',
+        );
+        aiInvariant(
+          !prepared || prepared.expectedRevision === tools.snapshot.revision,
+          'REVISION_CONFLICT',
+          'The validated edit is stale. Inspect the current project and validate the intended operations again.',
+        );
         const { batch, validated } = await validate(
-          args.operations as unknown[],
+          prepared
+            ? structuredClone(prepared.operations)
+            : (args.operations as unknown[]),
         );
         const proposal: EditProposal = {
           id: crypto.randomUUID(),
@@ -510,6 +530,8 @@ export function createAssistantToolHandler(tools: AssistantToolHost) {
         );
         requireProposalSlot();
         staged.push(proposal);
+        if (args.validationId)
+          preparedEdits.delete(args.validationId as string);
         return {
           proposalId: proposal.id,
           status: 'pending_review',
