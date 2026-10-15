@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  executionHistory,
   compactHistory,
   contextTokens,
   compactWorkingContext,
@@ -204,7 +205,7 @@ it('keeps opaque reasoning out of summaries while hashing and preserving its ori
   expect(messages).toEqual(original);
 });
 
-it('reduces known repetitive execution evidence in one pass without altering the cached working prefix', async () => {
+it('avoids semantic inference for redundant snapshots while preserving the archive', async () => {
   const snapshot = (todos: string): ChatMessage => ({
     role: 'system',
     content: JSON.stringify({
@@ -221,24 +222,17 @@ it('reduces known repetitive execution evidence in one pass without altering the
     user('Unrecognized source evidence stays complete. ' + 'z'.repeat(5000)),
   ];
   const before = structuredClone(messages);
-  const summarize = vi.fn(async (evidence: { fragment: string }) => {
-    expect(evidence.fragment).toContain('ending blocked');
-    expect(evidence.fragment).toContain('ending fixed');
-    expect(evidence.fragment).not.toContain('catalog catalog');
-    expect(evidence.fragment.length).toBeLessThan(
-      JSON.stringify(before).length / 20,
-    );
-    return 'Narration completed. Ending fixed at revision 9.';
-  });
+  const summarize = vi.fn(async () => 'Unused summary.');
   const result = await compactWorkingContext({
     messages,
     summarize,
     check: () => {},
     onStart: () => {},
   });
-  expect(summarize).toHaveBeenCalledTimes(1);
+  expect(summarize).not.toHaveBeenCalled();
   expect(messages).toEqual(before);
-  expect(result.checkpoint!.coveredMessages).toBeGreaterThan(0);
+  expect(result.checkpoint).toBeUndefined();
+  expect(executionHistory(result.messages)).toEqual([messages[0], messages[3]]);
   expect(JSON.stringify(result.messages)).toContain('z'.repeat(5000));
   const followup = [...messages, user('Verify without synthesis.')];
   const reused = await compactWorkingContext({
@@ -248,8 +242,78 @@ it('reduces known repetitive execution evidence in one pass without altering the
     check: () => {},
     onStart: () => {},
   });
-  expect(summarize).toHaveBeenCalledTimes(1);
+  expect(summarize).not.toHaveBeenCalled();
   expect(reused.messages.slice(0, result.messages.length)).toEqual(
     result.messages,
   );
+});
+
+it('compacts useful evidence without changing snapshots inflating the summarizer request', async () => {
+  const source = user('Unknown source evidence ' + 'x'.repeat(600000));
+  const receipt: ChatMessage[] = [
+    {
+      role: 'assistant',
+      content: null,
+      tool_calls: [
+        {
+          id: 'saved',
+          type: 'function',
+          function: { name: 'propose_edits', arguments: '{}' },
+        },
+      ],
+    },
+    {
+      role: 'tool',
+      tool_call_id: 'saved',
+      content:
+        '{"status":"completed","result":{"kind":"edit","receipt":{"projectId":"film","appliedRevision":9,"requestId":"saved"}}}',
+    },
+  ];
+  const snapshots: ChatMessage[] = Array.from(
+    { length: 80 },
+    (_, revision) => ({
+      role: 'system',
+      content: JSON.stringify({
+        selectedProject: {
+          id: 'film',
+          revision,
+          tracks: 'changing clips '.repeat(1200),
+        },
+        availableAssetIds: ['voice'],
+        capabilityMap: {},
+        recordedProgress: Array.from({ length: revision }, (_, i) => ({
+          revision: i,
+        })),
+      }),
+    }),
+  );
+  const messages = [source, ...receipt, ...snapshots];
+  const original = structuredClone(messages);
+  const fragments: string[] = [];
+  const options = {
+    messages,
+    contextWindow: 256000,
+    summarize: async ({ fragment }: { fragment: string }) => {
+      fragments.push(fragment);
+      return 'Edit saved at revision 9. Preserve completed narration.';
+    },
+    check: () => {},
+    onStart: () => {},
+  };
+  const result = await compactWorkingContext(options);
+  expect(result.compacted).toBe(true);
+  expect(fragments).toHaveLength(1);
+  expect(JSON.parse(fragments[0]!)).toEqual([source, ...receipt]);
+  expect(fragments[0]!.length).toBeLessThan(610000);
+  expect(messages).toEqual(original);
+  expect(result.checkpoint!.coveredMessages).toBeGreaterThan(3);
+  const changed = structuredClone(messages);
+  changed[3]!.content += ' ';
+  const invalidated = await compactWorkingContext({
+    ...options,
+    messages: changed,
+    checkpoint: result.checkpoint,
+  });
+  // Even a projected-out snapshot remains part of the exact checkpoint identity.
+  expect(invalidated.compacted).toBe(true);
 });

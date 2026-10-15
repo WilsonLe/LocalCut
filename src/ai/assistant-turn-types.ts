@@ -129,4 +129,9 @@ export interface AssistantToolHost extends Pick<
   requireProposalSlot(): void;
   freezeLibraryScope(proposal: EditProposal, dependent: boolean): void;
   staged: EditProposal[];
+  updateSessionNotes(args: {
+    expectedRevision: number;
+    goal?: { oldText: string; newText: string }[];
+    todos?: { oldText: string; newText: string }[];
+  }): { revision: number; goal: string; todos: string; advisory: true };
 }

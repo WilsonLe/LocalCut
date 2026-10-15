@@ -433,15 +433,135 @@ describe('exact persistent document replacements', () => {
       const progress = vi.fn();
       await expect(
         goalResponse({
-          ...options([response]),
+          ...options([response, response]),
           document,
           onProgress: progress,
         }),
       ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
-      expect(progress.mock.calls).toEqual([[''], ['']]);
+      expect(progress.mock.calls.every(([value]) => value === '')).toBe(true);
       expect(document).toContain('## Notes');
     },
   );
+
+  it.each(['missing', 'ambiguous'])(
+    'corrects a %s anchor once against the unchanged document',
+    async (match) => {
+      const source = 'First: pending\nSecond: pending\nKeep receipt 99.\n';
+      const invalid = edit([
+        { oldText: 'Keep receipt 99.', newText: 'Keep receipt 99. Verified.' },
+        {
+          oldText: match === 'missing' ? 'stale target' : 'pending',
+          newText: 'done',
+        },
+      ]);
+      const corrected = edit([
+        { oldText: 'First: pending', newText: 'First: done' },
+      ]);
+      const o = options([invalid, corrected]);
+      const progress = vi.fn();
+      const frozen = structuredClone(o.request);
+      expect(
+        await goalResponse({ ...o, document: source, onProgress: progress }),
+      ).toBe('First: done\nSecond: pending\nKeep receipt 99.\n');
+      expect(o.requests).toHaveLength(2);
+      expect(o.requests[1]!.messages.slice(0, frozen.messages.length)).toEqual(
+        frozen.messages,
+      );
+      expect(o.requests[1]!.messages.at(-1)!.content).toContain(
+        'only corrective attempt',
+      );
+      expect(JSON.parse(o.requests[1]!.messages.at(-2)!.content!)).toEqual({
+        rejectedDocumentUpdate: invalid,
+        validation: {
+          reason: 'document_update_target',
+          replacementIndex: 1,
+          match,
+        },
+      });
+      expect(o.request).toEqual(frozen);
+      expect(progress.mock.calls.filter(([value]) => value)).toEqual([
+        ['First: done\nSecond: pending\nKeep receipt 99.\n'],
+      ]);
+      expect(o.accountUsage).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it('stops after a second invalid target without publishing partial notes', async () => {
+    const invalid = edit([{ oldText: 'missing', newText: 'done' }]);
+    const o = options([invalid, invalid]);
+    const progress = vi.fn();
+    await expect(
+      goalResponse({ ...o, document, onProgress: progress }),
+    ).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+      details: { reason: 'document_update_target' },
+    });
+    expect(o.requests).toHaveLength(2);
+    expect(progress.mock.calls.every(([value]) => value === '')).toBe(true);
+  });
+
+  it('rejects a malformed later replacement before considering target correction', async () => {
+    const o = options([
+      JSON.stringify({
+        replacements: [
+          { oldText: 'missing', newText: 'changed' },
+          { oldText: 'Notes', newText: 7 },
+        ],
+      }),
+    ]);
+    await expect(goalResponse({ ...o, document })).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+    });
+    expect(o.requests).toHaveLength(1);
+  });
+
+  it('checks the corrective request budget before inference', async () => {
+    const o = options([edit([{ oldText: 'missing', newText: 'done' }])]);
+    await expect(
+      goalResponse({
+        ...o,
+        document,
+        checkRequest: (candidate) => {
+          if (candidate.messages.length > request.messages.length)
+            throw new AiError('CONTEXT_LIMIT', 'Caller budget');
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'CONTEXT_LIMIT' });
+    expect(o.requests).toHaveLength(1);
+  });
+
+  it('does not correct cancellation or actual tool calls', async () => {
+    const cancelled = options([
+      edit([{ oldText: 'missing', newText: 'done' }]),
+    ]);
+    cancelled.accountUsage.mockImplementation(() =>
+      cancelled.controller.abort(),
+    );
+    await expect(
+      goalResponse({ ...cancelled, document }),
+    ).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(cancelled.requests).toHaveLength(1);
+    const tools = options([
+      {
+        type: 'complete',
+        message: {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            {
+              id: 'forbidden',
+              type: 'function',
+              function: { name: 'edit', arguments: '{}' },
+            },
+          ],
+        },
+      },
+    ]);
+    await expect(goalResponse({ ...tools, document })).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+    });
+    expect(tools.requests).toHaveLength(1);
+  });
 
   it('rejects ambiguous and overlapping targets', () => {
     expect(() =>

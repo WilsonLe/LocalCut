@@ -4,6 +4,10 @@ Current version: **0.1.0-alpha.1**. Short summaries for end users and executives
 
 ## Unreleased
 
+- Start editing directly with one agent, optional local notes and progress from completed receipts; retain independent completion review and recoverable history. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...codex/single-agent-lifecycle).
+
+- Explain how to resolve reference Media access before retrying saved-index reads. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...codex/assistant-loop-recovery).
+
 - Complete asset indexing when otherwise valid model descriptions exceed saved label limits; preserve the full response locally. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...codex/bounded-index-labels).
 
 - Run independent chat tools and asset indexing in parallel while dependent work stays ordered; keep each final reply below its tool and action results. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...codex/parallel-chat-tools).

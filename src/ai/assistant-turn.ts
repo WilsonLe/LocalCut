@@ -7,23 +7,26 @@ import { cancelled, interruptible, localError } from './assistant-errors';
 import { systemPrompt, userOwnedActions } from './assistant-instructions';
 import { streamAssistantResponse } from './assistant-response';
 import { createAssistantToolHandler } from './assistant-turn-tools';
-import type { AssistantTurnHost, TurnExecution } from './assistant-turn-types';
+import type {
+  AssistantTurnHost,
+  AssistantToolHost,
+  TurnExecution,
+} from './assistant-turn-types';
 import type { AssistantResult, EditProposal } from './assistant-types';
-import { compactHistory, compactWorkingContext } from './chat-context';
+import {
+  compactHistory,
+  compactWorkingContext,
+  executionHistory,
+} from './chat-context';
+import { receiptProgress } from './receipt-progress';
 import { boundedContext, byteLength, projectContext } from './context';
 import { AiError, aiInvariant } from './errors';
-import type {
-  GoalCompletion,
-  GoalStage,
-  GoalVerdict,
-  SessionGoal,
-} from './goal-review';
+import type { GoalCompletion, GoalVerdict, SessionGoal } from './goal-review';
 import {
   auxiliaryConversation,
   goalMessages,
   goalResponse,
-  maintenanceConversation,
-  maintenanceDocument,
+  applyDocumentReplacements,
 } from './goal-review';
 import { indexCatalog, newestIndexes } from './index-context';
 import { libraryContext } from './library-context';
@@ -61,8 +64,6 @@ export async function executeAssistantTurn(
     canIndex,
     roleSession,
     history,
-    historyIds,
-    interruptedIds,
     proposals,
     proposalLibraryScopes,
     sessionTranscripts,
@@ -363,54 +364,18 @@ export async function executeAssistantTurn(
         Math.max(0, previous.length - covered);
       return {
         previousConversation: auxiliaryConversation(
-          projected.slice(0, boundary),
+          executionHistory(projected.slice(0, boundary)),
         ),
-        conversation: auxiliaryConversation(projected.slice(boundary)),
-      };
-    };
-    const maintenancePast = history.flat();
-    const projectMaintenance = async (source: ChatMessage[]) => {
-      const messages = await projectWorking(source);
-      return {
-        messages,
-        covered: host.compaction?.coveredMessages ?? 0,
-        summaryCount: host.compaction?.summary ? 1 : 0,
-      };
-    };
-    const maintenanceTail = (
-      projection: Awaited<ReturnType<typeof projectMaintenance>>,
-      start: number,
-    ) =>
-      maintenanceConversation(
-        // A new summary may cover unacknowledged evidence. Retain that memory
-        // rather than reintroducing raw source or dropping the covered receipts.
-        projection.covered > start
-          ? projection.messages
-          : projection.messages.slice(
-              projection.summaryCount + Math.max(0, start - projection.covered),
-            ),
-      );
-    let projectedPast: ReturnType<typeof projectMaintenance> | undefined;
-    const pastWorking = () =>
-      (projectedPast ??= projectMaintenance(maintenancePast));
-    const maintenanceHistory = async (document?: string) => {
-      let first = history.length;
-      if (!document) first = 0;
-      else
-        while (first > 0 && interruptedIds.has(historyIds[first - 1]!)) first--;
-      if (first === history.length) return {};
-      const start = history
-        .slice(0, first)
-        .reduce((count, turn) => count + turn.length, 0);
-      return {
-        previousConversation: maintenanceTail(await pastWorking(), start),
+        conversation: auxiliaryConversation(
+          executionHistory(projected.slice(boundary)),
+        ),
       };
     };
     const review = async (
-      name: GoalStage,
       data: unknown,
       after?: (value: string) => Promise<{ contextChanged: boolean }>,
     ): Promise<string> => {
+      const name = 'completion_check';
       const routingSession = await roleSession(name);
       check();
       const activity = {
@@ -420,11 +385,7 @@ export async function executeAssistantTurn(
         name,
         input: {
           sessionId: routingSession,
-          ...(name === 'completion_check'
-            ? {
-                check: completionChecks,
-              }
-            : {}),
+          check: completionChecks,
         },
       };
       emit({ ...activity, phase: 'started' }, local);
@@ -440,7 +401,6 @@ export async function executeAssistantTurn(
         const response = await goalResponse({
           provider,
           request,
-          document: maintenanceDocument(name, data),
           signal,
           check,
           onProgress: (text) => {
@@ -729,6 +689,7 @@ export async function executeAssistantTurn(
       requireProposalSlot,
       freezeLibraryScope,
       staged,
+      updateSessionNotes: (args) => updateSessionNotes(args),
       get declaredTools() {
         return declaredTools;
       },
@@ -757,83 +718,56 @@ export async function executeAssistantTurn(
         resolvedLibraryRevision = value;
       },
     });
-    const [requestContract] = await Promise.all([
-      review('request_contract', {
-        initialRequest: prompt,
-        existingGoal: host.sessionGoal?.goal,
-        // Keep intent-only fallback from the verified working projection,
-        // including compacted memory; never resurrect large raw old prompts.
-        ...(host.sessionGoal?.goal && maintenancePast.length
-          ? {
-              priorRequests: (await pastWorking()).messages.flatMap(
-                (message) => (message.role === 'user' ? [message.content] : []),
-              ),
-            }
-          : {}),
-        ...(await maintenanceHistory(host.sessionGoal?.goal)),
-        execution: options.execution ?? 'review',
-      }),
-      refreshExecutionContext(),
-    ]);
-    let goalPublished = false;
+    let notesRevision = 0;
+    let requestContract = host.sessionGoal?.goal ?? '';
     const publishGoal = (goal: SessionGoal) => {
       check();
-      // Each turn needs its initial snapshot for history/forks, even when
-      // unchanged. Later no-op maintenance must not republish that document.
-      if (
-        goalPublished &&
-        host.sessionGoal?.goal === goal.goal &&
-        host.sessionGoal.todos === goal.todos
-      )
-        return;
-      goalPublished = true;
       host.sessionGoal = goal;
-      emit({ type: 'session_goal', turnId: id, goal }, local);
+      requestContract = goal.goal;
+      emit(
+        { type: 'session_goal', turnId: id, goal: structuredClone(goal) },
+        local,
+      );
     };
-    publishGoal({
-      goal: requestContract,
-      todos: host.sessionGoal?.todos ?? '',
-    });
-    let todoEvidenceCount = 0;
-    const updateTodos = async () => {
-      // Cursor addresses the immutable exchange, not the compaction projection.
-      // Repeated snapshots and old completed receipts are already in the notes.
-      const end = conversation.length;
-      const projection = await projectMaintenance([
-        ...maintenancePast,
-        ...conversation.slice(0, end),
-      ]);
-      const todos = await review('session_todos', {
-        initialRequest: prompt,
-        requestContract,
-        existingTodos: host.sessionGoal?.todos,
-        ...(todoEvidenceCount === 0
-          ? await maintenanceHistory(host.sessionGoal?.todos)
-          : {}),
-        conversation: maintenanceTail(
-          projection,
-          maintenancePast.length + todoEvidenceCount,
-        ),
-        currentContext: {
-          selectedProject: { id: snapshot.id, revision: snapshot.revision },
-        },
-        execution: options.execution ?? 'review',
-        paidActionFailed,
-      });
-      todoEvidenceCount = end;
-      publishGoal({ goal: requestContract, todos });
+    publishGoal(host.sessionGoal ?? { goal: '', todos: '' });
+    // Notes are optional local metadata. They never start inference or gate tools.
+    const updateSessionNotes: AssistantToolHost['updateSessionNotes'] = (
+      args,
+    ) => {
+      check();
+      aiInvariant(
+        args.expectedRevision === notesRevision,
+        'REVISION_CONFLICT',
+        'Session notes changed. Use the current sessionNotesRevision and exact saved text.',
+      );
+      const previous = host.sessionGoal!;
+      const next = {
+        goal:
+          args.goal === undefined
+            ? previous.goal
+            : applyDocumentReplacements(
+                previous.goal,
+                JSON.stringify({ replacements: args.goal }),
+              ),
+        todos:
+          args.todos === undefined
+            ? previous.todos
+            : applyDocumentReplacements(
+                previous.todos,
+                JSON.stringify({ replacements: args.todos }),
+              ),
+      };
+      if (next.goal !== previous.goal || next.todos !== previous.todos) {
+        notesRevision++;
+        publishGoal(next);
+      }
+      return { revision: notesRevision, ...next, advisory: true };
     };
-    // Initialize once, then maintain every two completed tool rounds. Join
-    // each update before newer state and flush before completion review.
-    let pendingTodos = updateTodos();
-    let roundsSinceTodos = 0;
-    void pendingTodos.catch(() => {});
     let callBudgetReached = false;
     let declarationKey = '';
     let declarations: ReturnType<typeof toolDefinitions> = [];
     for (let round = 0; round <= limits.maxRounds; round++) {
       check();
-      await pendingTodos;
       if (options.execution === 'requested') await refreshExecutionContext();
       const finishing = round === limits.maxRounds || callBudgetReached;
       capabilities.indexing = canIndex();
@@ -861,6 +795,13 @@ export async function executeAssistantTurn(
         ...context,
         requestContract,
         sessionTodos: host.sessionGoal?.todos,
+        sessionNotesRevision: notesRevision,
+        activeRequestId: id,
+        recordedProgress: receiptProgress(
+          [...history.flat(), ...conversation],
+          projectId,
+          availableAssets,
+        ),
         completionReview,
         completionDecision,
         candidateResponse: completionDecision ? candidateResponse : undefined,
@@ -905,10 +846,12 @@ export async function executeAssistantTurn(
       messages = [
         ...prefix,
         ...compactHistory([], host.memory, [], []).messages,
-        ...(await projectWorking([
-          ...history.flat(),
-          ...conversation.slice(0, -1),
-        ])),
+        ...executionHistory(
+          await projectWorking([
+            ...history.flat(),
+            ...conversation.slice(0, -1),
+          ]),
+        ),
         ...compacted.messages,
         structuredClone(currentSnapshot),
       ];
@@ -951,30 +894,24 @@ export async function executeAssistantTurn(
       conversation.push(message);
       const calls = message.tool_calls ?? [];
       if (!calls.length) {
-        const previousCandidate: string | null = candidateResponse;
         candidateResponse = message.content;
         check();
         await refreshExecutionContext();
         if (completionDecision && reviewedContext !== reviewContextIdentity())
           completionDecision = false;
         const acceptingDecision = completionDecision;
-        if (
-          !acceptingDecision ||
-          roundsSinceTodos ||
-          previousCandidate !== candidateResponse
-        ) {
-          pendingTodos = updateTodos();
-          await pendingTodos;
-          roundsSinceTodos = 0;
-        }
         if (!acceptingDecision) {
           completionChecks++;
           reviewedContext = reviewContextIdentity();
           completionReview = await review(
-            'completion_check',
             {
               initialRequest: prompt,
               candidateResponse: message.content,
+              recordedProgress: receiptProgress(
+                [...history.flat(), ...conversation],
+                projectId,
+                availableAssets,
+              ),
               requestContract,
               sessionTodos: host.sessionGoal?.todos,
               ...(await workingEvidence()),
@@ -1008,7 +945,7 @@ export async function executeAssistantTurn(
         const completion: GoalCompletion = {
           status: acceptingDecision ? 'reviewed' : 'limited',
           checks: completionChecks,
-          contract: requestContract,
+          contract: requestContract || prompt,
           verdict: completionReview ?? '',
         };
         const text = acceptingDecision
@@ -1227,9 +1164,13 @@ export async function executeAssistantTurn(
                         }
                       : {}),
                     nextStep:
-                      safe.details.reason === 'skill_load_failed'
-                        ? 'Reload LocalCut, then retry the captured request. The domain is supported; changing tool arguments or repeating this cached module load cannot repair a missing or rejected chunk. Saved work remains intact.'
-                        : 'Follow capabilityMap and the reported blockers. If permission and skill loading already allow the call, inspect the current project and correct the arguments or asset scope. Never widen consent or retry a rejected batch unchanged.',
+                      safe.details.reason === 'asset_scope_unresolved'
+                        ? options.libraryAccess === 'project' && editor.library
+                          ? 'Inspect the user-requested Media container with inspect_library, then call resolve_library_assets for that same folderId and recursive depth using its returned revision as expectedRevision. Load indexing if needed. Retry the asset read in a later round only after resolution includes it. Resolution is turn-local; old-turn manifests do not authorize this read. Do not reindex or resolve unrelated containers.'
+                          : 'Use an explicitly attached or project-referenced asset within the caller allowlist. Ask the user to attach the requested asset if needed; project-library resolution cannot widen this caller scope. Do not reindex or repeat the unchanged read.'
+                        : safe.details.reason === 'skill_load_failed'
+                          ? 'Reload LocalCut, then retry the captured request. The domain is supported; changing tool arguments or repeating this cached module load cannot repair a missing or rejected chunk. Saved work remains intact.'
+                          : 'Follow capabilityMap and the reported blockers. If permission and skill loading already allow the call, inspect the current project and correct the arguments or asset scope. Never widen consent or retry a rejected batch unchanged.',
                   }
                 : {
                     nextStep:
@@ -1310,11 +1251,6 @@ export async function executeAssistantTurn(
           messages.push(response);
           conversation.push(response);
         }
-      }
-      if (++roundsSinceTodos === 2) {
-        roundsSinceTodos = 0;
-        pendingTodos = updateTodos();
-        void pendingTodos.catch(() => {});
       }
     }
     throw new AiError('TOOL_LIMIT', 'Assistant turn could not finish.');

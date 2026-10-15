@@ -387,13 +387,13 @@ Clip properties opens on General for start, duration, speed, gain and timed-sour
 
 Right-click a timeline clip, press and hold for 500 ms, or focus it and press Shift+F10/the Context Menu key to open Clip actions. Properties opens the clicked instance, Select clip uses the existing selection behavior, and Split at playhead/Delete clip act on that instance alone, regardless of another selection. Split is available only inside the clip's interval. Opening a menu does not select or edit. Mutation actions respect busy, locked, historical and stale revisions; reopen after another edit. Moving/cancelling a touch cancels the hold, and releasing a hold does not move the clip or activate a menu item. Escape/outside interaction dismisses the menu and returns focus to its clip. See [the touch clip action menu](images/timeline-clip-menu-touch.png).
 
-Chat goals and to-dos persist per session as text and display with optional client Markdown rendering in the completion disclosure and two icon-only header popovers. Each submitted request updates the current goal before execution; task-list updates follow each iteration and the main agent consumes the goal, task notes and completion assessment as ordinary text to decide whether to continue or finish. Reload and full-session forks retain current state; response branches retain the selected response's snapshot. Fresh chats start empty. See [the goal lifecycle](ai.md#request-completion-review).
+Chat goals and to-dos persist per session as advisory text in the existing header popovers/history. The main agent may update them with the optional local notes tool; no goal/to-do inference blocks editing. Invalid notes remain intact while editing can continue. Fresh state and completed receipts establish progress. See [the lifecycle contract](ai.md#request-completion-review).
 
 Chat action rows keep sharing and diagnostic metadata under Details. Active work uses stage-relevant text with a left-to-right glow and accessible status wording; cancellation, failures and user-owned Save actions remain available.
 
 ## Chat thinking and live drafts
 
-Running chat, review and editing actions show varied stage-relevant text with a subtle left-to-right glow. Reduced-motion and forced-color modes keep readable static text. Goal definition, to-do updates and completion assessments show provisional text directly in the chat as it arrives, without opening a disclosure. The main reply remains separate. Accepted auxiliary text remains available in the completion details and goal/to-do header popovers; failed attempts and cancelled drafts clear without becoming saved session state. Existing scroll-follow controls retain reading position when the user scrolls away.
+Running chat, completion review and editing actions show stage-relevant thinking text. Reduced-motion and forced-color modes retain readable static feedback. Completion-assessment drafts stream without becoming canonical before terminal validation; historical goal/to-do stages remain displayable.
 
 ## Chat context and costs
 

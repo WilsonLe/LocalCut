@@ -255,6 +255,7 @@ for (const base of behaviorBases) {
     expect(result[0]!.tools).toEqual([
       'load_skill',
       'inspect_project',
+      'update_session_notes',
       'inspect_capabilities',
       'inspect_proposals',
     ]);

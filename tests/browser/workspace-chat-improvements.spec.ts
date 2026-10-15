@@ -163,7 +163,7 @@ data: [DONE]
     await input.fill('do all 3');
     await send.click();
     await expect(responses.last()).toContainText('all remembered');
-    expect(requests[2]!.messages).toContainEqual(oldContext);
+    expect(requests[2]!.messages).not.toContainEqual(oldContext);
     expect(requests[2]!.messages).toContainEqual(oldReply);
     const freshReply = requests[3]!.messages.find(
       (m) => m.role === 'tool' && m.tool_call_id === 'inspect-2',
@@ -197,6 +197,28 @@ data: [DONE]
         }),
       )
       .toBe(true);
+    const archivedMessages = () =>
+      page.evaluate(async () => {
+        const db = await new Promise<IDBDatabase>((resolve) => {
+          const request = indexedDB.open('localcut-chats-v1');
+          request.onsuccess = () => resolve(request.result);
+        });
+        const chats = await new Promise<
+          { content: { messages: { exchange?: unknown[] }[] } }[]
+        >((resolve) => {
+          const request = db
+            .transaction('sessions')
+            .objectStore('sessions')
+            .getAll();
+          request.onsuccess = () => resolve(request.result);
+        });
+        db.close();
+        return chats.flatMap((chat) =>
+          chat.content.messages.flatMap((message) => message.exchange ?? []),
+        );
+      });
+    expect(await archivedMessages()).toContainEqual(oldContext);
+    expect(await archivedMessages()).toContainEqual(oldReply);
     const beforeReload = requests.length;
     await page.reload();
     await expect(input).toBeVisible();
@@ -204,8 +226,10 @@ data: [DONE]
     await input.fill('how about now? all 3');
     await send.click();
     await expect(responses.last()).toContainText('all remembered');
+    expect(await archivedMessages()).toContainEqual(oldContext);
+    expect(await archivedMessages()).toContainEqual(oldReply);
     const restored = requests.at(-1)!;
-    expect(restored.messages).toContainEqual(oldContext);
+    expect(restored.messages).not.toContainEqual(oldContext);
     expect(restored.messages).toContainEqual(oldReply);
     expect(restored.messages).toContainEqual(freshReply);
     expect(JSON.stringify(restored.messages)).toContain(offer);
