@@ -1,3 +1,4 @@
+import { useMediaImport } from './useMediaImport';
 import { useWorkspaceLayout } from './useWorkspaceLayout';
 import { useTimelineEditing } from './useTimelineEditing';
 import { createPlaybackPosition, usePlaybackRange } from './playback-position';
@@ -97,7 +98,6 @@ import { selectionIds } from '../core/timeline';
 import { useAppearance } from './appearance';
 import { usePageZoomGuard } from './usePageZoomGuard';
 import { useFileDrop } from './useFileDrop';
-import type { ImportBatch, ImportProgress } from './ImportProgressDialog';
 const ImportProgressDialog = onDemandDialog(
   () => import('./ImportProgressDialog'),
   ({ onClose }) => ({ title: 'Import media', onClose }),
@@ -376,8 +376,6 @@ export function Workspace() {
     );
   }
   const [progress, setProgress] = useState<Progress | null>(null);
-  const [importBatch, setImportBatch] = useState<ImportBatch | null>(null);
-  const visibleImportBatch = useRef<string | null>(null);
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [exportError, setExportError] = useState('');
   const previewControls = useRef<PreviewControls>(null);
@@ -385,7 +383,6 @@ export function Workspace() {
   const fileInput = useRef<HTMLInputElement>(null);
   const backupInput = useRef<HTMLInputElement>(null);
   const instance = useRef<Promise<Editor> | null>(null);
-  const importPlacement = useRef<Promise<void>>(Promise.resolve());
   const currentJob = useRef<{ cancel(): void } | null>(null);
   const cancelRequested = useRef(false);
   const artifactRef = useRef<Artifact | null>(null);
@@ -759,169 +756,19 @@ export function Workspace() {
     });
     await refresh();
   };
-  const importMedia = async (
-    files: File[],
-    targetFolderId: string | null = null,
-    directories: string[] = [],
-  ) => {
-    if (
-      (!files.length && !directories.length) ||
-      browsing.current ||
-      busy ||
-      lock.current
-    )
-      return false;
-    const batchId = crypto.randomUUID();
-    let added = 0;
-    let skipped = 0;
-    let engine: Editor | undefined;
-    let targetProjectId: string | undefined;
-    const jobs: {
-      index: number;
-      stop: () => void;
-      result: Promise<{ asset: Asset } | { failure: unknown }>;
-    }[] = [];
-    const updateBatch = (update: (batch: ImportBatch) => ImportBatch) => {
-      if (alive.current)
-        setImportBatch((batch) =>
-          batch?.id === batchId ? update(batch) : batch,
-        );
-    };
-    const updateFile = (index: number, patch: Partial<ImportProgress>) => {
-      updateBatch((batch) => ({
-        ...batch,
-        files: batch.files.map((file, position) =>
-          position === index ? { ...file, ...patch } : file,
-        ),
-      }));
-    };
-    const started = await action(async () => {
-      targetProjectId = getProjectId() ?? undefined;
-      const { uploadSkipReason } = await import('./folder-upload-reader');
-      skipped = files.filter((file) => uploadSkipReason(file)).length;
-      visibleImportBatch.current = batchId;
-      setImportBatch({
-        id: batchId,
-        running: true,
-        files: files.map((file) => {
-          const reason = uploadSkipReason(file);
-          return {
-            name: file.name,
-            status: reason ? 'skipped' : 'queued',
-            reason,
-          };
-        }),
-      });
-      engine = await ensureEditor();
-      if (!targetProjectId) {
-        const created = await engine.projects.create('Untitled project');
-        targetProjectId = created.id;
-        await openProject(created);
-      }
-      if (!targetProjectId) throw new Error('Open a project to import media.');
-      for (const directory of directories)
-        await engine.library
-          .forProject(targetProjectId)
-          .place(null, directory.split('/'), targetFolderId);
-      if (directories.length && !files.length) await refresh();
-      // Enqueue the entire selection before waiting. The engine owns scheduling,
-      // persistence and cancellation; closing this dialog changes only view state.
-      for (const [index, file] of files.entries()) {
-        if (uploadSkipReason(file)) continue;
-        const job = engine.assets.import(file);
-        const stop = job.subscribe((event) => {
-          if (event.state === 'running')
-            updateFile(index, {
-              status: event.stage === 'Queued' ? 'queued' : 'importing',
-              fraction: event.progress,
-            });
-        });
-        const result = job.completion.then(
-          (asset) => ({ asset }),
-          (failure: unknown) => {
-            const cancelled =
-              (failure as { code?: string })?.code === 'CANCELLED';
-            updateFile(index, {
-              status: cancelled ? 'cancelled' : 'failed',
-              error: cancelled
-                ? undefined
-                : failure instanceof Error
-                  ? failure.message
-                  : 'Could not import this file.',
-            });
-            return { failure };
-          },
-        );
-        jobs.push({ index, stop, result });
-      }
-    });
-    if (!started) {
-      updateBatch((batch) => ({
-        ...batch,
-        running: false,
-        files: batch.files.map((file) => ({
-          ...file,
-          status: 'failed',
-          error: 'Import could not start.',
-        })),
-      }));
-      for (const job of jobs) job.stop();
-      return false;
-    }
-    try {
-      for (const { index, ...job } of jobs) {
-        const result = await job.result;
-        if ('failure' in result) {
-          if (
-            alive.current &&
-            (result.failure as { code?: string })?.code !== 'CANCELLED'
-          )
-            error(result.failure);
-          continue;
-        }
-        // Serialize placements across batches, using the initiating project even
-        // if the user edits or navigates while media jobs run in the background.
-        let committed = false;
-        const placement = importPlacement.current.then(async () => {
-          if (!alive.current) return;
-          const relative = files[index]!.webkitRelativePath;
-          await engine!.library
-            .forProject(targetProjectId!)
-            .place(
-              result.asset.id,
-              relative ? relative.split('/').slice(0, -1) : [],
-              targetFolderId,
-            );
-          added++;
-          committed = true;
-          updateFile(index, { status: 'completed', fraction: 1 });
-          if (getProjectId() !== targetProjectId || browsing.current) return;
-          await refresh();
-          if (getProjectId() !== targetProjectId || browsing.current) return;
-          if (visibleImportBatch.current !== batchId) return;
-          setMediaOverride(true);
-        });
-        importPlacement.current = placement.catch(() => {});
-        try {
-          await placement;
-        } catch (failure) {
-          if (!committed)
-            updateFile(index, {
-              status: 'failed',
-              error:
-                failure instanceof Error
-                  ? failure.message
-                  : 'Could not add this asset.',
-            });
-          if (alive.current) error(failure);
-        }
-      }
-    } finally {
-      for (const job of jobs) job.stop();
-      updateBatch((batch) => ({ ...batch, running: false }));
-    }
-    return added + skipped === files.length;
-  };
+  const { importMedia, importBatch, dismissImportBatch } = useMediaImport({
+    busy,
+    browsing,
+    alive,
+    lock,
+    action,
+    ensureEditor,
+    getProjectId,
+    openProject,
+    refresh,
+    error,
+    revealMedia: () => setMediaOverride(true),
+  });
   const fileHovering = useFileDrop(
     !busy && !browsed,
     (files, directories, folderId) => {
@@ -2204,10 +2051,7 @@ export function Workspace() {
         <Suspense fallback={null}>
           <ImportProgressDialog
             batch={importBatch}
-            onClose={() => {
-              visibleImportBatch.current = null;
-              setImportBatch(null);
-            }}
+            onClose={dismissImportBatch}
           />
         </Suspense>
       )}
