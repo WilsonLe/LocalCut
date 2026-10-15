@@ -26,7 +26,7 @@ function notify(
     logId = crypto.randomUUID();
     ids.set(id, logId);
   }
-  notificationHistory.record({
+  void notificationHistory.record({
     id: logId,
     type,
     message,

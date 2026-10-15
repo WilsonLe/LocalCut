@@ -36,13 +36,38 @@ Read [AGENTS.md](AGENTS.md), [user preferences](docs/user-preferences.md), and e
 
 The [development ownership map](docs/development.md#find-the-owner) points to the module responsible for each change. [Architecture](docs/architecture.md), [API](docs/api.md), [storage](docs/storage.md), [AI](docs/ai.md) and [transcription](docs/transcription.md) remain the detailed contracts.
 
+## Coding rules
+
+| Rule                              | Apply it in a change                                                                                                                                                                                                     | Evidence                                                                                |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| One behavior, one owner           | Workspace event handlers use the editor facade; assistant services use the same engine. Derive view state from snapshots rather than maintaining another editable document.                                              | A UI/assistant operation produces the same persisted result and receipt.                |
+| Validate at trust boundaries      | Parse imported documents, provider replies and tool arguments at their existing schema owners. Use `unknown` until validated; derive types/options from canonical schemas.                                               | Malformed input fails before mutation; valid optional fields survive.                   |
+| Capture mutation identity         | Keep project ID, authored revision and request ID across asynchronous work. A stale form refreshes for retry instead of silently applying to another revision.                                                           | Conflict, idempotent retry and committed-result regressions.                            |
+| Own every asynchronous lifetime   | Await or return work. At a synchronous event boundary, use `void` only when the called owner handles rejection and exposes failure. Dispose listeners/resources in `finally` or effect cleanup.                          | Cancellation, supersession, failure and late-commit behavior at the owning consumer.    |
+| Extract cohesive responsibilities | Move a service dispatcher, interaction controller or lifecycle owner with explicit typed inputs. Keep the same state owner, hook order and lazy imports; avoid arbitrary file-size limits or generic context containers. | Existing behavioral tests, public declarations and production bundle checks stay valid. |
+| Test observable contracts         | Assert resulting state, output, receipts and cleanup, including a relevant failure path. Prefer deterministic barriers over sleeps.                                                                                      | A plausible wrong implementation fails the regression; mocks remain scoped evidence.    |
+| Keep contracts discoverable       | Update the existing contract and nearest module guide in the same change. Link shared rules; retain historical evidence with its revision.                                                                               | `pnpm check:docs`, formatting and validated command/test selectors.                     |
+
+For example, a timeline gesture calls the existing revision-aware `apply` owner:
+
+```ts
+void action(async () => {
+  await apply([{ type: 'removeClip', clipId }]);
+  setSelection([]); // Update view state only after the command succeeds.
+});
+```
+
+Here `action` owns visible errors and busy-state cleanup. Writing `void` before an arbitrary rejecting promise does not handle its failure. Prefer `try/finally` around subscriptions; cancellation stops unpublished work, while an already committed receipt remains authoritative. See [publication semantics](docs/storage.md) for the exact boundary.
+
+ESLint enforces strict Promise use and dependency direction through static imports/re-exports and literal dynamic UI imports. Pure core code also rejects dynamic imports and browser globals. Computed runtime import targets and the meaning of `void` still require review; these checks do not establish authorization, race safety or semantic quality.
+
 ## Verify your change
 
 During iteration, choose the smallest meaningful check from [development recipes](docs/development.md#one-edit-one-focused-check). Run builds sequentially when they share output directories, and use isolated storage namespaces/ports for independent browser runs.
 
 For documentation-only changes, run `pnpm format:check`, check local links/anchors, and validate new commands against their implementation. Full media workloads add no evidence when runtime inputs are unchanged.
 
-Before a code, configuration or dependency handoff, run `pnpm check` locally plus the affected real Chrome transcription/performance acceptance gates specified in [validation](docs/validation.md). Safari and paid-provider acceptance are separately scoped. State what ran, what passed and any missing environment or external verification. Do not claim a mocked provider request proves account entitlement or natural speech quality.
+Before a draft code, configuration or dependency handoff, run the affected behavior checks, static checks, documentation checks and required builds/native gates from [development](docs/development.md#expand-verification-at-the-boundary). Run the complete `pnpm check` and required transcription/performance acceptance when merging is requested. Safari and paid-provider acceptance are separately scoped. State what ran, what passed and what remains deferred. Do not claim a mocked provider request proves account entitlement or natural speech quality.
 
 Hosted validation CI is disabled by project choice. Do not add or re-enable it; the Pages workflow packages and releases static files. Local quality evidence belongs in the PR. Documentation-only PRs use documentation checks rather than a runtime suite rerun.
 

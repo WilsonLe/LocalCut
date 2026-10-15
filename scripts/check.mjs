@@ -38,17 +38,18 @@ export async function runChecks(
     [
       { id: 'format', cost: 1, run: () => run(['format:check'], env) },
       { id: 'lint', cost: 1, run: () => run(['lint'], env) },
+      { id: 'docs', cost: 1, run: () => run(['check:docs'], env) },
       { id: 'types', cost: 2, run: () => run(['typecheck'], env) },
       { id: 'tooling', cost: 1, run: () => run(['test:tooling'], env) },
       {
         id: 'builds',
-        after: ['format', 'lint', 'types', 'tooling'],
+        after: ['format', 'docs', 'lint', 'types', 'tooling'],
         cost: 2,
         run: () => build(env),
       },
       {
         id: 'units',
-        after: ['format', 'lint', 'types', 'tooling'],
+        after: ['format', 'docs', 'lint', 'types', 'tooling'],
         cost: 1,
         maxCost: poolMaxCost(env),
         run: ({ cost }) => run(['test'], poolEnv(cost)),
