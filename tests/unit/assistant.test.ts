@@ -1,3 +1,4 @@
+import { compactWorkingContext } from '../../src/ai/chat-context';
 import { captureFixture } from '../capture-metadata-fixture';
 import { describe, expect, it, vi } from 'vitest';
 import { createAssistant as createRealAssistant } from '../../src/ai/assistant';
@@ -8839,6 +8840,184 @@ describe('request completion review sessions', () => {
           ),
         ),
       ).toContain('OLD_PAYLOAD_');
+    } finally {
+      await assistant.dispose();
+    }
+  });
+
+  it.each([false, true])(
+    'keeps compacted large user history within maintenance limits (interrupted: %s)',
+    async (interrupted) => {
+      const oldUser =
+        'Keep Harbour ending. ' + 'RAW_USER_CONTEXT '.repeat(12000);
+      const exchange: ChatMessage[] = [
+        { role: 'user', content: oldUser },
+        {
+          role: 'assistant',
+          content: null,
+          tool_calls: [call('inspect_project', {}, 'saved-receipt')],
+        },
+        {
+          role: 'tool',
+          tool_call_id: 'saved-receipt',
+          content: '{"receipt":{"appliedRevision":42}}',
+        },
+        { role: 'assistant', content: 'Earlier attempt' },
+      ];
+      const summary =
+        'Original user intent: keep Harbour ending. Earlier action receipts remain in the uncovered exchange.';
+      const compacted = await compactWorkingContext({
+        messages: exchange,
+        contextWindow: 4096,
+        check: () => {},
+        onStart: () => {},
+        summarize: async () => summary,
+      });
+      expect(compacted.checkpoint).toBeDefined();
+      const requests: ChatRequest[] = [];
+      const f = fixture();
+      const assistant = createRealAssistant({
+        editor: f.editor,
+        projectId: f.project().id,
+        model: 'test/model',
+        restoredGoal: {
+          goal: 'Keep Harbour ending.',
+          todos: 'Retain completed work.',
+        },
+        restoredTurns: [
+          {
+            id: 'old-large',
+            user: oldUser,
+            assistant: 'Earlier attempt',
+            exchange,
+            interrupted,
+          },
+        ],
+        restoredCompaction: compacted.checkpoint,
+        limits: { maxContextBytes: 100000 },
+        provider: {
+          async *stream(request) {
+            requests.push(structuredClone(request));
+            const instruction = request.messages[0]?.content ?? '';
+            yield final(
+              /^LocalCut (request contract|session to-dos):/.test(instruction)
+                ? '{"replacements":[]}'
+                : 'Recorded.',
+            );
+          },
+        },
+      });
+      try {
+        await assistant.run('Continue with the saved intent').completion;
+        const goal = requests.find((r) =>
+          r.messages[0]?.content?.startsWith('LocalCut request contract:'),
+        )!;
+        const intent = JSON.parse(goal.messages[1]!.content!).priorRequests;
+        expect(JSON.stringify(intent)).toContain('keep Harbour ending');
+        for (const request of requests) {
+          expect(JSON.stringify(request).length).toBeLessThan(100000);
+          expect(JSON.stringify(request)).not.toContain('RAW_USER_CONTEXT');
+        }
+        const firstTasks = requests.find((r) =>
+          r.messages[0]?.content?.startsWith('LocalCut session to-dos:'),
+        )!;
+        const data = JSON.parse(firstTasks.messages[1]!.content!);
+        if (interrupted)
+          expect(JSON.stringify(data.previousConversation)).toContain(
+            'appliedRevision',
+          );
+        else expect(data).not.toHaveProperty('previousConversation');
+        expect(exchange[0]!.content).toBe(oldUser);
+        expect(f.editor.commands.apply).not.toHaveBeenCalled();
+      } finally {
+        await assistant.dispose();
+      }
+    },
+  );
+
+  it('recovers receipts across consecutive interrupted maintenance attempts without replay', async () => {
+    const requests: ChatRequest[] = [];
+    const f = fixture();
+    const assistant = createRealAssistant({
+      editor: f.editor,
+      projectId: f.project().id,
+      model: 'test/model',
+      restoredGoal: { goal: 'Keep the ending.', todos: 'Inspection pending.' },
+      restoredTurns: [
+        {
+          id: 'committed-before-failure',
+          user: 'Inspect',
+          assistant: 'Task update failed',
+          interrupted: true,
+          exchange: [
+            { role: 'user', content: 'Inspect' },
+            {
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                call('inspect_project', {}, 'unacknowledged-receipt'),
+              ],
+            },
+            {
+              role: 'tool',
+              tool_call_id: 'unacknowledged-receipt',
+              content: '{"receipt":{"appliedRevision":42}}',
+            },
+            { role: 'assistant', content: 'Task update failed' },
+          ],
+        },
+        {
+          id: 'goal-maintenance-interrupted',
+          user: 'Continue',
+          assistant: 'Stopped before notes could reconcile',
+          interrupted: true,
+        },
+      ],
+      provider: {
+        async *stream(request) {
+          requests.push(structuredClone(request));
+          const instruction = request.messages[0]?.content ?? '';
+          if (instruction.startsWith('LocalCut session to-dos:')) {
+            const data = JSON.parse(request.messages[1]!.content!);
+            yield final(
+              data.existingTodos === 'Inspection pending.'
+                ? '{"replacements":[{"oldText":"Inspection pending.","newText":"Inspection complete — receipt 42."}]}'
+                : '{"replacements":[]}',
+            );
+          } else
+            yield final(
+              instruction.startsWith('LocalCut request contract:')
+                ? '{"replacements":[]}'
+                : 'Recorded.',
+            );
+        },
+      },
+    });
+    try {
+      await assistant.run('Continue without replaying completed work')
+        .completion;
+      const tasks = requests.filter((r) =>
+        r.messages[0]?.content?.startsWith('LocalCut session to-dos:'),
+      );
+      const first = JSON.parse(tasks[0]!.messages[1]!.content!);
+      expect(JSON.stringify(first.previousConversation)).toContain(
+        'unacknowledged-receipt',
+      );
+      expect(JSON.stringify(first.previousConversation)).toContain(
+        'appliedRevision',
+      );
+      expect(assistant.snapshot().sessionGoal?.todos).toBe(
+        'Inspection complete — receipt 42.',
+      );
+      expect(
+        tasks
+          .slice(1)
+          .every(
+            (r) =>
+              !('previousConversation' in JSON.parse(r.messages[1]!.content!)),
+          ),
+      ).toBe(true);
+      expect(f.editor.commands.apply).not.toHaveBeenCalled();
     } finally {
       await assistant.dispose();
     }
