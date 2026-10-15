@@ -13,7 +13,76 @@ declare global {
 for (const base of behaviorBases) {
   test(`native indexing keeps scenes, audio and evidence across reload ${base}`, async ({
     page,
+    context,
   }) => {
+    const model = 'test/index-contract';
+    const labelRequests: (string | undefined)[] = [];
+    const label = {
+      summary: 'Synthetic scene',
+      subjects: [],
+      scene: 'graphic',
+      style: 'flat',
+      tags: ['graphic'],
+      sound: 'tone',
+    };
+    const headers = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': 'authorization,content-type',
+    };
+    await context.route('https://openrouter.ai/api/v1/**', async (route) => {
+      if (route.request().method() === 'OPTIONS')
+        return route.fulfill({ headers });
+      if (route.request().url().endsWith('/models'))
+        return route.fulfill({
+          headers,
+          json: {
+            data: [
+              {
+                id: model,
+                name: 'Index contract',
+                context_length: 32000,
+                supported_parameters: [
+                  'tools',
+                  'tool_choice',
+                  'structured_outputs',
+                ],
+                architecture: {
+                  input_modalities: ['text', 'image', 'video', 'audio'],
+                },
+              },
+            ],
+          },
+        });
+      const body = route.request().postDataJSON();
+      expect(body.response_format.type).toBe('json_schema');
+      const schema = body.response_format.json_schema.schema;
+      const sceneId = schema.properties.sceneId?.const as string | undefined;
+      const fields = sceneId ? schema.properties.label : schema;
+      expect(fields.properties.style.maxLength).toBe(300);
+      expect(body).not.toHaveProperty('tools');
+      if (sceneId)
+        expect(
+          body.messages[1].content.map((part: { type: string }) => part.type),
+        ).toEqual(['text', 'image_url', 'video_url']);
+      labelRequests.push(sceneId);
+      const invalid = labelRequests.length === 2;
+      const text = JSON.stringify(
+        sceneId
+          ? {
+              sceneId,
+              label: {
+                ...label,
+                ...(invalid ? { style: 'x'.repeat(341) } : {}),
+              },
+            }
+          : label,
+      );
+      await route.fulfill({
+        headers,
+        contentType: 'text/event-stream',
+        body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: text }, finish_reason: 'stop' }], model })}\n\ndata: [DONE]\n\n`,
+      });
+    });
     await page.goto(base);
     const result = await page.evaluate(async (base) => {
       const { createEditor } = (await import(
@@ -158,7 +227,38 @@ for (const base of behaviorBases) {
           });
         }
         const again = await editor.assets.analyze(asset.id).completion;
+        const { createOpenRouter, createAssetIndexer } = (await import(
+          base + 'ai.js'
+        )) as typeof import('../../src/ai');
+        const provider = createOpenRouter();
+        provider.setKey('synthetic-index-key');
+        const indexer = createAssetIndexer({
+          editor,
+          provider,
+          model: 'test/index-contract',
+          consent: () => true,
+        });
+        let labelError: { codes: string[]; message: string } | undefined;
+        try {
+          await indexer.run(asset.id, run.id).completion;
+        } catch (error) {
+          type Failure = { code: string; cause?: Failure; message: string };
+          const e = error as Failure;
+          const codes: string[] = [];
+          for (let cause: Failure | undefined = e; cause; cause = cause.cause)
+            codes.push(cause.code);
+          labelError = { codes, message: e.message };
+        } finally {
+          await indexer.dispose();
+          provider.dispose();
+        }
+        const checkpoint = await editor.assets.indexes.get(run.id);
         return {
+          labelError,
+          labelStatus: checkpoint.status,
+          labeledScenes: checkpoint.analysis.scenes.map(
+            (scene) => !!scene.label,
+          ),
           namespace,
           assetId: asset.id,
           runId: run.id,
@@ -193,6 +293,13 @@ for (const base of behaviorBases) {
       [0, 1000000, 0, 1000000],
       [1000000, 2000000, 1000000, 2000000],
     ]);
+    expect(result.labelError).toMatchObject({
+      codes: expect.arrayContaining(['WORKER_FAILED', 'INVALID_RESPONSE']),
+      message: expect.stringContaining('required fields or size limits'),
+    });
+    expect(result.labelStatus).toBe('failed');
+    expect(result.labeledScenes).toEqual([true, false]);
+    expect(labelRequests).toEqual(['scene-1', 'scene-2']);
     expect(result.frames).toBe(8);
     expect(result.runCount).toBe(2);
     expect(result.before).toBe(result.after);
@@ -216,7 +323,21 @@ for (const base of behaviorBases) {
           base + 'editor.js'
         )) as typeof import('../../src/editor');
         const editor = await createEditor({ namespace });
+        const { createOpenRouter, createAssetIndexer } = (await import(
+          base + 'ai.js'
+        )) as typeof import('../../src/ai');
+        const provider = createOpenRouter();
+        provider.setKey('synthetic-index-key');
+        const indexer = createAssetIndexer({
+          editor,
+          provider,
+          model: 'test/index-contract',
+          consent: () => true,
+        });
         try {
+          const resumed = await indexer.run(assetId, runId).completion;
+          // A completed repeat is entirely local, even with a fresh indexer.
+          await indexer.run(assetId, runId).completion;
           const run = await editor.assets.indexes.get(runId),
             artifact = run.analysis.scenes[0]!.artifacts[0]!;
           const retained = (
@@ -224,10 +345,19 @@ for (const base of behaviorBases) {
           ).size;
           await editor.assets.indexes.remove(runId);
           return {
+            status: resumed.status,
+            label: resumed.label,
+            responses: resumed.requests.map((request) => ({
+              sceneId: request.sceneId,
+              accepted: !!request.label,
+              retained: !!request.response,
+            })),
             retained,
             remaining: (await editor.assets.indexes.list(assetId)).length,
           };
         } finally {
+          await indexer.dispose();
+          provider.dispose();
           await editor.dispose();
         }
       },
@@ -235,6 +365,15 @@ for (const base of behaviorBases) {
     );
     expect(reopened.retained).toBeGreaterThan(0);
     expect(reopened.remaining).toBe(1);
+    expect(reopened.status).toBe('complete');
+    expect(reopened.label).toEqual(label);
+    expect(reopened.responses).toEqual([
+      { sceneId: 'scene-1', accepted: true, retained: true },
+      { sceneId: 'scene-2', accepted: false, retained: true },
+      { sceneId: 'scene-2', accepted: true, retained: true },
+      { accepted: true, retained: true },
+    ]);
+    expect(labelRequests).toEqual(['scene-1', 'scene-2', 'scene-2', undefined]);
   });
   test(`index recovery cleans unpublished files and preserves completed checkpoints ${base}`, async ({
     page,

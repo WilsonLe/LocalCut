@@ -88,6 +88,23 @@ function harness(
     ) => Promise<void>
   >(async () => {});
   const setStatus = vi.fn(async () => {});
+  const recordResponse = vi.fn(
+    async (
+      _id: string,
+      _requestId: string,
+      _response: string,
+      normalized?: IndexLabel,
+      sceneId?: string,
+    ) => {
+      if (sceneId)
+        run.analysis.scenes.find((scene) => scene.id === sceneId)!.label =
+          normalized;
+      else run.label = normalized;
+      if (run.label && run.analysis.scenes.every((scene) => scene.label))
+        run.status = 'complete';
+      return run;
+    },
+  );
   const editor = {
     assets: {
       inspect: async () => ({ kind: run.source.kind }),
@@ -109,21 +126,7 @@ function harness(
         get: async () => run,
         recordRequest,
         artifact: async () => new Blob(['synthetic-evidence']),
-        recordResponse: async (
-          _id: string,
-          _requestId: string,
-          _response: string,
-          normalized?: IndexLabel,
-          sceneId?: string,
-        ) => {
-          if (sceneId)
-            run.analysis.scenes.find((scene) => scene.id === sceneId)!.label =
-              normalized;
-          else run.label = normalized;
-          if (run.label && run.analysis.scenes.every((scene) => scene.label))
-            run.status = 'complete';
-          return run;
-        },
+        recordResponse,
         status: setStatus,
       },
     },
@@ -143,8 +146,90 @@ function harness(
     includeCaptureMetadata: sharing,
     onUsage,
   });
-  return { indexer, run, label, recordRequest, setStatus };
+  return { indexer, run, label, recordRequest, recordResponse, setStatus };
 }
+
+it.each([
+  ['invalid JSON', '{private-malformed', 'invalid JSON'],
+  [
+    'oversized field',
+    JSON.stringify({
+      sceneId: 'scene',
+      label: { ...safeLabel, style: 'x'.repeat(341) },
+    }),
+    'required fields or size limits',
+  ],
+  [
+    'extra field',
+    JSON.stringify({
+      sceneId: 'scene',
+      label: { ...safeLabel, command: 'private-command' },
+    }),
+    'required fields or size limits',
+  ],
+  [
+    'wrong scene',
+    JSON.stringify({ sceneId: 'private-scene', label: safeLabel }),
+    'wrong scene',
+  ],
+])(
+  'checkpoints %s without publication or automatic retry, then resumes explicitly',
+  async (_case, text, message) => {
+    const h = harness('analyzed', true);
+    h.run.analysis.scenes.push({
+      ...h.run.analysis.scenes[0]!,
+      id: 'retained',
+    });
+    h.run.analysis.scenes[0]!.label = undefined;
+    h.label.mockResolvedValueOnce({ text, model: 'synthetic' });
+    try {
+      await expect(
+        h.indexer.run('asset', 'existing').completion,
+      ).rejects.toMatchObject({
+        code: 'INVALID_RESPONSE',
+        message: expect.stringContaining(message),
+      });
+      expect(h.label).toHaveBeenCalledOnce();
+      expect(h.label.mock.calls[0]![0].sceneId).toBe('scene');
+      expect(h.recordResponse).toHaveBeenCalledWith(
+        'existing',
+        expect.any(String),
+        text,
+        undefined,
+        'scene',
+        'synthetic',
+        undefined,
+        expect.any(AbortSignal),
+      );
+      expect(h.run.analysis.scenes[0]!.label).toBeUndefined();
+      expect(h.run.label).toBeUndefined();
+      expect(h.setStatus).toHaveBeenCalledWith(
+        'existing',
+        'failed',
+        'INVALID_RESPONSE',
+      );
+      h.label.mockImplementation(async (request) => ({
+        text: JSON.stringify(
+          request.sceneId
+            ? { sceneId: request.sceneId, label: safeLabel }
+            : safeLabel,
+        ),
+        model: 'synthetic',
+      }));
+      await expect(
+        h.indexer.run('asset', 'existing').completion,
+      ).resolves.toMatchObject({ status: 'complete', label: safeLabel });
+      expect(h.label.mock.calls.map(([request]) => request.sceneId)).toEqual([
+        'scene',
+        'scene',
+        undefined,
+      ]);
+      expect(h.run.analysis.scenes[1]!.label?.summary).toContain('Recorded');
+    } finally {
+      await h.indexer.dispose();
+    }
+  },
+);
 
 describe('capture sharing on index retries', () => {
   it.each(['failed', 'cancelled'] as const)(

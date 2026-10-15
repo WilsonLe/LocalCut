@@ -148,6 +148,7 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
                   const result = await options.provider.label(
                     {
                       sessionId: run.id,
+                      sceneId,
                       model: options.model,
                       prompt,
                       media,
@@ -212,7 +213,9 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
                     if (e instanceof AiError) throw e;
                     throw new AiError(
                       'INVALID_RESPONSE',
-                      'Provider returned malformed asset labels; retry indexing.',
+                      e instanceof SyntaxError
+                        ? 'Provider returned invalid JSON for asset labels; retry indexing.'
+                        : 'Provider asset labels did not match the required fields or size limits; retry indexing.',
                     );
                   }
                   run = await options.editor.assets.indexes.recordResponse(

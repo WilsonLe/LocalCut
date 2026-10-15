@@ -6,6 +6,7 @@ function client(
   modalities = ['text', 'image', 'video', 'audio'],
   reply = '{"summary":"ok"}',
   stream?: string,
+  parameters = ['tools', 'tool_choice'],
 ) {
   const bodies: Record<string, unknown>[] = [];
   const fetcher = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -17,7 +18,7 @@ function client(
               id: model,
               name: 'Index model',
               context_length: 32000,
-              supported_parameters: ['tools', 'tool_choice'],
+              supported_parameters: parameters,
               architecture: { input_modalities: modalities },
             },
           ],
@@ -35,6 +36,80 @@ function client(
   return { provider, bodies, fetcher };
 }
 describe('dedicated indexing transport', () => {
+  it.each([
+    ['structured_outputs', 'json_schema'],
+    ['response_format', 'json_object'],
+    ['tools', undefined],
+  ])(
+    'declares bounded scene and summary contracts for %s routes',
+    async (parameter, type) => {
+      const { provider, bodies } = client(undefined, undefined, undefined, [
+        'tools',
+        'tool_choice',
+        parameter,
+      ]);
+      try {
+        for (const sceneId of ['scene-7', undefined]) {
+          await provider.label(
+            {
+              model,
+              prompt: 'Label evidence',
+              sceneId,
+              media: [],
+              consent: true,
+              maxOutputTokens: 2048,
+            },
+            signal(),
+          );
+          const body = bodies.at(-1)!;
+          const system = (body.messages as { content: string }[])[0]!.content;
+          const schema = JSON.parse(system.slice(system.indexOf('{')));
+          const fields = sceneId ? schema.properties.label : schema;
+          expect(fields).toMatchObject({
+            additionalProperties: false,
+            required: [
+              'summary',
+              'subjects',
+              'scene',
+              'style',
+              'tags',
+              'sound',
+            ],
+            properties: {
+              summary: { type: 'string', minLength: 1, maxLength: 2000 },
+              subjects: {
+                type: 'array',
+                maxItems: 32,
+                items: { type: 'string', maxLength: 100 },
+              },
+              scene: { type: 'string', maxLength: 300 },
+              style: { type: 'string', maxLength: 300 },
+              tags: { type: 'array', maxItems: 32, items: { maxLength: 100 } },
+              sound: { type: 'string', maxLength: 500 },
+            },
+          });
+          if (sceneId)
+            expect(schema.properties.sceneId).toMatchObject({ const: sceneId });
+          else expect(schema.properties).not.toHaveProperty('sceneId');
+          if (type === 'json_schema')
+            expect(body.response_format).toEqual({
+              type,
+              json_schema: { name: 'asset_labels', strict: true, schema },
+            });
+          else if (type) expect(body.response_format).toEqual({ type });
+          else expect(body).not.toHaveProperty('response_format');
+          expect(body).not.toHaveProperty('tools');
+          expect(body).toMatchObject({
+            model,
+            provider: { allow_fallbacks: false },
+          });
+        }
+        expect(bodies).toHaveLength(2);
+      } finally {
+        provider.dispose();
+      }
+    },
+  );
   it('rejects incomplete streams and tool calls before publication', async () => {
     for (const stream of [
       'data: {"choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}]}\n\n',
