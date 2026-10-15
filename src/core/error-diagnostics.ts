@@ -44,6 +44,7 @@ export type RecoveryDetails = {
     | 'output_limit'
     | 'empty_response'
     | 'reviewer_protocol'
+    | 'document_update_target'
     | 'attachment_unavailable';
   stage?:
     | 'request_contract'
@@ -77,6 +78,11 @@ export function safeRecoveryDetails(
   )
     details.reason = metadata.reason;
   if (code === 'INVALID_RESPONSE' && metadata.reason === 'reviewer_protocol')
+    details.reason = metadata.reason;
+  if (
+    code === 'INVALID_RESPONSE' &&
+    metadata.reason === 'document_update_target'
+  )
     details.reason = metadata.reason;
   if (
     code === 'INVALID_REQUEST' &&

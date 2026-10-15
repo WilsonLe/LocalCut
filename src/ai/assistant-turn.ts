@@ -1227,9 +1227,13 @@ export async function executeAssistantTurn(
                         }
                       : {}),
                     nextStep:
-                      safe.details.reason === 'skill_load_failed'
-                        ? 'Reload LocalCut, then retry the captured request. The domain is supported; changing tool arguments or repeating this cached module load cannot repair a missing or rejected chunk. Saved work remains intact.'
-                        : 'Follow capabilityMap and the reported blockers. If permission and skill loading already allow the call, inspect the current project and correct the arguments or asset scope. Never widen consent or retry a rejected batch unchanged.',
+                      safe.details.reason === 'asset_scope_unresolved'
+                        ? options.libraryAccess === 'project' && editor.library
+                          ? 'Inspect the user-requested Media container with inspect_library, then call resolve_library_assets for that same folderId and recursive depth using its returned revision as expectedRevision. Load indexing if needed. Retry the asset read in a later round only after resolution includes it. Resolution is turn-local; old-turn manifests do not authorize this read. Do not reindex or resolve unrelated containers.'
+                          : 'Use an explicitly attached or project-referenced asset within the caller allowlist. Ask the user to attach the requested asset if needed; project-library resolution cannot widen this caller scope. Do not reindex or repeat the unchanged read.'
+                        : safe.details.reason === 'skill_load_failed'
+                          ? 'Reload LocalCut, then retry the captured request. The domain is supported; changing tool arguments or repeating this cached module load cannot repair a missing or rejected chunk. Saved work remains intact.'
+                          : 'Follow capabilityMap and the reported blockers. If permission and skill loading already allow the call, inspect the current project and correct the arguments or asset scope. Never widen consent or retry a rejected batch unchanged.',
                   }
                 : {
                     nextStep:

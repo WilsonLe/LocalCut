@@ -6,6 +6,23 @@ import {
 import { asEditorError } from '../../src/core/errors';
 
 describe('local error diagnostics', () => {
+  it('retains a safe note-target failure reason without rejected document content', () => {
+    expect(
+      safeRecoveryDetails(
+        {
+          stage: 'session_todos',
+          reason: 'document_update_target',
+          replacementIndex: 1,
+          match: 'missing',
+          rejectedDocumentUpdate: 'SECRET',
+        },
+        'INVALID_RESPONSE',
+      ),
+    ).toEqual({
+      stage: 'session_todos',
+      reason: 'document_update_target',
+    });
+  });
   it('keeps request categories and parameters in local reports while rejecting arbitrary recovery fields', () => {
     const details = {
       status: 400,

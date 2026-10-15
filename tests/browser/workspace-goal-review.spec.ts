@@ -19,11 +19,12 @@ const reply = (
   route: Route,
   content?: string,
   calls?: { name: string; arguments: string }[],
+  rawDocumentUpdate = false,
 ) =>
   route.fulfill({
     headers: cors,
     contentType: 'text/event-stream',
-    body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: calls ? { tool_calls: calls.map((call, index) => ({ index, id: `goal-${index}`, type: 'function', function: call })) } : { content: content === undefined ? undefined : scriptedDocumentReply(route.request().postDataJSON(), content) }, finish_reason: calls ? 'tool_calls' : 'stop' }] })}\n\ndata: [DONE]\n\n`,
+    body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: calls ? { tool_calls: calls.map((call, index) => ({ index, id: `goal-${index}`, type: 'function', function: call })) } : { content: content === undefined ? undefined : rawDocumentUpdate ? content : scriptedDocumentReply(route.request().postDataJSON(), content) }, finish_reason: calls ? 'tool_calls' : 'stop' }] })}\n\ndata: [DONE]\n\n`,
   });
 
 for (const base of behaviorBases) {
@@ -72,6 +73,8 @@ for (const base of behaviorBases) {
       'Add overlay track and closing title.\nSuccess means the title is present. Keep <direction> literal.';
     const updates: Record<string, unknown>[] = [];
     let todoUpdates = 0;
+    let rejectedAnchor = false;
+    let targetCorrections = 0;
     const payloads: Record<string, unknown>[] = [];
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
@@ -164,6 +167,31 @@ for (const base of behaviorBases) {
               'The overlay and title are complete.',
             ) ||
               JSON.stringify(data.conversation).includes('checked-title'));
+          if (data.existingTodos && met && !rejectedAnchor) {
+            rejectedAnchor = true;
+            await reply(
+              route,
+              JSON.stringify({
+                replacements: [
+                  {
+                    oldText: 'Stale note anchor that is absent',
+                    newText: 'Complete',
+                  },
+                ],
+              }),
+              undefined,
+              true,
+            );
+            return;
+          }
+          if (
+            request.messages.at(-1).content.includes('only corrective attempt')
+          ) {
+            targetCorrections++;
+            expect(request.messages.at(-2).content).toContain(
+              'document_update_target',
+            );
+          }
           await reply(
             route,
             met
@@ -385,6 +413,7 @@ for (const base of behaviorBases) {
     ).toBeVisible();
     expect(editCalls).toBe(1);
     expect(titleCalls).toBe(1);
+    expect(targetCorrections).toBe(1);
     expect(new Set(sessions.review).size).toBe(2);
     expect(sessions.review[0]).not.toBe(sessions.execution[0]);
     expect(payloads[0]!.initialRequest).toBe(
@@ -494,8 +523,10 @@ for (const base of behaviorBases) {
     expect(checks).toBe(3);
     expect(parses).toBe(2);
     expect(updates.at(-1)?.existingGoal).toBe(contract);
-    expect(todoUpdates).toBeLessThan(executionRounds);
-    expect(todoUpdates).toBeGreaterThan(executionRounds / 2);
+    expect(todoUpdates - targetCorrections).toBeLessThan(executionRounds);
+    expect(todoUpdates - targetCorrections).toBeGreaterThan(
+      executionRounds / 2,
+    );
     await page.setViewportSize({ width: 390, height: 844 });
     await page
       .getByRole('navigation', { name: 'Workspace sections' })

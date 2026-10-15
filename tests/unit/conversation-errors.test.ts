@@ -3,6 +3,18 @@ import { AiError, httpError } from '../../src/ai/errors';
 import { errorText } from '../../src/workspace/conversation-errors';
 
 describe('safe conversation request diagnostics', () => {
+  it('explains an exhausted exact-note correction without exposing model text', () => {
+    const text = errorText(
+      new AiError('INVALID_RESPONSE', 'SECRET', {
+        reason: 'document_update_target',
+        stage: 'session_todos',
+      }),
+    );
+    expect(text).toContain('one corrective attempt');
+    expect(text).toContain('previous notes remain intact');
+    expect(text).toContain('completed actions remain saved');
+    expect(text).not.toContain('SECRET');
+  });
   it('identifies a completion failure and explains safe provider context rejection', () => {
     const text = errorText(
       new AiError('INVALID_REQUEST', 'SECRET', {

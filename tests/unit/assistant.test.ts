@@ -6858,6 +6858,96 @@ function libraryScopeFixture() {
 }
 
 describe('container resolution through the assistant', () => {
+  it.each(['project', 'selected'] as const)(
+    'recovers saved reference reads through %s scope without exposing hidden labels',
+    async (libraryAccess) => {
+      const f = libraryScopeFixture();
+      f.editor.assets.indexes = {
+        list: async () => [
+          {
+            id: 'saved-reference',
+            assetId: 'library-clip',
+            createdAt: 1,
+            status: 'complete',
+            invalidated: false,
+            source: {},
+            label: { summary: 'Hidden reference observation', tags: [] },
+            analysis: { scenes: [], settings: {} },
+            requests: [],
+          } as unknown as import('../../src/core/asset-index').AssetIndexRun,
+        ],
+      };
+      const requests: ChatRequest[] = [];
+      const plans: [string, unknown][] = [
+        ['load_skill', { skillId: 'indexing' }],
+        ['read_asset_index', { assetId: 'library-clip' }],
+        ['inspect_library', { folderId: 'folder', recursive: true }],
+        [
+          'resolve_library_assets',
+          { folderId: 'folder', recursive: true, expectedRevision: 7 },
+        ],
+        ['read_asset_index', { assetId: 'library-clip' }],
+      ];
+      let round = 0;
+      const a = createAssistant({
+        editor: f.editor,
+        projectId: f.project().id,
+        model: 'test/model',
+        execution: 'requested',
+        libraryAccess,
+        context: { includeAssetIndexes: true },
+        provider: {
+          async *stream(request) {
+            requests.push(structuredClone(request));
+            if (round === 2) {
+              const failure = JSON.parse(
+                request.messages.filter((m) => m.role === 'tool').at(-1)!
+                  .content!,
+              );
+              expect(failure.error.details.reason).toBe(
+                'asset_scope_unresolved',
+              );
+              expect(failure.error.details.recovery.nextStep).toContain(
+                libraryAccess === 'project'
+                  ? 'resolve_library_assets'
+                  : 'caller allowlist',
+              );
+              expect(JSON.stringify(request)).not.toContain(
+                'Hidden reference observation',
+              );
+            }
+            const plan = plans[round++];
+            yield plan
+              ? final('', [call(plan[0], plan[1])])
+              : final('Inspected reference access.');
+          },
+        },
+      });
+      const events: AssistantEvent[] = [];
+      a.subscribe((event) => events.push(event));
+      try {
+        await a.run('Use the saved reference in the Sydney folder.').completion;
+        const reads = events.filter(
+          (e) =>
+            e.type === 'tool' &&
+            e.name === 'read_asset_index' &&
+            e.phase !== 'started',
+        );
+        expect(reads.map((e) => e.type === 'tool' && e.phase)).toEqual([
+          'failed',
+          libraryAccess === 'project' ? 'completed' : 'failed',
+        ]);
+        expect(
+          JSON.stringify(requests).includes('Hidden reference observation'),
+        ).toBe(libraryAccess === 'project');
+        expect(f.editor.assets.inspect).not.toHaveBeenCalled();
+        expect(f.editor.commands.apply).not.toHaveBeenCalled();
+      } finally {
+        await a.dispose();
+      }
+    },
+  );
+
   it('recovers unloaded tools, resolves nested library-only assets and indexes/reads evidence before storyboard edits', async () => {
     const f = libraryScopeFixture();
     const jobs = new Jobs();
@@ -9100,6 +9190,88 @@ describe('request completion review sessions', () => {
       }
     },
   );
+
+  it('repairs task-note anchors after a committed edit without replaying tools', async () => {
+    const f = fixture();
+    let mainRound = 0;
+    let corrections = 0;
+    const requests: ChatRequest[] = [];
+    const a = createRealAssistant({
+      editor: f.editor,
+      projectId: f.project().id,
+      model: 'test/model',
+      execution: 'requested',
+      provider: {
+        async *stream(request) {
+          requests.push(structuredClone(request));
+          const role = request.messages[0]?.content ?? '';
+          if (role.startsWith('LocalCut request contract:'))
+            yield final('Move the clip.');
+          else if (role.startsWith('LocalCut session to-dos:')) {
+            const data = JSON.parse(request.messages[1]!.content!);
+            const repairing = request.messages
+              .at(-1)!
+              .content!.includes('only corrective attempt');
+            if (repairing) corrections++;
+            yield final(
+              !data.existingTodos
+                ? 'Move clip.'
+                : JSON.stringify({
+                    replacements:
+                      data.existingTodos === 'Move clip.'
+                        ? [
+                            {
+                              oldText: repairing ? 'Move clip.' : 'Move video.',
+                              newText: 'Moved clip — revision 1.',
+                            },
+                          ]
+                        : [],
+                  }),
+            );
+          } else if (role.startsWith('LocalCut completion review:'))
+            yield final(
+              'The committed revision and updated task notes establish the move.',
+            );
+          else {
+            const plans = [
+              [call('load_skill', { skillId: 'editing' })],
+              [
+                call('propose_edits', {
+                  summary: 'Move the clip',
+                  operations: [
+                    {
+                      type: 'updateClip',
+                      clipId: 'video',
+                      patch: { startUs: 1e6 },
+                    },
+                  ],
+                }),
+              ],
+            ];
+            yield final('Moved.', plans[mainRound++]);
+          }
+        },
+      },
+    });
+    try {
+      const result = await a.run('Move the clip to one second.').completion;
+      expect(result.completion.status).toBe('reviewed');
+      expect(corrections).toBe(1);
+      expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
+      expect(f.project().revision).toBe(1);
+      expect(f.project().tracks[0]!.clips[0]!.startUs).toBe(1e6);
+      expect(a.snapshot().sessionGoal?.todos).toBe('Moved clip — revision 1.');
+      const assessment = requests.find((r) =>
+        r.messages[0]?.content?.startsWith('LocalCut completion review:'),
+      )!;
+      expect(assessment.messages[1]!.content).toContain('appliedRevision');
+      expect(assessment.messages[1]!.content).toContain(
+        'Moved clip — revision 1.',
+      );
+    } finally {
+      await a.dispose();
+    }
+  });
 
   it('recovers receipts across consecutive interrupted maintenance attempts without replay', async () => {
     const requests: ChatRequest[] = [];

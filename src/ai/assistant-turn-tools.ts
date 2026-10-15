@@ -69,11 +69,15 @@ export function createAssistantToolHandler(tools: AssistantToolHost) {
       'TOOL_NOT_ALLOWED',
       'Tool is not available in this session.',
     );
-    if (
-      ['inspect_asset', 'read_asset_index'].includes(name) &&
-      needsResolvedAsset(args.assetId)
-    )
-      await checkLibraryScope();
+    if (['inspect_asset', 'read_asset_index'].includes(name)) {
+      if (!availableAssets.has(args.assetId as string))
+        throw new AiError(
+          'TOOL_NOT_ALLOWED',
+          'Asset is outside project references, attachments and the current resolved scope.',
+          { reason: 'asset_scope_unresolved' },
+        );
+      if (needsResolvedAsset(args.assetId)) await checkLibraryScope();
+    }
     if (
       name === 'search_asset_index' &&
       tools.indexes.some((run) => needsResolvedAsset(run.assetId))
@@ -171,7 +175,7 @@ export function createAssistantToolHandler(tools: AssistantToolHost) {
         aiInvariant(
           run,
           'TOOL_NOT_ALLOWED',
-          'Asset index unavailable or not authorized.',
+          'No complete saved index is available under the current sharing policy. Inspect the authorized asset and saved index catalog; do not repeat this read or automatically reindex it.',
         );
         return readIndex(
           run,
@@ -441,11 +445,6 @@ export function createAssistantToolHandler(tools: AssistantToolHost) {
         };
       }
       case 'inspect_asset': {
-        aiInvariant(
-          availableAssets.has(args.assetId as string),
-          'TOOL_NOT_ALLOWED',
-          'Asset is outside project references, attachments and the current resolved scope.',
-        );
         const asset = await interruptible(
           editor.assets.inspect(args.assetId as string),
           signal,

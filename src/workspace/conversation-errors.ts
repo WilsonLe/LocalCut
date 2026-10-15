@@ -38,6 +38,8 @@ function requestErrorText(error: unknown): string {
       return 'An attached reference is unavailable. Restore it in Media before retrying, or send a new request with a replacement image, audio or video.';
     if ('reason' in details && details.reason === 'reviewer_protocol')
       return 'The model returned tool protocol instead of a plain-text review after recovery attempts. Use Retry response, or choose another model.';
+    if ('reason' in details && details.reason === 'document_update_target')
+      return 'The model could not match the saved notes after one corrective attempt. The previous notes remain intact.';
     if ('providerReason' in details) {
       if (details.providerReason === 'unsupported_parameter')
         return 'The provider rejected an unsupported request option. Update LocalCut or check the selected model settings before retrying.';
