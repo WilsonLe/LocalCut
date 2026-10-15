@@ -4,7 +4,7 @@ Current version: **0.1.0-alpha.1**. Short summaries for end users and executives
 
 ## Unreleased
 
-- Klip reports safe edit-rule failures, reuses validated batches by ID and preserves the latest tool exchange through compaction. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...codex/edit-recovery-compaction).
+- Klip reports safe edit-rule failures, reuses validated batches by ID and preserves reusable edits through compaction. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...codex/edit-recovery-compaction).
 
 - Start editing directly with one agent, optional local notes and progress from completed receipts; retain independent completion review and recoverable history. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...codex/single-agent-lifecycle).
 

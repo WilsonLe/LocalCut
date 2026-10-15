@@ -136,11 +136,16 @@ for (const base of behaviorBases) {
                       ),
                     ];
                   } else if (stage === 4) {
-                    validationId = outcome('valid').validationId;
+                    // This large tool group was summarized; its immutable batch
+                    // remains available through the fresh execution snapshot.
+                    validationId = context.preparedEdits[0].validationId;
                     if (
-                      !context.preparedEdits.some(
-                        (p: { validationId: string }) =>
-                          p.validationId === validationId,
+                      context.preparedEdits.length !== 1 ||
+                      context.preparedEdits[0].expectedRevision !== 1 ||
+                      context.preparedEdits[0].operationCount !== 2 ||
+                      context.preparedEdits[0].applied !== false ||
+                      request.messages.some(
+                        (m) => m.role === 'assistant' && m.reasoning,
                       )
                     )
                       throw new Error('plan lost during compaction');

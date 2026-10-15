@@ -1,4 +1,7 @@
-import { executionHistory } from '../../src/ai/chat-context';
+import {
+  executionHistory,
+  workingContextTokens,
+} from '../../src/ai/chat-context';
 import { captureFixture } from '../capture-metadata-fixture';
 import { describe, expect, it, vi } from 'vitest';
 import { createAssistant as createRealAssistant } from '../../src/ai/assistant';
@@ -9657,7 +9660,7 @@ it('enforces an explicit context-byte budget before sending any compaction fragm
   }
 });
 
-it('recovers from an overlap error and applies a validated ID through compaction exactly once', async () => {
+it('recovers from an overlap error and applies a validated ID after oversized-group compaction within model admission exactly once', async () => {
   const f = fixture();
   let step = 0,
     validationId = '',
@@ -9673,6 +9676,9 @@ it('recovers from an overlap error and applies a validated ID through compaction
     execution: 'requested',
     provider: {
       async *stream(request) {
+        // A real model rejects oversized continuations even if a scripted
+        // provider would otherwise accept them. Include opaque reasoning here.
+        expect(workingContextTokens(request.messages)).toBeLessThan(256000);
         requests.push(structuredClone(request));
         if (
           request.messages[0]?.content?.startsWith(
@@ -9746,14 +9752,15 @@ it('recovers from an overlap error and applies a validated ID through compaction
           const event = final('', [
             call('validate_edits', { operations }, 'valid'),
           ]);
-          event.message.reasoning = 'opaque'.repeat(120000);
+          event.message.reasoning = 'opaque'.repeat(200000);
           yield event;
           return;
         }
         if (step === 4) {
-          validationId = result('valid').validationId;
-          expect(validationId).toBeTruthy();
           const context = JSON.parse(requestContextMessage(request).content!);
+          expect(result('valid')).toBeUndefined();
+          validationId = context.preparedEdits[0].validationId;
+          expect(validationId).toBeTruthy();
           expect(context.preparedEdits).toContainEqual({
             validationId,
             expectedRevision: 0,
@@ -9798,9 +9805,9 @@ it('recovers from an overlap error and applies a validated ID through compaction
       ),
     ).toBe(true);
     expect(
-      requests
-        .flatMap((r) => r.messages)
-        .some((m) => m.role === 'tool' && m.tool_call_id === 'valid'),
+      result.exchange.some(
+        (m) => m.role === 'tool' && m.tool_call_id === 'valid',
+      ),
     ).toBe(true);
   } finally {
     await a.dispose();

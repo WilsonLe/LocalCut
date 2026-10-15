@@ -242,9 +242,9 @@ export async function compactWorkingContext({
           threshold / 3,
     ) ?? messages.length;
   if (pending.size) end = boundaries.at(-1)!;
-  // Keep the newest current-request tool group exact, including a dry-run batch.
-  // Raw message-count/tail-size heuristics must not summarize it just because
-  // opaque reasoning makes that one group large. Older groups may be compacted.
+  // Keep the newest current-request tool group exact while its suffix fits the
+  // working target. Oversized complete groups must still compact; prepared IDs
+  // preserve validated operations independently of the semantic summary.
   let latestCall = -1;
   for (let index = 0; index < messages.length; index++) {
     const message = messages[index]!;
@@ -252,7 +252,12 @@ export async function compactWorkingContext({
     else if (message.role === 'assistant' && message.tool_calls?.length)
       latestCall = index;
   }
-  if (latestCall >= covered && boundaries.some((value) => value > latestCall))
+  if (
+    latestCall >= covered &&
+    boundaries.some((value) => value > latestCall) &&
+    workingContextTokens(executionHistory(messages.slice(latestCall))) <
+      threshold / 3
+  )
     end = Math.min(end, latestCall);
   if (end <= covered || !executionHistory(messages.slice(covered, end)).length)
     return {

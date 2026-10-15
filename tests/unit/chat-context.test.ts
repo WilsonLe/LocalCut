@@ -320,11 +320,11 @@ it('compacts useful evidence without changing snapshots inflating the summarizer
   expect(invalidated.compacted).toBe(true);
 });
 
-it('keeps a large latest tool group exact and avoids repeated no-progress compaction', async () => {
+it('keeps a fitting latest tool group exact and reuses its checkpoint', async () => {
   const call: ChatMessage = {
     role: 'assistant',
     content: null,
-    reasoning: 'opaque'.repeat(130000),
+    reasoning: 'opaque'.repeat(30000),
     tool_calls: [
       {
         id: 'dry',
@@ -342,7 +342,11 @@ it('keeps a large latest tool group exact and avoids repeated no-progress compac
     tool_call_id: 'dry',
     content: '{"validationId":"current-plan","expectedRevision":0}',
   };
-  const messages = [user('Original intent'), call, outcome];
+  const messages = [
+    user('Original intent ' + 'x'.repeat(600000)),
+    call,
+    outcome,
+  ];
   const before = structuredClone(messages);
   const summarize = vi.fn(
     async () => 'Original intent retained; use the current validated edit.',
@@ -359,4 +363,82 @@ it('keeps a large latest tool group exact and avoids repeated no-progress compac
   expect(next.compacted).toBe(false);
   expect(summarize).toHaveBeenCalledTimes(1);
   expect(next.messages).toEqual(first.messages);
+});
+
+it('compacts an oversized complete recent group for a small model without losing its canonical exchange', async () => {
+  const messages: ChatMessage[] = [
+    user('Read the attached transcript, then continue editing.'),
+    {
+      role: 'assistant',
+      content: null,
+      reasoning: 'reason '.repeat(6500),
+      tool_calls: [
+        {
+          id: 'read',
+          type: 'function',
+          function: {
+            name: 'read_transcript',
+            arguments: '{"transcriptId":"source"}',
+          },
+        },
+      ],
+    },
+    { role: 'tool', tool_call_id: 'read', content: 'words '.repeat(3500) },
+  ];
+  const original = structuredClone(messages);
+  const summarize = vi.fn(async ({ fragment }: { fragment: string }) => {
+    const evidence = JSON.parse(fragment);
+    expect(evidence).toHaveLength(3);
+    expect(evidence[1]).not.toHaveProperty('reasoning');
+    expect(evidence[2]).toEqual(messages[2]);
+    return 'The transcript was read. Continue the requested edit using current state.';
+  });
+  const options = {
+    messages,
+    contextWindow: 8192,
+    summarize,
+    check: () => {},
+    onStart: () => {},
+  };
+  const first = await compactWorkingContext(options);
+  expect(first.checkpoint!.coveredMessages).toBe(3);
+  expect(workingContextTokens(first.messages)).toBeLessThan(8192 * 0.75);
+  expect(messages).toEqual(original);
+  const next = await compactWorkingContext({
+    ...options,
+    checkpoint: first.checkpoint,
+  });
+  expect(next.compacted).toBe(false);
+  expect(next.messages).toEqual(first.messages);
+  expect(summarize).toHaveBeenCalledTimes(1);
+});
+
+it('skips a no-progress compaction while the oversized tool group is incomplete', async () => {
+  const messages: ChatMessage[] = [
+    {
+      role: 'assistant',
+      content: null,
+      reasoning: 'pending'.repeat(10000),
+      tool_calls: [
+        {
+          id: 'read',
+          type: 'function',
+          function: { name: 'read_transcript', arguments: '{}' },
+        },
+      ],
+    },
+  ];
+  const summarize = vi.fn(async () => 'Must not summarize an orphaned call');
+  const onStart = vi.fn();
+  const result = await compactWorkingContext({
+    messages,
+    contextWindow: 8192,
+    summarize,
+    onStart,
+    check: () => {},
+  });
+  expect(result.compacted).toBe(false);
+  expect(result.messages).toEqual(messages);
+  expect(summarize).not.toHaveBeenCalled();
+  expect(onStart).not.toHaveBeenCalled();
 });
