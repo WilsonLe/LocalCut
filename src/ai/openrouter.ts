@@ -688,19 +688,45 @@ export function createOpenRouter(options: OpenRouterOptions = {}): OpenRouter {
       }
       // The same bounded contract drives local validation and provider guidance.
       // Do not send unsupported controls or retry with a different format/model.
-      const schema = z.toJSONSchema(
+      const responseSchema =
         request.sceneId === undefined
           ? indexLabelSchema
           : indexSceneResponseSchema.extend({
-              sceneId: z.literal(request.sceneId),
-            }),
-      );
+              sceneId: z.enum([request.sceneId]),
+            });
+      const schema = z.toJSONSchema(responseSchema);
       const responseFormat = model.supportedParameters.includes(
         'structured_outputs',
       )
         ? {
             type: 'json_schema',
-            json_schema: { name: 'asset_labels', strict: true, schema },
+            json_schema: {
+              name: 'asset_labels',
+              strict: true,
+              // Some strict providers reject length/item bounds. Keep them
+              // descriptive on the wire and mandatory in local validation.
+              schema: z.toJSONSchema(responseSchema, {
+                override: ({ jsonSchema }) => {
+                  const limits = {
+                    minLength: jsonSchema.minLength,
+                    maxLength: jsonSchema.maxLength,
+                    maxItems: jsonSchema.maxItems,
+                  };
+                  delete jsonSchema.minLength;
+                  delete jsonSchema.maxLength;
+                  delete jsonSchema.maxItems;
+                  if (
+                    Object.values(limits).some((value) => value !== undefined)
+                  )
+                    jsonSchema.description = [
+                      jsonSchema.description,
+                      `Local validation limits: ${JSON.stringify(limits)}`,
+                    ]
+                      .filter(Boolean)
+                      .join(' ');
+                },
+              }),
+            },
           }
         : model.supportedParameters.includes('response_format')
           ? { type: 'json_object' }

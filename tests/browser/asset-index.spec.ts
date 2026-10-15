@@ -56,9 +56,17 @@ for (const base of behaviorBases) {
       const body = route.request().postDataJSON();
       expect(body.response_format.type).toBe('json_schema');
       const schema = body.response_format.json_schema.schema;
-      const sceneId = schema.properties.sceneId?.const as string | undefined;
+      const sceneId = schema.properties.sceneId?.enum?.[0] as
+        string | undefined;
       const fields = sceneId ? schema.properties.label : schema;
-      expect(fields.properties.style.maxLength).toBe(300);
+      expect(fields.properties.style).toEqual({
+        type: 'string',
+        description: 'Local validation limits: {"maxLength":300}',
+      });
+      expect(JSON.stringify(schema)).not.toMatch(
+        /"(?:minLength|maxLength|maxItems|const)":/,
+      );
+      expect(body.messages[0].content).toContain('"maxLength":300');
       expect(body).not.toHaveProperty('tools');
       if (sceneId)
         expect(

@@ -89,14 +89,52 @@ describe('dedicated indexing transport', () => {
             },
           });
           if (sceneId)
-            expect(schema.properties.sceneId).toMatchObject({ const: sceneId });
-          else expect(schema.properties).not.toHaveProperty('sceneId');
-          if (type === 'json_schema')
-            expect(body.response_format).toEqual({
-              type,
-              json_schema: { name: 'asset_labels', strict: true, schema },
+            expect(schema.properties.sceneId).toMatchObject({
+              enum: [sceneId],
             });
-          else if (type) expect(body.response_format).toEqual({ type });
+          else expect(schema.properties).not.toHaveProperty('sceneId');
+          if (type === 'json_schema') {
+            expect(body.response_format).toMatchObject({
+              type,
+              json_schema: { name: 'asset_labels', strict: true },
+            });
+            const wire = (
+              body.response_format as { json_schema: { schema: typeof schema } }
+            ).json_schema.schema;
+            expect(JSON.stringify(wire)).not.toMatch(
+              /"(?:minLength|maxLength|maxItems|const)":/,
+            );
+            const wireLabel = sceneId ? wire.properties.label : wire;
+            expect(wireLabel).toMatchObject({
+              type: 'object',
+              additionalProperties: false,
+              required: fields.required,
+              properties: {
+                summary: {
+                  type: 'string',
+                  description:
+                    'Local validation limits: {"minLength":1,"maxLength":2000}',
+                },
+                subjects: {
+                  type: 'array',
+                  description: 'Local validation limits: {"maxItems":32}',
+                  items: {
+                    type: 'string',
+                    description: 'Local validation limits: {"maxLength":100}',
+                  },
+                },
+                style: {
+                  type: 'string',
+                  description: 'Local validation limits: {"maxLength":300}',
+                },
+              },
+            });
+            if (sceneId)
+              expect(wire.properties.sceneId).toEqual({
+                type: 'string',
+                enum: [sceneId],
+              });
+          } else if (type) expect(body.response_format).toEqual({ type });
           else expect(body).not.toHaveProperty('response_format');
           expect(body).not.toHaveProperty('tools');
           expect(body).toMatchObject({
