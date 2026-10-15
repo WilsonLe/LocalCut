@@ -192,6 +192,7 @@ export async function executeAssistantTurn(
     conversation.push(user);
     let candidateResponse: string | null = null;
     const loadedSkills = new Set<SkillId>();
+    const preparedEdits: AssistantToolHost['preparedEdits'] = new Map();
     const discovery = (budgetExhausted = false) =>
       capabilityDiscovery(
         !!policy.includeTranscripts,
@@ -689,6 +690,7 @@ export async function executeAssistantTurn(
       requireProposalSlot,
       freezeLibraryScope,
       staged,
+      preparedEdits,
       updateSessionNotes: (args) => updateSessionNotes(args),
       get declaredTools() {
         return declaredTools;
@@ -797,6 +799,14 @@ export async function executeAssistantTurn(
         sessionTodos: host.sessionGoal?.todos,
         sessionNotesRevision: notesRevision,
         activeRequestId: id,
+        preparedEdits: [...preparedEdits]
+          .filter(([, batch]) => batch.expectedRevision === snapshot.revision)
+          .map(([validationId, batch]) => ({
+            validationId,
+            expectedRevision: batch.expectedRevision,
+            operationCount: batch.operations.length,
+            applied: false,
+          })),
         recordedProgress: receiptProgress(
           [...history.flat(), ...conversation],
           projectId,
@@ -1170,7 +1180,9 @@ export async function executeAssistantTurn(
                           : 'Use an explicitly attached or project-referenced asset within the caller allowlist. Ask the user to attach the requested asset if needed; project-library resolution cannot widen this caller scope. Do not reindex or repeat the unchanged read.'
                         : safe.details.reason === 'skill_load_failed'
                           ? 'Reload LocalCut, then retry the captured request. The domain is supported; changing tool arguments or repeating this cached module load cannot repair a missing or rejected chunk. Saved work remains intact.'
-                          : 'Follow capabilityMap and the reported blockers. If permission and skill loading already allow the call, inspect the current project and correct the arguments or asset scope. Never widen consent or retry a rejected batch unchanged.',
+                          : safe.details.validation
+                            ? 'Correct the reported validation rule at the supplied location; this is an edit-data failure, not a missing skill. Load skills only when missingSkills or blockers says they are missing. Never retry the unchanged rejected batch.'
+                            : 'Follow capabilityMap and the reported blockers. If permission and skill loading already allow the call, inspect the current project and correct the arguments or asset scope. Never widen consent or retry a rejected batch unchanged.',
                   }
                 : {
                     nextStep:

@@ -39,6 +39,11 @@ import {
 } from '../core/text-library';
 import type { Project } from '../core/model';
 import { EditorError } from '../core/errors';
+import {
+  editValidationDiagnostic,
+  schemaValidation,
+} from '../core/edit-validation';
+import { localError } from './assistant-errors';
 import { AiError, aiInvariant } from './errors';
 import type { ToolDefinition } from './types';
 import type { AssistantCapabilities } from './actions';
@@ -53,9 +58,24 @@ const transcriptSchema = z
 const operationsSchema = z
   .object({ operations: batchSchema.shape.operations })
   .strict();
-const proposalSchema = operationsSchema.extend({
-  summary: z.string().min(1),
-});
+const proposalSchema = z
+  .object({
+    summary: z.string().min(1),
+    operations: batchSchema.shape.operations.optional(),
+    validationId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'Single-use ID returned by validate_edits in this turn. Use instead of operations; current revision and scope are rechecked.',
+      ),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      (value.operations !== undefined) !== (value.validationId !== undefined),
+    'Supply either operations or a current-turn validationId, never both.',
+  );
 const time = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const exportOptionsSchema = z
   .object({
@@ -431,6 +451,11 @@ export function capabilityDiscovery(
       supported,
       available: !blockers.length,
       requiredSkills: rule.skills,
+      missingSkills: blockers.some(
+        (blocker) => blocker.reason === 'skill_not_loaded',
+      )
+        ? rule.skills
+        : [],
       blockers,
     };
   };
@@ -681,6 +706,9 @@ export function capabilityDiscovery(
           .flatMap((state) => state.requiredSkills),
       ),
     ],
+    missingSkills: serviceStates.some((state) => state.available)
+      ? []
+      : [...new Set(serviceStates.flatMap((state) => state.missingSkills))],
     blockers: serviceStates.some((state) => state.available)
       ? []
       : serviceStates
@@ -750,11 +778,11 @@ export function toolDefinitions(
     read_transcript:
       'Read source-relative transcript text explicitly shared for this project, including transcripts produced by approved local actions in this session.',
     validate_edits:
-      'Dry-run an atomic edit batch, returning expectedRevision and affectedIds without recopying the project. Set includeProject true only when a redacted dry-run preview is needed; offset/limit page clips/transitions as in inspect_project. No commit or proposal. Use before complex edits.',
+      'Optionally dry-run an atomic edit batch, returning a single-use validationId, expectedRevision and affectedIds without recopying the project. Reuse the ID in propose_edits instead of regenerating operations. Set includeProject true only for a redacted paged preview. No commit or proposal.',
     check_export:
       'Probe exact requested MP4/H.264/AAC or WebM/VP9/Opus settings in this browser. Read-only; does not encode or download a video.',
     propose_edits:
-      'Propose an atomic edit batch for explicit user review. Does not apply edits. Covers every supported EditOperation, including transforms, effects, keyframes, text, captions and audio settings via updateClip. Use available asset IDs only. The host binds revision and request ID. Use unique IDs for new entities.',
+      'Submit an atomic edit batch using operations or a single-use validationId from this turn. Validates revision and scope again; execution follows host approval policy. Covers every supported EditOperation, including transforms, effects, keyframes, text, captions and audio settings via updateClip. Use available asset IDs and unique new entity IDs. Only an applied receipt confirms a commit.',
     propose_action:
       'Propose a supported local action for explicit user approval. No service runs automatically and no media is uploaded.',
   };
@@ -850,23 +878,33 @@ export function parseTool(
     );
   }
   const result = schemas[name as ToolName].safeParse(value);
-  if (!result.success)
+  if (!result.success) {
+    const validation =
+      name === 'validate_edits' || name === 'propose_edits'
+        ? editValidationDiagnostic(schemaValidation(result.error.issues))
+        : undefined;
     throw new AiError(
       'INVALID_TOOL_ARGUMENTS',
-      'Tool arguments do not match the tool schema.',
+      validation
+        ? `${validation.message}. ${validation.repair}`
+        : 'Tool arguments do not match the tool schema.',
       {
+        ...(validation ? { validation } : {}),
         issues: result.error.issues.map((issue) => ({
           code: issue.code,
-          path: issue.path
-            .filter(
-              (part) =>
-                typeof part === 'number' ||
-                /^[a-zA-Z][a-zA-Z0-9_]*$/.test(String(part)),
-            )
-            .join('.'),
+          path: validation
+            ? (schemaValidation([issue]).fieldPath ?? '')
+            : issue.path
+                .filter(
+                  (part) =>
+                    typeof part === 'number' ||
+                    /^[a-zA-Z][a-zA-Z0-9_]*$/.test(String(part)),
+                )
+                .join('.'),
         })),
       },
     );
+  }
   return { name: name as ToolName, args: result.data };
 }
 
@@ -916,10 +954,17 @@ export function proposalBatch(
     return batch;
   } catch (error) {
     if (error instanceof AiError) throw error;
+    if (error instanceof EditorError) throw localError(error);
+    if (error instanceof z.ZodError)
+      throw localError(
+        new EditorError('INVALID_COMMAND', 'Invalid edit fields', {
+          validation: schemaValidation(error.issues),
+        }),
+      );
     throw new AiError(
       'EDIT_REJECTED',
       'The proposed batch is not a valid project edit. Inspect the project and verify IDs, source bounds, duration/speed, keyframe bounds and transition overlap.',
-      error instanceof EditorError ? { editorCode: error.code } : {},
+      {},
     );
   }
 }

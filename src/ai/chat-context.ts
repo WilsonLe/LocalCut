@@ -223,7 +223,6 @@ export async function compactWorkingContext({
       checkpoint: valid,
       compacted: false,
     };
-  onStart();
   // Retain a small recent suffix at a complete protocol boundary. A single huge
   // result can be summarized too; it is never clipped from the local archive.
   const boundaries: number[] = [covered];
@@ -239,11 +238,34 @@ export async function compactWorkingContext({
     boundaries.find(
       (value) =>
         value > covered &&
-        value >= messages.length - 12 &&
         workingContextTokens(executionHistory(messages.slice(value))) <
           threshold / 3,
     ) ?? messages.length;
   if (pending.size) end = boundaries.at(-1)!;
+  // Keep the newest current-request tool group exact while its suffix fits the
+  // working target. Oversized complete groups must still compact; prepared IDs
+  // preserve validated operations independently of the semantic summary.
+  let latestCall = -1;
+  for (let index = 0; index < messages.length; index++) {
+    const message = messages[index]!;
+    if (message.role === 'user') latestCall = -1;
+    else if (message.role === 'assistant' && message.tool_calls?.length)
+      latestCall = index;
+  }
+  if (
+    latestCall >= covered &&
+    boundaries.some((value) => value > latestCall) &&
+    workingContextTokens(executionHistory(messages.slice(latestCall))) <
+      threshold / 3
+  )
+    end = Math.min(end, latestCall);
+  if (end <= covered || !executionHistory(messages.slice(covered, end)).length)
+    return {
+      messages: structuredClone(working),
+      checkpoint: valid,
+      compacted: false,
+    };
+  onStart();
   // Opaque provider reasoning is continuation metadata, never semantic evidence
   // or exportable prose. The source hash still binds the untouched originals.
   const evidence = auxiliaryConversation(

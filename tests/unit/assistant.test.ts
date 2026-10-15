@@ -1,4 +1,7 @@
-import { executionHistory } from '../../src/ai/chat-context';
+import {
+  executionHistory,
+  workingContextTokens,
+} from '../../src/ai/chat-context';
 import { captureFixture } from '../capture-metadata-fixture';
 import { describe, expect, it, vi } from 'vitest';
 import { createAssistant as createRealAssistant } from '../../src/ai/assistant';
@@ -168,10 +171,14 @@ it('pages large project/tool inspections and keeps complete detail discoverable 
     ).toBe(true);
     expect(outcomes.get('properties').properties).toEqual(editingProperties);
     expect(outcomes.get('receipt')).toEqual({
+      validationId: expect.any(String),
       expectedRevision: 0,
       affectedIds: ['clip-59'],
     });
-    expect(JSON.stringify(outcomes.get('receipt')).length).toBeLessThan(
+    const { validationId: dryRunId, ...dryRunReceipt } =
+      outcomes.get('receipt');
+    expect(dryRunId).toMatch(/^[a-f0-9-]{36}$/);
+    expect(JSON.stringify(dryRunReceipt).length).toBeLessThan(
       JSON.stringify(outcomes.get('preview')).length / 100,
     );
     expect(outcomes.get('preview').project.tracks[0].clips.at(-1).gain).toBe(
@@ -9652,3 +9659,246 @@ it('enforces an explicit context-byte budget before sending any compaction fragm
     await assistant.dispose();
   }
 });
+
+it('recovers from an overlap error and applies a validated ID after oversized-group compaction within model admission exactly once', async () => {
+  const f = fixture();
+  let step = 0,
+    validationId = '',
+    summaries = 0;
+  const operations = [
+    { type: 'updateClip', clipId: 'video', patch: { gain: 0.4 } },
+  ];
+  const requests: ChatRequest[] = [];
+  const a = createRealAssistant({
+    editor: f.editor,
+    projectId: f.project().id,
+    model: 'test/model',
+    execution: 'requested',
+    provider: {
+      async *stream(request) {
+        // A real model rejects oversized continuations even if a scripted
+        // provider would otherwise accept them. Include opaque reasoning here.
+        expect(workingContextTokens(request.messages)).toBeLessThan(256000);
+        requests.push(structuredClone(request));
+        if (
+          request.messages[0]?.content?.startsWith(
+            'LocalCut context compaction:',
+          )
+        ) {
+          summaries++;
+          yield final(
+            'The user requests an edit. A validated batch may still be pending; use current preparedEdits and completed receipts.',
+          );
+          return;
+        }
+        const review = goalReviewReply(request);
+        if (review) {
+          yield { type: 'complete', message: review };
+          return;
+        }
+        const result = (id: string) =>
+          request.messages
+            .filter((m) => m.role === 'tool' && m.tool_call_id === id)
+            .map((m) => JSON.parse(m.content!))
+            .at(-1);
+        if (step++ === 0) {
+          yield final('', [
+            call('load_skill', { skillId: 'editing' }, 'skill'),
+          ]);
+          return;
+        }
+        if (step === 2) {
+          yield final('', [
+            call(
+              'validate_edits',
+              {
+                operations: [
+                  {
+                    type: 'insertClip',
+                    trackId: 'main',
+                    clip: {
+                      id: 'second',
+                      kind: 'video',
+                      assetId: 'asset',
+                      startUs: 4000000,
+                      durationUs: 1000000,
+                      sourceOutUs: 1000000,
+                    },
+                  },
+                  {
+                    type: 'addTransition',
+                    transition: {
+                      id: 'invalid',
+                      kind: 'crossfade',
+                      trackId: 'main',
+                      fromClipId: 'video',
+                      toClipId: 'second',
+                    },
+                  },
+                ],
+              },
+              'bad',
+            ),
+          ]);
+          return;
+        }
+        if (step === 3) {
+          expect(result('bad').error.details.validation.rule).toBe(
+            'transition_overlap',
+          );
+          expect(result('bad').error.details.recovery.missingSkills).toEqual(
+            [],
+          );
+          const event = final('', [
+            call('validate_edits', { operations }, 'valid'),
+          ]);
+          event.message.reasoning = 'opaque'.repeat(200000);
+          yield event;
+          return;
+        }
+        if (step === 4) {
+          const context = JSON.parse(requestContextMessage(request).content!);
+          expect(result('valid')).toBeUndefined();
+          validationId = context.preparedEdits[0].validationId;
+          expect(validationId).toBeTruthy();
+          expect(context.preparedEdits).toContainEqual({
+            validationId,
+            expectedRevision: 0,
+            operationCount: 1,
+            applied: false,
+          });
+          yield final('', [
+            call(
+              'propose_edits',
+              { summary: 'Apply exact validated gain', validationId },
+              'apply',
+            ),
+          ]);
+          return;
+        }
+        if (step === 5) {
+          yield final('', [
+            call(
+              'propose_edits',
+              { summary: 'Do not replay', validationId },
+              'repeat',
+            ),
+          ]);
+          return;
+        }
+        expect(result('repeat').error.code).toBe('EDIT_REJECTED');
+        yield final('Saved and verified once.');
+      },
+    },
+  });
+  try {
+    const result = await a.run(
+      'Apply the gain edit, correcting invalid transition data without asking me.',
+    ).completion;
+    expect(summaries).toBeGreaterThan(0);
+    expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
+    expect(f.project().revision).toBe(1);
+    expect(f.project().tracks[0]!.clips[0]!.gain).toBe(0.4);
+    expect(
+      result.exchange.some(
+        (m) => m.role === 'assistant' && m.reasoning?.length,
+      ),
+    ).toBe(true);
+    expect(
+      result.exchange.some(
+        (m) => m.role === 'tool' && m.tool_call_id === 'valid',
+      ),
+    ).toBe(true);
+  } finally {
+    await a.dispose();
+  }
+});
+
+it.each(['stale', 'fresh-turn', 'headless'] as const)(
+  'keeps validated IDs within %s authority',
+  async (mode) => {
+    const f = fixture();
+    let step = 0,
+      validationId = '';
+    const a = createAssistant({
+      editor: f.editor,
+      projectId: f.project().id,
+      model: 'test/model',
+      execution: mode === 'headless' ? undefined : 'requested',
+      provider: {
+        async *stream(request) {
+          const tools = request.messages.filter((m) => m.role === 'tool');
+          const valid = tools.find((m) => m.tool_call_id === 'valid');
+          if (valid) validationId = JSON.parse(valid.content!).validationId;
+          if (
+            !request.tools?.some((t) => t.function.name === 'validate_edits')
+          ) {
+            yield final('', [call('load_skill', { skillId: 'editing' })]);
+            return;
+          }
+          if (step++ === 0) {
+            yield final('', [
+              call(
+                'validate_edits',
+                {
+                  operations: [
+                    {
+                      type: 'updateClip',
+                      clipId: 'video',
+                      patch: { gain: 0.3 },
+                    },
+                  ],
+                },
+                'valid',
+              ),
+            ]);
+            return;
+          }
+          if (mode === 'fresh-turn' && step === 2) {
+            yield final('Dry run only.');
+            return;
+          }
+          if (mode === 'stale' && step === 2) f.changeRevision();
+          if (step === 2 || (mode === 'fresh-turn' && step === 3)) {
+            yield final('', [
+              call(
+                'propose_edits',
+                { summary: 'Reuse', validationId },
+                'reuse',
+              ),
+            ]);
+            return;
+          }
+          yield final('Checked.');
+        },
+      },
+    });
+    try {
+      const first = await a.run(
+        mode === 'fresh-turn' ? 'Dry run only' : 'Apply or propose gain',
+      ).completion;
+      if (mode === 'headless') {
+        expect(f.editor.commands.apply).not.toHaveBeenCalled();
+        await a.applyProposal(first.proposalIds[0]!);
+        expect(f.project().revision).toBe(1);
+      } else if (mode === 'fresh-turn') {
+        const next = await a.run('Try old validation ID').completion;
+        expect(
+          next.exchange
+            .filter((m) => m.role === 'tool' && m.tool_call_id === 'reuse')
+            .map((m) => JSON.parse(m.content!))[0].error.code,
+        ).toBe('EDIT_REJECTED');
+        expect(f.editor.commands.apply).not.toHaveBeenCalled();
+      } else {
+        expect(
+          first.exchange
+            .filter((m) => m.role === 'tool' && m.tool_call_id === 'reuse')
+            .map((m) => JSON.parse(m.content!))[0].error.code,
+        ).toBe('REVISION_CONFLICT');
+        expect(f.editor.commands.apply).not.toHaveBeenCalled();
+      }
+    } finally {
+      await a.dispose();
+    }
+  },
+);
