@@ -143,5 +143,7 @@ export async function streamAssistantResponse({
     }
   }
 
-  return completed!;
+  // Freeze the message before the new async handoff. Iterator cleanup may
+  // schedule work that mutates the provider-owned packet before the caller resumes.
+  return { ...completed!, message: structuredClone(completed!.message) };
 }

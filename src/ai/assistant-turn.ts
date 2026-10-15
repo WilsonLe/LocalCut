@@ -946,7 +946,7 @@ export async function executeAssistantTurn(
           },
         },
       });
-      const message: AssistantMessage = structuredClone(completed!.message);
+      const message: AssistantMessage = completed.message;
       messages.push(message);
       conversation.push(message);
       const calls = message.tool_calls ?? [];
