@@ -29,6 +29,41 @@ function board(project = newProject('Film')) {
     },
   ]).project;
 }
+
+it('keeps storyboard summary pages small while full pages retain original drawing data and consent', () => {
+  const project = applyOperations(newProject('Drawing'), [
+    {
+      type: 'upsertStoryboardElements',
+      elements: Array.from({ length: 45 }, (_, i) => ({
+        id: `stroke-${i}`,
+        type: 'freedraw',
+        points: Array.from({ length: 500 }, (_, x) => [x, x % 10]),
+        strokeColor: '#abcdef',
+      })),
+    },
+  ]).project;
+  const summary = storyboardContext(project.storyboard, {}, 0, 20, 'summary');
+  const full = storyboardContext(project.storyboard, {}, 0, 20, 'full');
+  expect(summary).toMatchObject({ total: 45, nextOffset: 20 });
+  expect(summary.elements[0]).toMatchObject({
+    id: 'stroke-0',
+    pointCount: 500,
+  });
+  expect(summary.elements[0]).not.toHaveProperty('points');
+  expect(full.elements[0]).toMatchObject({
+    points: project.storyboard!.elements[0]!.points,
+    strokeColor: '#abcdef',
+  });
+  expect(JSON.stringify(summary).length).toBeLessThan(
+    JSON.stringify(full).length / 10,
+  );
+  expect(
+    storyboardContext(project.storyboard, {}, 40, 20, 'full').elements,
+  ).toHaveLength(5);
+  expect(
+    JSON.stringify(storyboardContext(board().storyboard, {}, 0, 20, 'summary')),
+  ).not.toContain('Private');
+});
 describe('project storyboard', () => {
   it('keeps legacy documents valid and authored scenes atomic with partial patches preserving hidden labels', () => {
     const legacy = newProject('Film');

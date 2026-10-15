@@ -216,7 +216,12 @@ for (const base of behaviorBases) {
         .click();
       await expect(first.getByText('Input', { exact: true })).toBeVisible();
       await expect(first.getByText('Result', { exact: true })).toBeVisible();
-      await expect(first.locator('pre').nth(0)).toHaveText('{}');
+      expect(
+        JSON.parse((await first.locator('pre').nth(0).textContent())!),
+      ).toEqual({
+        offset: 0,
+        limit: 20,
+      });
       await expect(first.locator('pre').nth(1)).toContainText('"revision": 0');
       await expect(first.locator('pre').nth(1)).toContainText('"width": 1920');
       // OpenRouter connection terms enable names in the permitted tool result.

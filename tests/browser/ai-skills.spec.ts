@@ -128,74 +128,76 @@ for (const base of behaviorBases) {
                             arguments: JSON.stringify(
                               name === 'load_skill'
                                 ? { skillId: 'editing' }
-                                : name === 'search_text_library'
-                                  ? {
-                                      kind: 'fonts',
-                                      query: 'Space Mono',
-                                      limit: 1,
-                                    }
-                                  : name === 'propose_edits'
+                                : name === 'inspect_capabilities'
+                                  ? { section: 'all' }
+                                  : name === 'search_text_library'
                                     ? {
-                                        summary:
-                                          'Use discovered font and animate one placement',
-                                        operations: [
-                                          {
-                                            type: 'addTrack',
-                                            track: {
-                                              id: 'titles',
-                                              kind: 'overlay',
+                                        kind: 'fonts',
+                                        query: 'Space Mono',
+                                        limit: 1,
+                                      }
+                                    : name === 'propose_edits'
+                                      ? {
+                                          summary:
+                                            'Use discovered font and animate one placement',
+                                          operations: [
+                                            {
+                                              type: 'addTrack',
+                                              track: {
+                                                id: 'titles',
+                                                kind: 'overlay',
+                                              },
                                             },
-                                          },
-                                          {
-                                            type: 'insertClip',
-                                            trackId: 'titles',
-                                            clip: {
-                                              id: 'animated',
-                                              kind: 'text',
-                                              startUs: 0,
-                                              durationUs: 1000000,
-                                              text: {
-                                                text: 'A title',
-                                                fontFamily: discoveredFont,
-                                                animation: {
-                                                  kind: 'typewriter',
-                                                  stepMs: 90,
-                                                  loop: false,
+                                            {
+                                              type: 'insertClip',
+                                              trackId: 'titles',
+                                              clip: {
+                                                id: 'animated',
+                                                kind: 'text',
+                                                startUs: 0,
+                                                durationUs: 1000000,
+                                                text: {
+                                                  text: 'A title',
+                                                  fontFamily: discoveredFont,
+                                                  animation: {
+                                                    kind: 'typewriter',
+                                                    stepMs: 90,
+                                                    loop: false,
+                                                  },
+                                                },
+                                                keyframes: {
+                                                  x: [
+                                                    {
+                                                      id: 'a',
+                                                      timeUs: 0,
+                                                      value: 0,
+                                                    },
+                                                    {
+                                                      id: 'b',
+                                                      timeUs: 1000000,
+                                                      value: 100,
+                                                    },
+                                                  ],
                                                 },
                                               },
-                                              keyframes: {
-                                                x: [
-                                                  {
-                                                    id: 'a',
-                                                    timeUs: 0,
-                                                    value: 0,
-                                                  },
-                                                  {
-                                                    id: 'b',
-                                                    timeUs: 1000000,
-                                                    value: 100,
-                                                  },
-                                                ],
+                                            },
+                                            {
+                                              type: 'insertClip',
+                                              trackId: 'titles',
+                                              clip: {
+                                                id: 'other',
+                                                kind: 'text',
+                                                startUs: 1000000,
+                                                durationUs: 1000000,
+                                                text: {
+                                                  text: 'A title',
+                                                  fontFamily: discoveredFont,
+                                                },
                                               },
                                             },
-                                          },
-                                          {
-                                            type: 'insertClip',
-                                            trackId: 'titles',
-                                            clip: {
-                                              id: 'other',
-                                              kind: 'text',
-                                              startUs: 1000000,
-                                              durationUs: 1000000,
-                                              text: {
-                                                text: 'A title',
-                                                fontFamily: discoveredFont,
-                                              },
-                                            },
-                                          },
-                                        ],
-                                      }
-                                    : {},
+                                          ],
+                                        }
+                                      : {},
                             ),
                           },
                         },
