@@ -27,7 +27,7 @@ export function requestContextMessage(
 
 /** Legacy scenario scripts own execution. Supply an explicit successful auxiliary
  * review without consuming their rounds; completion regressions script real verdicts. */
-export function goalReviewReply(
+function legacyGoalReviewReply(
   request: Pick<ChatRequest, 'messages'> & Partial<Pick<ChatRequest, 'tools'>>,
 ): AssistantMessage | undefined {
   const instruction = request.messages[0]?.content;
@@ -75,7 +75,7 @@ export function goalReviewReply(
     const data = JSON.parse(request.messages[1]!.content!);
     return {
       role: 'assistant',
-      content: `## To-dos\n- [${(data.conversation?.length ?? data.previousConversation?.length ?? 0) > 1 ? 'x' : ' '}] Fulfill the scripted request`,
+      content: `## To-dos\n- [${data.conversation?.some((message: ChatMessage) => message.role === 'assistant') || data.existingTodos?.includes('[x]') ? 'x' : ' '}] Fulfill the scripted request`,
     };
   }
   if (instruction.startsWith('LocalCut completion review:')) {
@@ -84,4 +84,62 @@ export function goalReviewReply(
       content: 'The scripted outcome is supported by the supplied evidence.',
     };
   }
+}
+
+/** Existing scenario scripts describe desired documents. Encode their changed
+ * span independently of the runtime patch validator; dedicated patch cases send
+ * literal envelopes instead of using this fixture convenience. */
+export function scriptedDocumentReply(
+  request: Pick<ChatRequest, 'messages'>,
+  text: string,
+): string {
+  const instruction = request.messages[0]?.content ?? '';
+  const key = instruction.startsWith('LocalCut request contract:')
+    ? 'existingGoal'
+    : instruction.startsWith('LocalCut session to-dos:')
+      ? 'existingTodos'
+      : undefined;
+  if (!key) return text;
+  const old = JSON.parse(request.messages[1]!.content!)[key];
+  if (typeof old !== 'string' || !old.length) return text;
+  if (old === text) return JSON.stringify({ replacements: [] });
+  let start = 0,
+    end = 0;
+  while (
+    start < Math.min(old.length, text.length) &&
+    old[start] === text[start]
+  )
+    start++;
+  while (
+    end < Math.min(old.length, text.length) - start &&
+    old[old.length - end - 1] === text[text.length - end - 1]
+  )
+    end++;
+  // Extend to a unique exact anchor (also handles pure insertions).
+  while (
+    !old.slice(start, old.length - end) ||
+    old.indexOf(old.slice(start, old.length - end)) !==
+      old.lastIndexOf(old.slice(start, old.length - end))
+  ) {
+    if (start) start--;
+    else if (end) end--;
+    else break;
+  }
+  return JSON.stringify({
+    replacements: [
+      {
+        oldText: old.slice(start, old.length - end),
+        newText: text.slice(start, text.length - end),
+      },
+    ],
+  });
+}
+
+export function goalReviewReply(
+  request: Pick<ChatRequest, 'messages'> & Partial<Pick<ChatRequest, 'tools'>>,
+): AssistantMessage | undefined {
+  const reply = legacyGoalReviewReply(request);
+  return reply
+    ? { ...reply, content: scriptedDocumentReply(request, reply.content ?? '') }
+    : undefined;
 }

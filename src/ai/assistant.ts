@@ -6,6 +6,8 @@ import type { EditOperation } from '../core/commands';
 import { inferenceRetryDelay } from './inference-retry';
 import {
   auxiliaryConversation,
+  maintenanceConversation,
+  maintenanceDocument,
   auxiliarySessionId,
   goalMessages,
   goalResponse,
@@ -919,6 +921,46 @@ export function createAssistant(options: AssistantOptions) {
             conversation: auxiliaryConversation(projected.slice(boundary)),
           };
         };
+        const maintenancePast = history.flat();
+        const projectMaintenance = async (source: ChatMessage[]) => {
+          const messages = await projectWorking(source);
+          return {
+            messages,
+            covered: compaction?.coveredMessages ?? 0,
+            summaryCount: compaction?.summary ? 1 : 0,
+          };
+        };
+        const maintenanceTail = (
+          projection: Awaited<ReturnType<typeof projectMaintenance>>,
+          start: number,
+        ) =>
+          maintenanceConversation(
+            // A new summary may cover unacknowledged evidence. Retain that memory
+            // rather than reintroducing raw source or dropping the covered receipts.
+            projection.covered > start
+              ? projection.messages
+              : projection.messages.slice(
+                  projection.summaryCount +
+                    Math.max(0, start - projection.covered),
+                ),
+          );
+        let projectedPast: ReturnType<typeof projectMaintenance> | undefined;
+        const pastWorking = () =>
+          (projectedPast ??= projectMaintenance(maintenancePast));
+        const maintenanceHistory = async (document?: string) => {
+          let first = history.length;
+          if (!document) first = 0;
+          else
+            while (first > 0 && interruptedIds.has(historyIds[first - 1]!))
+              first--;
+          if (first === history.length) return {};
+          const start = history
+            .slice(0, first)
+            .reduce((count, turn) => count + turn.length, 0);
+          return {
+            previousConversation: maintenanceTail(await pastWorking(), start),
+          };
+        };
         const review = async (
           name: GoalStage,
           data: unknown,
@@ -953,6 +995,7 @@ export function createAssistant(options: AssistantOptions) {
             const response = await goalResponse({
               provider,
               request,
+              document: maintenanceDocument(name, data),
               signal,
               check,
               onProgress: (text) => {
@@ -1890,9 +1933,17 @@ export function createAssistant(options: AssistantOptions) {
           review('request_contract', {
             initialRequest: prompt,
             existingGoal: sessionGoal?.goal,
-            previousConversation: auxiliaryConversation(
-              await projectWorking(history.flat()),
-            ),
+            // Keep intent-only fallback from the verified working projection,
+            // including compacted memory; never resurrect large raw old prompts.
+            ...(sessionGoal?.goal && maintenancePast.length
+              ? {
+                  priorRequests: (await pastWorking()).messages.flatMap(
+                    (message) =>
+                      message.role === 'user' ? [message.content] : [],
+                  ),
+                }
+              : {}),
+            ...(await maintenanceHistory(sessionGoal?.goal)),
             execution: options.execution ?? 'review',
           }),
           refreshExecutionContext(),
@@ -1913,44 +1964,33 @@ export function createAssistant(options: AssistantOptions) {
           emit({ type: 'session_goal', turnId: id, goal }, local);
         };
         publishGoal({ goal: requestContract, todos: sessionGoal?.todos ?? '' });
-        let lastTodoEvidence:
-          Awaited<ReturnType<typeof workingEvidence>> | undefined;
+        let todoEvidenceCount = 0;
         const updateTodos = async () => {
-          const evidence = await workingEvidence();
-          // Completed notes and the fresh state accompany only new turn evidence.
-          // A compaction changes the projection: resend it instead of skipping it.
-          const start =
-            lastTodoEvidence &&
-            JSON.stringify(lastTodoEvidence.previousConversation) ===
-              JSON.stringify(evidence.previousConversation) &&
-            JSON.stringify(lastTodoEvidence.conversation) ===
-              JSON.stringify(
-                evidence.conversation.slice(
-                  0,
-                  lastTodoEvidence.conversation.length,
-                ),
-              )
-              ? lastTodoEvidence.conversation.length
-              : 0;
+          // Cursor addresses the immutable exchange, not the compaction projection.
+          // Repeated snapshots and old completed receipts are already in the notes.
+          const end = conversation.length;
+          const projection = await projectMaintenance([
+            ...maintenancePast,
+            ...conversation.slice(0, end),
+          ]);
           const todos = await review('session_todos', {
             initialRequest: prompt,
             requestContract,
             existingTodos: sessionGoal?.todos,
-            previousConversation: evidence.previousConversation,
-            conversation: evidence.conversation.slice(start),
-            currentContext: Object.fromEntries(
-              Object.entries(context).filter(([key]) => key !== 'skillCatalog'),
+            ...(todoEvidenceCount === 0
+              ? await maintenanceHistory(sessionGoal?.todos)
+              : {}),
+            conversation: maintenanceTail(
+              projection,
+              maintenancePast.length + todoEvidenceCount,
             ),
-            capabilityMap: discovery(),
+            currentContext: {
+              selectedProject: { id: snapshot.id, revision: snapshot.revision },
+            },
             execution: options.execution ?? 'review',
             paidActionFailed,
-            actions: staged.map((proposal) => ({
-              status: proposal.status,
-              result: proposal.result,
-              summary: proposal.summary,
-            })),
           });
-          lastTodoEvidence = evidence;
+          todoEvidenceCount = end;
           publishGoal({ goal: requestContract, todos });
         };
         // Initialize once, then maintain every two completed tool rounds. Join

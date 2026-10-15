@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import {
   auxiliaryConversation,
+  maintenanceConversation,
   auxiliarySessionId,
   goalMessages,
 } from '../../src/ai/goal-review';
@@ -190,3 +191,38 @@ it.each(['null', '"unrecognized outcome"', '["unrecognized outcome"]'])(
     expect(auxiliaryConversation(messages)).toEqual(messages);
   },
 );
+
+it('omits recognized maintenance snapshots while retaining unknown evidence and complete receipts', () => {
+  const input: ChatMessage[] = [
+    {
+      role: 'system',
+      content: JSON.stringify({
+        selectedProject: { id: 'p', tracks: 'large state'.repeat(2000) },
+        availableAssetIds: ['asset'],
+        capabilityMap: 'large catalog',
+      }),
+    },
+    { role: 'system', content: 'Unknown fresh evidence is retained.' },
+    { role: 'user', content: 'Keep the ending.' },
+    {
+      role: 'assistant',
+      content: null,
+      tool_calls: [
+        {
+          id: 'read',
+          type: 'function',
+          function: { name: 'inspect_project', arguments: '{}' },
+        },
+      ],
+    },
+    {
+      role: 'tool',
+      tool_call_id: 'read',
+      content:
+        '{"receipt":{"appliedRevision":9},"error":{"code":"REVISION_CONFLICT"}}',
+    },
+  ];
+  const archived = structuredClone(input);
+  expect(maintenanceConversation(input)).toEqual(input.slice(1));
+  expect(input).toEqual(archived);
+});
