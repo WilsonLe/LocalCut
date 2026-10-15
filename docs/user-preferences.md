@@ -2,6 +2,11 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+## Targeted goal and to-do updates — 15 October 2026
+
+- Maintain existing goals and to-dos with exact text replacements, rather than generating the full document again. Keep arbitrary plain text and preserve all unaffected bytes; create the full document only initially.
+- Reduce maintenance context: use the saved document, user intent and fresh exchange evidence, omitting repeated project/capability snapshots and successful historical conversations. Recover missing notes or interrupted work from retained evidence. This supersedes the earlier complete-document response transport; completion assessments remain plain text.
+
 ## OpenRouter sticky sessions — 15 October 2026
 
 - Use OpenRouter session stickiness with the existing stable chat/agent-role identities to improve prompt-cache reuse. Disable upstream fallbacks for chat-completion requests, including indexing, and leave manual provider ordering unset.

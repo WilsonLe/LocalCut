@@ -6,6 +6,8 @@ import type { EditOperation } from '../core/commands';
 import { inferenceRetryDelay } from './inference-retry';
 import {
   auxiliaryConversation,
+  maintenanceConversation,
+  maintenanceDocument,
   auxiliarySessionId,
   goalMessages,
   goalResponse,
@@ -916,6 +918,22 @@ export function createAssistant(options: AssistantOptions) {
             conversation: auxiliaryConversation(projected.slice(boundary)),
           };
         };
+        const maintenanceHistory = async (document?: string) => {
+          // Recover receipts not committed to notes after interruption/failure.
+          // Successful history is already represented by the persistent document.
+          const source = !document
+            ? history.flat()
+            : interruptedIds.has(historyIds.at(-1) ?? '')
+              ? (history.at(-1) ?? [])
+              : [];
+          return source.length
+            ? {
+                previousConversation: maintenanceConversation(
+                  document ? source : await projectWorking(source),
+                ),
+              }
+            : {};
+        };
         const review = async (
           name: GoalStage,
           data: unknown,
@@ -950,6 +968,7 @@ export function createAssistant(options: AssistantOptions) {
             const response = await goalResponse({
               provider,
               request,
+              document: maintenanceDocument(name, data),
               signal,
               check,
               onProgress: (text) => {
@@ -1853,9 +1872,19 @@ export function createAssistant(options: AssistantOptions) {
           review('request_contract', {
             initialRequest: prompt,
             existingGoal: sessionGoal?.goal,
-            previousConversation: auxiliaryConversation(
-              await projectWorking(history.flat()),
-            ),
+            // User intent is small compared with tool/state history and lets a
+            // maintainer recover an earlier requirement from corrupted notes.
+            ...(sessionGoal?.goal && history.length
+              ? {
+                  priorRequests: history.flatMap((turn) => {
+                    const user = turn.find(
+                      (message) => message.role === 'user',
+                    );
+                    return user ? [user.content] : [];
+                  }),
+                }
+              : {}),
+            ...(await maintenanceHistory(sessionGoal?.goal)),
             execution: options.execution ?? 'review',
           }),
           refreshExecutionContext(),
@@ -1876,44 +1905,28 @@ export function createAssistant(options: AssistantOptions) {
           emit({ type: 'session_goal', turnId: id, goal }, local);
         };
         publishGoal({ goal: requestContract, todos: sessionGoal?.todos ?? '' });
-        let lastTodoEvidence:
-          Awaited<ReturnType<typeof workingEvidence>> | undefined;
+        let todoEvidenceCount = 0;
         const updateTodos = async () => {
-          const evidence = await workingEvidence();
-          // Completed notes and the fresh state accompany only new turn evidence.
-          // A compaction changes the projection: resend it instead of skipping it.
-          const start =
-            lastTodoEvidence &&
-            JSON.stringify(lastTodoEvidence.previousConversation) ===
-              JSON.stringify(evidence.previousConversation) &&
-            JSON.stringify(lastTodoEvidence.conversation) ===
-              JSON.stringify(
-                evidence.conversation.slice(
-                  0,
-                  lastTodoEvidence.conversation.length,
-                ),
-              )
-              ? lastTodoEvidence.conversation.length
-              : 0;
+          // Cursor addresses the immutable exchange, not the compaction projection.
+          // Repeated snapshots and old completed receipts are already in the notes.
+          const end = conversation.length;
           const todos = await review('session_todos', {
             initialRequest: prompt,
             requestContract,
             existingTodos: sessionGoal?.todos,
-            previousConversation: evidence.previousConversation,
-            conversation: evidence.conversation.slice(start),
-            currentContext: Object.fromEntries(
-              Object.entries(context).filter(([key]) => key !== 'skillCatalog'),
+            ...(todoEvidenceCount === 0
+              ? await maintenanceHistory(sessionGoal?.todos)
+              : {}),
+            conversation: maintenanceConversation(
+              conversation.slice(todoEvidenceCount, end),
             ),
-            capabilityMap: discovery(),
+            currentContext: {
+              selectedProject: { id: snapshot.id, revision: snapshot.revision },
+            },
             execution: options.execution ?? 'review',
             paidActionFailed,
-            actions: staged.map((proposal) => ({
-              status: proposal.status,
-              result: proposal.result,
-              summary: proposal.summary,
-            })),
           });
-          lastTodoEvidence = evidence;
+          todoEvidenceCount = end;
           publishGoal({ goal: requestContract, todos });
         };
         // Kick off an independent read-only agent at iteration boundaries. The

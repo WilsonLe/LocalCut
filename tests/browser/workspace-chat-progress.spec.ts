@@ -1,3 +1,4 @@
+import { scriptedDocumentReply } from '../goal-review-fixture';
 import { test, expect } from '@playwright/test';
 import { behaviorBases } from './coverage-bases';
 import { fulfillChatTitle } from './chat-title-fixture';
@@ -67,7 +68,7 @@ for (const base of behaviorBases) {
         await route.fulfill({
           headers: cors,
           contentType: 'text/event-stream',
-          body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+          body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: scriptedDocumentReply(request, content) }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
         });
       },
     );
@@ -79,6 +80,7 @@ for (const base of behaviorBases) {
       const gates: Record<string, () => void> = {};
       Object.assign(window, {
         releaseReview: (name: string) => gates[name]?.(),
+        pendingReviews: () => Object.keys(gates),
       });
       window.fetch = async (...args) => {
         const response = await original(...args);
@@ -239,20 +241,26 @@ for (const base of behaviorBases) {
     const stopped = page
       .getByRole('article', { name: 'Assistant response' })
       .last();
-    await expect(
-      stopped.locator('[data-chat-review-draft="request_contract"]'),
-    ).toContainText('Explain the editing workflow.');
-    const mobileDraft = stopped.locator(
-      '[data-chat-review-draft="request_contract"]',
-    );
-    await expect(mobileDraft).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          (
+            window as unknown as { pendingReviews: () => string[] }
+          ).pendingReviews(),
+        ),
+      )
+      .toContain('request_contract');
+    // Existing-document edits stay private until the entire envelope validates.
+    await expect(stopped.locator('[data-chat-review-draft]')).toHaveCount(0);
+    const mobileThinking = stopped.locator('.chat-thinking').last();
+    await expect(mobileThinking).toBeVisible();
     expect(
-      await mobileDraft.evaluate(
+      await mobileThinking.evaluate(
         (element) => element.scrollWidth <= element.clientWidth,
       ),
     ).toBe(true);
     await page.screenshot({
-      path: testInfo.outputPath('mobile-goal-streaming.png'),
+      path: testInfo.outputPath('mobile-goal-update.png'),
     });
     await page
       .getByRole('button', { name: 'Cancel response', exact: true })

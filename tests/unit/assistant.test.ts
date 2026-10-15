@@ -1,7 +1,11 @@
 import { captureFixture } from '../capture-metadata-fixture';
 import { describe, expect, it, vi } from 'vitest';
 import { createAssistant as createRealAssistant } from '../../src/ai/assistant';
-import { goalReviewReply, requestContextMessage } from '../goal-review-fixture';
+import {
+  goalReviewReply,
+  requestContextMessage,
+  scriptedDocumentReply,
+} from '../goal-review-fixture';
 import {
   auxiliaryRoleLeaves,
   roleArtifacts,
@@ -41,7 +45,12 @@ function createAssistant(options: Parameters<typeof createRealAssistant>[0]) {
   });
 }
 import type { AssistantEditor, AssistantEvent } from '../../src/ai/assistant';
-import type { ChatRequest, ProviderEvent, ToolCall } from '../../src/ai/types';
+import type {
+  ChatRequest,
+  ChatMessage,
+  ProviderEvent,
+  ToolCall,
+} from '../../src/ai/types';
 import { AiError } from '../../src/ai/errors';
 import {
   newProject,
@@ -1751,28 +1760,25 @@ describe('headless assistant boundaries', () => {
     const result = await f.assistant.run('Edit').completion;
     expect(result.usage.totalTokens).toBe(8);
     expect(
-      events.filter((e) => e.type !== 'usage_call').map((e) => e.type),
+      events
+        .filter((e) => !['usage_call', 'review_progress'].includes(e.type))
+        .map((e) => e.type),
     ).toEqual([
       'state',
       'tool',
-      'review_progress',
       'tool',
       'session_goal',
       'tool',
-      'review_progress',
       'tool',
       'session_goal',
       'text',
       'usage',
       'tool',
-      'review_progress',
       'tool',
       'session_goal',
       'tool',
-      'review_progress',
       'tool',
       'tool',
-      'review_progress',
       'tool',
       // The final maintenance result is unchanged and adds no goal snapshot.
       'completed',
@@ -7796,6 +7802,47 @@ it('retains a returned parallel sibling outcome verbatim when another sibling is
 });
 
 describe('request completion review sessions', () => {
+  function scriptedAssistant(
+    options: Parameters<typeof createRealAssistant>[0],
+  ) {
+    return createRealAssistant({
+      ...options,
+      provider: {
+        async *stream(request, signal) {
+          for await (const event of options.provider.stream(request, signal)) {
+            if (
+              event.type === 'complete' &&
+              !event.message.tool_calls?.length &&
+              event.message.content
+            ) {
+              // Shared default fixture already emits the wire envelope.
+              let patched = false;
+              try {
+                patched = Array.isArray(
+                  JSON.parse(event.message.content).replacements,
+                );
+              } catch {
+                /* Authored desired text. */
+              }
+              yield patched
+                ? event
+                : {
+                    ...event,
+                    message: {
+                      ...event.message,
+                      content: scriptedDocumentReply(
+                        request,
+                        event.message.content,
+                      ),
+                    },
+                  };
+            } else yield event;
+          }
+        },
+      },
+    });
+  }
+
   const contract =
     'Move the clip and answer.\nSuccess: Move video to one second and answer the request.\nStop: Wait for missing information.';
   const verdict = (
@@ -7862,7 +7909,7 @@ describe('request completion review sessions', () => {
     extra: Partial<Parameters<typeof createRealAssistant>[0]> = {},
   ) {
     const f = fixture();
-    const assistant = createRealAssistant({
+    const assistant = scriptedAssistant({
       editor: f.editor,
       provider: p,
       projectId: f.project().id,
@@ -8035,7 +8082,6 @@ describe('request completion review sessions', () => {
         ).toMatchObject({
           existingGoal: text,
           initialRequest: latest,
-          previousConversation: frozen,
         });
         expect(
           JSON.parse(requestContextMessage(firstTasks).content!),
@@ -8207,9 +8253,9 @@ describe('request completion review sessions', () => {
         JSON.parse(requestContextMessage(executions[1]!).content!),
       ).toMatchObject({
         requestContract: expect.stringContaining('Persistent goal 2'),
-        sessionTodos: expect.stringContaining('- [ ]'),
+        sessionTodos: expect.stringContaining('- [x]'),
       });
-      const fork = createRealAssistant({
+      const fork = scriptedAssistant({
         editor: f.editor,
         provider: p,
         projectId: f.project().id,
@@ -8218,7 +8264,7 @@ describe('request completion review sessions', () => {
       });
       expect(fork.snapshot().sessionGoal).toEqual(firstGoal);
       await fork.dispose();
-      const restored = createRealAssistant({
+      const restored = scriptedAssistant({
         editor: f.editor,
         provider: p,
         projectId: f.project().id,
@@ -8288,7 +8334,7 @@ describe('request completion review sessions', () => {
             'no 50-word limit on the complete goal document',
           );
           expect(request.messages.at(-1)!.content).toContain(
-            'Edit existingGoal minimally in place',
+            'Edit existingGoal using exact text replacements',
           );
           yield final(
             data.initialRequest === 'Require a closing title' ? nextGoal : goal,
@@ -8298,10 +8344,10 @@ describe('request completion review sessions', () => {
           const data = JSON.parse(request.messages[1]!.content!);
           expect(data.existingTodos).toBe(todoCalls > 1 ? updatedTodos : todos);
           expect(instruction).toContain(
-            'If nothing material changed, return the existing document exactly',
+            'If nothing material changed, preserve the existing document exactly',
           );
           expect(request.messages.at(-1)!.content).toContain(
-            'Edit existingTodos minimally in place',
+            'Edit existingTodos using exact text replacements',
           );
           yield final(++todoCalls === 1 ? todos : updatedTodos);
         } else {
@@ -8348,14 +8394,14 @@ describe('request completion review sessions', () => {
               message.tool_call_id === 'persistent-read',
           ),
         ).toBe(true);
-        const fork = createRealAssistant({
+        const fork = scriptedAssistant({
           editor: f.editor,
           provider: p,
           projectId: f.project().id,
           model: 'test/model',
           branch: f.assistant.branch(first.id),
         });
-        const restored = createRealAssistant({
+        const restored = scriptedAssistant({
           editor: f.editor,
           provider: p,
           projectId: f.project().id,
@@ -8697,6 +8743,107 @@ describe('request completion review sessions', () => {
     },
   );
 
+  it('applies literal goal and task patches with small context despite large saved history', async () => {
+    const originalGoal = 'Keep harbour ending.\nAdd music.';
+    const originalTodos =
+      'Custom notes\nInspection pending.\nKeep all completed evidence exactly.\n';
+    let rounds = 0;
+    const requests: ChatRequest[] = [];
+    const events: AssistantEvent[] = [];
+    const provider = {
+      async *stream(request: ChatRequest): AsyncIterable<ProviderEvent> {
+        requests.push(structuredClone(request));
+        const instruction = request.messages[0]?.content ?? '';
+        if (instruction.startsWith('LocalCut request contract:')) {
+          yield final(
+            '{"replacements":[{"oldText":"Add music.","newText":"Add gentle music."}]}',
+          );
+        } else if (instruction.startsWith('LocalCut session to-dos:')) {
+          const data = JSON.parse(request.messages[1]!.content!);
+          const hasReceipt = data.conversation.some(
+            (m: ChatMessage) =>
+              m.role === 'tool' && m.tool_call_id === 'fresh-read',
+          );
+          yield final(
+            hasReceipt
+              ? '{"replacements":[{"oldText":"Inspection pending.","newText":"Inspection complete — fresh read."}]}'
+              : '{"replacements":[]}',
+          );
+        } else if (instruction.startsWith('LocalCut completion review:')) {
+          yield final('Current state was inspected.');
+        } else if (++rounds === 1)
+          yield final('', [call('inspect_project', {}, 'fresh-read')]);
+        else yield final('Inspected.');
+      },
+    };
+    // Use the raw production boundary: no scenario document-to-patch adapter.
+    const f = fixture();
+    const assistant = createRealAssistant({
+      editor: f.editor,
+      provider,
+      projectId: f.project().id,
+      model: 'test/model',
+      execution: 'requested',
+      restoredGoal: { goal: originalGoal, todos: originalTodos },
+      restoredTurns: [
+        {
+          id: 'large-history',
+          user: 'Original request',
+          assistant: 'OLD_PAYLOAD_'.repeat(12000),
+        },
+      ],
+    });
+    assistant.subscribe((event) => events.push(event));
+    try {
+      const result = await assistant.run(
+        'Use gentle music and inspect the project',
+      ).completion;
+      expect(result.text).toBe('Inspected.');
+      const expected = {
+        goal: 'Keep harbour ending.\nAdd gentle music.',
+        todos:
+          'Custom notes\nInspection complete — fresh read.\nKeep all completed evidence exactly.\n',
+      };
+      expect(assistant.snapshot().sessionGoal).toEqual(expected);
+      const maintenance = requests.filter((r) =>
+        /^LocalCut (request contract|session to-dos):/.test(
+          r.messages[0]?.content ?? '',
+        ),
+      );
+      expect(maintenance.length).toBeGreaterThan(2);
+      for (const request of maintenance) {
+        const data = JSON.parse(request.messages[1]!.content!);
+        if (
+          request.messages[0]!.content!.startsWith('LocalCut request contract:')
+        )
+          expect(data.priorRequests).toEqual(['Original request']);
+        expect(data).not.toHaveProperty('previousConversation');
+        expect(data).not.toHaveProperty('capabilityMap');
+        expect(JSON.stringify(data)).not.toContain('OLD_PAYLOAD_');
+        expect(JSON.stringify(data).length).toBeLessThan(12000);
+      }
+      const todoData = maintenance
+        .filter((r) =>
+          r.messages[0]!.content!.startsWith('LocalCut session to-dos:'),
+        )
+        .map((r) => JSON.parse(r.messages[1]!.content!));
+      expect(JSON.stringify(todoData[1].conversation)).toContain('fresh-read');
+      expect(JSON.stringify(todoData[2].conversation)).not.toContain(
+        'fresh-read',
+      );
+      expect(events.filter((e) => e.type === 'session_goal')).toHaveLength(2);
+      expect(
+        JSON.stringify(
+          requests.find(
+            (r) => !r.messages[0]?.content?.startsWith('LocalCut '),
+          ),
+        ),
+      ).toContain('OLD_PAYLOAD_');
+    } finally {
+      await assistant.dispose();
+    }
+  });
+
   it('preserves the entire prior request prefix and sends only new to-do evidence with stable role routing', async () => {
     const p = reviewedProvider([
       [final('', [call('inspect_project', {}, 'first-read')])],
@@ -8736,9 +8883,11 @@ describe('request completion review sessions', () => {
       expect(JSON.stringify(data[1].conversation)).toContain('first-read');
       expect(JSON.stringify(data[2].conversation)).toContain('second-read');
       expect(data[1].currentContext).not.toHaveProperty('skillCatalog');
-      expect(data[1].capabilityMap.tools.inspect_project.available).toBe(true);
-      expect(data[1].capabilityMap.tools.propose_edits.available).toBe(false);
-      const restored = createRealAssistant({
+      expect(data[1]).not.toHaveProperty('capabilityMap');
+      expect(data[1].currentContext).toEqual({
+        selectedProject: { id: f.project().id, revision: 0 },
+      });
+      const restored = scriptedAssistant({
         editor: f.editor,
         provider: p,
         projectId: f.project().id,
@@ -8794,12 +8943,14 @@ describe('request completion review sessions', () => {
           r.tools.length === 0,
       ),
     ).toBe(true);
-    expect(
-      JSON.parse(parses[1]!.messages[1]!.content!).previousConversation,
-    ).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ content: 'Initial request' }),
-      ]),
+    expect(JSON.parse(parses[1]!.messages[1]!.content!)).not.toHaveProperty(
+      'previousConversation',
+    );
+    expect(JSON.parse(parses[1]!.messages[1]!.content!).priorRequests).toEqual([
+      'Initial request',
+    ]);
+    expect(JSON.parse(parses[1]!.messages[1]!.content!).existingGoal).toBe(
+      contract,
     );
     expect(f.editor.commands.apply).not.toHaveBeenCalled();
     await f.assistant.dispose();
@@ -9463,7 +9614,7 @@ describe('request completion review sessions', () => {
         yield await gate.promise;
       else yield* original(request);
     };
-    const assistant = createRealAssistant({
+    const assistant = scriptedAssistant({
       editor: f.editor,
       provider: p,
       projectId: f.project().id,
@@ -9617,7 +9768,7 @@ describe('request completion review sessions', () => {
           yield final('FULFILLED\nFolder matches reviewed state');
         } else yield* original(request);
       };
-      const assistant = createRealAssistant({
+      const assistant = scriptedAssistant({
         editor: f.editor,
         provider: p,
         projectId: f.project().id,

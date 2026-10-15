@@ -1,3 +1,4 @@
+import { scriptedDocumentReply } from '../goal-review-fixture';
 import { test, expect } from '@playwright/test';
 import { behaviorBases } from './coverage-bases';
 import { fulfillChatTitle } from './chat-title-fixture';
@@ -134,7 +135,7 @@ for (const base of behaviorBases) {
         await route.fulfill({
           headers: cors,
           contentType: 'text/event-stream',
-          body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+          body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: scriptedDocumentReply(request, content) }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
         });
       },
     );

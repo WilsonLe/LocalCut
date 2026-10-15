@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  applyDocumentReplacements,
   goalEvidence,
   goalMessages,
   goalResponse,
@@ -373,4 +374,133 @@ describe('routine confirmation probe meaning controls', () => {
       ).noRoutineApprovalGate,
     ).toBe(false);
   });
+});
+
+describe('exact persistent document replacements', () => {
+  const document =
+    '  ## Notes\n- [ ] Inspect harbour\n- [x] Keep ending — receipt 9\n';
+  const edit = (replacements: { oldText: string; newText: string }[]) =>
+    JSON.stringify({ replacements });
+
+  it('changes only the requested span, including arbitrary prose and whitespace', async () => {
+    const o = options([
+      edit([
+        {
+          oldText: '[ ] Inspect harbour',
+          newText: '[x] Inspect harbour — receipt 10',
+        },
+      ]),
+    ]);
+    expect(await goalResponse({ ...o, document })).toBe(
+      '  ## Notes\n- [x] Inspect harbour — receipt 10\n- [x] Keep ending — receipt 9\n',
+    );
+    expect(o.accountUsage).toHaveBeenCalledTimes(1);
+    expect(await goalResponse({ ...options([edit([])]), document })).toBe(
+      document,
+    );
+  });
+
+  it('inserts, deletes and applies several edits atomically', () => {
+    expect(
+      applyDocumentReplacements(
+        'Alpha\nBeta\nGamma',
+        edit([
+          { oldText: 'Alpha', newText: 'Alpha\nAdded' },
+          { oldText: 'Beta\n', newText: '' },
+          { oldText: 'Gamma', newText: 'Updated' },
+        ]),
+      ),
+    ).toBe('Alpha\nAdded\nUpdated');
+    expect(
+      applyDocumentReplacements('', edit([{ oldText: '', newText: 'First' }])),
+    ).toBe('First');
+  });
+
+  it.each([
+    'Regenerated complete checklist',
+    '{}',
+    '{"replacements":[],"extra":true}',
+    '{"replacements":[{"oldText":"Notes","newText":8}]}',
+    edit([{ oldText: 'missing', newText: 'replacement' }]),
+    edit([{ oldText: '', newText: 'replacement' }]),
+    edit([
+      { oldText: 'Notes', newText: 'Changed' },
+      { oldText: 'missing', newText: 'Invalid' },
+    ]),
+  ])(
+    'rejects invalid edits without publishing any partial document: %s',
+    async (response) => {
+      const progress = vi.fn();
+      await expect(
+        goalResponse({
+          ...options([response]),
+          document,
+          onProgress: progress,
+        }),
+      ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+      expect(progress.mock.calls).toEqual([[''], ['']]);
+      expect(document).toContain('## Notes');
+    },
+  );
+
+  it('rejects ambiguous and overlapping targets', () => {
+    expect(() =>
+      applyDocumentReplacements(
+        'same same',
+        edit([{ oldText: 'same', newText: 'new' }]),
+      ),
+    ).toThrow();
+    expect(() =>
+      applyDocumentReplacements('aaa', edit([{ oldText: 'aa', newText: 'b' }])),
+    ).toThrow();
+  });
+
+  it('never displays the patch envelope as a document draft', async () => {
+    const response = edit([
+      { oldText: 'Inspect harbour', newText: 'Inspect city' },
+    ]);
+    const o = options([]);
+    o.provider.stream = async function* () {
+      yield { type: 'text', text: response.slice(0, 20) };
+      yield { type: 'text', text: response.slice(20) };
+      yield {
+        type: 'complete',
+        message: { role: 'assistant', content: response },
+      };
+    };
+    const progress = vi.fn();
+    const result = await goalResponse({ ...o, document, onProgress: progress });
+    expect(progress.mock.calls).toEqual([[''], [result]]);
+    expect(result).toContain('Inspect city');
+  });
+});
+
+it('retries the same frozen replacement request and never applies a partial attempt', async () => {
+  const o = options([
+    new AiError('RESPONSE_INCOMPLETE', 'Interrupted patch'),
+    '{"replacements":[{"oldText":"pending","newText":"done"}]}',
+  ]);
+  expect(
+    await goalResponse({ ...o, document: 'Task pending. Keep evidence.' }),
+  ).toBe('Task done. Keep evidence.');
+  expect(o.requests).toHaveLength(2);
+  expect(o.requests[1]).toEqual(o.requests[0]);
+});
+
+it('never applies a replacement completed after cancellation', async () => {
+  const o = options([]);
+  const response = '{"replacements":[{"oldText":"pending","newText":"done"}]}';
+  o.provider.stream = async function* () {
+    yield { type: 'text', text: response };
+    o.controller.abort();
+    yield {
+      type: 'complete',
+      message: { role: 'assistant', content: response },
+    };
+  };
+  const progress = vi.fn();
+  await expect(
+    goalResponse({ ...o, document: 'pending', onProgress: progress }),
+  ).rejects.toMatchObject({ code: 'CANCELLED' });
+  expect(progress).not.toHaveBeenCalledWith('done');
 });

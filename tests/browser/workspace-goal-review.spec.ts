@@ -1,3 +1,4 @@
+import { scriptedDocumentReply } from '../goal-review-fixture';
 import { behaviorBases } from './coverage-bases';
 import { test, expect } from '@playwright/test';
 import type { Route } from '@playwright/test';
@@ -22,7 +23,7 @@ const reply = (
   route.fulfill({
     headers: cors,
     contentType: 'text/event-stream',
-    body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: calls ? { tool_calls: calls.map((call, index) => ({ index, id: `goal-${index}`, type: 'function', function: call })) } : { content }, finish_reason: calls ? 'tool_calls' : 'stop' }] })}\n\ndata: [DONE]\n\n`,
+    body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: calls ? { tool_calls: calls.map((call, index) => ({ index, id: `goal-${index}`, type: 'function', function: call })) } : { content: content === undefined ? undefined : scriptedDocumentReply(route.request().postDataJSON(), content) }, finish_reason: calls ? 'tool_calls' : 'stop' }] })}\n\ndata: [DONE]\n\n`,
   });
 
 for (const base of behaviorBases) {
@@ -150,13 +151,16 @@ for (const base of behaviorBases) {
           }
           expect(request.tool_choice).toBe('none');
           const data = JSON.parse(request.messages[1].content);
+          expect(data).not.toHaveProperty('capabilityMap');
+          expect(data.currentContext.selectedProject).not.toHaveProperty(
+            'tracks',
+          );
           const met =
             !exhausted &&
-            data.currentContext.selectedProject.tracks.some(
-              (track: { id: string; clips: { id: string }[] }) =>
-                track.id === 'checked-overlay' &&
-                track.clips.some((clip) => clip.id === 'checked-title'),
-            );
+            (data.existingTodos?.startsWith(
+              'The overlay and title are complete.',
+            ) ||
+              JSON.stringify(data.conversation).includes('checked-title'));
           await reply(
             route,
             met

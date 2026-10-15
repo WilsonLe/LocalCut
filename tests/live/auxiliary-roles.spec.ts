@@ -1,3 +1,4 @@
+import { scriptedDocumentReply } from '../goal-review-fixture';
 import { expect, test } from '@playwright/test';
 import {
   auxiliaryRoleLeaves,
@@ -21,7 +22,7 @@ for (const { stage, leaf, text } of auxiliaryRoleLeaves) {
     // Serialize the test-only grader, so neither credentials nor generated
     // prompts/responses are returned or attached to the Playwright report.
     const result = await page.evaluate(
-      async ({ key, model, stage, text, artifacts, grader }) => {
+      async ({ key, model, stage, text, artifacts, grader, encoder }) => {
         const { createEditor } = (await import(
           String('/LocalCut/editor.js')
         )) as typeof import('../../src/editor');
@@ -40,6 +41,11 @@ for (const { stage, leaf, text } of auxiliaryRoleLeaves) {
         let phase = 'catalog';
         let failureCategory: string | undefined;
         let failureReason = 'unknown';
+        const encodeDocument = new Function(
+          'request',
+          'text',
+          `return (${encoder})(request, text);`,
+        ) as typeof scriptedDocumentReply;
         let targetCalls = 0;
         const targetTexts: string[] = [];
         let executableCalls = 0;
@@ -126,7 +132,6 @@ for (const { stage, leaf, text } of auxiliaryRoleLeaves) {
                   targetCalls++;
                   for await (const event of provider.stream(request, signal)) {
                     if (event.type === 'complete') {
-                      targetTexts.push(event.message.content ?? '');
                       executableCalls += event.message.tool_calls?.length ?? 0;
                     }
                     yield event;
@@ -140,7 +145,7 @@ for (const { stage, leaf, text } of auxiliaryRoleLeaves) {
                     message: {
                       role: 'assistant',
                       content: role
-                        ? artifacts[role]
+                        ? encodeDocument(request, artifacts[role])
                         : context?.completionDecision
                           ? 'Harbour title and Sunset ending remain complete. Music bed is blocked on a missing source.'
                           : 'I can add Music bed if you say go.',
@@ -152,6 +157,12 @@ for (const { stage, leaf, text } of auxiliaryRoleLeaves) {
           });
           phase = 'assistant';
           assistant.subscribe((event) => {
+            if (
+              event.type === 'tool' &&
+              event.name === stage &&
+              event.phase === 'completed'
+            )
+              targetTexts.push(String(event.result));
             if (event.type === 'error') {
               failureCategory = event.error.code;
               const reason = event.error.details.reason;
@@ -211,6 +222,7 @@ for (const { stage, leaf, text } of auxiliaryRoleLeaves) {
         text,
         artifacts: roleArtifacts,
         grader: roleLeafChecks.toString(),
+        encoder: scriptedDocumentReply.toString(),
       },
     );
     for (const [leafCheck, passed] of Object.entries(result.checks))

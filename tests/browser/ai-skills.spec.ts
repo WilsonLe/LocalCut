@@ -51,7 +51,10 @@ for (const base of behaviorBases) {
                 type: 'complete' as const,
                 message: {
                   role: 'assistant' as const,
-                  content: 'Fulfill scripted skill request.',
+                  content: JSON.parse(request.messages[1]!.content!)
+                    .existingGoal
+                    ? '{"replacements":[]}'
+                    : 'Fulfill scripted skill request.',
                 },
               };
               return;
@@ -61,7 +64,10 @@ for (const base of behaviorBases) {
                 type: 'complete' as const,
                 message: {
                   role: 'assistant' as const,
-                  content: '## To-dos\n- [x] Scripted skill outcome',
+                  content: JSON.parse(request.messages[1]!.content!)
+                    .existingTodos
+                    ? '{"replacements":[]}'
+                    : '## To-dos\n- [x] Scripted skill outcome',
                 },
               };
               return;
@@ -321,7 +327,10 @@ for (const base of behaviorBases) {
                 type: 'complete' as const,
                 message: {
                   role: 'assistant' as const,
-                  content: 'Fulfill scripted skill request.',
+                  content: JSON.parse(request.messages[1]!.content!)
+                    .existingGoal
+                    ? '{"replacements":[]}'
+                    : 'Fulfill scripted skill request.',
                 },
               };
               return;
@@ -331,7 +340,10 @@ for (const base of behaviorBases) {
                 type: 'complete' as const,
                 message: {
                   role: 'assistant' as const,
-                  content: '## To-dos\n- [x] Scripted skill outcome',
+                  content: JSON.parse(request.messages[1]!.content!)
+                    .existingTodos
+                    ? '{"replacements":[]}'
+                    : '## To-dos\n- [x] Scripted skill outcome',
                 },
               };
               return;

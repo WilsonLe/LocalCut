@@ -208,7 +208,9 @@ for (const base of behaviorBases) {
     };
     await expectTruncated();
     await messageLabel.hover();
-    await expect(page.getByRole('tooltip')).toHaveText(secondPrompt);
+    await expect(
+      page.getByRole('tooltip').filter({ hasText: secondPrompt }),
+    ).toHaveText(secondPrompt);
     const tooltipBox = (await page.getByRole('tooltip').boundingBox())!;
     expect(tooltipBox.width).toBeLessThanOrEqual(256);
     expect(tooltipBox.y).toBeGreaterThanOrEqual(0);
@@ -298,7 +300,9 @@ for (const base of behaviorBases) {
     await page.keyboard.press('Tab');
     await page.keyboard.press('Shift+Tab');
     await expect(newestSummary).toBeFocused();
-    await expect(page.getByRole('tooltip')).toHaveText(secondPrompt);
+    await expect(
+      page.getByRole('tooltip').filter({ hasText: secondPrompt }),
+    ).toHaveText(secondPrompt);
     await page.keyboard.press('Enter');
     await expect(detail).toBeVisible();
     await expectBounds(popover);
