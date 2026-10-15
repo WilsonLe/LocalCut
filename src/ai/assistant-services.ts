@@ -127,7 +127,7 @@ export async function executeServiceAction({
     ) {
       await artifact.dispose();
       cancelled(signal);
-      aiInvariant(!isDisposed(), 'DISPOSED', 'Assistant isDisposed().');
+      aiInvariant(!isDisposed(), 'DISPOSED', 'Assistant disposed.');
       throw new AiError(
         'REVISION_CONFLICT',
         'Export captured a newer project. Request a new proposal.',
@@ -158,7 +158,7 @@ export async function executeServiceAction({
       ),
     );
     cancelled(signal);
-    aiInvariant(!isDisposed(), 'DISPOSED', 'Assistant isDisposed().');
+    aiInvariant(!isDisposed(), 'DISPOSED', 'Assistant disposed.');
     aiInvariant(
       artifact.projectId === projectId &&
         artifact.revision === proposal.batch.expectedRevision,
