@@ -232,11 +232,65 @@ export function selectScenes(
   });
 }
 export function parseIndexLabel(response: string): IndexLabel {
+  return normalizeIndexLabel(parseLabelJson(response));
+}
+
+function parseLabelJson(response: string): unknown {
   const body = response
     .trim()
     .replace(/^```(?:json)?\s*/, '')
     .replace(/\s*```$/, '');
-  return indexLabelSchema.parse(JSON.parse(body));
+  return JSON.parse(body);
+}
+
+/** Project valid provider text into the existing persisted bounds, without coercion. */
+function normalizeIndexLabel(value: unknown): IndexLabel {
+  const parsed = indexLabelSchema.safeParse(value);
+  if (parsed.success) return parsed.data;
+  const issues = parsed.error.issues;
+  if (
+    issues.some(
+      (issue) =>
+        issue.code !== 'too_big' ||
+        (issue.origin !== 'string' && issue.origin !== 'array'),
+    )
+  )
+    throw parsed.error;
+  const bound = (
+    value: string | string[],
+    path: PropertyKey[],
+  ): string | string[] => {
+    const issue = issues.find(
+      (issue) =>
+        issue.path.length === path.length &&
+        issue.path.every((part, i) => part === path[i]),
+    );
+    const maximum =
+      issue?.code === 'too_big' ? Number(issue.maximum) : undefined;
+    if (Array.isArray(value))
+      return value
+        .map((item, i) => bound(item, [...path, i]) as string)
+        .slice(0, maximum);
+    // Match the canonical schema's Unicode code-point bounds, preserving pairs.
+    return maximum === undefined
+      ? value
+      : [...value].slice(0, maximum).join('');
+  };
+  return indexLabelSchema.parse(
+    Object.fromEntries(
+      Object.entries(value as IndexLabel).map(([key, field]) => [
+        key,
+        bound(field, [key]),
+      ]),
+    ),
+  );
+}
+
+export function parseIndexSceneResponse(response: string) {
+  const parsed = indexSceneResponseSchema
+    .extend({ label: z.unknown() })
+    .parse(parseLabelJson(response));
+  return { sceneId: parsed.sceneId, label: normalizeIndexLabel(parsed.label) };
 }
 export function indexText(run: AssetIndexRun) {
   return {
