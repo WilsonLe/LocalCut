@@ -29,10 +29,40 @@ export function boundedContext<T>(value: T, maxBytes: number): T {
   return value;
 }
 
-export function projectContext(project: Project, policy: ContextPolicy = {}) {
+export function projectContext(
+  project: Project,
+  policy: ContextPolicy = {},
+  page?: { offset: number; limit: number },
+) {
   const { name, tracks, storyboard, ...settings } = project;
+  const allClips = tracks.flatMap((track) => track.clips);
+  const selectedClips = new Set(
+    (page
+      ? allClips.slice(page.offset, page.offset + page.limit)
+      : allClips
+    ).map((clip) => clip.id),
+  );
+  const pagination = (total: number) => ({
+    total,
+    offset: page!.offset,
+    nextOffset:
+      page!.offset + page!.limit < total ? page!.offset + page!.limit : null,
+  });
   return {
     ...settings,
+    ...(page
+      ? {
+          transitions: settings.transitions.slice(
+            page.offset,
+            page.offset + page.limit,
+          ),
+          pages: {
+            clips: pagination(allClips.length),
+            transitions: pagination(settings.transitions.length),
+          },
+          inspection: { tool: 'inspect_project', limit: page.limit },
+        }
+      : {}),
     storyboard: {
       elementCount:
         storyboard?.elements.filter((e) => !e.isDeleted).length ?? 0,
@@ -42,15 +72,18 @@ export function projectContext(project: Project, policy: ContextPolicy = {}) {
     tracks: tracks.map(({ name, ...track }) => ({
       ...track,
       ...(policy.includeAssetNames && name ? { name } : {}),
-      clips: track.clips.map((clip) => {
-        const { text, cues, ...properties } = clip;
-        return {
-          ...properties,
-          ...(policy.includeText
-            ? { ...(text ? { text } : {}), cues }
-            : { hasText: !!text, cueCount: cues.length }),
-        };
-      }),
+      ...(page ? { clipCount: track.clips.length } : {}),
+      clips: track.clips
+        .filter((clip) => selectedClips.has(clip.id))
+        .map((clip) => {
+          const { text, cues, ...properties } = clip;
+          return {
+            ...properties,
+            ...(policy.includeText
+              ? { ...(text ? { text } : {}), cues }
+              : { hasText: !!text, cueCount: cues.length }),
+          };
+        }),
     })),
   };
 }
@@ -81,6 +114,7 @@ export function timelineContext(
   project: Project,
   timeUs: number,
   policy: ContextPolicy = {},
+  detail: 'evaluation' | 'full' = 'full',
 ) {
   const rate = project.frameRate;
   const frameIndex = Math.floor((timeUs * rate.num) / (1_000_000 * rate.den));
@@ -113,8 +147,19 @@ export function timelineContext(
           const original = project.tracks[index]!.clips.find(
             (item) => item.id === clip.id,
           )!;
+          const { keyframes, speedRamp, fadeEnvelope, ...evaluated } = clip;
           return {
-            ...clip,
+            ...(detail === 'full'
+              ? clip
+              : {
+                  ...evaluated,
+                  cues: undefined,
+                  cueCount: 'cues' in clip ? clip.cues.length : clip.cueCount,
+                  curveParameters: Object.keys(keyframes),
+                  speedRampPointCount: speedRamp?.length ?? 0,
+                  hasFadeEnvelope: !!fadeEnvelope,
+                  detailTool: 'inspect_project',
+                }),
             localTimeUs: timeUs - clip.startUs,
             ...(clip.kind === 'video' || clip.kind === 'audio'
               ? { sourceTimeUs: sourceTimeUs(original, timeUs) }
@@ -169,7 +214,8 @@ export function storyboardContext(
   scene: Storyboard | undefined,
   policy: ContextPolicy,
   offset = 0,
-  limit = 50,
+  limit = 20,
+  detail: 'summary' | 'full' = 'full',
 ) {
   const elements = scene?.elements.filter((e) => !e.isDeleted) ?? [];
   return {
@@ -177,12 +223,28 @@ export function storyboardContext(
     offset,
     nextOffset: offset + limit < elements.length ? offset + limit : null,
     backgroundColor: scene?.backgroundColor ?? '#ffffff',
+    detail,
     elements: elements.slice(offset, offset + limit).map((e) => {
       const { text, originalText, name, ...geometry } = e;
       return {
-        ...geometry,
+        ...(detail === 'full'
+          ? geometry
+          : {
+              id: e.id,
+              type: e.type,
+              x: e.x,
+              y: e.y,
+              width: e.width,
+              height: e.height,
+              angle: e.angle,
+              frameId: e.frameId,
+              groupIds: e.groupIds,
+              containerId: e.containerId,
+              fileId: e.fileId,
+              pointCount: e.points?.length ?? 0,
+            }),
         ...(policy.includeText
-          ? { text, originalText, name }
+          ? { text, ...(detail === 'full' ? { originalText } : {}), name }
           : { hasText: text !== undefined, hasName: name != null }),
       };
     }),

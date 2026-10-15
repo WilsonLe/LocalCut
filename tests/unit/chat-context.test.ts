@@ -87,6 +87,7 @@ describe('persistent working context compaction', () => {
       check,
     });
     expect(first.compacted).toBe(true);
+    expect(summarize).toHaveBeenCalledTimes(1);
     expect(messages).toEqual(original);
     expect(chatExchangeSchema.safeParse(first.messages).success).toBe(true);
     expect(workingContextTokens(first.messages)).toBeLessThan(192000);
@@ -201,4 +202,54 @@ it('keeps opaque reasoning out of summaries while hashing and preserving its ori
   expect(fragments.join('')).not.toContain('HIDDEN_');
   expect(JSON.stringify(result.checkpoint)).not.toContain('HIDDEN_');
   expect(messages).toEqual(original);
+});
+
+it('reduces known repetitive execution evidence in one pass without altering the cached working prefix', async () => {
+  const snapshot = (todos: string): ChatMessage => ({
+    role: 'system',
+    content: JSON.stringify({
+      selectedProject: { id: 'film', revision: 9 },
+      availableAssetIds: ['voice'],
+      capabilityMap: { repeated: 'catalog '.repeat(50000) },
+      sessionTodos: todos,
+    }),
+  });
+  const messages: ChatMessage[] = [
+    user('Keep completed narration and change the ending.'),
+    snapshot('Narration completed; ending blocked.'),
+    snapshot('Narration completed; ending fixed at revision 9.'),
+    user('Unrecognized source evidence stays complete. ' + 'z'.repeat(5000)),
+  ];
+  const before = structuredClone(messages);
+  const summarize = vi.fn(async (evidence: { fragment: string }) => {
+    expect(evidence.fragment).toContain('ending blocked');
+    expect(evidence.fragment).toContain('ending fixed');
+    expect(evidence.fragment).not.toContain('catalog catalog');
+    expect(evidence.fragment.length).toBeLessThan(
+      JSON.stringify(before).length / 20,
+    );
+    return 'Narration completed. Ending fixed at revision 9.';
+  });
+  const result = await compactWorkingContext({
+    messages,
+    summarize,
+    check: () => {},
+    onStart: () => {},
+  });
+  expect(summarize).toHaveBeenCalledTimes(1);
+  expect(messages).toEqual(before);
+  expect(result.checkpoint!.coveredMessages).toBeGreaterThan(0);
+  expect(JSON.stringify(result.messages)).toContain('z'.repeat(5000));
+  const followup = [...messages, user('Verify without synthesis.')];
+  const reused = await compactWorkingContext({
+    messages: followup,
+    checkpoint: result.checkpoint,
+    summarize,
+    check: () => {},
+    onStart: () => {},
+  });
+  expect(summarize).toHaveBeenCalledTimes(1);
+  expect(reused.messages.slice(0, result.messages.length)).toEqual(
+    result.messages,
+  );
 });

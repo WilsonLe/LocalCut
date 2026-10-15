@@ -96,6 +96,151 @@ it('retains every structural validation issue beyond the former detail cap', () 
   }
 });
 
+it('pages large project/tool inspections and keeps complete detail discoverable without repeating validation snapshots', async () => {
+  const f = fixture();
+  const first = f.project().tracks[0]!.clips[0]!;
+  f.project().tracks[0]!.clips = Array.from({ length: 60 }, (_, i) =>
+    clipSchema.parse({ ...first, id: `clip-${i}`, startUs: i * 5e6 }),
+  );
+  const p = provider(
+    [
+      [final('', [call('load_skill', { skillId: 'editing' })])],
+      [
+        final('', [
+          call('inspect_project', {}, 'first-page'),
+          call('inspect_project', { offset: 40 }, 'last-page'),
+          call('inspect_project', { offset: 60 }, 'tail-page'),
+          call('inspect_capabilities', {}, 'overview'),
+          call('inspect_capabilities', { section: 'properties' }, 'properties'),
+          call(
+            'validate_edits',
+            {
+              operations: [
+                { type: 'updateClip', clipId: 'clip-59', patch: { gain: 0.5 } },
+              ],
+            },
+            'receipt',
+          ),
+          call(
+            'validate_edits',
+            {
+              operations: [
+                { type: 'updateClip', clipId: 'clip-59', patch: { gain: 0.5 } },
+              ],
+              includeProject: true,
+              offset: 40,
+            },
+            'preview',
+          ),
+        ]),
+      ],
+      [final('Inspected and validated without applying.')],
+    ],
+    false,
+  );
+  const a = createAssistant({
+    editor: f.editor,
+    provider: p,
+    projectId: f.project().id,
+    model: 'test/model',
+  });
+  const before = structuredClone(f.project());
+  try {
+    const result = await a.run('Inspect and dry-run the last clip').completion;
+    const outcomes = new Map(
+      result.exchange
+        .filter((m) => m.role === 'tool')
+        .map((m) => [
+          m.role === 'tool' ? m.tool_call_id : '',
+          JSON.parse(m.content!),
+        ]),
+    );
+    expect(outcomes.get('first-page').tracks[0].clips).toHaveLength(20);
+    expect(outcomes.get('first-page')).toMatchObject({
+      pages: { clips: { total: 61, nextOffset: 20 } },
+    });
+    expect(outcomes.get('last-page').tracks[0].clips.at(-1).id).toBe('clip-59');
+    expect(outcomes.get('last-page').pages.clips.nextOffset).toBe(60);
+    expect(outcomes.get('tail-page').tracks[1].clips[0].id).toBe('title');
+    expect(outcomes.get('tail-page').pages.clips.nextOffset).toBeNull();
+    expect(outcomes.get('overview')).not.toHaveProperty('properties');
+    expect(
+      outcomes.get('overview').capabilityMap.tools.inspect_project.available,
+    ).toBe(true);
+    expect(outcomes.get('properties').properties).toEqual(editingProperties);
+    expect(outcomes.get('receipt')).toEqual({
+      expectedRevision: 0,
+      affectedIds: ['clip-59'],
+    });
+    expect(JSON.stringify(outcomes.get('receipt')).length).toBeLessThan(
+      JSON.stringify(outcomes.get('preview')).length / 100,
+    );
+    expect(outcomes.get('preview').project.tracks[0].clips.at(-1).gain).toBe(
+      0.5,
+    );
+    expect(outcomes.get('preview').project.tracks[0].clips).toHaveLength(20);
+    expect(f.project()).toEqual(before);
+    expect(f.editor.commands.apply).not.toHaveBeenCalled();
+  } finally {
+    await a.dispose();
+  }
+});
+
+it('evaluates timeline animation without returning its large raw curves, while full detail remains available', async () => {
+  const f = fixture();
+  f.project().tracks[0]!.clips[0]!.keyframes = {
+    opacity: Array.from({ length: 1001 }, (_, i) => ({
+      id: `key-${i}`,
+      timeUs: i * 4000,
+      value: i / 1000,
+      interpolation: 'linear' as const,
+    })),
+  };
+  const p = provider([
+    [
+      final('', [
+        call('inspect_timeline', { timeUs: 1e6 }, 'evaluated'),
+        call('inspect_timeline', { timeUs: 1e6, detail: 'full' }, 'full'),
+      ]),
+    ],
+    [final('Measured.')],
+  ]);
+  const a = createAssistant({
+    editor: f.editor,
+    provider: p,
+    projectId: f.project().id,
+    model: 'test/model',
+    context: { includeText: true },
+  });
+  try {
+    const result = await a.run('Inspect the animation').completion;
+    const outcomes = new Map(
+      result.exchange
+        .filter((m) => m.role === 'tool')
+        .map((m) => [
+          m.role === 'tool' ? m.tool_call_id : '',
+          JSON.parse(m.content!),
+        ]),
+    );
+    const evaluated = outcomes.get('evaluated'),
+      full = outcomes.get('full');
+    expect(evaluated.tracks[0].clips[0]).toMatchObject({
+      sourceTimeUs: 1e6,
+      values: { opacity: 0.25 },
+      curveParameters: ['opacity'],
+    });
+    expect(evaluated.tracks[0].clips[0]).not.toHaveProperty('keyframes');
+    expect(evaluated.tracks[1].clips[0]).not.toHaveProperty('cues');
+    expect(full.tracks[0].clips[0].keyframes.opacity).toHaveLength(1001);
+    expect(full.tracks[1].clips[0].cues).toHaveLength(1);
+    expect(JSON.stringify(evaluated).length).toBeLessThan(
+      JSON.stringify(full).length / 10,
+    );
+  } finally {
+    await a.dispose();
+  }
+});
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (error: unknown) => void;
@@ -1771,10 +1916,7 @@ describe('headless assistant boundaries', () => {
       'tool',
       'review_progress',
       'tool',
-      'tool',
-      'review_progress',
-      'tool',
-      // The final maintenance result is unchanged and adds no goal snapshot.
+      // The unchanged accepted response does not launch checklist maintenance.
       'completed',
       'state',
     ]);
@@ -2444,7 +2586,11 @@ describe('headless assistant boundaries', () => {
         final('', [
           call('inspect_capabilities', {}, 'caps'),
           call('inspect_timeline', { timeUs: 1e6 }, 'time'),
-          call('validate_edits', { operations }, 'validate'),
+          call(
+            'validate_edits',
+            { operations, includeProject: true },
+            'validate',
+          ),
         ]),
       ],
       [proposal(operations)],
@@ -3995,7 +4141,11 @@ describe('complete assistant editing access', () => {
         [
           final('', [
             call('inspect_capabilities', {}),
-            call('validate_edits', { operations }, 'validate'),
+            call(
+              'validate_edits',
+              { operations, includeProject: true },
+              'validate',
+            ),
           ]),
         ],
         [proposal(operations)],
@@ -5153,8 +5303,12 @@ it('discovers creative catalogs, validates and approves all effect settings thro
   const p = provider([
     [
       final('', [
-        call('inspect_capabilities', {}, 'caps'),
-        call('validate_edits', { operations }, 'validate'),
+        call('inspect_capabilities', { section: 'properties' }, 'caps'),
+        call(
+          'validate_edits',
+          { operations, includeProject: true },
+          'validate',
+        ),
         call('propose_edits', {
           summary: 'Apply creative effects',
           operations,
@@ -8335,10 +8489,14 @@ describe('request completion review sessions', () => {
               : []),
           ],
         );
-        expect(todoCalls).toBeGreaterThan(2);
+        expect(todoCalls).toBe(2);
         const executions = p.requests.filter((request) => request.tools.length);
         expect(
           JSON.parse(requestContextMessage(executions[1]!).content!)
+            .sessionTodos,
+        ).toBe(todos);
+        expect(
+          JSON.parse(requestContextMessage(executions[2]!).content!)
             .sessionTodos,
         ).toBe(updatedTodos);
         expect(
@@ -8394,6 +8552,7 @@ describe('request completion review sessions', () => {
   it('joins asynchronous to-do text before the next iteration without requiring checkboxes', async () => {
     const p = reviewedProvider([
       [final('', [call('inspect_project', {})])],
+      [final('', [call('inspect_project', {}, 'second-read')])],
       [final('Complete')],
     ]);
     const original = p.stream;
@@ -8418,7 +8577,7 @@ describe('request completion review sessions', () => {
     try {
       const turn = f.assistant.run('Inspect and answer');
       await entered.promise;
-      expect(p.requests.filter((r) => r.tools.length)).toHaveLength(1);
+      expect(p.requests.filter((r) => r.tools.length)).toHaveLength(2);
       gate.resolve();
       const result = await turn.completion;
       expect(result.text).toBe('Complete');
@@ -8428,7 +8587,7 @@ describe('request completion review sessions', () => {
       });
       const execution = p.requests.filter((r) => r.tools.length);
       expect(
-        JSON.parse(requestContextMessage(execution[1]!).content!).sessionTodos,
+        JSON.parse(requestContextMessage(execution[2]!).content!).sessionTodos,
       ).toBe(
         'Task notes: inspect current state and answer. No checkbox syntax.',
       );
@@ -8573,7 +8732,7 @@ describe('request completion review sessions', () => {
           expect(f.assistant.snapshot().sessionGoal?.todos).toBe(value);
         expect(result.text).toBe('Moved and answered');
         expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
-        expect(attempts.length).toBe(phase === 'todos' ? 5 : 1);
+        expect(attempts.length).toBe(phase === 'todos' ? 3 : 1);
       } finally {
         await f.assistant.dispose();
       }
@@ -8734,7 +8893,9 @@ describe('request completion review sessions', () => {
         content: 'Inspect without edits',
       });
       expect(JSON.stringify(data[1].conversation)).toContain('first-read');
-      expect(JSON.stringify(data[2].conversation)).toContain('second-read');
+      expect(JSON.stringify(data[1].conversation)).toContain('second-read');
+      expect(JSON.stringify(data[2].conversation)).not.toContain('second-read');
+      expect(todos).toHaveLength(3);
       expect(data[1].currentContext).not.toHaveProperty('skillCatalog');
       expect(data[1].capabilityMap.tools.inspect_project.available).toBe(true);
       expect(data[1].capabilityMap.tools.propose_edits.available).toBe(false);
@@ -8759,6 +8920,43 @@ describe('request completion review sessions', () => {
       } finally {
         await restored.dispose();
       }
+    } finally {
+      await f.assistant.dispose();
+    }
+  });
+
+  it('maintains to-dos every two tool rounds and flushes an odd round before completion review', async () => {
+    const p = reviewedProvider([
+      ...Array.from({ length: 5 }, (_, i) => [
+        final('', [call('inspect_project', {}, `read-${i}`)]),
+      ]),
+      [final('Inspected five times.')],
+    ]);
+    const original = p.stream;
+    const maintenanceRounds: number[] = [];
+    let executionRounds = 0;
+    p.stream = async function* (request) {
+      const instruction = request.messages[0]?.content ?? '';
+      if (instruction.startsWith('LocalCut session to-dos:'))
+        maintenanceRounds.push(executionRounds);
+      else if (!instruction.startsWith('LocalCut ')) executionRounds++;
+      yield* original(request);
+    };
+    const f = make(p);
+    try {
+      await f.assistant.run('Inspect and answer').completion;
+      expect(maintenanceRounds).toEqual([0, 2, 4, 6]);
+      const updates = kind(p, 'LocalCut session to-dos:').map((r) =>
+        JSON.parse(r.messages[1]!.content!),
+      );
+      expect(JSON.stringify(updates[1].conversation)).toContain('read-0');
+      expect(JSON.stringify(updates[1].conversation)).toContain('read-1');
+      expect(JSON.stringify(updates[2].conversation)).not.toContain('read-1');
+      expect(JSON.stringify(updates[3].conversation)).toContain('read-4');
+      const review = kind(p, 'LocalCut completion review:')[0]!;
+      expect(
+        JSON.stringify(JSON.parse(review.messages[1]!.content!).conversation),
+      ).toContain('read-4');
     } finally {
       await f.assistant.dispose();
     }
@@ -9179,8 +9377,8 @@ describe('request completion review sessions', () => {
     f.assistant.subscribe((e) => events.push(e));
     const result = await f.assistant.run('Move and answer').completion;
     const calls = events.filter((event) => event.type === 'usage_call');
-    expect(calls).toHaveLength(7);
-    expect(new Set(calls.map((event) => event.call.id)).size).toBe(7);
+    expect(calls).toHaveLength(6);
+    expect(new Set(calls.map((event) => event.call.id)).size).toBe(6);
     expect(calls.map((event) => event.call.source)).toEqual(
       expect.arrayContaining([
         'main',
@@ -9191,16 +9389,16 @@ describe('request completion review sessions', () => {
     );
     expect(
       calls.reduce((sum, event) => sum + event.call.usage!.cost!, 0),
-    ).toBeCloseTo(0.07);
+    ).toBeCloseTo(0.06);
+    expect(result.usage.cost).toBeCloseTo(0.06);
     const snapshots = events.filter((event) => event.type === 'usage');
     expect(snapshots[0]!.usage.totalTokens).toBe(5);
-    expect(snapshots.at(-1)!.usage.totalTokens).toBe(35);
+    expect(snapshots.at(-1)!.usage.totalTokens).toBe(30);
     expect(result.usage).toMatchObject({
-      promptTokens: 14,
-      completionTokens: 21,
-      totalTokens: 35,
-      cost: 0.07,
-      cachedTokens: 7,
+      promptTokens: 12,
+      completionTokens: 18,
+      totalTokens: 30,
+      cachedTokens: 6,
     });
     expect(
       events.some(
@@ -9216,7 +9414,6 @@ describe('request completion review sessions', () => {
       'session_todos',
       'session_todos',
       'completion_check',
-      'session_todos',
     ]);
     await f.assistant.dispose();
   });

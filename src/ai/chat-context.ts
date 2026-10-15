@@ -1,5 +1,6 @@
 import { AiError } from './errors';
 import { byteLength } from './context';
+import { auxiliaryConversation } from './goal-review';
 import type { ChatMessage, ToolDefinition } from './types';
 import { z } from 'zod';
 
@@ -175,8 +176,6 @@ export async function compactWorkingContext({
   summarize: (evidence: {
     previousSummary: string;
     fragment: string;
-    part: number;
-    parts: number;
   }) => Promise<string>;
   check: () => void;
   onStart: () => void;
@@ -228,39 +227,32 @@ export async function compactWorkingContext({
   if (pending.size) end = boundaries.at(-1)!;
   // Opaque provider reasoning is continuation metadata, never semantic evidence
   // or exportable prose. The source hash still binds the untouched originals.
-  const evidence = messages.slice(covered, end).map((message) =>
-    message.role === 'assistant'
-      ? {
-          role: message.role,
-          content: message.content,
-          ...(message.tool_calls ? { tool_calls: message.tool_calls } : {}),
-        }
-      : message,
+  const evidence = auxiliaryConversation(messages.slice(covered, end)).map(
+    (message) =>
+      message.role === 'assistant'
+        ? {
+            role: message.role,
+            content: message.content,
+            ...(message.tool_calls ? { tool_calls: message.tool_calls } : {}),
+          }
+        : message,
   );
   const source = JSON.stringify(evidence);
-  // UTF-16 slices are quoted evidence, not executable chat protocol. Keep each
-  // fragment comfortably below the selected provider's physical context window.
-  const chars = Math.max(1, Math.min(384_000, Math.floor(contextWindow / 2)));
-  const parts = Math.ceil(source.length / chars);
-  let summary = valid?.summary ?? '';
-  for (let part = 0; part < parts; part++) {
-    check();
-    summary = await summarize({
-      previousSummary: summary,
-      fragment: source.slice(part * chars, (part + 1) * chars),
-      part: part + 1,
-      parts,
-    });
-    check();
-    if (
-      !summary.trim() ||
-      workingContextTokens(summaryMessage(summary)) >= threshold / 3
-    )
-      throw new AiError(
-        'INVALID_RESPONSE',
-        'Chat compaction did not produce a usable working summary. Retry response to continue.',
-      );
-  }
+  // One complete semantic pass. Provider/caller admission still owns capacity;
+  // never split, clip unknown evidence or publish a partial checkpoint.
+  const summary = await summarize({
+    previousSummary: valid?.summary ?? '',
+    fragment: source,
+  });
+  check();
+  if (
+    !summary.trim() ||
+    workingContextTokens(summaryMessage(summary)) >= threshold / 3
+  )
+    throw new AiError(
+      'INVALID_RESPONSE',
+      'Chat compaction did not produce a usable working summary. Retry response to continue.',
+    );
   valid = {
     version: 1,
     coveredMessages: end,
