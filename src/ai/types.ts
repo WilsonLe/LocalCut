@@ -167,6 +167,8 @@ export interface OpenRouter extends OpenRouterClient {
 }
 export interface IndexLabelRequest {
   sessionId?: string;
+  /** Host-owned scene identity; omitted for whole-asset and intermediate summaries. */
+  sceneId?: string;
   model: string;
   prompt: string;
   media: { type: 'image/jpeg' | 'video/mp4' | 'audio/wav'; data: string }[];
