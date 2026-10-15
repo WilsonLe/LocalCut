@@ -45,7 +45,7 @@ export function NotificationControl() {
         aria-haspopup="dialog"
         className="relative inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
         onClick={() => {
-          notificationHistory.markRead();
+          void notificationHistory.markRead();
           setOpen(true);
         }}
       >

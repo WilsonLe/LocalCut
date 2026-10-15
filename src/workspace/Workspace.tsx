@@ -1,3 +1,6 @@
+import { useMediaImport } from './useMediaImport';
+import { useWorkspaceLayout } from './useWorkspaceLayout';
+import { useTimelineEditing } from './useTimelineEditing';
 import { createPlaybackPosition, usePlaybackRange } from './playback-position';
 import { LoadingDialog, onDemandDialog } from './on-demand-dialog';
 import type { StoryboardControls } from './Storyboard';
@@ -70,21 +73,16 @@ const EditorPanels = lazy(() =>
   })),
 );
 import type { PreviewControls } from './Preview';
-import type { MobileTab } from './MobileNavigation';
 const Tooltip = lazy(() =>
   import('../components/ui/tooltip').then(({ Tooltip }) => ({
     default: Tooltip,
   })),
 );
 import {
-  copySelection,
-  pasteSelection,
   nudgeSelection,
   trimAtPlayhead,
-  rippleDeleteSelection,
   editBoundary,
 } from './editing-actions';
-import type { ClipClipboard } from './editing-actions';
 import type { EditorShortcut } from './shortcuts';
 import { frameStep, dispatchViewCommand } from './shortcuts';
 import { useEditorShortcuts } from './useEditorShortcuts';
@@ -96,25 +94,16 @@ import {
 import { useProjectNavigation } from './useProjectNavigation';
 import { useProjectCatalog } from './useProjectCatalog';
 import { rememberProject } from './recent-project';
-import { selectionIds, transitionPairs } from '../core/timeline';
-import type { TransitionTemplate } from '../core/timeline';
-import { interfaceScale, useAppearance } from './appearance';
+import { selectionIds } from '../core/timeline';
+import { useAppearance } from './appearance';
 import { usePageZoomGuard } from './usePageZoomGuard';
-import { useChatViewport } from './useChatViewport';
-import { hasBlockingOverlay } from './overlays';
 import { useFileDrop } from './useFileDrop';
-import type { ImportBatch, ImportProgress } from './ImportProgressDialog';
 const ImportProgressDialog = onDemandDialog(
   () => import('./ImportProgressDialog'),
   ({ onClose }) => ({ title: 'Import media', onClose }),
 );
-import {
-  saveWorkspacePreferences,
-  useWorkspacePreferences,
-} from './preferences';
 import { assetClip, downloadFile, projectDuration } from './helpers';
 
-import type { TextStyleInput } from '../core/text-library';
 import type { DialogName, Progress } from './WorkspaceDialogs';
 const MediaLibrary = lazy(() => import('./MediaLibrary'));
 const TaskQueueControl = lazy(() => import('./TaskQueueControl'));
@@ -197,22 +186,26 @@ type Artifact = ExportResult & { dispose: () => Promise<void> };
 export function Workspace() {
   usePageZoomGuard();
   const { dark } = useAppearance();
-  const scale = interfaceScale();
-  const narrowQuery = `(max-width: ${750 * scale}px), (max-width: ${1000 * scale}px) and (max-height: ${500 * scale}px)`;
-  const { preferences, saved: preferencesSaved } = useWorkspacePreferences();
-  const { chatCollapsed, exportFormat: format } = preferences;
-  // Imports can reveal media for this session without changing the user's layout.
-  const [mediaOverride, setMediaOverride] = useState<boolean | null>(null);
-  const [mediaPreference, setMediaPreference] = useState(preferences.mediaOpen);
-  if (mediaPreference !== preferences.mediaOpen) {
-    setMediaPreference(preferences.mediaOpen);
-    setMediaOverride(null);
-  }
+  const {
+    narrow,
+    mobileTab,
+    setMobileTab,
+    selectMobileTab,
+    composerFocused,
+    onMediaFocus,
+    onMediaBlur,
+    mediaTriggerRef,
+    mediaLoaded,
+    drawer,
+    setMediaOverride,
+    toggleMedia,
+    toggleChat,
+    visibleChatCollapsed,
+    chatCollapsed,
+    format,
+    setFormat,
+  } = useWorkspaceLayout();
   const header = useRef<HTMLElement>(null);
-  const [narrow, setNarrow] = useState(
-    () => window.matchMedia(narrowQuery).matches,
-  );
-  const [mobileTab, setMobileTab] = useState<MobileTab>('edit');
   const [projectTab, setProjectTab] = useState<ProjectTab>('editor');
   const [storyboardLoaded, setStoryboardLoaded] = useState(false);
   const chooseProjectTab = (tab: ProjectTab) => {
@@ -223,139 +216,6 @@ export function Workspace() {
     setProjectTab(tab);
     if (narrow) setMobileTab('edit');
   };
-  const composerFocused = useChatViewport(
-    narrow && mobileTab === 'chat',
-    scale,
-  );
-  const previousMobileTab = useRef<MobileTab>('edit');
-  const selectMobileTab = (tab: MobileTab) => {
-    if (tab === mobileTab) return;
-    if (tab === 'media') previousMobileTab.current = mobileTab;
-    setMobileTab(tab);
-    requestAnimationFrame(() => {
-      if (
-        !window.matchMedia(narrowQuery).matches ||
-        document
-          .querySelector('.workspace-columns')
-          ?.getAttribute('data-mobile-tab') !== tab
-      )
-        return;
-      document
-        .querySelector('.workspace-body')
-        ?.scrollTo({ top: 0, behavior: 'instant' });
-      const target =
-        tab === 'edit'
-          ? document.getElementById('workspace-editor')
-          : document.querySelector<HTMLElement>(
-              tab === 'chat' ? '.chat-session-trigger' : '#workspace-media',
-            );
-      target?.focus({ preventScroll: true });
-    });
-  };
-  const closeMobileMedia = () => {
-    selectMobileTab(previousMobileTab.current);
-    requestAnimationFrame(() =>
-      document.getElementById('mobile-media-trigger')?.focus(),
-    );
-  };
-  const mediaHasFocus = useRef(false);
-  const restoreMediaFocus = useRef(false);
-  const mediaTriggerRef = useCallback((trigger: HTMLButtonElement | null) => {
-    if (trigger && restoreMediaFocus.current) {
-      requestAnimationFrame(() => {
-        if (trigger.isConnected && restoreMediaFocus.current) {
-          restoreMediaFocus.current = false;
-          const active = document.activeElement;
-          if (
-            active === document.body ||
-            active?.closest('[inert], #workspace-media') ||
-            !active?.getClientRects().length
-          )
-            trigger.focus();
-        }
-      });
-    }
-    // React's ref cleanup runs before the focused fallback trigger is removed.
-    // Reuse the responsive-focus owner when the lazy tooltip replaces it.
-    return () => {
-      if (trigger && document.activeElement === trigger)
-        restoreMediaFocus.current = true;
-    };
-  }, []);
-  useLayoutEffect(() => {
-    const query = window.matchMedia(narrowQuery);
-    const update = () => {
-      // CSS may hide and blur the rail before this change event is delivered.
-      restoreMediaFocus.current =
-        mediaHasFocus.current ||
-        !!document.activeElement?.closest('#workspace-media');
-      mediaHasFocus.current = false;
-      setNarrow(query.matches);
-      document.documentElement.dataset.workspaceNarrow = String(query.matches);
-      setMobileTab('edit');
-    };
-    update();
-    query.addEventListener('change', update);
-    return () => {
-      query.removeEventListener('change', update);
-      delete document.documentElement.dataset.workspaceNarrow;
-    };
-  }, [narrowQuery]);
-  useLayoutEffect(() => {
-    if (!restoreMediaFocus.current) return;
-    const frame = requestAnimationFrame(() => {
-      const trigger = document.getElementById(
-        narrow ? 'mobile-media-trigger' : 'desktop-media-trigger',
-      );
-      if (trigger && restoreMediaFocus.current) {
-        restoreMediaFocus.current = false;
-        trigger.focus();
-      }
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [narrow]);
-  const [mediaLoaded, setMediaLoaded] = useState(false);
-  const drawer = narrow
-    ? mobileTab === 'media'
-    : (mediaOverride ?? preferences.mediaOpen);
-  if (drawer && !mediaLoaded) setMediaLoaded(true);
-  useEffect(() => {
-    if (!narrow || mobileTab !== 'media') return;
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || hasBlockingOverlay()) return;
-      event.preventDefault();
-      event.stopPropagation();
-      setMobileTab(previousMobileTab.current);
-      requestAnimationFrame(() =>
-        document.getElementById('mobile-media-trigger')?.focus(),
-      );
-    };
-    document.addEventListener('keydown', escape, true);
-    return () => document.removeEventListener('keydown', escape, true);
-  }, [narrow, mobileTab]);
-  const toggleMedia = () => {
-    if (narrow) {
-      if (mobileTab === 'media') closeMobileMedia();
-      else selectMobileTab('media');
-      return;
-    }
-    saveWorkspacePreferences({ mediaOpen: !drawer });
-    setMediaOverride(null);
-  };
-  const toggleChat = () => {
-    if (narrow) selectMobileTab(mobileTab === 'chat' ? 'edit' : 'chat');
-    else saveWorkspacePreferences({ chatCollapsed: !chatCollapsed });
-  };
-  const visibleChatCollapsed = !narrow && chatCollapsed;
-  const setFormat = (exportFormat: 'mp4' | 'webm') =>
-    saveWorkspacePreferences({ exportFormat });
-  useEffect(() => {
-    if (!preferencesSaved)
-      showErrorToast(
-        undefined,
-        'Workspace preferences could not be saved. Allow browser storage to keep them after reload.',
-      );
-  }, [preferencesSaved]);
   const [transfer, setTransfer] = useState<{
     mode: 'export' | 'import';
     projectOnly?: boolean;
@@ -421,7 +281,6 @@ export function Workspace() {
     useState<IndexConnection | null>(null);
   const [selected, setSelected] = useState<string>();
   const [selection, setSelection] = useState<string[]>([]);
-  const [clipboard, setClipboard] = useState<ClipClipboard | null>(null);
   const selectedIds = selectionIds(viewProject, [
     ...(selected ? [selected] : []),
     ...selection,
@@ -517,8 +376,6 @@ export function Workspace() {
     );
   }
   const [progress, setProgress] = useState<Progress | null>(null);
-  const [importBatch, setImportBatch] = useState<ImportBatch | null>(null);
-  const visibleImportBatch = useRef<string | null>(null);
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [exportError, setExportError] = useState('');
   const previewControls = useRef<PreviewControls>(null);
@@ -526,7 +383,6 @@ export function Workspace() {
   const fileInput = useRef<HTMLInputElement>(null);
   const backupInput = useRef<HTMLInputElement>(null);
   const instance = useRef<Promise<Editor> | null>(null);
-  const importPlacement = useRef<Promise<void>>(Promise.resolve());
   const currentJob = useRef<{ cancel(): void } | null>(null);
   const cancelRequested = useRef(false);
   const artifactRef = useRef<Artifact | null>(null);
@@ -900,169 +756,19 @@ export function Workspace() {
     });
     await refresh();
   };
-  const importMedia = async (
-    files: File[],
-    targetFolderId: string | null = null,
-    directories: string[] = [],
-  ) => {
-    if (
-      (!files.length && !directories.length) ||
-      browsing.current ||
-      busy ||
-      lock.current
-    )
-      return false;
-    const batchId = crypto.randomUUID();
-    let added = 0;
-    let skipped = 0;
-    let engine: Editor | undefined;
-    let targetProjectId: string | undefined;
-    const jobs: {
-      index: number;
-      stop: () => void;
-      result: Promise<{ asset: Asset } | { failure: unknown }>;
-    }[] = [];
-    const updateBatch = (update: (batch: ImportBatch) => ImportBatch) => {
-      if (alive.current)
-        setImportBatch((batch) =>
-          batch?.id === batchId ? update(batch) : batch,
-        );
-    };
-    const updateFile = (index: number, patch: Partial<ImportProgress>) => {
-      updateBatch((batch) => ({
-        ...batch,
-        files: batch.files.map((file, position) =>
-          position === index ? { ...file, ...patch } : file,
-        ),
-      }));
-    };
-    const started = await action(async () => {
-      targetProjectId = getProjectId() ?? undefined;
-      const { uploadSkipReason } = await import('./folder-upload-reader');
-      skipped = files.filter((file) => uploadSkipReason(file)).length;
-      visibleImportBatch.current = batchId;
-      setImportBatch({
-        id: batchId,
-        running: true,
-        files: files.map((file) => {
-          const reason = uploadSkipReason(file);
-          return {
-            name: file.name,
-            status: reason ? 'skipped' : 'queued',
-            reason,
-          };
-        }),
-      });
-      engine = await ensureEditor();
-      if (!targetProjectId) {
-        const created = await engine.projects.create('Untitled project');
-        targetProjectId = created.id;
-        await openProject(created);
-      }
-      if (!targetProjectId) throw new Error('Open a project to import media.');
-      for (const directory of directories)
-        await engine.library
-          .forProject(targetProjectId)
-          .place(null, directory.split('/'), targetFolderId);
-      if (directories.length && !files.length) await refresh();
-      // Enqueue the entire selection before waiting. The engine owns scheduling,
-      // persistence and cancellation; closing this dialog changes only view state.
-      for (const [index, file] of files.entries()) {
-        if (uploadSkipReason(file)) continue;
-        const job = engine.assets.import(file);
-        const stop = job.subscribe((event) => {
-          if (event.state === 'running')
-            updateFile(index, {
-              status: event.stage === 'Queued' ? 'queued' : 'importing',
-              fraction: event.progress,
-            });
-        });
-        const result = job.completion.then(
-          (asset) => ({ asset }),
-          (failure: unknown) => {
-            const cancelled =
-              (failure as { code?: string })?.code === 'CANCELLED';
-            updateFile(index, {
-              status: cancelled ? 'cancelled' : 'failed',
-              error: cancelled
-                ? undefined
-                : failure instanceof Error
-                  ? failure.message
-                  : 'Could not import this file.',
-            });
-            return { failure };
-          },
-        );
-        jobs.push({ index, stop, result });
-      }
-    });
-    if (!started) {
-      updateBatch((batch) => ({
-        ...batch,
-        running: false,
-        files: batch.files.map((file) => ({
-          ...file,
-          status: 'failed',
-          error: 'Import could not start.',
-        })),
-      }));
-      for (const job of jobs) job.stop();
-      return false;
-    }
-    try {
-      for (const { index, ...job } of jobs) {
-        const result = await job.result;
-        if ('failure' in result) {
-          if (
-            alive.current &&
-            (result.failure as { code?: string })?.code !== 'CANCELLED'
-          )
-            error(result.failure);
-          continue;
-        }
-        // Serialize placements across batches, using the initiating project even
-        // if the user edits or navigates while media jobs run in the background.
-        let committed = false;
-        const placement = importPlacement.current.then(async () => {
-          if (!alive.current) return;
-          const relative = files[index]!.webkitRelativePath;
-          await engine!.library
-            .forProject(targetProjectId!)
-            .place(
-              result.asset.id,
-              relative ? relative.split('/').slice(0, -1) : [],
-              targetFolderId,
-            );
-          added++;
-          committed = true;
-          updateFile(index, { status: 'completed', fraction: 1 });
-          if (getProjectId() !== targetProjectId || browsing.current) return;
-          await refresh();
-          if (getProjectId() !== targetProjectId || browsing.current) return;
-          if (visibleImportBatch.current !== batchId) return;
-          setMediaOverride(true);
-        });
-        importPlacement.current = placement.catch(() => {});
-        try {
-          await placement;
-        } catch (failure) {
-          if (!committed)
-            updateFile(index, {
-              status: 'failed',
-              error:
-                failure instanceof Error
-                  ? failure.message
-                  : 'Could not add this asset.',
-            });
-          if (alive.current) error(failure);
-        }
-      }
-    } finally {
-      for (const job of jobs) job.stop();
-      updateBatch((batch) => ({ ...batch, running: false }));
-    }
-    return added + skipped === files.length;
-  };
+  const { importMedia, importBatch, dismissImportBatch } = useMediaImport({
+    busy,
+    browsing,
+    alive,
+    lock,
+    action,
+    ensureEditor,
+    getProjectId,
+    openProject,
+    refresh,
+    error,
+    revealMedia: () => setMediaOverride(true),
+  });
   const fileHovering = useFileDrop(
     !busy && !browsed,
     (files, directories, folderId) => {
@@ -1281,350 +987,60 @@ export function Workspace() {
     setSettingsLoaded(true);
     setSettingsOpen(true);
   };
-  const undo = () => {
-    if (browsing.current || !project) return;
-    void action(async () => {
-      const engine = await ensureEditor();
-      await engine.commands.undo(
-        project!.id,
-        crypto.randomUUID(),
-        project!.revision,
-      );
-      await refresh();
-    });
-  };
-  const redo = () => {
-    if (browsing.current || !project) return;
-    void action(async () => {
-      const engine = await ensureEditor();
-      await engine.commands.redo(
-        project!.id,
-        crypto.randomUUID(),
-        project!.revision,
-      );
-      await refresh();
-    });
-  };
-  const split = () => {
-    if (!project || !selectedClip) return;
-    void action(async () => {
-      await apply([
-        {
-          type: 'splitClip',
-          clipId: selected!,
-          atUs: Math.round(playbackPosition.getSnapshot()),
-          rightClipId: crypto.randomUUID(),
-        },
-      ]);
-    });
-  };
-  const deleteClip = () => {
-    if (!project || !selectedClip) return;
-    void action(async () => {
-      await apply(
-        selectedIds.map((clipId) => ({ type: 'removeClip', clipId })),
-      );
-      setSelection([]);
-    });
-  };
   const addText = () => {
     if (project && !browsed) setDialog('text');
   };
-  const addTrack = (kind: 'video' | 'audio') => {
-    if (!project || busy || browsing.current) return;
-    void action(async () => {
-      await apply([
-        { type: 'addTrack', track: { id: crypto.randomUUID(), kind } },
-      ]);
-    });
-  };
-  const reorderTrack = (trackId: string, index: number) => {
-    if (!project || busy || browsing.current) return;
-    void action(async () => {
-      await apply([{ type: 'reorderTrack', trackId, index }]);
-    });
-  };
-  const trackOperation = (
-    operations: EditOperation[],
-    scope: { projectId: string; revision: number },
-  ) => {
-    if (!project || busy || browsing.current) return;
-    void action(async () => {
-      await apply(operations, scope);
-    });
-  };
-  const insertText = (style: TextStyleInput) => {
-    if (!project || browsed) return;
-    void action(async () => {
-      const track = project!.tracks.find(
-        (track) => track.kind === 'overlay' && !track.locked,
-      );
-      const trackId = track?.id ?? crypto.randomUUID();
-      const id = crypto.randomUUID();
-      await apply([
-        ...(!track
-          ? [
-              {
-                type: 'addTrack' as const,
-                track: { id: trackId, kind: 'overlay' as const },
-              },
-            ]
-          : []),
-        {
-          type: 'insertClip',
-          trackId,
-          clip: {
-            id,
-            kind: 'text',
-            startUs: Math.round(playbackPosition.getSnapshot()),
-            durationUs: 3_000_000,
-            width: project!.width,
-            height: project!.height * 0.5,
-            y: project!.height * 0.3,
-            text: {
-              ...style,
-              fontSize: ((style.fontSize ?? 64) * project!.width) / 1920,
-              ...(style.letterSpacing !== undefined
-                ? {
-                    letterSpacing:
-                      (style.letterSpacing * project!.width) / 1920,
-                  }
-                : {}),
-              ...(style.outlineWidth !== undefined
-                ? { outlineWidth: (style.outlineWidth * project!.width) / 1920 }
-                : {}),
-              ...(style.shadow
-                ? {
-                    shadow: {
-                      color: style.shadow.color,
-                      blur: (style.shadow.blur * project!.width) / 1920,
-                      offsetX: (style.shadow.offsetX * project!.width) / 1920,
-                      offsetY: (style.shadow.offsetY * project!.width) / 1920,
-                    },
-                  }
-                : {}),
-            },
-          },
-        },
-      ]);
-      setSelected(id);
-      setSelection([]);
-      setDialog('properties');
-    });
-  };
-  const duplicate = () => {
-    if (!project || !selectedClip) return;
-    const clips = project.tracks
-      .flatMap((track) => track.clips)
-      .filter((clip) => selectedIds.includes(clip.id));
-    const deltaUs =
-      Math.max(...clips.map((clip) => clip.startUs + clip.durationUs)) -
-      Math.min(...clips.map((clip) => clip.startUs));
-    const newClipIds = Object.fromEntries(
-      clips.map((clip) => [clip.id, crypto.randomUUID()]),
-    );
-    const operations: EditOperation[] = [];
-    const groups = new Set<string>();
-    for (const clip of clips) {
-      if (clip.groupId) {
-        if (!groups.has(clip.groupId)) {
-          groups.add(clip.groupId);
-          const members = clips.filter((c) => c.groupId === clip.groupId);
-          operations.push({
-            type: 'duplicateGroup',
-            groupId: clip.groupId,
-            newGroupId: crypto.randomUUID(),
-            newClipIds: Object.fromEntries(
-              members.map((c) => [c.id, newClipIds[c.id]!]),
-            ),
-            deltaUs,
-          });
-        }
-      } else {
-        const track = project.tracks.find((track) =>
-          track.clips.some((c) => c.id === clip.id),
-        )!;
-        operations.push({
-          type: 'duplicateClip',
-          clipId: clip.id,
-          newClipId: newClipIds[clip.id]!,
-          trackId: track.id,
-          startUs: clip.startUs + deltaUs,
-        });
-      }
-    }
-    void action(async () => {
-      await apply(operations);
-      setSelected(newClipIds[selectedClip.id]);
-      setSelection(Object.values(newClipIds));
-    });
-  };
-  const selectedGroups = [
-    ...new Set(
-      viewProject?.tracks.flatMap((t) =>
-        t.clips
-          .filter((c) => selectedIds.includes(c.id))
-          .flatMap((c) => (c.groupId ? [c.groupId] : [])),
-      ) ?? [],
-    ),
-  ];
-  const canGroup =
-    !selectionLocked &&
-    selectedIds.length >= 2 &&
-    !(
-      selectedGroups.length === 1 &&
-      viewProject?.tracks
-        .flatMap((t) => t.clips)
-        .filter((c) => c.groupId === selectedGroups[0]).length ===
-        selectedIds.length
-    );
-  const group = () =>
-    void action(async () => {
-      await apply([
-        {
-          type: 'groupClips',
-          groupId: crypto.randomUUID(),
-          clipIds: selectedIds,
-        },
-      ]);
-    });
-  const ungroup = () =>
-    void action(async () => {
-      await apply(
-        selectedGroups.map((groupId) => ({ type: 'ungroupClips', groupId })),
-      );
-    });
-  const canSeparate =
-    !selectionLocked &&
-    selectedIds.length === 1 &&
-    selectedClip?.kind === 'video' &&
-    !selectedClip.muted &&
-    !!assets.find((asset) => asset.id === selectedClip.assetId)?.audioCodec;
-  const separateAudio = () =>
-    void action(async () => {
-      if (!project || !selectedClip) return;
-      const track = project.tracks.find(
-        (track) => track.kind === 'audio' && !track.muted && !track.locked,
-      );
-      const trackId = track?.id ?? crypto.randomUUID();
-      const audioClipId = crypto.randomUUID();
-      await apply([
-        ...(!track
-          ? [
-              {
-                type: 'addTrack' as const,
-                track: { id: trackId, kind: 'audio' as const },
-              },
-            ]
-          : []),
-        {
-          type: 'separateAudio',
-          clipId: selectedClip.id,
-          audioClipId,
-          trackId,
-        },
-      ]);
-      setSelected(audioClipId);
-      setSelection([]);
-    });
-  const pairs = viewProject ? transitionPairs(viewProject) : [];
-  const selectedPairs = pairs.filter(
-    (pair) =>
-      selectedIds.includes(pair.fromClipId) &&
-      selectedIds.includes(pair.toClipId),
-  );
-  const overlap =
-    selectedPairs.length === 1
-      ? selectedPairs[0]
-      : selectedIds.length === 1
-        ? pairs.find(
-            (pair) =>
-              pair.fromClipId === selected || pair.toClipId === selected,
-          )
-        : undefined;
-  const activeTransition = viewProject?.transitions.find(
-    (t) =>
-      t.fromClipId === overlap?.fromClipId &&
-      t.toClipId === overlap?.toClipId &&
-      t.trackId === overlap?.trackId,
-  );
-  const setTransition = (template?: TransitionTemplate) =>
-    void action(async () => {
-      if (!overlap) return;
-      await apply(
-        template
-          ? [
-              {
-                type: 'applyTransitionTemplate',
-                transitionId: activeTransition?.id ?? crypto.randomUUID(),
-                trackId: overlap.trackId,
-                fromClipId: overlap.fromClipId,
-                toClipId: overlap.toClipId,
-                template,
-              },
-            ]
-          : [{ type: 'removeTransition', transitionId: activeTransition!.id }],
-      );
-    });
-  const canSplit =
-    !selectionLocked &&
-    selectedIds.length === 1 &&
-    !!selectedClip &&
-    playheadInsideSelection;
-  const clearSelection = () => {
-    setSelected(undefined);
-    setSelection([]);
-  };
-  const selectAll = () => {
-    const ids =
-      viewProject?.tracks.flatMap((t) => t.clips.map((c) => c.id)) ?? [];
-    setSelected(ids[0]);
-    setSelection(ids);
-  };
-  const copy = () => {
-    if (viewProject) setClipboard(copySelection(viewProject, selectedIds));
-  };
-  const cut = () => {
-    if (!project) return;
-    const saved = copySelection(project, selectedIds);
-    void action(async () => {
-      await apply(
-        selectedIds.map((clipId) => ({ type: 'removeClip', clipId })),
-      );
-      setClipboard(saved);
-      clearSelection();
-    });
-  };
-  const paste = () =>
-    void action(async () => {
-      if (!project || !clipboard) return;
-      const { operations, ids } = pasteSelection(
-        project,
-        clipboard,
-        playbackPosition.getSnapshot(),
-      );
-      if (!operations.length) return;
-      await apply(operations);
-      setSelected(ids[0]);
-      setSelection(ids);
-    });
-  const editSelection = (operations: EditOperation[], clear = false) =>
-    void action(async () => {
-      if (!operations.length) return;
-      await apply(operations);
-      if (clear) clearSelection();
-    });
-  const trimStartOperations =
-    canSplit && selectedClip
-      ? trimAtPlayhead(selectedClip, playbackPosition.getSnapshot(), 'start')
-      : [];
-  const trimEndOperations =
-    canSplit && selectedClip
-      ? trimAtPlayhead(selectedClip, playbackPosition.getSnapshot(), 'end')
-      : [];
-  const rippleOperations = project
-    ? rippleDeleteSelection(project, selectedIds)
-    : [];
+  const {
+    undo,
+    redo,
+    split,
+    deleteClip,
+    addTrack,
+    reorderTrack,
+    trackOperation,
+    insertText,
+    duplicate,
+    canGroup,
+    group,
+    ungroup,
+    canSeparate,
+    separateAudio,
+    overlap,
+    activeTransition,
+    setTransition,
+    canSplit,
+    clearSelection,
+    selectAll,
+    copy,
+    cut,
+    paste,
+    editSelection,
+    trimStartOperations,
+    trimEndOperations,
+    rippleOperations,
+    clipboard,
+    selectedGroups,
+  } = useTimelineEditing({
+    project,
+    viewProject,
+    selectedClip,
+    selected,
+    selectedIds,
+    assets,
+    busy,
+    browsed: !!browsed,
+    browsing,
+    selectionLocked,
+    playheadInsideSelection,
+    playbackPosition,
+    action,
+    apply,
+    ensureEditor,
+    refresh,
+    setDialog,
+    setSelected,
+    setSelection,
+  });
   const shortcutActions: Partial<
     Record<EditorShortcut, (event?: KeyboardEvent) => void>
   > = {
@@ -1998,17 +1414,8 @@ export function Workspace() {
       tabIndex={-1}
       aria-label="Media library"
       data-collapsed={!drawer}
-      onFocusCapture={() => {
-        mediaHasFocus.current = true;
-      }}
-      onBlurCapture={(event) => {
-        if (
-          window.matchMedia(narrowQuery).matches === narrow &&
-          event.relatedTarget !== null &&
-          !event.currentTarget.contains(event.relatedTarget)
-        )
-          mediaHasFocus.current = false;
-      }}
+      onFocusCapture={onMediaFocus}
+      onBlurCapture={onMediaBlur}
     >
       {!narrow && (
         <Suspense fallback={mediaToggle}>
@@ -2644,10 +2051,7 @@ export function Workspace() {
         <Suspense fallback={null}>
           <ImportProgressDialog
             batch={importBatch}
-            onClose={() => {
-              visibleImportBatch.current = null;
-              setImportBatch(null);
-            }}
+            onClose={dismissImportBatch}
           />
         </Suspense>
       )}

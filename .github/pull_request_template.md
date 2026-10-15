@@ -13,7 +13,7 @@ Describe the user/developer problem and resulting behavior. Keep scope focused.
 - Browser/OS, hosting bases, and screenshots for UI changes:
 - Missing/limited evidence or external provider acceptance:
 
-<!-- Docs-only: formatting, local links/anchors and new command checks. Code/config/dependencies: pnpm check plus applicable real native transcription/performance gates. Hosted validation CI is disabled. Keep author checks, independent review and live results separate. -->
+<!-- Follow docs/development.md#expand-verification-at-the-boundary. Drafts: affected behavior/static/docs/build checks plus native gates for changed algorithms/capabilities. Merge: full pnpm check and required native transcription/performance acceptance. Docs-only: formatting, local references and new command/selector checks. Hosted validation CI stays disabled. Keep author checks, independent review and live results separate. -->
 
 ## Contracts and documentation
 
