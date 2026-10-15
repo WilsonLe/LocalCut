@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  executionHistory,
   compactHistory,
   contextTokens,
   compactWorkingContext,
@@ -204,7 +205,7 @@ it('keeps opaque reasoning out of summaries while hashing and preserving its ori
   expect(messages).toEqual(original);
 });
 
-it('reduces known repetitive execution evidence in one pass without altering the cached working prefix', async () => {
+it('avoids semantic inference for redundant snapshots while preserving the archive', async () => {
   const snapshot = (todos: string): ChatMessage => ({
     role: 'system',
     content: JSON.stringify({
@@ -236,9 +237,10 @@ it('reduces known repetitive execution evidence in one pass without altering the
     check: () => {},
     onStart: () => {},
   });
-  expect(summarize).toHaveBeenCalledTimes(1);
+  expect(summarize).not.toHaveBeenCalled();
   expect(messages).toEqual(before);
-  expect(result.checkpoint!.coveredMessages).toBeGreaterThan(0);
+  expect(result.checkpoint).toBeUndefined();
+  expect(executionHistory(result.messages)).toEqual([messages[0], messages[3]]);
   expect(JSON.stringify(result.messages)).toContain('z'.repeat(5000));
   const followup = [...messages, user('Verify without synthesis.')];
   const reused = await compactWorkingContext({
@@ -248,7 +250,7 @@ it('reduces known repetitive execution evidence in one pass without altering the
     check: () => {},
     onStart: () => {},
   });
-  expect(summarize).toHaveBeenCalledTimes(1);
+  expect(summarize).not.toHaveBeenCalled();
   expect(reused.messages.slice(0, result.messages.length)).toEqual(
     result.messages,
   );

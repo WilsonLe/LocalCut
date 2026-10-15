@@ -89,6 +89,10 @@ export function createAssistantToolHandler(tools: AssistantToolHost) {
     )
       await checkLibraryScope();
     switch (name) {
+      case 'update_session_notes':
+        return tools.updateSessionNotes(
+          args as Parameters<AssistantToolHost['updateSessionNotes']>[0],
+        );
       case 'inspect_speech': {
         const state = await interruptible(speech!.inspect(signal), signal);
         return {

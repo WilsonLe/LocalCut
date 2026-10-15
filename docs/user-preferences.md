@@ -4,6 +4,15 @@ This is the project record of the user's durable product and workflow choices. U
 
 Use the [current preference index](current-preferences.md) to find relevant contracts and superseding decisions. Existing dated entries and anchors remain available as decision history.
 
+## Single-agent lifecycle and receipt-based progress — 15 October 2026
+
+- The main editing agent owns the session goal and working plan. Start useful work directly from the newest user request, current permitted state and saved evidence; separate goal/to-do inference must not precede or interrupt editing.
+- Notes are optional local checkpoints, updated with atomic exact replacements. Invalid/stale notes return tool feedback and never terminate an otherwise valid edit. Preserve unaffected text and retain the existing scoped persistence and history.
+- Derive recorded progress from completed tool receipts, not checklist claims. Historical receipts do not establish current state or authorize replay; verify the saved project and indexes after interruption or Undo.
+- Retain one independent completion assessor and the main agent's decision; additional checks follow substantive corrective work or changed context. Keep revision/consent/privacy/cancellation, provider terminal validation and failed paid-action retry boundaries.
+- Reduce repeated execution snapshots in inference while preserving the complete immutable archive, useful observations, user intent and paired tool replies. Measure actual editing progress and verify timeline/preview/persistence.
+- This supersedes the earlier separate goal/to-do agents and blocking maintenance cadence. Exact text preservation, arbitrary plain-text notes, concise replies and browser-only/local-media boundaries remain.
+
 ## Targeted goal and to-do updates — 15 October 2026
 
 - Maintain existing goals and to-dos with exact text replacements, rather than generating the full document again. Keep arbitrary plain text and preserve all unaffected bytes; create the full document only initially.

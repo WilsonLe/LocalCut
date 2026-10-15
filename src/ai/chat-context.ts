@@ -141,6 +141,24 @@ export type ChatCompaction = z.infer<typeof chatCompactionSchema>;
 export function workingContextTokens(messages: ChatMessage[]) {
   return Math.ceil(byteLength(messages) / 3);
 }
+
+/** Only the final live snapshot in a request defines execution state. Keep old
+ * snapshots in the archive/checkpoint hash, without repeatedly sending them. */
+export function executionHistory(messages: ChatMessage[]) {
+  return messages.filter((message) => {
+    if (message.role !== 'system') return true;
+    try {
+      const value = JSON.parse(message.content);
+      return !(
+        value?.selectedProject &&
+        Array.isArray(value.availableAssetIds) &&
+        value.capabilityMap
+      );
+    } catch {
+      return true;
+    }
+  });
+}
 async function sourceHash(messages: ChatMessage[]) {
   const digest = await crypto.subtle.digest(
     'SHA-256',
@@ -199,7 +217,7 @@ export async function compactWorkingContext({
     CHAT_COMPACT_TOKENS,
     Math.floor(contextWindow * 0.75),
   );
-  if (workingContextTokens(working) < threshold)
+  if (workingContextTokens(executionHistory(working)) < threshold)
     return {
       messages: structuredClone(working),
       checkpoint: valid,

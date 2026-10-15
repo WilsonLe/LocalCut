@@ -194,6 +194,21 @@ const schemas = {
       limit: z.number().int().min(1).max(100).default(20),
     })
     .strict(),
+  update_session_notes: z
+    .object({
+      expectedRevision: z
+        .number()
+        .int()
+        .nonnegative()
+        .max(Number.MAX_SAFE_INTEGER),
+      goal: z
+        .array(z.object({ oldText: z.string(), newText: z.string() }).strict())
+        .optional(),
+      todos: z
+        .array(z.object({ oldText: z.string(), newText: z.string() }).strict())
+        .optional(),
+    })
+    .strict(),
   inspect_library: z
     .object({
       folderId: z.string().min(1).max(200).nullable().optional(),
@@ -289,6 +304,7 @@ const toolScheduling = {
   propose_action: 'action',
   check_export: 'serial',
   inspect_project: 'read',
+  update_session_notes: 'serial',
   inspect_library: 'read',
   inspect_capabilities: 'read',
   inspect_proposals: 'read',
@@ -575,6 +591,7 @@ export function capabilityDiscovery(
     },
     load_skill: { skills: [] },
     inspect_project: { skills: [] },
+    update_session_notes: { skills: [] },
     inspect_library: {
       skills: ['editing', 'indexing'],
       support: [
@@ -714,6 +731,8 @@ export function toolDefinitions(
       'Resolve a requested project folder (folderId null means all project Media) to a deduplicated asset-ID manifest at expectedRevision, excluding Trash ancestry. No service runs. Trusted project-library access allows turn-local scope; otherwise the caller allowlist still filters assets. Report count/IDs before indexing; then use existing per-asset tools/actions.',
     inspect_project:
       'Read project settings/tracks and pages of clips and transitions (offset/limit, default 20, up to 100). Each pages entry reports total and nextOffset; follow every collection to inspect the entire project, including clip groupId membership. Track clipCount includes clips outside the page. Times are integer microseconds; names/text may be withheld.',
+    update_session_notes:
+      'Optionally update advisory goal/todos using atomic exact oldText/newText replacements at sessionNotesRevision. Use an empty oldText only to initialize an empty document. Both documents validate before publication. This local metadata tool never edits the project, runs inference or grants authority. A rejected update does not block editing; do not maintain notes instead of doing useful work.',
     inspect_asset:
       'Read metadata of an attached, project-referenced or currently resolved project-library asset. Includes capture.time (with provenance/offset if recorded) and capture.location (GPS) only with capture-sharing permission. Missing capture facts are unknown. No media bytes are available.',
     inspect_timeline:

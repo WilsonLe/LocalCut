@@ -15,7 +15,7 @@ const cors = {
 };
 
 for (const base of behaviorBases) {
-  test(`chat streams auxiliary drafts with glowing thinking text ${base}`, async ({
+  test(`chat streams only main execution and completion assessment ${base}`, async ({
     page,
     context,
   }, testInfo) => {
@@ -165,41 +165,6 @@ for (const base of behaviorBases) {
     const article = page
       .getByRole('article', { name: 'Assistant response' })
       .last();
-    const goal = article.locator('[data-chat-review-draft="request_contract"]');
-    await expect(goal).toContainText('Explain the editing workflow.');
-    await expect(article.locator('[data-chat-response-text]')).toHaveCount(0);
-    await expect(
-      article.locator('svg.animate-spin, svg.motion-safe\\:animate-spin'),
-    ).toHaveCount(0);
-    const glow = article.locator('.chat-thinking-glow').last();
-    await expect(glow).toHaveCSS('display', 'none');
-    await page.emulateMedia({ reducedMotion: 'no-preference' });
-    await expect(glow).toHaveCSS('animation-name', 'chat-thinking-glow');
-    const before = await glow.evaluate(
-      (element) => getComputedStyle(element).backgroundPositionX,
-    );
-    await expect
-      .poll(() =>
-        glow.evaluate(
-          (element) => getComputedStyle(element).backgroundPositionX,
-        ),
-      )
-      .not.toBe(before);
-    await page.screenshot({ path: testInfo.outputPath('goal-streaming.png') });
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.evaluate(() =>
-      (
-        window as unknown as { releaseReview: (name: string) => void }
-      ).releaseReview('request_contract'),
-    );
-    await expect(goal).toHaveCount(0);
-    const todos = article.locator('[data-chat-review-draft="session_todos"]');
-    await expect(todos).toContainText('Answer the');
-    await page.evaluate(() =>
-      (
-        window as unknown as { releaseReview: (name: string) => void }
-      ).releaseReview('session_todos'),
-    );
     const review = article.locator(
       '[data-chat-review-draft="completion_check"]',
     );
@@ -249,9 +214,11 @@ for (const base of behaviorBases) {
           ).pendingReviews(),
         ),
       )
-      .toContain('request_contract');
+      .toContain('completion_check');
     // Existing-document edits stay private until the entire envelope validates.
-    await expect(stopped.locator('[data-chat-review-draft]')).toHaveCount(0);
+    await expect(
+      stopped.locator('[data-chat-review-draft="completion_check"]'),
+    ).toBeVisible();
     const mobileThinking = stopped.locator('.chat-thinking').last();
     await expect(mobileThinking).toBeVisible();
     expect(
@@ -269,10 +236,12 @@ for (const base of behaviorBases) {
     await page.evaluate(() =>
       (
         window as unknown as { releaseReview: (name: string) => void }
-      ).releaseReview('request_contract'),
+      ).releaseReview('completion_check'),
     );
     await expect(stopped.locator('[data-chat-review-draft]')).toHaveCount(0);
     await expect(stopped.locator('.chat-thinking')).toHaveCount(0);
-    await expect(stopped.locator('[data-chat-response-text]')).toHaveCount(0);
+    await expect(stopped.locator('[data-chat-response-text]')).toHaveText(
+      'Import footage into Media, then place it on the timeline to edit.',
+    );
   });
 }

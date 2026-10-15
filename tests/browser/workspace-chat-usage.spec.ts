@@ -65,7 +65,7 @@ for (const base of behaviorBases) {
         completed++;
         const missingCache =
           request.messages[0].content.startsWith(
-            'LocalCut request contract:',
+            'LocalCut completion review:',
           ) &&
           JSON.parse(request.messages[1].content).initialRequest ===
             secondPrompt;
@@ -147,8 +147,8 @@ for (const base of behaviorBases) {
     await expect(first).toHaveAttribute('aria-expanded', 'true');
     await expect(detail).toContainText(firstPrompt);
     await expect(detail).toContainText('Main agent');
-    await expect(detail).toContainText('Goal agent');
-    await expect(detail).toContainText('To-do agent');
+    await expect(detail).not.toContainText('Goal agent');
+    await expect(detail).not.toContainText('To-do agent');
     await expect(detail).toContainText('Review agent');
     await expect(popover).not.toContainText('Main agent');
     await expect(popover.locator('details, summary')).toHaveCount(0);
