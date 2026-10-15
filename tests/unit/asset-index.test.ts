@@ -7,6 +7,8 @@ import {
   histogramDistance,
   hashDistance,
   parseIndexLabel,
+  parseIndexSceneResponse,
+  indexLabelSchema,
 } from '../../src/core/asset-index';
 import type { AssetIndexRun, FrameMetrics } from '../../src/core/asset-index';
 import {
@@ -182,16 +184,69 @@ describe('deterministic asset evidence', () => {
     });
     expect(selectScenes([], 1000)).toEqual([]);
   });
-  it('rejects executable/unbounded labels and accepts fenced JSON', () => {
+  it('rejects executable labels and accepts fenced JSON', () => {
     expect(
       parseIndexLabel('```json\n' + JSON.stringify(label) + '\n```'),
     ).toEqual(label);
     expect(() =>
       parseIndexLabel(JSON.stringify({ ...label, tool: 'apply' })),
     ).toThrow();
-    expect(() =>
-      parseIndexLabel(JSON.stringify({ ...label, summary: 'x'.repeat(2001) })),
-    ).toThrow();
+  });
+  it('bounds every oversized provider field using the unchanged persisted contract', () => {
+    const oversized = {
+      summary: 's'.repeat(2001),
+      subjects: Array.from({ length: 33 }, (_, i) => `${i}-` + 'x'.repeat(101)),
+      scene: 'c'.repeat(301),
+      style: 'y'.repeat(341),
+      tags: Array.from({ length: 34 }, (_, i) => `${i}-` + 't'.repeat(101)),
+      sound: 'a'.repeat(501),
+    };
+    expect(() => indexLabelSchema.parse(oversized)).toThrow();
+    const expected = {
+      summary: 's'.repeat(2000),
+      subjects: oversized.subjects.slice(0, 32).map((s) => s.slice(0, 100)),
+      scene: 'c'.repeat(300),
+      style: 'y'.repeat(300),
+      tags: oversized.tags.slice(0, 32).map((s) => s.slice(0, 100)),
+      sound: 'a'.repeat(500),
+    };
+    expect(parseIndexLabel(JSON.stringify(oversized))).toEqual(expected);
+    expect(
+      parseIndexSceneResponse(
+        JSON.stringify({ sceneId: 'host', label: oversized }),
+      ),
+    ).toEqual({ sceneId: 'host', label: expected });
+    expect(indexLabelSchema.parse(expected)).toEqual(expected);
+  });
+  it('keeps complete Unicode characters at the storage boundary', () => {
+    expect(
+      parseIndexLabel(
+        JSON.stringify({ ...label, style: 'a'.repeat(299) + '🎬x' }),
+      ).style,
+    ).toBe('a'.repeat(299) + '🎬');
+    expect(
+      parseIndexLabel(JSON.stringify({ ...label, style: '🎬'.repeat(301) }))
+        .style,
+    ).toBe('🎬'.repeat(300));
+  });
+  it.each([
+    { ...label, summary: '' },
+    { ...label, sound: null },
+    { ...label, subjects: ['valid', 3] },
+    { ...label, tags: [...Array<string>(32).fill('valid'), false] },
+    { ...label, scene: undefined, style: 'x'.repeat(341) },
+    { ...label, command: 'apply', summary: 'x'.repeat(2001) },
+  ])('does not hide invalid fields behind size normalization', (invalid) => {
+    expect(() => parseIndexLabel(JSON.stringify(invalid))).toThrow();
+  });
+  it('keeps the scene envelope strict even when the label is oversized', () => {
+    for (const invalid of [
+      { sceneId: 1, label },
+      { sceneId: 's'.repeat(101), label },
+      { sceneId: 'host' },
+      { sceneId: 'host', label, tool: 'apply' },
+    ])
+      expect(() => parseIndexSceneResponse(JSON.stringify(invalid))).toThrow();
   });
 });
 describe('saved index context', () => {

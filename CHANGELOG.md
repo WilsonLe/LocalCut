@@ -4,6 +4,8 @@ Current version: **0.1.0-alpha.1**. Short summaries for end users and executives
 
 ## Unreleased
 
+- Complete asset indexing when otherwise valid model descriptions exceed saved label limits; preserve the full response locally. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...codex/bounded-index-labels).
+
 - Run independent chat tools and asset indexing in parallel while dependent work stays ordered; keep each final reply below its tool and action results. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...codex/parallel-chat-tools).
 
 - Keep project chats and drafts across reloads, rename titles, archive/restore sessions and fork independent conversations locally. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/pull/182/files).

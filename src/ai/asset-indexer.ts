@@ -1,6 +1,6 @@
 import type { Editor } from '../editor';
 import type { AssetIndexRun, IndexLabel } from '../core/asset-index';
-import { parseIndexLabel, indexSceneResponseSchema } from '../core/asset-index';
+import { parseIndexLabel, parseIndexSceneResponse } from '../core/asset-index';
 import { Jobs, checkAbort } from '../services/jobs';
 import { runQueuedJob } from '../services/task-queue';
 import { asEditorError, invariant } from '../core/errors';
@@ -173,13 +173,7 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
                   let normalized: IndexLabel;
                   try {
                     if (sceneId) {
-                      const body = result.text
-                        .trim()
-                        .replace(/^```(?:json)?\s*/, '')
-                        .replace(/\s*```$/, '');
-                      const parsed = indexSceneResponseSchema.parse(
-                        JSON.parse(body),
-                      );
+                      const parsed = parseIndexSceneResponse(result.text);
                       aiInvariant(
                         parsed.sceneId === sceneId,
                         'INVALID_RESPONSE',
@@ -215,7 +209,7 @@ export function createAssetIndexer(options: AssetIndexerOptions) {
                       'INVALID_RESPONSE',
                       e instanceof SyntaxError
                         ? 'Provider returned invalid JSON for asset labels; retry indexing.'
-                        : 'Provider asset labels did not match the required fields or size limits; retry indexing.',
+                        : 'Provider asset labels did not match the required fields; retry indexing.',
                     );
                   }
                   run = await options.editor.assets.indexes.recordResponse(

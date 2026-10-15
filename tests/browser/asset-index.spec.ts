@@ -80,10 +80,10 @@ for (const base of behaviorBases) {
               sceneId,
               label: {
                 ...label,
-                ...(invalid ? { style: 'x'.repeat(341) } : {}),
+                style: invalid ? ['invalid type'] : 'x'.repeat(341),
               },
             }
-          : label,
+          : { ...label, style: 'x'.repeat(341) },
       );
       await route.fulfill({
         headers,
@@ -303,7 +303,7 @@ for (const base of behaviorBases) {
     ]);
     expect(result.labelError).toMatchObject({
       codes: expect.arrayContaining(['WORKER_FAILED', 'INVALID_RESPONSE']),
-      message: expect.stringContaining('required fields or size limits'),
+      message: expect.stringContaining('required fields'),
     });
     expect(result.labelStatus).toBe('failed');
     expect(result.labeledScenes).toEqual([true, false]);
@@ -359,6 +359,8 @@ for (const base of behaviorBases) {
               sceneId: request.sceneId,
               accepted: !!request.label,
               retained: !!request.response,
+              style: request.label?.style,
+              rawOversized: request.response?.includes('x'.repeat(341)),
             })),
             retained,
             remaining: (await editor.assets.indexes.list(assetId)).length,
@@ -374,12 +376,34 @@ for (const base of behaviorBases) {
     expect(reopened.retained).toBeGreaterThan(0);
     expect(reopened.remaining).toBe(1);
     expect(reopened.status).toBe('complete');
-    expect(reopened.label).toEqual(label);
+    expect(reopened.label).toEqual({ ...label, style: 'x'.repeat(300) });
     expect(reopened.responses).toEqual([
-      { sceneId: 'scene-1', accepted: true, retained: true },
-      { sceneId: 'scene-2', accepted: false, retained: true },
-      { sceneId: 'scene-2', accepted: true, retained: true },
-      { accepted: true, retained: true },
+      {
+        sceneId: 'scene-1',
+        accepted: true,
+        retained: true,
+        style: 'x'.repeat(300),
+        rawOversized: true,
+      },
+      {
+        sceneId: 'scene-2',
+        accepted: false,
+        retained: true,
+        rawOversized: false,
+      },
+      {
+        sceneId: 'scene-2',
+        accepted: true,
+        retained: true,
+        style: 'x'.repeat(300),
+        rawOversized: true,
+      },
+      {
+        accepted: true,
+        retained: true,
+        style: 'x'.repeat(300),
+        rawOversized: true,
+      },
     ]);
     expect(labelRequests).toEqual(['scene-1', 'scene-2', 'scene-2', undefined]);
   });

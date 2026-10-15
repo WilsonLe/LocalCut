@@ -152,12 +152,12 @@ function harness(
 it.each([
   ['invalid JSON', '{private-malformed', 'invalid JSON'],
   [
-    'oversized field',
+    'wrong field type',
     JSON.stringify({
       sceneId: 'scene',
-      label: { ...safeLabel, style: 'x'.repeat(341) },
+      label: { ...safeLabel, style: ['private-style'] },
     }),
-    'required fields or size limits',
+    'required fields',
   ],
   [
     'extra field',
@@ -165,7 +165,7 @@ it.each([
       sceneId: 'scene',
       label: { ...safeLabel, command: 'private-command' },
     }),
-    'required fields or size limits',
+    'required fields',
   ],
   [
     'wrong scene',
@@ -230,6 +230,85 @@ it.each([
     }
   },
 );
+
+it.each(['image', 'video', 'frames', 'audio'] as const)(
+  'completes oversized %s scene labels and summaries without additional inference',
+  async (kind) => {
+    const inputs =
+      kind === 'audio'
+        ? ['audio']
+        : kind === 'video'
+          ? ['image', 'video', 'audio']
+          : ['image'];
+    const h = harness('analyzed', true, undefined, inputs);
+    h.run.source.kind = kind === 'frames' ? 'video' : kind;
+    h.run.analysis.scenes[0]!.label = undefined;
+    const oversized = {
+      ...safeLabel,
+      style: 'x'.repeat(341),
+      summary: 's'.repeat(2001),
+    };
+    h.label.mockImplementation(async (request) => ({
+      text: JSON.stringify(
+        request.sceneId
+          ? { sceneId: request.sceneId, label: oversized }
+          : oversized,
+      ),
+      model: 'synthetic',
+    }));
+    try {
+      const result = await h.indexer.run('asset', 'existing').completion;
+      expect(result.status).toBe('complete');
+      expect(result.analysis.scenes[0]!.label?.style).toBe('x'.repeat(300));
+      expect(result.label?.summary).toBe('s'.repeat(2000));
+      expect(h.label).toHaveBeenCalledTimes(2);
+      expect(
+        h.recordResponse.mock.calls.every((call) =>
+          call[2]?.includes('x'.repeat(341)),
+        ),
+      ).toBe(true);
+      await h.indexer.run('asset', 'existing').completion;
+      expect(h.label).toHaveBeenCalledTimes(2);
+      expect(h.setStatus).not.toHaveBeenCalledWith(
+        'existing',
+        'failed',
+        expect.anything(),
+      );
+    } finally {
+      await h.indexer.dispose();
+    }
+  },
+);
+
+it('normalizes hierarchical summaries before using them for the final summary', async () => {
+  const h = harness('analyzed', true);
+  h.run.analysis.scenes = Array.from({ length: 65 }, (_, i) => ({
+    ...h.run.analysis.scenes[0]!,
+    id: `scene-${i}`,
+  }));
+  h.label.mockResolvedValue({
+    text: JSON.stringify({ ...safeLabel, style: 'x'.repeat(341) }),
+    model: 'synthetic',
+  });
+  try {
+    expect((await h.indexer.run('asset', 'existing').completion).status).toBe(
+      'complete',
+    );
+    expect(h.label).toHaveBeenCalledTimes(3);
+    expect(
+      h.recordResponse.mock.calls.every(
+        (call) => call[3]?.style === 'x'.repeat(300),
+      ),
+    ).toBe(true);
+    expect(
+      h.recordRequest.mock.calls.filter(
+        (call) => call[1].purpose === 'summary-part',
+      ),
+    ).toHaveLength(2);
+  } finally {
+    await h.indexer.dispose();
+  }
+});
 
 describe('capture sharing on index retries', () => {
   it.each(['failed', 'cancelled'] as const)(
