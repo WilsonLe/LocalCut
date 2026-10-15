@@ -77,7 +77,9 @@ export default function NotificationLogDialog({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => notificationHistory.markRead()}
+              onClick={() => {
+                void notificationHistory.markRead();
+              }}
             >
               Retry saving
             </Button>
@@ -86,7 +88,9 @@ export default function NotificationLogDialog({
             <Button
               size="sm"
               variant="ghost"
-              onClick={notificationHistory.clear}
+              onClick={() => {
+                void notificationHistory.clear();
+              }}
             >
               Clear history
             </Button>

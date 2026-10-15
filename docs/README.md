@@ -2,6 +2,8 @@
 
 Choose a starting point for the work you want to do. Current behavior lives in the linked contracts; dated acceptance/review records are evidence for their recorded revisions.
 
+Contributors: start with the [current preference index](current-preferences.md) and [coding rules](../CONTRIBUTING.md#coding-rules) for the area you will change.
+
 ## Use LocalCut
 
 | Guide                                           | What it covers                                                     |

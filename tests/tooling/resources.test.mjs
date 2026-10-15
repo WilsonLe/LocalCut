@@ -440,3 +440,29 @@ test('check drains an earlier failure without admitting Chrome', async () => {
   );
   assert.deepEqual(events, ['format:check', 'lint']);
 });
+
+test('broken documentation blocks builds, units and browser admission', async () => {
+  const { runChecks } = await import('../../scripts/check.mjs');
+  const events = [];
+  await assert.rejects(
+    runChecks(
+      {},
+      {
+        sample: async () => ({ slots: 3 }),
+        getResources: () => ({ slots: 3 }),
+        run: async ([command]) => {
+          events.push(command);
+          if (command === 'check:docs') throw new Error('documentation failed');
+        },
+        build: async () => events.push('build'),
+      },
+    ),
+    /documentation failed/,
+  );
+  assert.ok(events.includes('check:docs'));
+  assert.ok(
+    !events.some((command) =>
+      ['build', 'test', 'test:browser'].includes(command),
+    ),
+  );
+});

@@ -2,6 +2,8 @@
 
 This is the project record of the user's durable product and workflow choices. Update it when the user adds or changes a preference; newer explicit choices take precedence over earlier ones.
 
+Use the [current preference index](current-preferences.md) to find relevant contracts and superseding decisions. Existing dated entries and anchors remain available as decision history.
+
 ## Targeted goal and to-do updates — 15 October 2026
 
 - Maintain existing goals and to-dos with exact text replacements, rather than generating the full document again. Keep arbitrary plain text and preserve all unaffected bytes; create the full document only initially.

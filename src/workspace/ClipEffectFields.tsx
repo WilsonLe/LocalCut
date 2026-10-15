@@ -143,24 +143,26 @@ export function ClipEffectFields({
                 id="effect-lut"
                 type="file"
                 accept=".cube"
-                onChange={async (event) => {
-                  const file = event.target.files?.[0];
-                  event.target.value = '';
-                  if (!file) return;
-                  const token = ++generation.current;
-                  try {
-                    if (file.size > 16 * 1024 * 1024)
-                      throw new Error('LUT file exceeds 16 MiB');
-                    const colorLut = parseCube(await file.text());
-                    if (token !== generation.current) return;
-                    onChange({ colorLut });
-                    setError('');
-                  } catch (e) {
-                    if (token === generation.current)
-                      setError(
-                        e instanceof Error ? e.message : 'Could not read LUT',
-                      );
-                  }
+                onChange={(event) => {
+                  void (async () => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    if (!file) return;
+                    const token = ++generation.current;
+                    try {
+                      if (file.size > 16 * 1024 * 1024)
+                        throw new Error('LUT file exceeds 16 MiB');
+                      const colorLut = parseCube(await file.text());
+                      if (token !== generation.current) return;
+                      onChange({ colorLut });
+                      setError('');
+                    } catch (e) {
+                      if (token === generation.current)
+                        setError(
+                          e instanceof Error ? e.message : 'Could not read LUT',
+                        );
+                    }
+                  })();
                 }}
               />
               {value.colorLut && (
@@ -484,48 +486,50 @@ export function ClipEffectFields({
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={async () => {
-                          const token = ++generation.current;
-                          setError('');
-                          onTracking(true);
-                          setTracking(true);
-                          try {
-                            const current = onTrackMask(value.mask!);
-                            job.current = current;
-                            setStatus('Tracking mask…');
-                            const unsubscribe = current.subscribe((p) => {
-                              if (token === generation.current)
-                                setStatus(
-                                  p.progress === undefined
-                                    ? 'Tracking mask…'
-                                    : `Tracking mask ${Math.round(p.progress * 100)}%`,
-                                );
-                            });
+                        onClick={() => {
+                          void (async () => {
+                            const token = ++generation.current;
+                            setError('');
+                            onTracking(true);
+                            setTracking(true);
                             try {
-                              const result = await current.completion;
-                              if (token === generation.current) {
-                                onChange({ mask: result.mask });
-                                setStatus(
-                                  `Tracked ${result.mask.points?.length ?? 0} motion points`,
-                                );
+                              const current = onTrackMask(value.mask!);
+                              job.current = current;
+                              setStatus('Tracking mask…');
+                              const unsubscribe = current.subscribe((p) => {
+                                if (token === generation.current)
+                                  setStatus(
+                                    p.progress === undefined
+                                      ? 'Tracking mask…'
+                                      : `Tracking mask ${Math.round(p.progress * 100)}%`,
+                                  );
+                              });
+                              try {
+                                const result = await current.completion;
+                                if (token === generation.current) {
+                                  onChange({ mask: result.mask });
+                                  setStatus(
+                                    `Tracked ${result.mask.points?.length ?? 0} motion points`,
+                                  );
+                                }
+                              } finally {
+                                unsubscribe();
                               }
+                            } catch (e) {
+                              if (token === generation.current)
+                                setError(
+                                  e instanceof Error
+                                    ? e.message
+                                    : 'Mask tracking failed',
+                                );
                             } finally {
-                              unsubscribe();
+                              if (token === generation.current) {
+                                job.current = null;
+                                onTracking(false);
+                                setTracking(false);
+                              }
                             }
-                          } catch (e) {
-                            if (token === generation.current)
-                              setError(
-                                e instanceof Error
-                                  ? e.message
-                                  : 'Mask tracking failed',
-                              );
-                          } finally {
-                            if (token === generation.current) {
-                              job.current = null;
-                              onTracking(false);
-                              setTracking(false);
-                            }
-                          }
+                          })();
                         }}
                       >
                         Track mask
