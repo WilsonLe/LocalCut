@@ -85,6 +85,9 @@ for (const base of behaviorBases) {
         if (instruction.startsWith('LocalCut context compaction:')) {
           compactionRequests++;
           expect(request.tool_choice).toBe('none');
+          const evidence = JSON.parse(request.messages[1].content);
+          expect(evidence).not.toHaveProperty('parts');
+          expect(Array.isArray(JSON.parse(evidence.fragment))).toBe(true);
           if (compactingRetry) await compactionGate;
           await reply(
             route,
@@ -491,7 +494,8 @@ for (const base of behaviorBases) {
     expect(checks).toBe(3);
     expect(parses).toBe(2);
     expect(updates.at(-1)?.existingGoal).toBe(contract);
-    expect(todoUpdates).toBeGreaterThan(executionRounds);
+    expect(todoUpdates).toBeLessThan(executionRounds);
+    expect(todoUpdates).toBeGreaterThan(executionRounds / 2);
     await page.setViewportSize({ width: 390, height: 844 });
     await page
       .getByRole('navigation', { name: 'Workspace sections' })
@@ -777,12 +781,13 @@ for (const base of behaviorBases) {
       .click();
     // Hiding Chat at the responsive transition preserves the existing pause
     // contract. Explicit Resume restarts the unfinished compaction safely.
+    const beforeResumeCompactions = compactionRequests;
     await page
       .getByRole('button', { name: 'Resume response', exact: true })
       .click();
     await expect(
       page.getByRole('status').filter({ hasText: 'Compacting chat context…' }),
-    ).toBeVisible();
+    ).toHaveText('Compacting chat context…');
     await page.screenshot({
       path: testInfo.outputPath('compacting-context-mobile.png'),
     });
@@ -803,7 +808,7 @@ for (const base of behaviorBases) {
         .getByRole('button', { name: 'Copy response', exact: true }),
     ).toBeVisible();
     expect(editCalls).toBe(1);
-    expect(compactionRequests).toBeGreaterThan(0);
+    expect(compactionRequests).toBe(beforeResumeCompactions + 1);
     expect(budgetCorrections).toBeGreaterThan(2);
     const completedCompactions = compactionRequests;
     await page.reload();

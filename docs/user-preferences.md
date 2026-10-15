@@ -36,6 +36,13 @@ This is the project record of the user's durable product and workflow choices. U
 - Retain stable routing identities per chat and agent role across rounds, follow-ups and reload. Reduce repeated auxiliary context and use new receipts for task maintenance while preserving complete original exchanges locally.
 - Show provider-reported cache hit rates in chat, request and agent usage drilldowns. Distinguish unavailable reporting from zero hits; verify gains rather than promise a percentage.
 
+## Chat token efficiency — 15 October 2026
+
+- Compact context in one semantic model pass per compaction; do not split evidence into sequential compaction parts. Keep the same selected model, full local archive, valid source-bound checkpoint and explicit failure/retry behavior.
+- Manage excessive tool results at their owners: concise validation receipts and small inspection pages by default, with discoverable full detail and pagination. Preserve all editing capabilities and sharing boundaries.
+- Preserve prompt caching: sent main messages stay immutable between compactions, stable instructions/history precede fresh state, and chat/role routing IDs remain stable. Reduce known redundant historical execution guidance only in compaction/auxiliary evidence; retain unknown evidence and receipts.
+- Initialize the to-do agent for each request, then trigger it every two completed execution rounds. Flush pending evidence before completion review; reuse an unchanged reviewed final response without another checklist call.
+
 ## Automatic working-context compaction — 14 October 2026
 
 - Automatically compact model working context when it reaches 192,000 estimated tokens, 75% of the original 256k working budget. This supersedes the no-compaction parts of the 12 October no-cap preference; retain uncapped output and execution with provider/caller limits.

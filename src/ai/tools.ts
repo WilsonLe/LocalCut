@@ -188,7 +188,12 @@ const schemas = {
     offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
     limit: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
   }),
-  inspect_project: emptySchema,
+  inspect_project: z
+    .object({
+      offset: z.number().int().nonnegative().default(0),
+      limit: z.number().int().min(1).max(100).default(20),
+    })
+    .strict(),
   inspect_library: z
     .object({
       folderId: z.string().min(1).max(200).nullable().optional(),
@@ -208,12 +213,24 @@ const schemas = {
   inspect_storyboard: z
     .object({
       offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).default(0),
-      limit: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).default(50),
+      limit: z.number().int().min(1).max(100).default(20),
+      detail: z.enum(['summary', 'full']).default('summary'),
     })
     .strict(),
   inspect_asset: assetSchema,
-  inspect_timeline: z.object({ timeUs: time }).strict(),
-  inspect_capabilities: emptySchema,
+  inspect_timeline: z
+    .object({
+      timeUs: time,
+      detail: z.enum(['evaluation', 'full']).default('evaluation'),
+    })
+    .strict(),
+  inspect_capabilities: z
+    .object({
+      section: z
+        .enum(['overview', 'properties', 'rules', 'all'])
+        .default('overview'),
+    })
+    .strict(),
   search_text_library: z
     .object({
       kind: z.enum(['fonts', 'templates']),
@@ -226,7 +243,11 @@ const schemas = {
   inspect_speech: emptySchema,
   inspect_proposals: emptySchema,
   read_transcript: transcriptSchema,
-  validate_edits: operationsSchema,
+  validate_edits: operationsSchema.extend({
+    includeProject: z.boolean().optional(),
+    offset: z.number().int().nonnegative().optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+  }),
   check_export: z.object({ options: exportOptionsSchema }).strict(),
   propose_edits: proposalSchema,
   propose_action: z
@@ -686,19 +707,19 @@ export function toolDefinitions(
     read_asset_index:
       'Read paginated saved scene labels, representative and action timestamps for an authorized asset. Observations describe sampled evidence and may be incomplete.',
     inspect_storyboard:
-      'Read paginated project storyboard geometry and styles. Text and frame names require text-sharing consent; no files or embedded content.',
+      'Read storyboard summary pages (20 elements by default; limit up to 100). Follow nextOffset to see every element. Request detail full for original geometry/styles at the same offset. Text and frame names require text-sharing consent; no files or embedded content.',
     inspect_library:
       'Inspect registered project Media, optionally by folderId/recursive/offset/limit. Excludes Trash ancestry by default. Reports registered/authorized counts and childrenResolved; withheld assets are not empty folders. Names require sharing; no source files or bytes.',
     resolve_library_assets:
       'Resolve a requested project folder (folderId null means all project Media) to a deduplicated asset-ID manifest at expectedRevision, excluding Trash ancestry. No service runs. Trusted project-library access allows turn-local scope; otherwise the caller allowlist still filters assets. Report count/IDs before indexing; then use existing per-asset tools/actions.',
     inspect_project:
-      'Read the selected project snapshot. Times are integer microseconds and ranges are half-open. Names and text may be withheld.',
+      'Read project settings/tracks and pages of clips and transitions (offset/limit, default 20, up to 100). Each pages entry reports total and nextOffset; follow every collection to inspect the entire project, including clip groupId membership. Track clipCount includes clips outside the page. Times are integer microseconds; names/text may be withheld.',
     inspect_asset:
       'Read metadata of an attached, project-referenced or currently resolved project-library asset. Includes capture.time (with provenance/offset if recorded) and capture.location (GPS) only with capture-sharing permission. Missing capture facts are unknown. No media bytes are available.',
     inspect_timeline:
-      'Evaluate active clips at a timeline time: exact frame time, source positions, animated transforms, effects, audio gain, captions and transition weights. Structural metadata only; never renders or uploads a frame.',
+      'Evaluate active clips at a timeline time: exact frame/source positions, animated values, effects, audio gain and transition weights. Default evaluation omits raw curves/cues; detail full includes them, or use inspect_project pages. Structural metadata only; no rendering/upload.',
     inspect_capabilities:
-      'Read the complete capabilityMap for every known tool and service action, including host support, required skills, permission blockers and recovery. Also describes canonical edit properties/rules and approval boundaries. Read before claiming any workflow is unavailable.',
+      'Read the complete capabilityMap and execution/permission blockers by default. Request section properties or rules for canonical editing schemas/recipes, or all for the full catalog. Read before claiming any workflow is unavailable.',
     search_text_library:
       'Search the shared text templates or font catalog by name/labels. Paginated read-only results include stable font IDs or complete template styles for insertClip/updateClip. Empty query browses every entry. No private text, media, downloads or inference.',
     inspect_speech:
@@ -710,7 +731,7 @@ export function toolDefinitions(
     read_transcript:
       'Read source-relative transcript text explicitly shared for this project, including transcripts produced by approved local actions in this session.',
     validate_edits:
-      'Dry-run an atomic edit batch with the canonical engine, returning affected IDs and the redacted resulting project. Does not commit or create a proposal. Use before proposing complex edits.',
+      'Dry-run an atomic edit batch, returning expectedRevision and affectedIds without recopying the project. Set includeProject true only when a redacted dry-run preview is needed; offset/limit page clips/transitions as in inspect_project. No commit or proposal. Use before complex edits.',
     check_export:
       'Probe exact requested MP4/H.264/AAC or WebM/VP9/Opus settings in this browser. Read-only; does not encode or download a video.',
     propose_edits:
