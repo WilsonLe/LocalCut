@@ -240,20 +240,22 @@ export async function compactWorkingContext({
       (value) =>
         value > covered &&
         value >= messages.length - 12 &&
-        workingContextTokens(messages.slice(value)) < threshold / 3,
+        workingContextTokens(executionHistory(messages.slice(value))) <
+          threshold / 3,
     ) ?? messages.length;
   if (pending.size) end = boundaries.at(-1)!;
   // Opaque provider reasoning is continuation metadata, never semantic evidence
   // or exportable prose. The source hash still binds the untouched originals.
-  const evidence = auxiliaryConversation(messages.slice(covered, end)).map(
-    (message) =>
-      message.role === 'assistant'
-        ? {
-            role: message.role,
-            content: message.content,
-            ...(message.tool_calls ? { tool_calls: message.tool_calls } : {}),
-          }
-        : message,
+  const evidence = auxiliaryConversation(
+    executionHistory(messages.slice(covered, end)),
+  ).map((message) =>
+    message.role === 'assistant'
+      ? {
+          role: message.role,
+          content: message.content,
+          ...(message.tool_calls ? { tool_calls: message.tool_calls } : {}),
+        }
+      : message,
   );
   const source = JSON.stringify(evidence);
   // One complete semantic pass. Provider/caller admission still owns capacity;

@@ -6,6 +6,7 @@ import {
   selectAISettingsTab,
 } from './workspace-settings-helper';
 import { fulfillChatTitle } from './chat-title-fixture';
+import { dismissNotifications } from './workspace-notifications-helper';
 
 const cors = {
   'access-control-allow-origin': '*',
@@ -37,6 +38,11 @@ for (const base of behaviorBases) {
       reviews = 0,
       bookkeeping = 0;
     let restoredProgress: unknown;
+    let compactionRequests = 0;
+    let releaseCompaction!: () => void;
+    const compactionGate = new Promise<void>((resolve) => {
+      releaseCompaction = resolve;
+    });
     await context.route(
       'https://openrouter.ai/api/v1/chat/completions',
       async (route) => {
@@ -51,6 +57,35 @@ for (const base of behaviorBases) {
           (await fulfillChatTitle(route))
         )
           return;
+        if (instruction.startsWith('LocalCut context compaction:')) {
+          compactionRequests++;
+          const evidence = JSON.parse(request.messages[1].content);
+          expect(request.tool_choice).toBe('none');
+          expect(evidence.fragment).toContain('ARCHIVE_ONLY_SOURCE_');
+          expect(evidence.fragment).toContain('checked-title');
+          expect(evidence.fragment).not.toContain('OLD_CHANGING_SNAPSHOT_');
+          expect(evidence.fragment.length).toBeLessThan(720000);
+          if (compactionRequests === 1) {
+            await route.fulfill({
+              headers: cors,
+              status: 400,
+              json: {
+                error: {
+                  code: 'bad_request',
+                  message: 'PRIVATE_COMPACTION_ECHO',
+                },
+              },
+            });
+            return;
+          }
+          await compactionGate;
+          await route.fulfill({
+            headers: cors,
+            contentType: 'text/event-stream',
+            body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'The closing title and overlay are completed at revision 2; preserve them and verify without replay.' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+          });
+          return;
+        }
         if (/^LocalCut (request contract|session to-dos):/.test(instruction)) {
           bookkeeping++;
           throw new Error('Bookkeeping must never run');
@@ -191,9 +226,11 @@ for (const base of behaviorBases) {
       .click();
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await page
-      .getByLabel('Describe your edit', { exact: true })
+      .getByRole('textbox', { name: 'Describe your edit', exact: true })
       .fill('Add a closing title.');
-    await page.getByLabel('Describe your edit', { exact: true }).press('Enter');
+    await page
+      .getByRole('textbox', { name: 'Describe your edit', exact: true })
+      .press('Enter');
     const response = page
       .getByRole('article', { name: 'Assistant response' })
       .last();
@@ -248,9 +285,11 @@ for (const base of behaviorBases) {
       }),
     ]);
     await page
-      .getByLabel('Describe your edit', { exact: true })
+      .getByRole('textbox', { name: 'Describe your edit', exact: true })
       .fill('Verify the saved title without changing it.');
-    await page.getByLabel('Describe your edit', { exact: true }).press('Enter');
+    await page
+      .getByRole('textbox', { name: 'Describe your edit', exact: true })
+      .press('Enter');
     await expect(
       page
         .getByRole('article', { name: 'Assistant response' })
@@ -264,6 +303,169 @@ for (const base of behaviorBases) {
         expect.objectContaining({ kind: 'edit', revision: 2 }),
       ],
     });
+    expect(edits).toBe(2);
+    expect(bookkeeping).toBe(0);
+    // Preserve real completed receipts while seeding a legacy long archive.
+    await page.evaluate(async () => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const open = indexedDB.open('localcut-chats-v1');
+        open.onsuccess = () => resolve(open.result);
+        open.onerror = () => reject(open.error);
+      });
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('sessions', 'readwrite'),
+          store = tx.objectStore('sessions'),
+          rows = store.getAll();
+        rows.onsuccess = () => {
+          for (const row of rows.result) {
+            const message = row.content.messages.find(
+              (entry: { exchange?: unknown[] }) => entry.exchange?.length,
+            );
+            message.exchange.unshift(
+              {
+                role: 'user',
+                content: 'ARCHIVE_ONLY_SOURCE_' + 'x'.repeat(700000),
+              },
+              ...Array.from({ length: 40 }, (_, revision) => ({
+                role: 'system',
+                content: JSON.stringify({
+                  selectedProject: {
+                    id: 'old',
+                    revision,
+                    tracks: 'OLD_CHANGING_SNAPSHOT_'.repeat(1000),
+                  },
+                  availableAssetIds: [],
+                  capabilityMap: {},
+                }),
+              })),
+            );
+            store.put(row);
+          }
+        };
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+    });
+    await page.reload();
+    const verify = async () => {
+      await page
+        .getByRole('textbox', { name: 'Describe your edit', exact: true })
+        .fill('Verify the saved title without changing it.');
+      await page
+        .getByRole('textbox', { name: 'Describe your edit', exact: true })
+        .press('Enter');
+    };
+    await verify();
+    await expect(page.locator('form [role="alert"]')).toContainText(
+      'Chat context compaction failed',
+    );
+    await page.reload();
+    await expect(
+      page.getByRole('button', { name: 'Retry response', exact: true }),
+    ).toBeVisible();
+    await expect(page.locator('body')).not.toContainText(
+      'PRIVATE_COMPACTION_ECHO',
+    );
+    await dismissNotifications(page);
+    await page
+      .getByRole('button', { name: 'Retry response', exact: true })
+      .click();
+    const compacting = page
+      .getByRole('status')
+      .filter({ hasText: 'Compacting chat context…' });
+    await expect(compacting).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Cancel response', exact: true }),
+    ).toBeEnabled();
+    await page.screenshot({
+      path: testInfo.outputPath('compacting-context.png'),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page
+      .getByRole('navigation', { name: 'Workspace sections' })
+      .getByRole('button', { name: 'Chat', exact: true })
+      .click();
+    const beforeResume = compactionRequests;
+    await page
+      .getByRole('button', { name: 'Resume response', exact: true })
+      .click();
+    await expect(compacting).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath('compacting-context-mobile.png'),
+    });
+    releaseCompaction();
+    await expect(
+      response.getByRole('button', { name: 'Copy response', exact: true }),
+    ).toBeVisible();
+    expect(compactionRequests).toBe(beforeResume + 1);
+    const completedCompactions = compactionRequests;
+    await page.reload();
+    await page
+      .getByRole('navigation', { name: 'Workspace sections' })
+      .getByRole('button', { name: 'Chat', exact: true })
+      .click();
+    expect(compactionRequests).toBe(completedCompactions);
+    await verify();
+    await expect(
+      response.getByRole('button', { name: 'Copy response', exact: true }),
+    ).toBeVisible();
+    const stored = await page.evaluate(async () => {
+      const db = await new Promise<IDBDatabase>((resolve) => {
+        const open = indexedDB.open('localcut-chats-v1');
+        open.onsuccess = () => resolve(open.result);
+      });
+      const rows = await new Promise<
+        {
+          content: {
+            compaction: { summary: string };
+            messages: { exchange?: { content?: string }[] }[];
+          };
+        }[]
+      >((resolve) => {
+        const request = db
+          .transaction('sessions')
+          .objectStore('sessions')
+          .getAll();
+        request.onsuccess = () => resolve(request.result);
+      });
+      db.close();
+      return {
+        checkpoint: rows[0]!.content.compaction,
+        hasOriginal: rows[0]!.content.messages.some((message) =>
+          message.exchange?.some(
+            (entry) =>
+              entry.content?.startsWith('ARCHIVE_ONLY_SOURCE_') &&
+              entry.content.length > 700000,
+          ),
+        ),
+        hasSnapshot: rows[0]!.content.messages.some((message) =>
+          message.exchange?.some((entry) =>
+            entry.content?.includes('OLD_CHANGING_SNAPSHOT_'),
+          ),
+        ),
+      };
+    });
+    expect(stored.checkpoint.summary).toContain('completed at revision 2');
+    expect(stored.hasOriginal).toBe(true);
+    expect(stored.hasSnapshot).toBe(true);
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await response
+      .getByRole('button', { name: 'Branch response', exact: true })
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'Chat sessions', exact: true }),
+    ).toContainText('Branch of');
+    await verify();
+    await expect(
+      response.getByRole('button', { name: 'Copy response', exact: true }),
+    ).toBeVisible();
+    await page.reload();
+    await verify();
+    await expect(
+      response.getByRole('button', { name: 'Copy response', exact: true }),
+    ).toBeVisible();
+    expect(compactionRequests).toBe(completedCompactions);
     expect(edits).toBe(2);
     expect(bookkeeping).toBe(0);
   });

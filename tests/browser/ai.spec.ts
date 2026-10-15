@@ -388,7 +388,9 @@ for (const base of behaviorBases) {
       (request) => request.scenario === 'long',
     );
     expect(result.archivedLongMessages).toBeGreaterThan(256);
-    expect(result.compactedLong).toBe(true);
+    // Repeated execution snapshots remain archived, but no longer force a paid
+    // semantic pass when the useful protocol history fits the selected model.
+    expect(result.compactedLong).toBe(false);
     expect(longRequests.at(-1)!.messages.length).toBeLessThan(
       result.archivedLongMessages,
     );

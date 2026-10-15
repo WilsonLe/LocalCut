@@ -395,14 +395,13 @@ for (const base of behaviorBases) {
     expect(exportedActivity).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          name: 'request_contract',
-          phase: 'completed',
-        }),
-        expect.objectContaining({
           name: 'completion_check',
           phase: 'completed',
         }),
       ]),
+    );
+    expect(exportedActivity.map((activity) => activity.name)).not.toEqual(
+      expect.arrayContaining(['request_contract', 'session_todos']),
     );
     expect(complete.markdown).toContain('Ready **to edit**. Tiếng Việt.');
     expect(complete.snapshot.draft.text).toBe('Second unsent draft');
