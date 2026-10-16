@@ -9914,3 +9914,84 @@ it.each(['stale', 'fresh-turn', 'headless'] as const)(
     }
   },
 );
+
+it.each(['validate_edits', 'propose_edits'] as const)(
+  'repairs missing text styles from %s feedback and applies once without user guidance',
+  async (tool) => {
+    const f = fixture();
+    const clip = {
+      id: 'new-title',
+      kind: 'text',
+      startUs: 0,
+      durationUs: 1000000,
+    };
+    let round = 0;
+    const a = createAssistant({
+      editor: f.editor,
+      projectId: f.project().id,
+      model: 'test/model',
+      execution: 'requested',
+      context: { includeText: true },
+      provider: {
+        async *stream(request) {
+          switch (round++) {
+            case 0:
+              yield final('', [call('load_skill', { skillId: 'editing' })]);
+              break;
+            case 1:
+              yield final('', [
+                call(tool, {
+                  ...(tool === 'propose_edits'
+                    ? { summary: 'Insert title' }
+                    : {}),
+                  operations: [
+                    { type: 'insertClip', trackId: 'overlay', clip },
+                  ],
+                }),
+              ]);
+              break;
+            case 2: {
+              const failure = JSON.parse(
+                request.messages.filter((m) => m.role === 'tool').at(-1)!
+                  .content!,
+              );
+              expect(failure.error.details.validation).toMatchObject({
+                rule: 'text_style_required',
+                trackIndex: 1,
+                clipIndex: 1,
+                repair: expect.stringContaining('text.text'),
+              });
+              expect(failure.error.details.recovery.missingSkills).toEqual([]);
+              expect(f.project().revision).toBe(0);
+              expect(f.editor.commands.apply).not.toHaveBeenCalled();
+              yield final('', [
+                call('propose_edits', {
+                  summary: 'Insert repaired title',
+                  operations: [
+                    {
+                      type: 'insertClip',
+                      trackId: 'overlay',
+                      clip: { ...clip, text: { text: 'Sydney' } },
+                    },
+                  ],
+                }),
+              ]);
+              break;
+            }
+            default:
+              yield final('Applied the title.');
+          }
+        },
+      },
+    });
+    try {
+      const result = await a.run('Add a Sydney title.').completion;
+      expect(f.project().revision).toBe(1);
+      expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
+      expect(f.project().tracks[1]!.clips.at(-1)!.text!.text).toBe('Sydney');
+      expect(result.exchange.filter((m) => m.role === 'user')).toHaveLength(1);
+    } finally {
+      await a.dispose();
+    }
+  },
+);

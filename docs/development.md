@@ -98,7 +98,7 @@ Start with `pnpm test tests/unit/assistant.test.ts` for schema/operation/propert
 
 ## One edit, one focused check
 
-For actionable edit recovery, run `pnpm test tests/unit/edit-validation.test.ts tests/unit/chat-context.test.ts tests/unit/assistant.test.ts`, then both builds and `pnpm test:browser tests/browser/ai-edit-recovery.spec.ts`. The controlled journey repairs a real transition rejection, reuses a validated ID after compaction and reads the persisted revision after reload. It does not prove autonomous paid-model creative quality.
+For actionable edit recovery, run `pnpm test tests/unit/edit-validation.test.ts tests/unit/chat-context.test.ts tests/unit/assistant.test.ts`, then both builds and `pnpm test:browser tests/browser/ai-edit-recovery.spec.ts`. The controlled journeys repair real transition and missing-text-style rejections, preserve exactly-once commits, reuse a validated ID after compaction and read the persisted revision after reload. It does not prove autonomous paid-model creative quality.
 
 For assistant orchestration changes, run `pnpm test tests/unit/assistant.test.ts tests/unit/assistant-response.test.ts tests/unit/chat-context.test.ts tests/unit/goal-review.test.ts tests/unit/prompt-cache.test.ts`. This covers admitted/queued turns, immutable exchanges, live scopes, late commits, cancellation, frozen-round authority, provider-packet mutation at the async handoff, semantic compaction and stable routing. For the workspace import coordinator, run `pnpm test tests/unit/media-import.test.ts tests/unit/media-library.test.ts`; controlled jobs cover navigation/dismissal, placement serialization, failure recovery and unmount cleanup, not native decode/storage.
 

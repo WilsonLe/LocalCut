@@ -231,3 +231,145 @@ for (const base of behaviorBases) {
     expect(restored.tracks[0]!.clips[1]!.startUs).toBe(1000000);
   });
 }
+
+for (const base of behaviorBases) {
+  test(`required text style feedback repairs a rejected title batch and persists once ${base}`, async ({
+    page,
+  }) => {
+    await page.goto(base);
+    const result = await page.evaluate(async (path) => {
+      const { createEditor } = (await import(
+        path + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const { createAssistant } = (await import(
+        path + 'ai.js'
+      )) as typeof import('../../src/ai');
+      const namespace = 'test-required-text-' + crypto.randomUUID();
+      const editor = await createEditor({ namespace });
+      let assistant: ReturnType<typeof createAssistant> | undefined;
+      try {
+        const project = await editor.projects.create('Titles');
+        await editor.commands.apply({
+          projectId: project.id,
+          expectedRevision: 0,
+          requestId: 'seed',
+          operations: [
+            { type: 'addTrack', track: { id: 'titles', kind: 'overlay' } },
+          ],
+        });
+        let stage = 0,
+          rejected = 0;
+        const clips = Array.from({ length: 6 }, (_, i) => ({
+          id: `title-${i}`,
+          kind: 'text' as const,
+          startUs: i * 1000000,
+          durationUs: 1000000,
+        }));
+        assistant = createAssistant({
+          editor,
+          projectId: project.id,
+          model: 'test/repair',
+          execution: 'requested',
+          context: { includeText: true },
+          provider: {
+            async *stream(request) {
+              let calls: import('../../src/ai/types').ToolCall[] | undefined;
+              const tool = (name: string, args: unknown) => ({
+                id: 'call-' + stage,
+                type: 'function' as const,
+                function: { name, arguments: JSON.stringify(args) },
+              });
+              const instruction = request.messages[0]!.content!;
+              if (
+                !instruction.startsWith('LocalCut completion review:') &&
+                !JSON.parse(request.messages.at(-1)!.content!)
+                  .completionDecision
+              ) {
+                if (stage++ === 0)
+                  calls = [tool('load_skill', { skillId: 'editing' })];
+                else if (stage === 2)
+                  calls = [
+                    tool('propose_edits', {
+                      summary: 'Insert titles',
+                      operations: clips.map((clip) => ({
+                        type: 'insertClip',
+                        trackId: 'titles',
+                        clip,
+                      })),
+                    }),
+                  ];
+                else if (stage === 3) {
+                  const error = JSON.parse(
+                    request.messages.filter((m) => m.role === 'tool').at(-1)!
+                      .content!,
+                  ).error;
+                  const diagnostic = error.details.validation;
+                  if (
+                    diagnostic.rule !== 'text_style_required' ||
+                    diagnostic.trackIndex !== 0 ||
+                    diagnostic.clipIndex !== 0 ||
+                    !diagnostic.repair.includes('text.text') ||
+                    error.details.recovery.missingSkills.length
+                  )
+                    throw new Error('Missing actionable text style feedback');
+                  if (
+                    (await editor.projects.snapshot(project.id)).revision !== 1
+                  )
+                    throw new Error('Rejected batch changed the project');
+                  rejected++;
+                  calls = [
+                    tool('propose_edits', {
+                      summary: 'Insert repaired titles',
+                      operations: clips.map((clip) => ({
+                        type: 'insertClip',
+                        trackId: 'titles',
+                        clip: { ...clip, text: { text: 'Sydney ' + clip.id } },
+                      })),
+                    }),
+                  ];
+                }
+              }
+              yield {
+                type: 'complete',
+                message: {
+                  role: 'assistant',
+                  content: calls ? null : 'Applied and verified six titles.',
+                  ...(calls ? { tool_calls: calls } : {}),
+                },
+              };
+            },
+          },
+        });
+        await assistant.run('Add six Sydney titles.').completion;
+        return {
+          namespace,
+          projectId: project.id,
+          rejected,
+          project: await editor.projects.snapshot(project.id),
+        };
+      } finally {
+        await assistant?.dispose();
+        await editor.dispose();
+      }
+    }, base);
+    expect(result.rejected).toBe(1);
+    expect(result.project.revision).toBe(2);
+    expect(result.project.tracks[0]!.clips).toHaveLength(6);
+    await page.reload();
+    const restored = await page.evaluate(
+      async ({ path, namespace, projectId }) => {
+        const { createEditor } = (await import(
+          path + 'editor.js'
+        )) as typeof import('../../src/editor');
+        const editor = await createEditor({ namespace });
+        try {
+          return await editor.projects.snapshot(projectId);
+        } finally {
+          await editor.dispose();
+        }
+      },
+      { path: base, namespace: result.namespace, projectId: result.projectId },
+    );
+    expect(restored).toEqual(result.project);
+  });
+}

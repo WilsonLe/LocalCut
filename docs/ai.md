@@ -441,7 +441,7 @@ These smaller records are constructed before they are sent. Already-sent main me
 
 Successful `validate_edits` replies include an opaque `validationId`. `propose_edits` accepts either this ID or canonical `operations`, never both. The ID retains exact validated operations in the current turn, allowing a large batch to survive compaction without regeneration. It is single-use, revision-bound and unavailable after a new turn/reload; it never proves execution or restores authority. Proposal creation revalidates current asset/library scope and revision through the same canonical owner. Requested execution may propose an atomic batch directly; headless review remains the default.
 
-Edit rejection diagnostics use a fixed shared core rule vocabulary for transition overlap/topology, source duration/range, fades, keyframes and recognized schema fields. Safe indices/field paths locate a failure without returning authored values, private IDs/names or arbitrary exception text. `missingSkills` identifies actual unloaded alternatives; `requiredSkills` describes the supported domains and does not itself mean a skill is missing.
+Edit rejection diagnostics use a fixed shared core rule vocabulary for transition overlap/topology, source duration/range, fades, keyframes, required text/media clip fields, track/clip compatibility and recognized schema fields. Safe indices/field paths locate a failure without returning authored values, private IDs/names or arbitrary exception text. `missingSkills` identifies actual unloaded alternatives; `requiredSkills` describes the supported domains and does not itself mean a skill is missing.
 
 ## Working context compaction
 
