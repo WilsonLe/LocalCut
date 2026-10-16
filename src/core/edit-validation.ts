@@ -2,6 +2,26 @@ import { EditorError } from './errors';
 
 /** Fixed diagnostic vocabulary: never forward exception prose or authored values. */
 export const editValidationRules = {
+  text_style_required: {
+    message: 'Text clips require a text style',
+    repair:
+      'Supply the clip text style, including text.text as a string, before inserting or changing a clip to kind text. Use the reported track and clip indices to locate the invalid clip.',
+  },
+  media_asset_required: {
+    message: 'Media clips require a source asset',
+    repair:
+      'Set assetId to an existing authorized source asset for every image, video or audio clip. Inspect or resolve the requested source; never invent an asset ID.',
+  },
+  audio_track_clip: {
+    message: 'Audio tracks accept only audio clips',
+    repair:
+      'Place an audio clip on the audio track, or choose a compatible track for the intended clip kind.',
+  },
+  overlay_track_clip: {
+    message: 'Overlay tracks accept text, caption or image clips',
+    repair:
+      'Place a text, caption or image clip on the overlay track, or choose a compatible track for timed video/audio.',
+  },
   transition_overlap: {
     message:
       'Transition requires adjacent ordered overlap of visual media clips on one video track without a third clip',

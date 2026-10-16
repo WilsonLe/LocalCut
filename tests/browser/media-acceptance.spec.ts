@@ -588,3 +588,118 @@ test('production audio mixer preserves stereo, overlap, gain envelopes and block
   expect(result.clipped).toBeGreaterThan(0);
   expect(result.stereoDifference).toBeGreaterThan(0.5);
 });
+
+test('trimmed audio stays finite through native AAC export at a fractional block endpoint', async ({
+  page,
+}) => {
+  await page.goto('/LocalCut/');
+  const result = await page.evaluate(async () => {
+    const { createEditor } = (await import(
+      String('/LocalCut/editor.js')
+    )) as typeof import('../../src/editor/index');
+    const namespace = 'test-audio-boundary-' + crypto.randomUUID();
+    const editor = await createEditor({ namespace });
+    const audio = new AudioContext({ sampleRate: 48000 });
+    let artifact:
+      | Awaited<ReturnType<typeof editor.exports.start>['completion']>
+      | undefined;
+    try {
+      const frames = 5 * 48000;
+      const bytes = new Uint8Array(44 + frames * 2);
+      const view = new DataView(bytes.buffer);
+      for (const [offset, text] of [
+        [0, 'RIFF'],
+        [8, 'WAVEfmt '],
+        [36, 'data'],
+      ] as const)
+        bytes.set(new TextEncoder().encode(text), offset);
+      view.setUint32(4, bytes.length - 8, true);
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, 48000, true);
+      view.setUint32(28, 96000, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      view.setUint32(40, frames * 2, true);
+      for (let i = 0; i < frames; i++)
+        view.setInt16(
+          44 + i * 2,
+          Math.round(0.2 * Math.sin((2 * Math.PI * 440 * i) / 48000) * 32767),
+          true,
+        );
+      const source = await editor.assets.import(
+        new File([bytes], 'tone.wav', { type: 'audio/wav' }),
+      ).completion;
+      const project = await editor.projects.create('Audio boundary', {
+        width: 128,
+        height: 128,
+      });
+      await editor.commands.apply({
+        projectId: project.id,
+        expectedRevision: 0,
+        requestId: 'trimmed-audio',
+        operations: [
+          { type: 'addTrack', track: { id: 'sound', kind: 'audio' } },
+          {
+            type: 'insertClip',
+            trackId: 'sound',
+            clip: {
+              id: 'trimmed',
+              kind: 'audio',
+              assetId: source.id,
+              startUs: 300_000,
+              durationUs: 4_960_000,
+              sourceOutUs: 4_960_000,
+              fadeOutUs: 120_000,
+            },
+          },
+        ],
+      });
+      const support = await editor.exports.preflight(project.id, {
+        format: 'mp4',
+      }).completion;
+      if (!support.supported)
+        throw new Error('Required native MP4/AAC codec unavailable');
+      artifact = await editor.exports.start(project.id, { format: 'mp4' })
+        .completion;
+      const decoded = await audio.decodeAudioData(
+        await artifact.file.arrayBuffer(),
+      );
+      let peak = 0,
+        energy = 0,
+        finite = true;
+      for (let c = 0; c < decoded.numberOfChannels; c++) {
+        for (const sample of decoded.getChannelData(c)) {
+          finite &&= Number.isFinite(sample);
+          peak = Math.max(peak, Math.abs(sample));
+          energy += sample * sample;
+        }
+      }
+      return {
+        finite,
+        peak,
+        rms: Math.sqrt(energy / (decoded.length * decoded.numberOfChannels)),
+        duration: decoded.duration,
+        bytes: artifact.file.size,
+      };
+    } finally {
+      await artifact?.dispose();
+      await audio.close();
+      await editor.dispose();
+      await new Promise<void>((resolve, reject) => {
+        const request = indexedDB.deleteDatabase(namespace + '-v1');
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+      await (
+        await navigator.storage.getDirectory()
+      ).removeEntry(namespace, { recursive: true });
+    }
+  });
+  expect(result.finite).toBe(true);
+  expect(result.peak).toBeLessThan(0.4);
+  expect(result.rms).toBeGreaterThan(0.05);
+  expect(result.duration).toBeGreaterThan(5.25);
+  expect(result.bytes).toBeGreaterThan(1000);
+});

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { newProject, clipSchema } from '../../src/core/model';
+import type { Project } from '../../src/core/model';
 import { applyOperations } from '../../src/core/commands';
 import { parseTool, proposalBatch } from '../../src/ai/tools';
 import { localError } from '../../src/ai/assistant-errors';
@@ -244,3 +245,53 @@ describe('safe actionable edit validation', () => {
     expect(JSON.stringify(safe)).not.toContain('PRIVATE_SECRET');
   });
 });
+
+it.each([
+  ['text', 'video', 'text_style_required'],
+  ['image', 'video', 'media_asset_required'],
+  ['video', 'video', 'media_asset_required'],
+  ['audio', 'video', 'media_asset_required'],
+  ['image', 'audio', 'audio_track_clip'],
+  ['video', 'overlay', 'overlay_track_clip'],
+] as const)(
+  'locates invalid %s clip structure on a %s track without exposing authored values',
+  (kind, trackKind, rule) => {
+    const p: Project = {
+      ...project(),
+      tracks: [
+        { id: 'PRIVATE_TRACK', kind: trackKind, muted: false, clips: [] },
+      ],
+    };
+    const before = structuredClone(p);
+    const clip = clipSchema.parse({
+      id: 'PRIVATE_CLIP',
+      kind,
+      startUs: 0,
+      durationUs: 1000000,
+      ...(trackKind !== 'video' ? { assetId: 'PRIVATE_ASSET' } : {}),
+      ...(['video', 'audio'].includes(kind) ? { sourceOutUs: 1000000 } : {}),
+    });
+    try {
+      proposalBatch(
+        p,
+        [{ type: 'insertClip', trackId: 'PRIVATE_TRACK', clip }],
+        'invalid',
+        Infinity,
+      );
+      expect.unreachable('Invalid clip structure must remain rejected');
+    } catch (error) {
+      const safe = localError(error);
+      expect(safe.code).toBe('EDIT_REJECTED');
+      expect(safe.details).toMatchObject({
+        validation: {
+          rule,
+          trackIndex: 0,
+          clipIndex: 0,
+          repair: expect.any(String),
+        },
+      });
+      expect(JSON.stringify(safe)).not.toContain('PRIVATE_');
+    }
+    expect(p).toEqual(before);
+  },
+);

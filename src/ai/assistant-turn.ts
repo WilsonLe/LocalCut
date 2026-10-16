@@ -578,6 +578,7 @@ export async function executeAssistantTurn(
           {},
           availableAssets,
           policy,
+          options.libraryAccess ?? 'selected',
         );
       referencedTranscripts.clear();
       for (const track of snapshot.tracks)

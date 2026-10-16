@@ -66,6 +66,7 @@ export function libraryContext(
   query: LibraryQuery,
   allowed: ReadonlySet<string>,
   policy: ContextPolicy,
+  access: 'selected' | 'project' = 'selected',
 ) {
   const selection = librarySelection(library, query);
   const ids = (entries: LibraryEntry[]) => [
@@ -75,6 +76,18 @@ export function libraryContext(
   ];
   const registered = ids(selection.selected);
   const authorized = registered.filter((id) => allowed.has(id));
+  const withheld = registered.length - authorized.length;
+  const recovery =
+    withheld > 0 && access === 'project' && !query.includeTrashed
+      ? {
+          tool: 'resolve_library_assets' as const,
+          arguments: {
+            folderId: selection.folderId,
+            recursive: query.recursive !== false,
+            expectedRevision: library.revision,
+          },
+        }
+      : undefined;
   const visible = selection.selected.filter(
     (entry) => !entry.assetId || allowed.has(entry.assetId),
   );
@@ -83,6 +96,7 @@ export function libraryContext(
   const limit = query.limit ?? visible.length;
   return {
     revision: library.revision,
+    access,
     folderId: selection.folderId,
     recursive: query.recursive !== false,
     includeTrashed: !!query.includeTrashed,
@@ -91,7 +105,8 @@ export function libraryContext(
     childrenResolved: registered.length === authorized.length,
     registeredAssetCount: registered.length,
     authorizedAssetCount: authorized.length,
-    withheldAssetCount: registered.length - authorized.length,
+    withheldAssetCount: withheld,
+    ...(recovery ? { recovery } : {}),
     status:
       registered.length === 0
         ? 'no_registered_media'
@@ -102,7 +117,11 @@ export function libraryContext(
       registered.length === 0
         ? 'No registered media in this scope. Upload the files or folder through Media; if an import failed, inspect its task/error and retry that import. The assistant cannot scan an arbitrary computer folder.'
         : registered.length !== authorized.length
-          ? 'Some registered assets are outside the caller allowlist. Attach them or let the trusted host authorize project-library resolution; do not describe this container as empty.'
+          ? recovery
+            ? 'The host already permits project-library resolution. Resolve only the user-requested container; inspect that container first if this query was broader. Call resolve_library_assets with its recovery arguments before treating requested registered media as unavailable or asking for attachment. Resolution is turn-local; it does not index, reindex or upload raw media.'
+            : access === 'project' && query.includeTrashed
+              ? 'Project-library resolution excludes Trash. Inspect the requested active container with includeTrashed false, or restore the requested media through Media before resolving it.'
+              : 'Some registered assets are outside the caller allowlist. Attach them or let the trusted host authorize project-library resolution; do not describe this container as empty.'
           : 'Resolve the requested container to asset IDs before dependent work. Inspect metadata/readiness and reuse saved evidence before new indexing.',
     total: visible.length,
     offset,

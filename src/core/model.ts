@@ -472,11 +472,10 @@ export function validateProject(value: unknown): Project {
         'Clip end exceeds safe time',
       );
       if (['video', 'audio', 'image'].includes(clip.kind))
-        invariant(
-          clip.assetId,
-          'INVALID_DOCUMENT',
-          'Media clip requires asset ID',
-        );
+        validationInvariant(clip.assetId, 'media_asset_required', {
+          trackIndex,
+          clipIndex,
+        });
       if (['video', 'audio'].includes(clip.kind)) {
         validationInvariant(
           clip.sourceOutUs !== undefined && clip.sourceOutUs > clip.sourceInUs,
@@ -530,7 +529,10 @@ export function validateProject(value: unknown): Project {
         'Mask motion points exceed clip duration',
       );
       if (clip.kind === 'text')
-        invariant(clip.text, 'INVALID_DOCUMENT', 'Text style required');
+        validationInvariant(clip.text, 'text_style_required', {
+          trackIndex,
+          clipIndex,
+        });
       invariant(
         !clip.crop ||
           (clip.crop.x + clip.crop.width <= 1 &&
@@ -577,16 +579,15 @@ export function validateProject(value: unknown): Project {
         );
       }
       if (track.kind === 'audio')
-        invariant(
-          clip.kind === 'audio',
-          'INVALID_DOCUMENT',
-          'Audio track accepts audio clips',
-        );
+        validationInvariant(clip.kind === 'audio', 'audio_track_clip', {
+          trackIndex,
+          clipIndex,
+        });
       if (track.kind === 'overlay')
-        invariant(
+        validationInvariant(
           ['text', 'caption', 'image'].includes(clip.kind),
-          'INVALID_DOCUMENT',
-          'Overlay track accepts overlays',
+          'overlay_track_clip',
+          { trackIndex, clipIndex },
         );
     }
   }
