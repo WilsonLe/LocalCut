@@ -64,6 +64,26 @@ export function createAssistantToolHandler(tools: AssistantToolHost) {
     freezeLibraryScope,
     staged,
   } = tools;
+  const inspectLibraryScope = async (
+    query: Parameters<typeof libraryContext>[1],
+    observe = true,
+  ) => {
+    const library = editor.library;
+    aiInvariant(library, 'TOOL_NOT_ALLOWED', 'Media library is unavailable.');
+    if (observe) tools.libraryObserved = true;
+    const snapshot = await interruptible(
+      library.forProject(projectId).list(),
+      signal,
+    );
+    check();
+    return libraryContext(
+      snapshot,
+      query,
+      availableAssets,
+      policy,
+      options.libraryAccess ?? 'selected',
+    );
+  };
   const handleTool = async (name: string, args: Record<string, unknown>) => {
     aiInvariant(
       tools.declaredTools.has(name),
@@ -167,14 +187,56 @@ export function createAssistantToolHandler(tools: AssistantToolHost) {
           toolsAvailable: 'next_round',
         };
       }
-      case 'search_asset_index':
-        return searchIndexes(
+      case 'search_asset_index': {
+        const result = searchIndexes(
           tools.indexes,
           args.query as string,
           args.offset as number | undefined,
           args.limit as number | undefined,
           policy,
         );
+        if (!editor.library || !policy.includeAssetIndexes) return result;
+        let scope: ReturnType<typeof libraryContext>;
+        try {
+          scope = await inspectLibraryScope({ recursive: true }, false);
+        } catch {
+          check();
+          return {
+            ...result,
+            scope: {
+              status: 'unavailable',
+              access: options.libraryAccess ?? 'selected',
+              searchLimitedToSharedIndexes: true,
+              nextStep:
+                'Media coverage could not be inspected. These results cover currently shared saved indexes only and do not establish whether other registered media exists. Inspect the requested Media container before concluding it is absent.',
+            },
+          };
+        }
+        if (scope.withheldAssetCount === 0) return result;
+        return {
+          ...result,
+          scope: {
+            access: scope.access,
+            revision: scope.revision,
+            registeredAssetCount: scope.registeredAssetCount,
+            authorizedAssetCount: scope.authorizedAssetCount,
+            withheldAssetCount: scope.withheldAssetCount,
+            searchLimitedToSharedIndexes: true,
+            nextStep:
+              scope.access === 'project'
+                ? 'This search covers currently shared saved indexes, not all registered Media. The host already permits project-library resolution. Inspect the user-requested Media container, then follow its revision-bound resolution before treating the reference as unavailable. Do not resolve unrelated containers or reindex for an access problem.'
+                : scope.nextStep,
+            ...(scope.access === 'project'
+              ? {
+                  recovery: {
+                    tool: 'inspect_library',
+                    arguments: { folderId: null, recursive: false },
+                  },
+                }
+              : {}),
+          },
+        };
+      }
       case 'read_asset_index': {
         const run = tools.indexes.find((r) => r.assetId === args.assetId);
         aiInvariant(
@@ -392,20 +454,8 @@ export function createAssistantToolHandler(tools: AssistantToolHost) {
           signal.removeEventListener('abort', abort);
         }
       }
-      case 'inspect_library': {
-        aiInvariant(
-          editor.library,
-          'TOOL_NOT_ALLOWED',
-          'Media library is unavailable.',
-        );
-        tools.libraryObserved = true;
-        const library = await interruptible(
-          editor.library.forProject(projectId).list(),
-          signal,
-        );
-        check();
-        return libraryContext(library, args, availableAssets, policy);
-      }
+      case 'inspect_library':
+        return inspectLibraryScope(args);
       case 'resolve_library_assets': {
         aiInvariant(
           editor.library,

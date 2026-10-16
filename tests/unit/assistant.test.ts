@@ -6858,6 +6858,301 @@ function libraryScopeFixture() {
 }
 
 describe('container resolution through the assistant', () => {
+  it.each(['unavailable', 'cancelled'] as const)(
+    'keeps cached index search independent of %s advisory Media inspection',
+    async (state) => {
+      const f = libraryScopeFixture();
+      const started = deferred<void>();
+      const gate =
+        deferred<import('../../src/core/media-library').LibrarySnapshot>();
+      const list = vi.fn(async () => {
+        started.resolve();
+        if (state === 'unavailable') throw new Error('private-library-error');
+        return gate.promise;
+      });
+      f.editor.library = {
+        forProject: () => ({ list, apply: vi.fn() }),
+      };
+      f.editor.assets.indexes = {
+        list: async () => [
+          {
+            id: 'cached',
+            assetId: 'unrelated',
+            createdAt: 1,
+            status: 'complete',
+            invalidated: false,
+            source: {},
+            label: { summary: 'harbour cached-selected-observation', tags: [] },
+            analysis: {
+              scenes: [
+                {
+                  id: 'scene',
+                  startUs: 0,
+                  endUs: 1e6,
+                  label: {
+                    summary: 'harbour cached-selected-observation',
+                    tags: [],
+                  },
+                },
+              ],
+              settings: {},
+            },
+            requests: [],
+          } as unknown as import('../../src/core/asset-index').AssetIndexRun,
+        ],
+      };
+      let round = 0;
+      const a = createAssistant({
+        editor: f.editor,
+        projectId: f.project().id,
+        model: 'test/model',
+        execution: 'requested',
+        libraryAccess: 'project',
+        assetIds: ['unrelated'],
+        context: { includeAssetIndexes: true },
+        provider: {
+          async *stream(request) {
+            switch (round++) {
+              case 0:
+                yield final('', [call('load_skill', { skillId: 'editing' })]);
+                break;
+              case 1:
+                yield final('', [
+                  call('search_asset_index', { query: 'harbour' }),
+                ]);
+                break;
+              case 2: {
+                const result = JSON.parse(
+                  request.messages.filter((m) => m.role === 'tool').at(-1)!
+                    .content!,
+                );
+                expect(JSON.stringify(result.matches)).toContain(
+                  'cached-selected-observation',
+                );
+                expect(result.scope).toMatchObject({
+                  status: 'unavailable',
+                  searchLimitedToSharedIndexes: true,
+                });
+                expect(result.scope).not.toHaveProperty('registeredAssetCount');
+                expect(JSON.stringify(request)).not.toContain(
+                  'private-library-error',
+                );
+                yield final('', [
+                  call('propose_edits', {
+                    summary: 'Continue independent editing',
+                    operations: [
+                      {
+                        type: 'addTrack',
+                        track: { id: 'picture', kind: 'video' },
+                      },
+                    ],
+                  }),
+                ]);
+                break;
+              }
+              default:
+                yield final('Applied the independent edit.');
+            }
+          },
+        },
+      });
+      const events: AssistantEvent[] = [];
+      a.subscribe((event) => events.push(event));
+      const turn = a.run('Search the saved observations and continue editing.');
+      try {
+        await started.promise;
+        if (state === 'cancelled') {
+          turn.cancel();
+          await expect(turn.completion).rejects.toMatchObject({
+            code: 'CANCELLED',
+          });
+          gate.resolve(f.library);
+          expect(round).toBe(2);
+          expect(f.editor.commands.apply).not.toHaveBeenCalled();
+        } else {
+          await turn.completion;
+          expect(f.editor.commands.apply).toHaveBeenCalledTimes(1);
+          expect(f.project().revision).toBe(1);
+          expect(
+            events.filter((e) => e.type === 'tool' && e.phase === 'failed'),
+          ).toEqual([]);
+        }
+        expect(list).toHaveBeenCalledTimes(1);
+      } finally {
+        gate.resolve(f.library);
+        await a.dispose();
+      }
+    },
+  );
+  it.each(['project', 'selected'] as const)(
+    'recovers empty index searches through %s discovery before cached reference editing',
+    async (libraryAccess) => {
+      const f = libraryScopeFixture();
+      f.editor.assets.indexes = {
+        list: async () => [
+          {
+            id: 'saved-reference',
+            assetId: 'library-clip',
+            createdAt: 1,
+            status: 'complete',
+            invalidated: false,
+            source: {},
+            label: { summary: 'harbour cached-observation-sentinel', tags: [] },
+            analysis: { scenes: [], settings: {} },
+            requests: [],
+          } as unknown as import('../../src/core/asset-index').AssetIndexRun,
+        ],
+      };
+      let round = 0;
+      let resolvedId = '';
+      const requests: ChatRequest[] = [];
+      const a = createAssistant({
+        editor: f.editor,
+        projectId: f.project().id,
+        model: 'test/model',
+        execution: 'requested',
+        libraryAccess,
+        assetIds: ['unrelated'],
+        context: { includeAssetIndexes: true, includeAssetNames: true },
+        provider: {
+          async *stream(request) {
+            requests.push(structuredClone(request));
+            const lastTool = () =>
+              JSON.parse(
+                request.messages.filter((m) => m.role === 'tool').at(-1)!
+                  .content!,
+              );
+            switch (round++) {
+              case 0:
+                yield final('', [
+                  call('load_skill', { skillId: 'indexing' }, 'indexing'),
+                  call('load_skill', { skillId: 'editing' }, 'editing'),
+                ]);
+                break;
+              case 1:
+                yield final('', [
+                  call('search_asset_index', { query: 'harbour' }),
+                ]);
+                break;
+              case 2: {
+                const search = lastTool();
+                expect(search).toMatchObject({
+                  matches: [],
+                  total: 0,
+                  scope: { access: libraryAccess, withheldAssetCount: 1 },
+                });
+                expect(JSON.stringify(request)).not.toContain(
+                  'cached-observation-sentinel',
+                );
+                if (libraryAccess === 'selected') {
+                  expect(search.scope).not.toHaveProperty('recovery');
+                  yield final('The caller must attach the reference.');
+                } else {
+                  const recovery = search.scope.recovery;
+                  expect(recovery.tool).toBe('inspect_library');
+                  yield final('', [call(recovery.tool, recovery.arguments)]);
+                }
+                break;
+              }
+              case 3: {
+                expect(
+                  JSON.parse(requestContextMessage(request).content!)
+                    .mediaLibrary.access,
+                ).toBe(libraryAccess);
+                const folder = lastTool().entries.find(
+                  (entry: { kind: string; name?: string }) =>
+                    entry.kind === 'folder' && entry.name === 'Sydney',
+                );
+                yield final('', [
+                  call('inspect_library', {
+                    folderId: folder.id,
+                    recursive: true,
+                  }),
+                ]);
+                break;
+              }
+              case 4: {
+                const recovery = lastTool().recovery;
+                expect(recovery.arguments.folderId).toBe('folder');
+                yield final('', [call(recovery.tool, recovery.arguments)]);
+                break;
+              }
+              case 5:
+                expect(lastTool().assetIds).toEqual(['library-clip']);
+                resolvedId = lastTool().assetIds[0];
+                yield final('', [
+                  call('search_asset_index', { query: 'no-such-label' }),
+                ]);
+                break;
+              case 6:
+                expect(lastTool()).toMatchObject({ matches: [], total: 0 });
+                expect(lastTool()).not.toHaveProperty('scope');
+                yield final('', [
+                  call('read_asset_index', { assetId: resolvedId }),
+                ]);
+                break;
+              case 7:
+                expect(JSON.stringify(lastTool())).toContain(
+                  'cached-observation-sentinel',
+                );
+                yield final('', [
+                  call('propose_edits', {
+                    summary: 'Apply the cached reference choice',
+                    operations: [
+                      {
+                        type: 'addTrack',
+                        track: { id: 'picture', kind: 'video' },
+                      },
+                      {
+                        type: 'insertClip',
+                        trackId: 'picture',
+                        clip: {
+                          id: 'chosen',
+                          kind: 'video',
+                          assetId: resolvedId,
+                          startUs: 0,
+                          durationUs: 1e6,
+                          sourceInUs: 0,
+                          sourceOutUs: 1e6,
+                        },
+                      },
+                    ],
+                  }),
+                ]);
+                break;
+              default:
+                yield final('Applied the reference-grounded choice.');
+            }
+          },
+        },
+      });
+      const events: AssistantEvent[] = [];
+      a.subscribe((event) => events.push(event));
+      try {
+        await a.run(
+          'Use the saved reference in the Sydney folder and apply the edit.',
+        ).completion;
+        expect(f.editor.commands.apply).toHaveBeenCalledTimes(
+          libraryAccess === 'project' ? 1 : 0,
+        );
+        expect(f.project().revision).toBe(libraryAccess === 'project' ? 1 : 0);
+        expect(
+          f
+            .project()
+            .tracks.flatMap((t) => t.clips)
+            .map((c) => c.assetId),
+        ).toEqual(libraryAccess === 'project' ? ['library-clip'] : []);
+        expect(
+          events.filter((e) => e.type === 'tool' && e.phase === 'failed'),
+        ).toEqual([]);
+        expect(
+          events.some((e) => e.type === 'tool' && e.name === 'propose_action'),
+        ).toBe(false);
+      } finally {
+        await a.dispose();
+      }
+    },
+  );
   it.each(['project', 'selected'] as const)(
     'recovers saved reference reads through %s scope without exposing hidden labels',
     async (libraryAccess) => {
