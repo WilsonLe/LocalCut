@@ -3259,6 +3259,12 @@ describe('incremental assistant skills', () => {
     expect(JSON.stringify(f.provider.requests[0])).not.toContain(
       'Transition templates are editable recipes',
     );
+    expect(JSON.stringify(f.provider.requests[0])).not.toContain(
+      'Editorial craft for aesthetic',
+    );
+    expect(JSON.stringify(f.provider.requests[1])).toContain(
+      'Different files can depict the same composition',
+    );
     expect(names(f.provider.requests[1]!)).toContain('propose_edits');
     expect(names(f.provider.requests[1]!)).not.toContain('propose_action');
     expect(JSON.stringify(f.provider.requests[1])).toContain(
@@ -9686,6 +9692,9 @@ it('recovers from an overlap error and applies a validated ID after oversized-gr
           )
         ) {
           summaries++;
+          expect(request.messages[0]!.content).toContain(
+            'timestamped rejected choices with their reasons',
+          );
           yield final(
             'The user requests an edit. A validated batch may still be pending; use current preparedEdits and completed receipts.',
           );
