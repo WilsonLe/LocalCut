@@ -534,24 +534,25 @@ export class Renderer {
             continue;
           const file = this.pcm.get(clip.assetId);
           if (!file) continue;
+          // Use the same absolute sample boundaries as the scratch window.
+          // Subtracting floating microseconds before rounding can add one
+          // sample, reading past the window even when gain/fades are zero.
           const first = Math.max(
               0,
               Math.ceil(
-                ((Math.max(clip.startUs, original.startUs) - startUs) * 48000) /
-                  1e6,
-              ),
+                (Math.max(clip.startUs, original.startUs) * 48000) / 1e6,
+              ) - startFrame,
             ),
             last = Math.min(
               count,
               Math.ceil(
-                ((Math.min(
+                (Math.min(
                   clip.startUs + clip.durationUs,
                   original.startUs + original.durationUs,
-                ) -
-                  startUs) *
+                ) *
                   48000) /
                   1e6,
-              ),
+              ) - startFrame,
             );
           activeClips.add(clip.id);
           const localFrame = (frame: number) =>

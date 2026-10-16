@@ -18,7 +18,7 @@ composition, codec preflight, and streaming export. Read [architecture](../../do
 Run focused checks from the repository root:
 
 ```sh
-pnpm test tests/unit/video-frame-cursor.test.ts
+pnpm test tests/unit/video-frame-cursor.test.ts tests/unit/audio-effects-window.test.ts
 pnpm test:browser tests/browser/media-acceptance.spec.ts tests/browser/editor.spec.ts
 ```
 
