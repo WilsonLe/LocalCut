@@ -256,6 +256,10 @@ describe('auxiliary branch and leaf regression probes', () => {
         'user',
         'user',
       ]);
+      if (stage === 'completion_check')
+        expect(messages[0]!.content).toContain(
+          'Clip counts, presets, duration, geometry and export success alone do not prove aesthetic or reference fidelity',
+        );
       expect(JSON.parse(messages[1]!.content!)).toEqual(frozen);
       expect(messages[1]!.content).not.toContain('<');
       const task = messages[2]!.content!;

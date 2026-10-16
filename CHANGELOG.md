@@ -6,6 +6,8 @@ Current version: **0.1.0-alpha.1**. Short summaries for end users and executives
 
 - Prevent brief audio transients and missing onset samples at trimmed or looping clip boundaries. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...codex/audio-sample-boundaries).
 
+- Guide Klip toward deliberate source curation, connected sequences and appropriate sound, and keep creative acceptance distinct from technical completion. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...codex/aesthetic-travel-edit).
+
 - Klip reports safe edit-rule failures, reuses validated batches by ID and preserves reusable edits through compaction. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...codex/edit-recovery-compaction).
 
 - Start editing directly with one agent, optional local notes and progress from completed receipts; retain independent completion review and recoverable history. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...codex/single-agent-lifecycle).
