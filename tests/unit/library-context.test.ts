@@ -51,6 +51,47 @@ const library: LibrarySnapshot = {
   ],
 };
 describe('truthful registered library discovery', () => {
+  it('offers existing project resolution without revealing withheld media or granting it', () => {
+    const allowed = new Set<string>();
+    const result = libraryContext(
+      library,
+      { folderId: 'trip', recursive: true },
+      allowed,
+      {},
+      'project',
+    );
+    expect(result).toMatchObject({
+      access: 'project',
+      status: 'assets_withheld',
+      recovery: {
+        tool: 'resolve_library_assets',
+        arguments: { folderId: 'trip', recursive: true, expectedRevision: 7 },
+      },
+    });
+    expect(result.nextStep).toContain('already permits');
+    expect(allowed.size).toBe(0);
+    expect(JSON.stringify(result)).not.toMatch(/secret|signature|"clip"/);
+    const selected = libraryContext(library, {}, allowed, {});
+    expect(selected).not.toHaveProperty('recovery');
+    expect(selected.nextStep).toContain('caller allowlist');
+    const trash = libraryContext(
+      library,
+      { includeTrashed: true },
+      allowed,
+      {},
+      'project',
+    );
+    expect(trash).not.toHaveProperty('recovery');
+    expect(trash.nextStep).toContain('excludes Trash');
+    const complete = libraryContext(
+      library,
+      {},
+      new Set(['clip', 'other']),
+      {},
+      'project',
+    );
+    expect(complete).not.toHaveProperty('recovery');
+  });
   it('distinguishes nested withheld assets from empty registered folders without disclosing their IDs/names/signatures', () => {
     const result = libraryContext(library, {}, new Set(), {});
     expect(result).toMatchObject({

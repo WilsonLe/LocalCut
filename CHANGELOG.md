@@ -4,6 +4,8 @@ Current version: **0.1.0-alpha.1**. Short summaries for end users and executives
 
 ## Unreleased
 
+- Help Klip resolve requested Media references through access already granted by the workspace, instead of asking for redundant attachment or authorization. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...codex/library-scope-recovery).
+
 - Guide Klip toward deliberate source curation, connected sequences and appropriate sound, and keep creative acceptance distinct from technical completion. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...codex/aesthetic-travel-edit).
 
 - Klip reports safe edit-rule failures, reuses validated batches by ID and preserves reusable edits through compaction. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...codex/edit-recovery-compaction).

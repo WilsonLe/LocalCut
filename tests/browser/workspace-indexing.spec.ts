@@ -193,15 +193,18 @@ for (const base of behaviorBases) {
                 .filter((m: { role: string }) => m.role !== 'system')
                 .at(-1).content,
             );
+            expect(library).toMatchObject({
+              access: 'project',
+              status: 'assets_withheld',
+              withheldAssetCount: 2,
+            });
+            expect(library.recovery.arguments).toEqual({
+              folderId: null,
+              recursive: true,
+              expectedRevision: library.revision,
+            });
             tool_calls = tools([
-              {
-                name: 'resolve_library_assets',
-                args: {
-                  folderId: null,
-                  recursive: true,
-                  expectedRevision: library.revision,
-                },
-              },
+              { name: library.recovery.tool, args: library.recovery.arguments },
             ]);
           } else if (round === 4) {
             const manifest = JSON.parse(
