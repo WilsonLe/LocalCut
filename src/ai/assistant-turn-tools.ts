@@ -66,10 +66,11 @@ export function createAssistantToolHandler(tools: AssistantToolHost) {
   } = tools;
   const inspectLibraryScope = async (
     query: Parameters<typeof libraryContext>[1],
+    observe = true,
   ) => {
     const library = editor.library;
     aiInvariant(library, 'TOOL_NOT_ALLOWED', 'Media library is unavailable.');
-    tools.libraryObserved = true;
+    if (observe) tools.libraryObserved = true;
     const snapshot = await interruptible(
       library.forProject(projectId).list(),
       signal,
@@ -195,7 +196,22 @@ export function createAssistantToolHandler(tools: AssistantToolHost) {
           policy,
         );
         if (!editor.library || !policy.includeAssetIndexes) return result;
-        const scope = await inspectLibraryScope({ recursive: true });
+        let scope: ReturnType<typeof libraryContext>;
+        try {
+          scope = await inspectLibraryScope({ recursive: true }, false);
+        } catch {
+          check();
+          return {
+            ...result,
+            scope: {
+              status: 'unavailable',
+              access: options.libraryAccess ?? 'selected',
+              searchLimitedToSharedIndexes: true,
+              nextStep:
+                'Media coverage could not be inspected. These results cover currently shared saved indexes only and do not establish whether other registered media exists. Inspect the requested Media container before concluding it is absent.',
+            },
+          };
+        }
         if (scope.withheldAssetCount === 0) return result;
         return {
           ...result,
