@@ -18,7 +18,7 @@ export const skillCatalog = [
   {
     id: 'editing',
     description:
-      'Media folders, file organization, project naming, tracks, timeline edits, object keyframes, audio, searchable fonts/text templates, animated text, captions, LUT/color presets, audio EQ/noise reduction, blending, masks/tracking, chroma key, groups and transitions.',
+      'Editorial curation, aesthetic/reference-led storytelling, pacing, sound choices and honest quality review; Media folders, file organization, project naming, tracks, timeline edits, object keyframes, audio, searchable fonts/text templates, animated text, captions, LUT/color presets, audio EQ/noise reduction, blending, masks/tracking, chroma key, groups and transitions.',
   },
   {
     id: 'export',

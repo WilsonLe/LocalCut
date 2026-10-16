@@ -756,3 +756,9 @@ Use the [current preference index](current-preferences.md) to find relevant cont
 ## Composer recordings for voice cloning — 14 October 2026
 
 - Retain successful composer speech-to-text microphone recordings locally as Media assets with their matching transcript. Let the chat agent discover and use those saved recordings when the user requests cloning their voice, through a supported OpenRouter reference model. Dictation alone must not start cloning.
+
+## Aesthetic editing acceptance — 16 October 2026
+
+- Judge Klip's travel edits by the actual finished video. Successful tool calls, timeline mutations, valid export metadata and a script font do not establish an aesthetic result.
+- Continue improving its reusable editorial guidance and feedback until the cut is intentionally curated, coherent and visually pleasing. Preserve the rejected version and timestamped reasons rather than lowering success to technical completion.
+- Keep the existing reference and source footage central to that evaluation. Report missing motion/listening evidence honestly; do not call an unassessed creative outcome verified. See [editorial quality](ai.md#editorial-craft-and-creative-quality).
