@@ -107,3 +107,134 @@ it.each([1600, 12000])(
     }
   },
 );
+
+const boundaries = [
+  { timeUs: 5_260_000, blockStart: 251_200, edge: 1280 },
+  { timeUs: 9_680_000, blockStart: 464_000, edge: 640 },
+  { timeUs: 20_340_000, blockStart: 976_000, edge: 320 },
+];
+const modes = [
+  { mode: 'plain', patch: {} },
+  { mode: 'fade', patch: { fadeOutUs: 120_000 } },
+  { mode: 'zero gain', patch: { gain: 0 } },
+  {
+    mode: 'effects',
+    patch: {
+      equalizer: { lowDb: 2, midDb: -1, highDb: 3 },
+      noiseReduction: 0.2,
+    },
+  },
+  { mode: 'keep pitch', patch: { speed: 1.3, pitchMode: 'preserve' } },
+];
+function boundaryRenderer(clip: unknown) {
+  vi.stubGlobal('OffscreenCanvas', class {});
+  const store = {
+    getAsset: async () => ({ audioCodec: 'pcm' }),
+    lease: async () => () => {},
+  } as unknown as Store;
+  return new Renderer(store, {
+    ...newProject('Audio sample boundaries'),
+    tracks: [
+      {
+        id: 'audio',
+        kind: 'audio',
+        muted: false,
+        clips: [clipSchema.parse(clip)],
+      },
+    ],
+  });
+}
+it.each(
+  boundaries.flatMap((boundary) =>
+    modes.map((mode) => ({ ...boundary, ...mode })),
+  ),
+)(
+  'keeps $mode PCM finite and silent after the $timeUs endpoint',
+  async ({ timeUs, blockStart, edge, patch }) => {
+    const renderer = boundaryRenderer({
+      id: 'trimmed',
+      kind: 'audio',
+      assetId: 'source',
+      startUs: 300_000,
+      durationUs: timeUs - 300_000,
+      sourceOutUs: (timeUs - 300_000) * (patch.speed ?? 1),
+      ...patch,
+    });
+    try {
+      const channels = await renderer.audio(
+        blockStart,
+        1600,
+        new AbortController().signal,
+      );
+      for (const channel of channels) {
+        expect(channel.every(Number.isFinite)).toBe(true);
+        expect(channel.subarray(edge).every((sample) => sample === 0)).toBe(
+          true,
+        );
+      }
+    } finally {
+      renderer.dispose();
+    }
+  },
+);
+it.each(boundaries)(
+  'keeps the first active sample at the $timeUs start',
+  async ({ timeUs, blockStart, edge }) => {
+    const renderer = boundaryRenderer({
+      id: 'starting',
+      kind: 'audio',
+      assetId: 'source',
+      startUs: timeUs,
+      durationUs: 1_000_000,
+      sourceInUs: 5000,
+      sourceOutUs: 1_005_000,
+    });
+    try {
+      const channels = await renderer.audio(
+        blockStart,
+        1600,
+        new AbortController().signal,
+      );
+      for (let c = 0; c < 2; c++) {
+        expect(
+          channels[c]!.subarray(0, edge).every((sample) => sample === 0),
+        ).toBe(true);
+        const expected =
+          0.3 * Math.sin(2 * Math.PI * 753 * 0.005) +
+          0.2 * Math.sin(2 * Math.PI * (1837 + c * 7) * 0.005);
+        expect(Math.abs(expected)).toBeGreaterThan(0.01);
+        expect(channels[c]![edge]).toBeCloseTo(expected, 5);
+      }
+    } finally {
+      renderer.dispose();
+    }
+  },
+);
+it('keeps a loop boundary finite and includes the next cycle first sample', async () => {
+  const renderer = boundaryRenderer({
+    id: 'loop',
+    kind: 'audio',
+    assetId: 'source',
+    startUs: 300_000,
+    durationUs: 9_920_000,
+    sourceInUs: 5000,
+    sourceOutUs: 4_965_000,
+    loop: { offsetUs: 0 },
+  });
+  try {
+    const channels = await renderer.audio(
+      251_200,
+      1600,
+      new AbortController().signal,
+    );
+    for (let c = 0; c < 2; c++) {
+      expect(channels[c]!.every(Number.isFinite)).toBe(true);
+      const expected =
+        0.3 * Math.sin(2 * Math.PI * 753 * 0.005) +
+        0.2 * Math.sin(2 * Math.PI * (1837 + c * 7) * 0.005);
+      expect(channels[c]![1280]).toBeCloseTo(expected, 5);
+    }
+  } finally {
+    renderer.dispose();
+  }
+});
