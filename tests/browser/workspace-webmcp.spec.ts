@@ -324,6 +324,19 @@ for (const base of behaviorBases) {
       name: 'Another project',
     });
     await projectReady(page, other.project.id);
+    expect(
+      await call(page, 'workspace', {
+        action: 'import_files',
+        expectedProjectId: other.project.id,
+      }),
+    ).toMatchObject({
+      isError: true,
+      error: {
+        code: 'INVALID_COMMAND',
+        message:
+          'Finish or cancel the pending file selection before requesting another import.',
+      },
+    });
     await chooser.setFiles({ ...fixture, name: 'stale-selection.png' });
     await expect(
       page.getByText(

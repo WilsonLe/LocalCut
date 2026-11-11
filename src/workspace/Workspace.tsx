@@ -754,6 +754,11 @@ export function Workspace() {
     getEditor: ensureEditor,
     openProject,
     selectFiles: (scope) => {
+      if (agentFileSelection.current)
+        throw new EditorError(
+          'INVALID_COMMAND',
+          'Finish or cancel the pending file selection before requesting another import.',
+        );
       if (!fileInput.current) throw new Error('Media file input unavailable.');
       agentFileSelection.current = scope;
       try {
