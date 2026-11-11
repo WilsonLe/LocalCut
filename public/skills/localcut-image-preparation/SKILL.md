@@ -21,4 +21,6 @@ Compare source and result for silhouette, product identity, texture, light direc
 
 Inspect the image within the full video at actual delivery size, including motion/crop extremes and neighboring shots. Record source-to-result lineage and disclose generative alterations where relevant. An optional unavailable image tool should not block ordinary LocalCut assembly. No upload, paid generation or publication is authorized solely by reading this guidance.
 
+Keep visible UI and authored titles/captions focused on the user's content and actions. Do not add storage explanations, implementation notes, workflow narration or filler such as “saved with this asset in your browser.” Include a short explanation only when it changes a concrete user decision or resolves an error. Preserve supplied transcript/content verbatim unless a correction is requested.
+
 Adapted for LocalCut from Agentic Workflows (food-image-editing; video-editing). Copyright (c) 2026 Wilson Le. Distributed under the [MIT License](LICENSE.txt). All required workflow guidance is contained in this file.

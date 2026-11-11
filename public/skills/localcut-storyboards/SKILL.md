@@ -19,4 +19,6 @@ For reuse in a video, store the selected frame/elements as a PNG in Media, wait 
 
 Inspect the actual exported artwork for clipping, missing images, font changes, alignment and legibility at delivery size. A saved scene proves editability, not correct rendering. Report the exported formats, included elements, Media placement and unresolved placeholders. Use an originals-inclusive project backup for portable source handoff.
 
+Keep visible UI and authored titles/captions focused on the user's content and actions. Do not add storage explanations, implementation notes, workflow narration or filler such as “saved with this asset in your browser.” Include a short explanation only when it changes a concrete user decision or resolves an error. Preserve supplied transcript/content verbatim unless a correction is requested.
+
 Adapted for LocalCut from Agentic Workflows (video-editing/templates/storyboard.md; motion-design). Copyright (c) 2026 Wilson Le. Distributed under the [MIT License](LICENSE.txt). All required workflow guidance is contained in this file.

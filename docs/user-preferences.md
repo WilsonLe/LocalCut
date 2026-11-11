@@ -4,6 +4,13 @@ This is the project record of the user's durable product and workflow choices. U
 
 Use the [current preference index](current-preferences.md) to find relevant contracts and superseding decisions. Existing dated entries and anchors remain available as decision history.
 
+## Source clips and task-facing copy — 12 November 2026
+
+- Assets contain source clips. Each clip has its own source range, context, transcript and preview, with a polished responsive UI for viewing and editing them.
+- Remove UI metatext such as “saved with this asset in your browser.” Keep visible copy to content, names, ranges, fields, actions and actionable feedback. Do not narrate storage, implementation or agent workflow in the product.
+- Apply this preference to the shipped LocalCut skills and maintained UI Design skill, so future changes preserve it. Keep technical contracts in documentation; preserve actual user/source content.
+- This supersedes the flat asset-note UI from earlier on this date. Existing text must carry over to a whole-source clip. Verify locally and open the built app in the built-in browser.
+
 ## Portable editing skills and asset reference text — 12 November 2026
 
 - Expose LocalCut skills through WebMCP and publish identical portable `SKILL.md` guidance, adapting all useful Agentic Workflows editing guidance into a self-contained LocalCut set. Users must not need to know about or install the upstream suite.

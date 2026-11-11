@@ -33,7 +33,7 @@ export function skillsTool(lifetime: AbortSignal, baseUrl: string): SiteTool {
   return {
     name: 'localcut_skills',
     description:
-      'Discover LocalCut workflow guidance before editing. list returns skill names/descriptions; get with a name returns the complete published SKILL.md. Start with localcut-start, then load only relevant skills for video editing, asset context/transcript notes, references, storyboards, audio, motion, typography, captions, narration, music, images or export review. Available without an open project. No plugin installation, AI account or provider required.',
+      'Discover LocalCut workflow guidance before editing. list returns skill names/descriptions; get with a name returns the complete published SKILL.md. Start with localcut-start, then load only relevant skills for video editing, asset source clips and previews, references, storyboards, audio, motion, typography, captions, narration, music, images or export review. Available without an open project. No plugin installation, AI account or provider required.',
     inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
     annotations: { readOnlyHint: true, untrustedContentHint: false },
     execute: async (input, options) => {

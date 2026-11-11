@@ -21,4 +21,6 @@ If the take exceeds its slot, revise wording/delivery or change the cut within t
 
 Listen to the mixed encoded output for pronunciation, levels, sync, breathing and ending. Keep the actual audio, editable project and script/provenance together. Report what was generated externally, what LocalCut changed and which listening checks remain unavailable. Download before releasing export jobs or navigating away.
 
+Keep visible UI and authored titles/captions focused on the user's content and actions. Do not add storage explanations, implementation notes, workflow narration or filler such as “saved with this asset in your browser.” Include a short explanation only when it changes a concrete user decision or resolves an error. Preserve supplied transcript/content verbatim unless a correction is requested.
+
 Adapted for LocalCut from Agentic Workflows (text-to-speech; audio-editing). Copyright (c) 2026 Wilson Le. Distributed under the [MIT License](LICENSE.txt). All required workflow guidance is contained in this file.

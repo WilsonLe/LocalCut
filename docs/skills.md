@@ -15,7 +15,7 @@ Registration fetches no guidance and initializes no editor, editing storage, wor
 | Skill                                                                       | Purpose                                                                   |
 | --------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | [Start](../public/skills/localcut-start/SKILL.md)                           | Discovery, setup, imports, revisions and jobs                             |
-| [Asset context](../public/skills/localcut-asset-context/SKILL.md)           | Context/plain transcript text, UI access and conflict recovery            |
+| [Asset clips](../public/skills/localcut-asset-clips/SKILL.md)               | Source ranges, previews, context/transcripts and conflict recovery        |
 | [Video editing](../public/skills/localcut-video-editing/SKILL.md)           | Source inspection, continuity and one timeline                            |
 | [Reference analysis](../public/skills/localcut-reference-analysis/SKILL.md) | Observed pacing, composition and sound translated into original decisions |
 | [Storyboards](../public/skills/localcut-storyboards/SKILL.md)               | Visual beats, drawing and artwork export/reuse                            |
@@ -34,7 +34,7 @@ Speech synthesis, generative image editing, advanced DAW/metering, remote video 
 
 Canonical files live at `public/skills/<name>/SKILL.md`. Both static builds publish them verbatim at `<deployment-base>skills/<name>/SKILL.md`, alongside a `LICENSE.txt` per folder and generated `skills/index.json`. Pages uses `/LocalCut/`; root builds use `/`. URLs become available when that candidate is deployed.
 
-Copy/download the whole skill folder, including its license, into your agent host's configured skills directory, or give its Markdown URL to an agent that can read it. Installation and automatic selection depend on the host. Every folder contains all required workflow guidance, with no private source paths, absent helpers or plugin dependencies. Related LocalCut skills can be discovered through the same index.
+Copy/download the whole skill folder, including its license, into your agent host's configured skills directory, or give its Markdown URL to an agent that can read it. Installation and automatic selection depend on the host. Each shipped skill also requires task-facing product copy and rejects storage/implementation/workflow metatext in rendered UI or authored titles; source transcripts remain unchanged unless correction is requested. Every folder contains all required workflow guidance, with no private source paths, absent helpers or plugin dependencies. Related LocalCut skills can be discovered through the same index.
 
 After editing Markdown/frontmatter, regenerate and verify metadata:
 

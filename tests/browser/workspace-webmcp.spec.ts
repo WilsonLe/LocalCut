@@ -397,27 +397,26 @@ for (const base of behaviorBases) {
     );
   });
 
-  test(`workspace WebMCP creates, imports files, edits asset notes and edits from an empty workspace @journey ${base}`, async ({
+  test(`workspace WebMCP creates, imports files, edits source clips and edits from an empty workspace @journey ${base}`, async ({
     page,
   }) => {
     await installHarness(page);
     page.setDefaultTimeout(15000);
     await page.goto(base);
     const { id, fixture, assetId } = await projectSetupJourney(page, base);
-    const notes = {
+    const text = {
       context: 'Opening shot\nKeep the original crop.',
       transcript: 'Hello LocalCut.\nThis is the opening scene.',
     };
-    const openNotes = async () => {
+    const openClips = async () => {
       if (
         (await page
           .locator('#workspace-media-content')
           .getAttribute('aria-hidden')) === 'true'
-      ) {
+      )
         await page
           .getByRole('button', { name: 'Expand media', exact: true })
           .click();
-      }
       await page
         .getByRole('button', {
           name: `Asset details for ${fixture.name}`,
@@ -430,90 +429,140 @@ for (const base of behaviorBases) {
           exact: true,
         })
         .click();
-      await page
-        .getByRole('menuitem', { name: 'Context and transcript', exact: true })
-        .click();
+      await page.getByRole('menuitem', { name: 'Clips', exact: true }).click();
     };
-    await openNotes();
-    const dialog = page.getByRole('dialog', { name: 'Context and transcript' });
-    await dialog
-      .getByRole('textbox', { name: 'Context', exact: true })
-      .fill(notes.context);
-    await dialog
-      .getByRole('textbox', { name: 'Transcript', exact: true })
-      .fill(notes.transcript);
-    await page.screenshot({
-      path: '.artifacts/asset-context-transcript-desktop.png',
+    const inspectAsset = () =>
+      call<Asset>(page, 'asset', { action: 'inspect', projectId: id, assetId });
+    await openClips();
+    const dialog = page.getByRole('dialog', {
+      name: fixture.name,
+      exact: true,
     });
     await dialog
-      .getByRole('button', { name: 'Save text', exact: true })
-      .click();
-    await expect(dialog).toBeHidden();
-    expect(
-      await call<Asset>(page, 'asset', {
-        action: 'inspect',
-        projectId: id,
-        assetId,
-      }),
-    ).toMatchObject({ notes: { ...notes, revision: 1 } });
-    await page.reload();
-    await projectReady(page, id);
-    await openNotes();
+      .getByRole('textbox', { name: 'Clip name', exact: true })
+      .fill('Opening');
+    await dialog
+      .getByRole('textbox', { name: 'Context', exact: true })
+      .fill(text.context);
+    await dialog
+      .getByRole('textbox', { name: 'Transcript', exact: true })
+      .fill(text.transcript);
+    await expect(dialog.getByRole('img', { name: fixture.name })).toBeVisible();
+    await dialog.getByRole('button', { name: 'Add clip', exact: true }).click();
+    await dialog
+      .getByRole('textbox', { name: 'Clip name', exact: true })
+      .fill('Detail');
+    await dialog
+      .getByRole('textbox', { name: 'Context', exact: true })
+      .fill('Closer view');
+    await dialog
+      .getByRole('textbox', { name: 'Transcript', exact: true })
+      .fill('Second section');
+    await dialog.getByRole('option', { name: 'Opening', exact: true }).click();
     await expect(
       dialog.getByRole('textbox', { name: 'Context', exact: true }),
-    ).toHaveValue(notes.context);
+    ).toHaveValue(text.context);
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(
-      dialog.getByRole('textbox', { name: 'Transcript', exact: true }),
-    ).toHaveValue(notes.transcript);
+      dialog.getByRole('button', { name: 'Save', exact: true }),
+    ).toHaveCount(0);
+    const saved = await inspectAsset();
+    expect(saved).toMatchObject({
+      clipsRevision: 1,
+      clips: [
+        { ...text, name: 'Opening' },
+        {
+          name: 'Detail',
+          context: 'Closer view',
+          transcript: 'Second section',
+        },
+      ],
+    });
+    const preview = await call<{ jobId: string }>(page, 'asset', {
+      action: 'preview_clip',
+      projectId: id,
+      assetId,
+      clipId: saved.clips![0]!.id,
+    });
+    expect(
+      await call(page, 'job', {
+        action: 'wait',
+        projectId: id,
+        jobId: preview.jobId,
+      }),
+    ).toMatchObject({
+      result: {
+        assetId,
+        kind: 'image',
+        startUs: 0,
+        endUs: 0,
+        previewUrl: expect.stringContaining('#t=0,0'),
+      },
+    });
+    await call(page, 'job', {
+      action: 'release',
+      projectId: id,
+      jobId: preview.jobId,
+    });
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await page.reload();
+    await projectReady(page, id);
+    await openClips();
+    await expect(
+      dialog.getByRole('textbox', { name: 'Context', exact: true }),
+    ).toHaveValue(text.context);
+    await expect(dialog.getByRole('option')).toHaveCount(2);
     await dialog
       .getByRole('textbox', { name: 'Context', exact: true })
       .fill('Unsaved draft');
-    const updated = { ...notes, context: 'Agent attached this context.' };
+    const updated = saved.clips!.map((clip, index) =>
+      index ? clip : { ...clip, context: 'Agent attached this context.' },
+    );
     expect(
       await call(page, 'asset', {
-        action: 'update_notes',
+        action: 'update_clips',
         projectId: id,
         assetId,
-        notes: updated,
-        expectedNotesRevision: 1,
+        clips: updated,
+        expectedClipsRevision: 1,
       }),
-    ).toMatchObject({ notes: { ...updated, revision: 2 } });
-    await dialog
-      .getByRole('button', { name: 'Save text', exact: true })
-      .click();
+    ).toMatchObject({ clipsRevision: 2 });
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(dialog.getByRole('alert')).toContainText('changed');
     await expect(
       dialog.getByRole('textbox', { name: 'Context', exact: true }),
     ).toHaveValue('Unsaved draft');
     await dialog
-      .getByRole('button', { name: 'Discard draft and reload saved text' })
+      .getByRole('button', { name: 'Discard draft and reload', exact: true })
       .click();
     await expect(
       dialog.getByRole('textbox', { name: 'Context', exact: true }),
-    ).toHaveValue(updated.context);
-    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    ).toHaveValue(updated[0]!.context);
+    await page.screenshot({ path: '.artifacts/asset-clips-desktop.png' });
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('#mobile-media-trigger').click();
-    await openNotes();
+    await openClips();
+    await dialog.getByRole('option', { name: 'Detail', exact: true }).click();
     await expect(
       dialog.getByRole('textbox', { name: 'Transcript', exact: true }),
-    ).toHaveValue(notes.transcript);
-    await page.screenshot({
-      path: '.artifacts/asset-context-transcript-mobile.png',
-    });
-    await dialog
-      .getByRole('textbox', { name: 'Context', exact: true })
-      .fill('');
-    await dialog
-      .getByRole('textbox', { name: 'Transcript', exact: true })
-      .fill('');
-    await dialog
-      .getByRole('button', { name: 'Save text', exact: true })
-      .click();
-    await expect(dialog).toBeHidden();
+    ).toHaveValue('Second section');
     expect(
-      await call(page, 'asset', { action: 'inspect', projectId: id, assetId }),
-    ).toMatchObject({ notes: { context: '', transcript: '', revision: 3 } });
+      await dialog.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({ path: '.artifacts/asset-clips-mobile.png' });
+    await dialog
+      .getByRole('button', { name: 'Remove clip', exact: true })
+      .click();
+    await expect(dialog.getByRole('option')).toHaveCount(1);
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(
+      dialog.getByRole('button', { name: 'Save', exact: true }),
+    ).toHaveCount(0);
+    expect((await inspectAsset()).clips).toHaveLength(1);
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await page.setViewportSize({ width: 1280, height: 800 });
     const versions = await call<ProjectVersionInfo[]>(page, 'versions', {
       projectId: id,
@@ -532,26 +581,26 @@ for (const base of behaviorBases) {
         true,
       );
     }).toPass();
-    await openNotes();
+    await openClips();
     await expect(
       dialog.getByRole('textbox', { name: 'Context', exact: true }),
     ).not.toBeEditable();
     await expect(
-      dialog.getByRole('button', { name: 'Save text', exact: true }),
+      dialog.getByRole('button', { name: 'Save', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      dialog.getByRole('button', { name: 'Add clip', exact: true }),
     ).toHaveCount(0);
     expect(
       await call(page, 'asset', {
-        action: 'update_notes',
+        action: 'update_clips',
         projectId: id,
         assetId,
-        notes,
-        expectedNotesRevision: 3,
+        clips: updated,
+        expectedClipsRevision: 3,
       }),
     ).toMatchObject({ isError: true });
-    await dialog
-      .locator('form')
-      .getByRole('button', { name: 'Close', exact: true })
-      .click();
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await page
       .getByRole('button', { name: 'Return to current', exact: true })
       .click();

@@ -8,7 +8,7 @@ A browser video editor with local media processing. Import your own media, edit 
 
 ## What you can do
 
-- Attach editable context and transcript text to assets, and let compatible external agents use [LocalCut skills](docs/skills.md) and [WebMCP tools](docs/webmcp.md).
+- Organize assets into source clips with previews, context and transcripts, and let compatible external agents use [LocalCut skills](docs/skills.md) and [WebMCP tools](docs/webmcp.md).
 - Import video, audio and images; record a screen, window or browser tab through the browser's source picker.
 - Arrange tracks, trim and group clips, separate audio, adjust speed and pitch, and edit transitions.
 - Add styled and animated text, use bundled fonts, and generate captions with explicitly prepared local Whisper transcription.

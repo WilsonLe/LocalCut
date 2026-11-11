@@ -21,4 +21,6 @@ Inspect stills at handoffs, extrema, overlap and end states using `localcut_prev
 
 Return the editable project and inspected video. State which frames/ranges were reviewed and whether playback/sound was observed. Changed timing, artwork or fonts invalidates affected review evidence. Keep originals and prior exports; fix concrete timestamped issues. Optional external generation does not imply permission for paid services, media uploads or publication.
 
+Keep visible UI and authored titles/captions focused on the user's content and actions. Do not add storage explanations, implementation notes, workflow narration or filler such as “saved with this asset in your browser.” Include a short explanation only when it changes a concrete user decision or resolves an error. Preserve supplied transcript/content verbatim unless a correction is requested.
+
 Adapted for LocalCut from Agentic Workflows (motion-design; video-editing/references/compositing-and-keyframes.md). Copyright (c) 2026 Wilson Le. Distributed under the [MIT License](LICENSE.txt). All required workflow guidance is contained in this file.

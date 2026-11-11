@@ -21,4 +21,6 @@ Play and listen to the affected range, including joins, pauses and endings. Chec
 
 Export with `localcut_export_video`, wait/download with `localcut_job`, and check sync and sound in that encoded video. Silent frame previews do not verify audio. Report settings, affected source ranges, technical measurements actually made and listening coverage. Keep prior masters; fix a specific timestamped problem and repeat the affected stage. No provider upload, paid processing or publishing follows from local mixing authority.
 
+Keep visible UI and authored titles/captions focused on the user's content and actions. Do not add storage explanations, implementation notes, workflow narration or filler such as “saved with this asset in your browser.” Include a short explanation only when it changes a concrete user decision or resolves an error. Preserve supplied transcript/content verbatim unless a correction is requested.
+
 Adapted for LocalCut from Agentic Workflows (audio-editing; references/restoration-and-mixing.md). Copyright (c) 2026 Wilson Le. Distributed under the [MIT License](LICENSE.txt). All required workflow guidance is contained in this file.

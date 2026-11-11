@@ -71,8 +71,10 @@ import { EditorError, invariant, asEditorError } from '../core/errors';
 import { newProject, validateProject } from '../core/model';
 import { outputAssetIds } from '../core/timeline';
 import type { Asset, Project, Transcript } from '../core/model';
-import type { AssetNotesInput } from '../core/asset-notes';
-export type { AssetNotesInput } from '../core/asset-notes';
+import { validateAssetClips } from '../core/asset-clips';
+import type { AssetClip } from '../core/asset-clips';
+export { assetClipState } from '../core/asset-clips';
+export type { AssetClip } from '../core/asset-clips';
 import { applyOperations, parseBatch } from '../core/commands';
 import { repairLegacyIdentities } from '../core/legacy-identities';
 import type { CommandBatch } from '../core/commands';
@@ -978,22 +980,49 @@ export async function createEditor(options: EditorOptions = {}) {
           });
         return result.asset;
       },
-      async updateNotes(
+      async updateClips(
         id: string,
-        notes: AssetNotesInput,
-        expectedNotesRevision: number,
+        clips: AssetClip[],
+        expectedClipsRevision: number,
       ) {
         active();
-        const asset = await store.updateAssetNotes(
+        const asset = await store.updateAssetClips(
           id,
-          notes,
-          expectedNotesRevision,
+          clips,
+          expectedClipsRevision,
         );
         if (!disposed) {
           assetChanged(id);
           assetBroadcast.postMessage(id);
         }
         return asset;
+      },
+      previewClip(id: string, range: { startUs: number; endUs: number }) {
+        active();
+        return jobs.start(async (signal) => {
+          const asset = await store.getAsset(id);
+          validateAssetClips(
+            [
+              {
+                id: 'preview',
+                name: 'Preview',
+                ...range,
+                context: '',
+                transcript: '',
+              },
+            ],
+            asset,
+          );
+          invariant(
+            asset.status === 'ready',
+            'MISSING_ASSET',
+            'Relink the source to preview this clip.',
+          );
+          signal.throwIfAborted();
+          const file = await store.file(id);
+          signal.throwIfAborted();
+          return { file, kind: asset.kind, ...range };
+        });
       },
       relink(
         assetId: string,

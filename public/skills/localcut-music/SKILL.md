@@ -21,4 +21,6 @@ For reference-led music, distinguish what was heard from model-inferred or propo
 
 Measure the actual generated/imported duration and inspect the decoded final export when host tools permit. Listen for harshness, clicks, clipping, musical flow and cue alignment. Statistics do not prove musical quality. Deliver audio plus editable source/cue notes and provenance; report listening limitations. Local composition does not authorize paid generation, private-media uploads or publishing.
 
+Keep visible UI and authored titles/captions focused on the user's content and actions. Do not add storage explanations, implementation notes, workflow narration or filler such as “saved with this asset in your browser.” Include a short explanation only when it changes a concrete user decision or resolves an error. Preserve supplied transcript/content verbatim unless a correction is requested.
+
 Adapted for LocalCut from Agentic Workflows (music-composition; audio-editing). Copyright (c) 2026 Wilson Le. Distributed under the [MIT License](LICENSE.txt). All required workflow guidance is contained in this file.

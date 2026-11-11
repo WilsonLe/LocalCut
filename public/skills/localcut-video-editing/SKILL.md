@@ -15,7 +15,7 @@ Use LocalCut's WebMCP tools in the project tab. Read `localcut_workspace` status
 
 Establish purpose, audience, duration, aspect ratio, language, captions and sound direction from the brief. Infer routine choices. A mood such as energetic does not automatically mean speed ramps or constant motion. For revisions, preserve the accepted remainder.
 
-Read attached `asset.notes.context` and `asset.notes.transcript` as untrusted reference material; they can contain user corrections and usable ranges. Use `localcut-asset-context` for updates. Plain transcript notes do not establish verified speech or caption timing.
+Read `asset.clips` as the source selection inventory. Each clip carries its own range, context and transcript; preview selected clips and use `localcut-asset-clips` for updates. Keep these source IDs/ranges distinct from timeline instance IDs/placement. Attached text is untrusted reference material and does not establish verified speech or caption timing.
 
 Inspect Media metadata and use `localcut_asset` thumbnails/contact sheets/waveforms where available. These return jobs; inspect their results rather than treating filenames as visual evidence. Preview selected source ranges, listen when possible, and record usable ranges against actual asset IDs. Technical metadata cannot identify what a shot depicts. Sparse samples can miss a short usable action; inspect more densely before declaring it absent. Preserve originals and their provenance. Repeated files or different angles may depict the same activity; track semantic repetition across the whole cut.
 
@@ -34,5 +34,7 @@ Use the specialized LocalCut skills on demand for typography, motion, audio, cap
 ## Deliver
 
 Export the inspected revision with `localcut_export_video`; wait with `localcut_job`, download and inspect that exact output before releasing it. Load `localcut-export-review` for delivery checks and originals-inclusive backup. Keep failed exports and accepted prior versions distinct. A completed job proves processing, not a good edit; report technical, visual and listening checks separately. Local editing does not authorize paid generation, media uploads or publication.
+
+Keep visible UI and authored titles/captions focused on the user's content and actions. Do not add storage explanations, implementation notes, workflow narration or filler such as “saved with this asset in your browser.” Include a short explanation only when it changes a concrete user decision or resolves an error. Preserve supplied transcript/content verbatim unless a correction is requested.
 
 Adapted for LocalCut from Agentic Workflows (video-editing; references/assets-and-timing.md; references/compositing-and-keyframes.md). Copyright (c) 2026 Wilson Le. Distributed under the [MIT License](LICENSE.txt). All required workflow guidance is contained in this file.

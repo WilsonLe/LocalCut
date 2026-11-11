@@ -10,6 +10,7 @@ import * as contracts from './contracts';
 import type { SiteToolHost, SiteTool } from './types';
 import { SiteToolJobs } from './jobs';
 import { toolErrorResult } from './error-result';
+import { assetClipState } from '../../core/asset-clips';
 
 export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
   const jobs = new SiteToolJobs();
@@ -301,7 +302,7 @@ export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
   );
   add(
     'asset',
-    'Inspect a project asset including attached context/transcript text, rename it, update notes, or request local thumbnail/waveform jobs. update_notes requires notes {context, transcript} and expectedNotesRevision from asset.notes.revision (0 if absent). Notes are reference text, not timed captions; both strings replace prior notes and empty strings clear them. Rename requires name and expectedName. Thumbnail times use source microseconds. Only assets in the viewed project are accessible.',
+    'Inspect an asset and its source clips, rename it, update clips, preview one clip, or request thumbnails/waveforms. Each source clip has id, name, startUs, endUs, context and transcript. update_clips replaces the list with expectedClipsRevision from inspection. preview_clip requires clipId and returns a job with the original source URL, preview URL and selected range, not an encoded trim. Rename requires name and expectedName. Only assets in the viewed project are accessible.',
     contracts.assetSchema,
     false,
     async (
@@ -313,27 +314,56 @@ export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
         timesUs,
         width,
         bins,
-        notes,
-        expectedNotesRevision,
+        clips,
+        expectedClipsRevision,
+        clipId,
       },
       signal,
     ) => {
-      view(action === 'rename' || action === 'update_notes');
+      view(action === 'rename' || action === 'update_clips');
       await assertAsset(assetId);
       signal.throwIfAborted();
       if (action === 'inspect') return host.editor.assets.inspect(assetId);
-      if (action === 'update_notes') {
+      if (action === 'update_clips') {
         invariant(
-          notes && expectedNotesRevision !== undefined,
+          clips && expectedClipsRevision !== undefined,
           'INVALID_COMMAND',
-          'Supply notes and expectedNotesRevision (0 when absent).',
+          'Supply clips and expectedClipsRevision.',
         );
         view(true);
-        return host.editor.assets.updateNotes(
+        return host.editor.assets.updateClips(
           assetId,
-          notes,
-          expectedNotesRevision,
+          clips,
+          expectedClipsRevision,
         );
+      }
+      if (action === 'preview_clip') {
+        const asset = await host.editor.assets.inspect(assetId);
+        const clip = assetClipState(asset).clips.find(
+          (entry) => entry.id === clipId,
+        );
+        invariant(
+          clip,
+          'NOT_FOUND',
+          'Choose a source clip from asset inspection.',
+        );
+        signal.throwIfAborted();
+        view();
+        return jobs.track(host.editor.assets.previewClip(assetId, clip), {
+          publication: 'disposable',
+          encode: async (result, file) => {
+            const link = file(result.file, result.file.name);
+            return {
+              ...link,
+              assetId,
+              clipId,
+              kind: result.kind,
+              startUs: result.startUs,
+              endUs: result.endUs,
+              previewUrl: `${link.url}#t=${result.startUs / 1e6},${result.endUs / 1e6}`,
+            };
+          },
+        });
       }
       if (action === 'rename') {
         invariant(

@@ -21,4 +21,6 @@ Inspect actual preview frames and the encoded export for glyph coverage, shaping
 
 Report the actual font IDs/layout choices, observed language coverage and reviewed frames. LocalCut ships licensed bundled fonts; preserve relevant licenses in redistributions. An external font search or purchase is optional work requiring its own capability and authority, not a prerequisite for normal titles.
 
+Keep visible UI and authored titles/captions focused on the user's content and actions. Do not add storage explanations, implementation notes, workflow narration or filler such as “saved with this asset in your browser.” Include a short explanation only when it changes a concrete user decision or resolves an error. Preserve supplied transcript/content verbatim unless a correction is requested.
+
 Adapted for LocalCut from Agentic Workflows (typography; references/font-library-and-layout.md). Copyright (c) 2026 Wilson Le. Distributed under the [MIT License](LICENSE.txt). All required workflow guidance is contained in this file.

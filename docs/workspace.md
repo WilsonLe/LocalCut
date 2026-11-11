@@ -203,8 +203,8 @@ The desktop editor uses the space beside the independently collapsible Media lib
 
 ![Edit and Media navigation on mobile](images/manual-editor-mobile.png)
 
-## Asset context and transcript
+## Asset clips
 
-Open **Media → asset actions → Context and transcript** to view, attach or edit plain text for any asset, including Media not yet placed on the timeline. **Save text** persists exact context/transcript text locally; empty strings clear either field. **Cancel** discards the draft. If another tab/agent changed the saved notes, the dialog retains your draft and offers **Discard draft and reload saved text** before a new edit. The same menu works on mobile; saved historical views offer reading with **Close** and no save action.
+Open **Media → asset actions → Clips**. Select a source clip to preview its range and view/edit its name, In/Out points, Context and Transcript. Add clips, remove unwanted drafts and choose **Save**. Clip selection retains unsaved text across the collection. A conflict keeps the draft and offers **Discard draft and reload**. The responsive dialog uses the same fields on narrow screens; historical views allow selection/preview without editing controls.
 
-Notes are shared asset metadata across all instances, not a timeline edit or version-specific caption track. Editing a plain transcript does not change timed captions. Original media stays unchanged. See [asset metadata](api.md#asset-context-and-transcript-text) for persistence, events, backup inclusion and limits.
+Visible copy is limited to the asset/clip names, ranges, fields, actions, progress and actionable failures. Storage/implementation explanations stay in documentation. Legacy asset text appears on a whole-source clip. Source clips are shared asset metadata, independent of timeline placements and timed captions. See [the API contract](api.md#asset-context-and-transcript-text) for persistence, migration, bounds and backup inclusion.

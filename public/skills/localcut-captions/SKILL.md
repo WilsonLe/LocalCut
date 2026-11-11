@@ -9,7 +9,7 @@ metadata:
 
 # Local transcription and captions
 
-Attached `asset.notes.transcript` is editable reference text visible in the Media asset menu. Read it when useful, but distinguish user-supplied or corrected text from canonical timed transcripts. Use `localcut-asset-context` for plain notes; changing those notes does not change timed captions.
+Each `asset.clips` entry has editable transcript text and source bounds. Read the selected clip when useful, but distinguish supplied/corrected words from canonical timed transcripts. Use `localcut-asset-clips` to read, preview or edit source clips. For requested transcription, use its actual source range and attach returned words to that clip without inventing timing or rewriting caption tracks implicitly.
 
 Inspect the project and source audio asset ID, duration and language. Use `localcut_transcription` with `action: "status"` to inspect readiness. Prepare the local model only for explicitly requested transcription/model preparation; preparation downloads model/runtime assets. Bare startup or reading skills must not start it. LocalCut has local Whisper, not a cloud transcription provider.
 
@@ -22,5 +22,7 @@ Review uncertain names, numbers, language switches, silence and overlapping voic
 Use `localcut_apply_edits` for editable caption cues/styles, with the current revision and unique request ID. Preserve unrelated cue/style values and unique identities. Use real bundled font IDs from `localcut_catalog`; inspect wrapping, contrast, safe placement and readable holds at delivery size. Caption text must match the delivered cut rather than include removed speech.
 
 Review rendered caption frames, transition boundaries and playback sync, then inspect the exported candidate. An STT job alone does not certify speech accuracy. Report the source/ranges, language, model status, corrections and listening coverage. Keep media local; a missing local capability does not authorize uploading audio to a provider.
+
+Keep visible UI and authored titles/captions focused on the user's content and actions. Do not add storage explanations, implementation notes, workflow narration or filler such as “saved with this asset in your browser.” Include a short explanation only when it changes a concrete user decision or resolves an error. Preserve supplied transcript/content verbatim unless a correction is requested.
 
 Adapted for LocalCut from Agentic Workflows (speech-to-text; typography). Copyright (c) 2026 Wilson Le. Distributed under the [MIT License](LICENSE.txt). All required workflow guidance is contained in this file.

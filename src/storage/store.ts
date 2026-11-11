@@ -15,8 +15,8 @@ import {
   validateSpeechTranscriptTiming,
 } from '../core/model';
 import { commitWithSignal } from './transaction';
-import { assetNotesInputSchema } from '../core/asset-notes';
-import type { AssetNotesInput } from '../core/asset-notes';
+import { assetClipState, validateAssetClips } from '../core/asset-clips';
+import type { AssetClip } from '../core/asset-clips';
 import { checkAbort } from '../services/jobs';
 import { withQuotaRecovery } from './quota';
 import type { Asset, Project, Transcript, ProjectBackup } from '../core/model';
@@ -727,7 +727,8 @@ export class Store {
   async getAsset(id: string): Promise<Asset> {
     const asset = (await this.db.get('assets', id)) as Asset | undefined;
     invariant(asset, 'MISSING_ASSET', `Asset ${id} missing`);
-    return asset;
+    const state = assetClipState(asset);
+    return { ...asset, clips: state.clips, clipsRevision: state.revision };
   }
   async renameAsset(id: string, name: string, expectedName: string) {
     invariant(
@@ -764,38 +765,37 @@ export class Store {
       throw asEditorError(error);
     }
   }
-  async updateAssetNotes(
+  async updateAssetClips(
     id: string,
-    input: AssetNotesInput,
+    input: AssetClip[],
     expectedRevision: number,
   ): Promise<Asset> {
-    const parsed = assetNotesInputSchema.safeParse(input);
     invariant(
-      parsed.success &&
-        Number.isSafeInteger(expectedRevision) &&
-        expectedRevision >= 0,
+      Number.isSafeInteger(expectedRevision) && expectedRevision >= 0,
       'INVALID_COMMAND',
-      'Provide valid context, transcript and notes revision.',
+      'Provide the current clips revision.',
     );
     const tx = this.db.transaction('assets', 'readwrite');
     return commitWithSignal(tx, undefined, async () => {
       const asset = (await tx.store.get(id)) as Asset | undefined;
       invariant(asset, 'MISSING_ASSET', `Asset ${id} missing`);
-      const revision = asset.notes?.revision ?? 0;
+      const revision = assetClipState(asset).revision;
       invariant(
         revision === expectedRevision,
         'REVISION_CONFLICT',
-        'Asset context or transcript changed. Reopen Context and transcript to load the latest text before saving.',
+        'Clips changed elsewhere. Reload to continue.',
       );
       invariant(
         revision < Number.MAX_SAFE_INTEGER,
         'INVALID_COMMAND',
-        'Asset notes revision exhausted.',
+        'Clip revision exhausted.',
       );
       const updated: Asset = {
         ...asset,
-        notes: { ...parsed.data, revision: revision + 1 },
+        clips: validateAssetClips(input, asset),
+        clipsRevision: revision + 1,
       };
+      delete updated.notes;
       await tx.store.put(updated);
       return updated;
     });

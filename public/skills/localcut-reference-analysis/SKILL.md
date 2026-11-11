@@ -19,4 +19,6 @@ Translate each useful observation into an original decision for this brief: whic
 
 Store a concise reference breakdown beside the beat list or in the project's storyboard text if useful. Keep original or authorized assets and soundtrack provenance. Access to a reference does not grant redistribution rights or voice-cloning permission. Reinspect after timing changes and hand the accepted observations back to the one project timeline.
 
+Keep visible UI and authored titles/captions focused on the user's content and actions. Do not add storage explanations, implementation notes, workflow narration or filler such as “saved with this asset in your browser.” Include a short explanation only when it changes a concrete user decision or resolves an error. Preserve supplied transcript/content verbatim unless a correction is requested.
+
 Adapted for LocalCut from Agentic Workflows (video-editing/references/learn-from-reference.md). Copyright (c) 2026 Wilson Le. Distributed under the [MIT License](LICENSE.txt). All required workflow guidance is contained in this file.

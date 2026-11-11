@@ -29,7 +29,7 @@ Long operations return job IDs. Use `localcut_job` to wait/inspect/cancel, downl
 
 ## Choose a workflow
 
-- `localcut-asset-context` attaches and revises asset context and plain transcript text.
+- `localcut-asset-clips` organizes asset source clips with previews, context and transcripts.
 - `localcut-video-editing` owns the cut and final timing.
 - `localcut-reference-analysis` studies a supplied style or example.
 - `localcut-storyboards` develops visual beats and reusable artwork.
@@ -39,5 +39,7 @@ Long operations return job IDs. Use `localcut_job` to wait/inspect/cancel, downl
 - `localcut-export-review` checks and delivers the actual candidate.
 
 Skills expose guidance, not extra capabilities or permission to upload, pay, publish or spawn agents. Use current tool schemas to establish what is available. Keep local edits moving when an optional external capability is unavailable, and report that gap precisely.
+
+Keep visible UI and authored titles/captions focused on the user's content and actions. Do not add storage explanations, implementation notes, workflow narration or filler such as “saved with this asset in your browser.” Include a short explanation only when it changes a concrete user decision or resolves an error. Preserve supplied transcript/content verbatim unless a correction is requested.
 
 Adapted for LocalCut from Agentic Workflows (video-editing; suite progressive discovery). Copyright (c) 2026 Wilson Le. Distributed under the [MIT License](LICENSE.txt). All required workflow guidance is contained in this file.

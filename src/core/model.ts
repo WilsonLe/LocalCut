@@ -1,6 +1,7 @@
 import { validationInvariant, schemaValidation } from './edit-validation';
 import { captureMetadataSchema } from './capture-metadata';
 import { assetNotesSchema } from './asset-notes';
+import { assetClipsSchema, assetClipsIssue } from './asset-clips';
 import { storyboardSchema, validateStoryboard } from './storyboard';
 import { z } from 'zod';
 import { averageSpeed, nominalSourceBounds } from './speed';
@@ -296,8 +297,15 @@ export const assetSchema = z
     status: z.enum(['ready', 'missing']),
     capture: captureMetadataSchema.optional(),
     notes: assetNotesSchema.optional(),
+    clips: assetClipsSchema.optional(),
+    clipsRevision: time.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((asset, context) => {
+    const issue = asset.clips && assetClipsIssue(asset.clips, asset);
+    if (issue)
+      context.addIssue({ code: 'custom', path: ['clips'], message: issue });
+  });
 export const transcriptSchema = z
   .object({
     id,

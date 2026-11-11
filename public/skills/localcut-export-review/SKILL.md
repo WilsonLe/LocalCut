@@ -23,4 +23,6 @@ Offer or create the requested portable handoff with `localcut_backup_project`. C
 
 Release disposable preview/export results only after review and download. Report the delivered artifact, project/revision, checks actually made, listening/visual limitations and remaining placeholders. A completed export does not mean the file was published or approved by a human. Local rendering authority does not imply uploading media, posting publicly or spending on external services.
 
+Keep visible UI and authored titles/captions focused on the user's content and actions. Do not add storage explanations, implementation notes, workflow narration or filler such as “saved with this asset in your browser.” Include a short explanation only when it changes a concrete user decision or resolves an error. Preserve supplied transcript/content verbatim unless a correction is requested.
+
 Adapted for LocalCut from Agentic Workflows (video-editing/review and deliver; motion-design/technical verification; audio-editing). Copyright (c) 2026 Wilson Le. Distributed under the [MIT License](LICENSE.txt). All required workflow guidance is contained in this file.

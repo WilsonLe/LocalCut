@@ -17,7 +17,7 @@ import {
   Link,
   FileText,
 } from 'lucide-react';
-import { AssetNotesDialog } from './AssetNotesDialog';
+import { AssetClipsDialog } from './AssetClipsDialog';
 import type { Asset, Editor } from '../editor';
 import { Menu } from '@base-ui/react/menu';
 import { AssetMenu, assetMenuItemClass } from './AssetMenu';
@@ -520,7 +520,7 @@ function MediaAssetCard({
   const [dialog, setDialog] = useState<'rename' | 'delete' | null>(null);
   const [name, setName] = useState('');
   const [original, setOriginal] = useState(asset);
-  const [notesAsset, setNotesAsset] = useState<Asset | null>(null);
+  const [clipsAsset, setClipsAsset] = useState<Asset | null>(null);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState('');
   const actions = libraryActions ?? (
@@ -632,18 +632,18 @@ function MediaAssetCard({
         {actions}
         <Menu.Item
           className={assetMenuItemClass}
-          onClick={() => setNotesAsset(asset)}
+          onClick={() => setClipsAsset(asset)}
         >
           <FileText aria-hidden="true" />
-          Context and transcript
+          Clips
         </Menu.Item>
       </AssetMenu>
-      {notesAsset && (
-        <AssetNotesDialog
-          asset={notesAsset}
+      {clipsAsset && (
+        <AssetClipsDialog
+          asset={clipsAsset}
           editor={editor}
           readOnly={blocked}
-          onClose={() => setNotesAsset(null)}
+          onClose={() => setClipsAsset(null)}
           finalFocus={() =>
             card.current?.querySelector<HTMLButtonElement>(
               '.media-actions-trigger',
@@ -658,6 +658,7 @@ function MediaAssetCard({
         }}
       >
         <DialogContent
+          {...(dialog === 'rename' ? { 'aria-describedby': undefined } : {})}
           finalFocus={() =>
             card.current?.querySelector<HTMLButtonElement>(
               '.media-actions-trigger',
@@ -668,11 +669,11 @@ function MediaAssetCard({
             <DialogTitle>
               {dialog === 'rename' ? 'Rename asset' : 'Delete asset'}
             </DialogTitle>
-            <DialogDescription>
-              {dialog === 'rename'
-                ? 'Update the media name in this browser. The original file stays unchanged.'
-                : `Remove ${asset.name} and all its timeline clips from this project? Undo can restore them. Original media is retained for saved versions.`}
-            </DialogDescription>
+            {dialog === 'delete' && (
+              <DialogDescription>
+                {`Remove ${asset.name} and all its timeline clips from this project? Undo can restore them. Original media is retained for saved versions.`}
+              </DialogDescription>
+            )}
           </DialogHeader>
           <form
             className="space-y-4"
