@@ -283,6 +283,14 @@ for (const base of behaviorBases) {
                     endUs: 1_700_000,
                     context: 'Second section',
                     transcript: 'Detail words',
+                    transcriptCues: [
+                      {
+                        id: 'detail-speech',
+                        timeUs: 1_250_000,
+                        endUs: 1_500_000,
+                        text: 'Detail words',
+                      },
+                    ],
                   },
                 ],
                 0,
@@ -336,6 +344,14 @@ for (const base of behaviorBases) {
                   endUs: 1_700_000,
                   context: 'Second section',
                   transcript: 'Detail words',
+                  transcriptCues: [
+                    {
+                      id: 'detail-speech',
+                      timeUs: 1_250_000,
+                      endUs: 1_500_000,
+                      text: 'Detail words',
+                    },
+                  ],
                 },
               ],
               0,
@@ -399,6 +415,9 @@ for (const base of behaviorBases) {
         ),
       ).toBeCloseTo(0.8, 2);
       await dialog.getByRole('option', { name: /Detail/ }).click();
+      await dialog
+        .getByRole('tab', { name: 'Transcript', exact: true })
+        .click();
       await expect(
         dialog.getByRole('textbox', { name: 'Transcript', exact: true }),
       ).toHaveValue('Detail words');
@@ -407,6 +426,43 @@ for (const base of behaviorBases) {
           media.evaluate((element: HTMLMediaElement) => element.currentTime),
         )
         .toBeCloseTo(1.1, 1);
+      await dialog
+        .getByRole('button', {
+          name: 'Preview transcript at 00:01.25',
+          exact: true,
+        })
+        .click();
+      await expect
+        .poll(() =>
+          media.evaluate((element: HTMLMediaElement) => element.currentTime),
+        )
+        .toBeCloseTo(1.25, 2);
+      await page.screenshot({
+        path: `.artifacts/timestamped-transcript-${kind}.png`,
+      });
+      const fullText =
+        'A complete transcript paragraph. '.repeat(100) +
+        'Visible final sentence.';
+      await dialog
+        .getByRole('textbox', { name: 'Transcript', exact: true })
+        .fill(fullText);
+      expect(
+        await dialog
+          .getByRole('textbox', { name: 'Transcript', exact: true })
+          .evaluate(
+            (element) => element.scrollHeight <= element.clientHeight + 2,
+          ),
+      ).toBe(true);
+      await dialog
+        .getByRole('spinbutton', {
+          name: 'Transcript start 1 (s)',
+          exact: true,
+        })
+        .fill('1.3');
+      await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+      await expect(
+        dialog.getByRole('button', { name: 'Save', exact: true }),
+      ).toHaveCount(0);
       await dialog
         .getByRole('slider', { name: 'Preview position', exact: true })
         .fill('300000');

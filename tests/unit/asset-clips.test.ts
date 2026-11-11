@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { assetSchema } from '../../src/core/model';
-import { assetClipState, validateAssetClips } from '../../src/core/asset-clips';
+import {
+  assetClipState,
+  assetTranscriptCues,
+  validateAssetClips,
+} from '../../src/core/asset-clips';
 import { assetSchema as toolSchema } from '../../src/workspace/webmcp/contracts';
 const asset = {
   id: 'asset',
@@ -23,6 +27,46 @@ const clip = {
   transcript: 'Xin chào.\nSecond line.',
 };
 describe('asset source clips', () => {
+  it('retains untimed text and validates source-timestamped text without inventing timestamps', () => {
+    expect(assetTranscriptCues(clip)).toEqual([
+      { id: 'legacy-text', timeUs: null, endUs: null, text: clip.transcript },
+    ]);
+    const timed = {
+      ...clip,
+      transcript: 'Hello\nAgain',
+      transcriptCues: [
+        { id: 'a', timeUs: 100_000, endUs: 300_000, text: 'Hello' },
+        { id: 'b', timeUs: 800_000, endUs: 1_000_000, text: 'Again' },
+      ],
+    };
+    expect(validateAssetClips([timed], asset)).toEqual([timed]);
+    for (const transcriptCues of [
+      [timed.transcriptCues[0]!, { ...timed.transcriptCues[1]!, id: 'a' }],
+      [{ ...timed.transcriptCues[0]!, timeUs: -1 }, timed.transcriptCues[1]!],
+      [
+        { ...timed.transcriptCues[0]!, endUs: 3_000_000 },
+        timed.transcriptCues[1]!,
+      ],
+      [timed.transcriptCues[1]!, timed.transcriptCues[0]!],
+      [{ ...timed.transcriptCues[0]!, timeUs: null }, timed.transcriptCues[1]!],
+    ]) {
+      const invalid = {
+        ...timed,
+        transcriptCues,
+        transcript: transcriptCues.map((cue) => cue.text).join('\n'),
+      };
+      expect(() => validateAssetClips([invalid], asset)).toThrow();
+      expect(
+        assetSchema.safeParse({
+          ...asset,
+          clips: [invalid],
+        }).success,
+      ).toBe(false);
+    }
+    expect(() =>
+      validateAssetClips([{ ...timed, transcript: 'different text' }], asset),
+    ).toThrow('Transcript text must match its cues.');
+  });
   it('provides a whole-source clip without changing legacy data', () => {
     const input = assetSchema.parse({
       ...asset,

@@ -74,7 +74,7 @@ import type { Asset, Project, Transcript } from '../core/model';
 import { validateAssetClips } from '../core/asset-clips';
 import type { AssetClip } from '../core/asset-clips';
 export { assetClipState } from '../core/asset-clips';
-export type { AssetClip } from '../core/asset-clips';
+export type { AssetClip, AssetTranscriptCue } from '../core/asset-clips';
 import { applyOperations, parseBatch } from '../core/commands';
 import { repairLegacyIdentities } from '../core/legacy-identities';
 import type { CommandBatch } from '../core/commands';
@@ -999,6 +999,7 @@ export async function createEditor(options: EditorOptions = {}) {
       },
       previewClip(id: string, range: { startUs: number; endUs: number }) {
         active();
+        const bounds = { startUs: range.startUs, endUs: range.endUs };
         return jobs.start(async (signal) => {
           const asset = await store.getAsset(id);
           validateAssetClips(
@@ -1006,7 +1007,7 @@ export async function createEditor(options: EditorOptions = {}) {
               {
                 id: 'preview',
                 name: 'Preview',
-                ...range,
+                ...bounds,
                 context: '',
                 transcript: '',
               },
@@ -1021,7 +1022,7 @@ export async function createEditor(options: EditorOptions = {}) {
           signal.throwIfAborted();
           const file = await store.file(id);
           signal.throwIfAborted();
-          return { file, kind: asset.kind, ...range };
+          return { file, kind: asset.kind, ...bounds };
         });
       },
       relink(

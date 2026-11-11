@@ -9,13 +9,16 @@ export function AssetClipPreview({
   asset,
   startUs,
   endUs,
+  seek,
 }: {
   editor: Editor | null;
   asset: Asset;
   startUs: number;
   endUs: number;
+  seek?: { timeUs: number; request: number };
 }) {
   const media = useRef<HTMLMediaElement | null>(null);
+  const appliedSeek = useRef<typeof seek>(undefined);
   const attachMedia = useCallback((element: HTMLMediaElement | null) => {
     if (media.current !== element) media.current?.pause();
     media.current = element;
@@ -80,6 +83,15 @@ export function AssetClipPreview({
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [playing, endUs, valid]);
+  useEffect(() => {
+    const element = media.current;
+    if (!element || !source || !seek || !valid || appliedSeek.current === seek)
+      return;
+    appliedSeek.current = seek;
+    element.pause();
+    element.currentTime = Math.max(startUs, Math.min(endUs, seek.timeUs)) / 1e6;
+    element.scrollIntoView({ block: 'nearest' });
+  }, [seek, source, valid, startUs, endUs]);
   useEffect(
     () => () => {
       media.current?.pause();

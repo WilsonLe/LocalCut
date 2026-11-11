@@ -11,6 +11,8 @@ Use the [current preference index](current-preferences.md) to find relevant cont
 - Apply this preference to the shipped LocalCut skills and maintained UI Design skill, so future changes preserve it. Keep technical contracts in documentation; preserve actual user/source content.
 - This supersedes the flat asset-note UI from earlier on this date. Existing text must carry over to a whole-source clip. Verify locally and open the built app in the built-in browser.
 
+Follow-up: Context and Transcript use separate full-width tabs with full text. Transcript text carries individual source timestamps and can seek the clip preview. Preserve earlier untimed text without inventing timestamps. Index the user-authorized recording through local analysis and transcription; keep personal media and extracted content outside Git.
+
 ## Portable editing skills and asset reference text — 12 November 2026
 
 - Expose LocalCut skills through WebMCP and publish identical portable `SKILL.md` guidance, adapting all useful Agentic Workflows editing guidance into a self-contained LocalCut set. Users must not need to know about or install the upstream suite.

@@ -1,7 +1,13 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Film, Plus, Trash2 } from 'lucide-react';
 import type { Asset, AssetClip, Editor } from '../editor';
-import { assetClipState } from '../core/asset-clips';
+import { assetClipState, assetTranscriptCues } from '../core/asset-clips';
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
@@ -15,18 +21,46 @@ import {
 import { AssetClipPreview } from './AssetClipPreview';
 import { formatTime } from './helpers';
 
-type Draft = Omit<AssetClip, 'startUs' | 'endUs'> & {
+type CueDraft = { id: string; start: string; end: string; text: string };
+const cueDraft = (
+  cue: ReturnType<typeof assetTranscriptCues>[number],
+): CueDraft => ({
+  id: cue.id,
+  start: cue.timeUs === null ? '' : String(cue.timeUs / 1e6),
+  end: cue.endUs === null ? '' : String(cue.endUs / 1e6),
+  text: cue.text,
+});
+type Draft = Omit<AssetClip, 'startUs' | 'endUs' | 'transcriptCues'> & {
+  cues?: CueDraft[];
   start: string;
   end: string;
 };
 const draft = (clip: AssetClip): Draft => {
-  const { startUs, endUs, ...text } = clip;
-  return { ...text, start: String(startUs / 1e6), end: String(endUs / 1e6) };
-};
-const canonical = (clip: Draft): AssetClip => {
-  const { start, end, ...text } = clip;
+  const { startUs, endUs, transcriptCues, ...text } = clip;
   return {
     ...text,
+    ...(transcriptCues ? { cues: transcriptCues.map(cueDraft) } : {}),
+    start: String(startUs / 1e6),
+    end: String(endUs / 1e6),
+  };
+};
+const canonical = (clip: Draft): AssetClip => {
+  const { start, end, cues, ...text } = clip;
+  return {
+    ...text,
+    ...(cues
+      ? {
+          transcript: cues.map((cue) => cue.text).join('\n'),
+          transcriptCues: cues.map((cue) => ({
+            id: cue.id,
+            text: cue.text,
+            timeUs: cue.start.trim()
+              ? Math.round(Number(cue.start) * 1e6)
+              : null,
+            endUs: cue.end.trim() ? Math.round(Number(cue.end) * 1e6) : null,
+          })),
+        }
+      : {}),
     startUs: start.trim() ? Math.round(Number(start) * 1e6) : NaN,
     endUs: end.trim() ? Math.round(Number(end) * 1e6) : NaN,
   };
@@ -51,10 +85,15 @@ export function AssetClipsDialog({
   const [saved, setSaved] = useState(() =>
     JSON.stringify(initial.clips.map(draft)),
   );
-  const [selectedId, setSelectedId] = useState(initial.clips[0]!.id);
+  const [selectedId, setSelectedClipId] = useState(initial.clips[0]!.id);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState('');
   const [conflict, setConflict] = useState(false);
+  const [seek, setSeek] = useState<{ timeUs: number; request: number }>();
+  const selectClip = (id: string) => {
+    setSeek(undefined);
+    setSelectedClipId(id);
+  };
   const mounted = useRef(true);
   const fieldId = useId();
   useEffect(() => {
@@ -65,6 +104,11 @@ export function AssetClipsDialog({
   }, []);
   const selected = clips.find((clip) => clip.id === selectedId) ?? clips[0]!;
   const range = canonical(selected);
+  const cues =
+    selected.cues ??
+    (assetTranscriptCues(range).length
+      ? assetTranscriptCues(range).map(cueDraft)
+      : [{ id: 'legacy-text', start: '', end: '', text: '' }]);
   const dirty = JSON.stringify(clips) !== saved;
   const update = (patch: Partial<Draft>) =>
     setClips((previous) =>
@@ -78,8 +122,7 @@ export function AssetClipsDialog({
     setClips(next);
     setRevision(state.revision);
     setSaved(JSON.stringify(next));
-    if (!next.some((clip) => clip.id === selectedId))
-      setSelectedId(next[0]!.id);
+    if (!next.some((clip) => clip.id === selectedId)) selectClip(next[0]!.id);
   };
   const save = async () => {
     if (!editor || readOnly || saving) return;
@@ -165,7 +208,7 @@ export function AssetClipsDialog({
                       transcript: '',
                     });
                     setClips((previous) => [...previous, clip]);
-                    setSelectedId(clip.id);
+                    selectClip(clip.id);
                   }}
                 >
                   <Plus />
@@ -189,7 +232,7 @@ export function AssetClipsDialog({
                       (event.key === 'ArrowDown' ? 1 : clips.length - 1)) %
                       clips.length
                   ]!;
-                setSelectedId(next.id);
+                selectClip(next.id);
                 event.currentTarget
                   .querySelector<HTMLButtonElement>(
                     `[data-clip-index="${clips.indexOf(next)}"]`,
@@ -205,7 +248,7 @@ export function AssetClipsDialog({
                   aria-selected={selected.id === clip.id}
                   data-clip-index={index}
                   tabIndex={selected.id === clip.id ? 0 : -1}
-                  onClick={() => setSelectedId(clip.id)}
+                  onClick={() => selectClip(clip.id)}
                   className={`min-w-40 rounded-md border p-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-w-0 ${selected.id === clip.id ? 'border-primary/30 bg-accent' : 'border-transparent hover:bg-muted'}`}
                 >
                   <span className="flex items-center gap-2 text-sm font-medium">
@@ -282,7 +325,7 @@ export function AssetClipsDialog({
                     setClips((previous) =>
                       previous.filter((clip) => clip.id !== selected.id),
                     );
-                    setSelectedId(
+                    selectClip(
                       clips.find((clip) => clip.id !== selected.id)!.id,
                     );
                   }}
@@ -296,45 +339,154 @@ export function AssetClipsDialog({
               asset={asset}
               startUs={range.startUs}
               endUs={range.endUs}
+              seek={seek}
             />
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="grid gap-2">
-                <label
-                  htmlFor={`${fieldId}-context`}
-                  className="text-sm font-medium"
-                >
-                  Context
-                </label>
+            <Tabs defaultValue="context">
+              <TabsList className="flex w-fit" aria-label="Clip content">
+                <TabsTrigger value="context">Context</TabsTrigger>
+                <TabsTrigger value="transcript">Transcript</TabsTrigger>
+              </TabsList>
+              <TabsContent value="context">
                 <Textarea
-                  id={`${fieldId}-context`}
-                  className="min-h-28 max-h-48 overflow-y-auto"
+                  aria-label="Context"
+                  className="min-h-64 w-full resize-y"
+                  rows={Math.max(10, selected.context.split('\n').length)}
                   value={selected.context}
                   maxLength={100000}
                   readOnly={readOnly}
                   disabled={saving}
                   onChange={(event) => update({ context: event.target.value })}
                 />
-              </div>
-              <div className="grid gap-2">
-                <label
-                  htmlFor={`${fieldId}-transcript`}
-                  className="text-sm font-medium"
-                >
-                  Transcript
-                </label>
-                <Textarea
-                  id={`${fieldId}-transcript`}
-                  className="min-h-28 max-h-48 overflow-y-auto"
-                  value={selected.transcript}
-                  maxLength={1000000}
-                  readOnly={readOnly}
-                  disabled={saving}
-                  onChange={(event) =>
-                    update({ transcript: event.target.value })
-                  }
-                />
-              </div>
-            </div>
+              </TabsContent>
+              <TabsContent value="transcript" className="space-y-4">
+                {cues.map((cue, index) => (
+                  <div key={cue.id} className="space-y-2 rounded-lg border p-3">
+                    <div className="flex items-center gap-2">
+                      {cue.start.trim() &&
+                        Number.isFinite(Number(cue.start)) && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`Preview transcript at ${formatTime(Number(cue.start) * 1e6)}`}
+                            onClick={() =>
+                              setSeek({
+                                timeUs: Math.round(Number(cue.start) * 1e6),
+                                request: (seek?.request ?? 0) + 1,
+                              })
+                            }
+                          >
+                            {formatTime(Number(cue.start) * 1e6)}
+                          </Button>
+                        )}
+                      <label className="grid w-24 gap-1 text-xs text-muted-foreground">
+                        Start (s)
+                        <Input
+                          aria-label={`Transcript start ${index + 1} (s)`}
+                          type="number"
+                          step="0.001"
+                          min="0"
+                          placeholder="Untimed"
+                          value={cue.start}
+                          readOnly={readOnly}
+                          disabled={saving}
+                          onChange={(event) =>
+                            update({
+                              cues: cues.map((item, i) =>
+                                i === index
+                                  ? { ...item, start: event.target.value }
+                                  : item,
+                              ),
+                            })
+                          }
+                        />
+                      </label>
+                      <label className="grid w-24 gap-1 text-xs text-muted-foreground">
+                        End (s)
+                        <Input
+                          aria-label={`Transcript end ${index + 1} (s)`}
+                          type="number"
+                          step="0.001"
+                          min="0"
+                          value={cue.end}
+                          readOnly={readOnly}
+                          disabled={saving}
+                          onChange={(event) =>
+                            update({
+                              cues: cues.map((item, i) =>
+                                i === index
+                                  ? { ...item, end: event.target.value }
+                                  : item,
+                              ),
+                            })
+                          }
+                        />
+                      </label>
+                      {!readOnly && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="ml-auto"
+                          aria-label={`Remove transcript text ${index + 1}`}
+                          disabled={saving}
+                          onClick={() =>
+                            update({ cues: cues.filter((_, i) => i !== index) })
+                          }
+                        >
+                          <Trash2 />
+                        </Button>
+                      )}
+                    </div>
+                    <Textarea
+                      aria-label={
+                        index === 0
+                          ? 'Transcript'
+                          : `Transcript text ${index + 1}`
+                      }
+                      className="min-h-24 w-full resize-y"
+                      rows={Math.max(3, cue.text.split('\n').length)}
+                      value={cue.text}
+                      maxLength={1000000}
+                      readOnly={readOnly}
+                      disabled={saving}
+                      onChange={(event) =>
+                        update({
+                          cues: cues.map((item, i) =>
+                            i === index
+                              ? { ...item, text: event.target.value }
+                              : item,
+                          ),
+                        })
+                      }
+                    />
+                  </div>
+                ))}
+                {!readOnly && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={saving}
+                    onClick={() =>
+                      update({
+                        cues: [
+                          ...cues,
+                          {
+                            id: crypto.randomUUID(),
+                            start: '',
+                            end: '',
+                            text: '',
+                          },
+                        ],
+                      })
+                    }
+                  >
+                    <Plus />
+                    Add text
+                  </Button>
+                )}
+              </TabsContent>
+            </Tabs>
             {failure && (
               <p role="alert" className="text-sm text-destructive">
                 {failure}

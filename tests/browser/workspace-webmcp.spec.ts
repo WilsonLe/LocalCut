@@ -441,9 +441,11 @@ for (const base of behaviorBases) {
     await dialog
       .getByRole('textbox', { name: 'Clip name', exact: true })
       .fill('Opening');
+    await dialog.getByRole('tab', { name: 'Context', exact: true }).click();
     await dialog
       .getByRole('textbox', { name: 'Context', exact: true })
       .fill(text.context);
+    await dialog.getByRole('tab', { name: 'Transcript', exact: true }).click();
     await dialog
       .getByRole('textbox', { name: 'Transcript', exact: true })
       .fill(text.transcript);
@@ -452,13 +454,16 @@ for (const base of behaviorBases) {
     await dialog
       .getByRole('textbox', { name: 'Clip name', exact: true })
       .fill('Detail');
+    await dialog.getByRole('tab', { name: 'Context', exact: true }).click();
     await dialog
       .getByRole('textbox', { name: 'Context', exact: true })
       .fill('Closer view');
+    await dialog.getByRole('tab', { name: 'Transcript', exact: true }).click();
     await dialog
       .getByRole('textbox', { name: 'Transcript', exact: true })
       .fill('Second section');
     await dialog.getByRole('option', { name: 'Opening', exact: true }).click();
+    await dialog.getByRole('tab', { name: 'Context', exact: true }).click();
     await expect(
       dialog.getByRole('textbox', { name: 'Context', exact: true }),
     ).toHaveValue(text.context);
@@ -508,10 +513,12 @@ for (const base of behaviorBases) {
     await page.reload();
     await projectReady(page, id);
     await openClips();
+    await dialog.getByRole('tab', { name: 'Context', exact: true }).click();
     await expect(
       dialog.getByRole('textbox', { name: 'Context', exact: true }),
     ).toHaveValue(text.context);
     await expect(dialog.getByRole('option')).toHaveCount(2);
+    await dialog.getByRole('tab', { name: 'Context', exact: true }).click();
     await dialog
       .getByRole('textbox', { name: 'Context', exact: true })
       .fill('Unsaved draft');
@@ -529,12 +536,14 @@ for (const base of behaviorBases) {
     ).toMatchObject({ clipsRevision: 2 });
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(dialog.getByRole('alert')).toContainText('changed');
+    await dialog.getByRole('tab', { name: 'Context', exact: true }).click();
     await expect(
       dialog.getByRole('textbox', { name: 'Context', exact: true }),
     ).toHaveValue('Unsaved draft');
     await dialog
       .getByRole('button', { name: 'Discard draft and reload', exact: true })
       .click();
+    await dialog.getByRole('tab', { name: 'Context', exact: true }).click();
     await expect(
       dialog.getByRole('textbox', { name: 'Context', exact: true }),
     ).toHaveValue(updated[0]!.context);
@@ -544,6 +553,7 @@ for (const base of behaviorBases) {
     await page.locator('#mobile-media-trigger').click();
     await openClips();
     await dialog.getByRole('option', { name: 'Detail', exact: true }).click();
+    await dialog.getByRole('tab', { name: 'Transcript', exact: true }).click();
     await expect(
       dialog.getByRole('textbox', { name: 'Transcript', exact: true }),
     ).toHaveValue('Second section');
@@ -582,6 +592,7 @@ for (const base of behaviorBases) {
       );
     }).toPass();
     await openClips();
+    await dialog.getByRole('tab', { name: 'Context', exact: true }).click();
     await expect(
       dialog.getByRole('textbox', { name: 'Context', exact: true }),
     ).not.toBeEditable();

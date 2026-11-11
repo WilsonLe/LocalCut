@@ -4,7 +4,7 @@
     {
       "name": "localcut-asset-clips",
       "description": "Create and edit source clips inside LocalCut assets, with a source range, preview, context and transcript for each clip.",
-      "sha256": "efdc9160823c48fe4efe22ca42ba2a5c419f4d599e2ef6efb6d4dcade726061c"
+      "sha256": "85304add57c891a2f0fea6722f0be5dcabdc6b4853848236fd762827d31aa13c"
     },
     {
       "name": "localcut-audio-editing",
@@ -14,7 +14,7 @@
     {
       "name": "localcut-captions",
       "description": "Transcribe local project audio with explicit Whisper preparation and create or revise accurately timed LocalCut captions without inventing speech.",
-      "sha256": "3e9f999a6e714c97ce0efe1b7dfa4468a4e904a4bd8dae275e5181ff8a16aa69"
+      "sha256": "ab193c7253184584d63e900d5b24f5e98c0f6b589c65da7d4724309455a380b0"
     },
     {
       "name": "localcut-export-review",
@@ -64,7 +64,7 @@
     {
       "name": "localcut-video-editing",
       "description": "Assemble or revise footage, images and sound into a coherent LocalCut timeline, with source inspection, continuity, timing and final review.",
-      "sha256": "dcccc5ff2daf55119fa861dd6af6c860ddaaa857c15e0aae6b9818018b94766e"
+      "sha256": "8cc70645e625df4bfdffdef604fc9d27355a14f4dd9de46af414117d1c3bb320"
     }
   ]
 }

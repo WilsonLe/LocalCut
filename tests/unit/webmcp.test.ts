@@ -59,6 +59,57 @@ function fixture() {
 }
 
 describe('project site tools', () => {
+  it('scopes retained index reads and resumes to the viewed asset and blocks historical analysis', async () => {
+    const f = fixture();
+    const analyze = vi.fn(() =>
+      new Jobs().start(async () => ({ id: 'new-run' })),
+    );
+    const get = vi.fn(async () => ({ id: 'run', assetId: 'foreign' }));
+    const list = vi.fn(async () => [{ id: 'run', assetId: 'asset' }]);
+    f.host.editor = {
+      ...f.host.editor,
+      library: {
+        forProject: () => ({
+          list: async () => ({ entries: [{ assetId: 'asset' }] }),
+        }),
+      },
+      assets: { analyze, indexes: { get, list } },
+    } as unknown as Editor;
+    const scope = { projectId: f.host.projectId, assetId: 'asset' };
+    expect(await f.invoke('asset', { ...scope, action: 'indexes' })).toEqual([
+      { id: 'run', assetId: 'asset' },
+    ]);
+    expect(list).toHaveBeenCalledWith('asset');
+    for (const action of ['index', 'analyze']) {
+      expect(
+        await f.invoke('asset', { ...scope, action, indexRunId: 'run' }),
+      ).toMatchObject({ isError: true, error: { code: 'NOT_FOUND' } });
+    }
+    expect(analyze).not.toHaveBeenCalled();
+    f.setView({
+      ...f.current!,
+      version: {
+        id: 'saved',
+        project: f.current!.project,
+      } as ProjectView['version'],
+    });
+    expect(
+      await f.invoke('asset', { ...scope, action: 'analyze' }),
+    ).toMatchObject({ isError: true });
+    f.setView(f.current);
+    const job = (await f.invoke('asset', { ...scope, action: 'analyze' })) as {
+      jobId: string;
+    };
+    expect(
+      await f.invoke('job', {
+        projectId: f.host.projectId,
+        jobId: job.jobId,
+        action: 'wait',
+      }),
+    ).toMatchObject({ state: 'completed', result: { id: 'new-run' } });
+    expect(analyze).toHaveBeenCalledWith('asset', undefined);
+    await f.bridge.dispose();
+  });
   it('discovers the complete canonical operation and property schema without a vendor runtime', () => {
     expect(inputSchema(editSchema)).toEqual(inputSchema(batchSchema));
     const f = fixture();

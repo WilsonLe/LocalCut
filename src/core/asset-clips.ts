@@ -2,6 +2,15 @@ import { z } from 'zod';
 import { invariant } from './errors';
 
 const time = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+export const assetTranscriptCueSchema = z
+  .object({
+    id: z.string().min(1).max(200),
+    timeUs: time.nullable(),
+    endUs: time.nullable(),
+    text: z.string().max(1_000_000),
+  })
+  .strict();
+export type AssetTranscriptCue = z.infer<typeof assetTranscriptCueSchema>;
 export const assetClipSchema = z
   .object({
     id: z.string().min(1).max(200),
@@ -10,10 +19,27 @@ export const assetClipSchema = z
     endUs: time,
     context: z.string().max(100_000),
     transcript: z.string().max(1_000_000),
+    transcriptCues: z.array(assetTranscriptCueSchema).max(10000).optional(),
   })
   .strict();
 export const assetClipsSchema = z.array(assetClipSchema).min(1).max(1000);
 export type AssetClip = z.infer<typeof assetClipSchema>;
+
+export function assetTranscriptCues(clip: AssetClip): AssetTranscriptCue[] {
+  return (
+    clip.transcriptCues ??
+    (clip.transcript
+      ? [
+          {
+            id: 'legacy-text',
+            timeUs: null,
+            endUs: null,
+            text: clip.transcript,
+          },
+        ]
+      : [])
+  );
+}
 interface Source {
   durationUs: number;
 }
@@ -37,6 +63,34 @@ export function assetClipsIssue(
       (source.durationUs > 0 && clip.startUs === clip.endUs)
     )
       return 'Choose a clip range within the source duration.';
+    if (clip.transcriptCues) {
+      if (
+        clip.transcript !==
+        clip.transcriptCues.map((cue) => cue.text).join('\n')
+      )
+        return 'Transcript text must match its cues.';
+      const cueIds = new Set<string>();
+      let previous = -1;
+      for (const cue of clip.transcriptCues) {
+        if (cueIds.has(cue.id))
+          return 'Transcript cue IDs must be unique within the clip.';
+        cueIds.add(cue.id);
+        if (cue.timeUs === null) {
+          if (cue.endUs !== null)
+            return 'A transcript end requires a start timestamp.';
+          continue;
+        }
+        if (
+          cue.timeUs < clip.startUs ||
+          cue.timeUs > clip.endUs ||
+          cue.timeUs < previous ||
+          (cue.endUs !== null &&
+            (cue.endUs < cue.timeUs || cue.endUs > clip.endUs))
+        )
+          return 'Keep transcript timestamps ordered within the clip range.';
+        previous = cue.timeUs;
+      }
+    }
   }
   if (
     clips.reduce(

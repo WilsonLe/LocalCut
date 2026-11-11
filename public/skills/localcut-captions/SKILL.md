@@ -9,7 +9,7 @@ metadata:
 
 # Local transcription and captions
 
-Each `asset.clips` entry has editable transcript text and source bounds. Read the selected clip when useful, but distinguish supplied/corrected words from canonical timed transcripts. Use `localcut-asset-clips` to read, preview or edit source clips. For requested transcription, use its actual source range and attach returned words to that clip without inventing timing or rewriting caption tracks implicitly.
+Each `asset.clips` entry has editable transcript text and source bounds. Read the selected clip when useful, but distinguish supplied/corrected words from canonical timed transcripts. Use `localcut-asset-clips` to read, preview or edit source clips. For requested transcription, use its actual source range and attach returned words and their actual source times in `transcriptCues` to that clip without inventing timing or rewriting caption tracks implicitly.
 
 Inspect the project and source audio asset ID, duration and language. Use `localcut_transcription` with `action: "status"` to inspect readiness. Prepare the local model only for explicitly requested transcription/model preparation; preparation downloads model/runtime assets. Bare startup or reading skills must not start it. LocalCut has local Whisper, not a cloud transcription provider.
 

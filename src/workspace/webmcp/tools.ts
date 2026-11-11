@@ -302,7 +302,7 @@ export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
   );
   add(
     'asset',
-    'Inspect an asset and its source clips, rename it, update clips, preview one clip, or request thumbnails/waveforms. Each source clip has id, name, startUs, endUs, context and transcript. update_clips replaces the list with expectedClipsRevision from inspection. preview_clip requires clipId and returns a job with the original source URL, preview URL and selected range, not an encoded trim. Rename requires name and expectedName. Only assets in the viewed project are accessible.',
+    'Inspect an asset and its source clips, rename it, update clips, preview one clip, request thumbnails/waveforms, or analyze and inspect local indexes. analyze starts/resumes indexRunId, indexes lists retained runs, index reads indexRunId. No remote labeling or upload. Each source clip has id, name, startUs, endUs, context, plain transcript and optional transcriptCues {id,timeUs,endUs,text}; cue times are source microseconds or null for untimed text, and transcript equals cue text joined with newlines. update_clips replaces the list with expectedClipsRevision from inspection. preview_clip requires clipId and returns a job with the original source URL, preview URL and selected range, not an encoded trim. Rename requires name and expectedName. Only assets in the viewed project are accessible.',
     contracts.assetSchema,
     false,
     async (
@@ -317,13 +317,40 @@ export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
         clips,
         expectedClipsRevision,
         clipId,
+        indexRunId,
       },
       signal,
     ) => {
-      view(action === 'rename' || action === 'update_clips');
+      view(
+        action === 'rename' ||
+          action === 'update_clips' ||
+          action === 'analyze',
+      );
       await assertAsset(assetId);
       signal.throwIfAborted();
       if (action === 'inspect') return host.editor.assets.inspect(assetId);
+      if (action === 'indexes') {
+        const runs = await host.editor.assets.indexes.list(assetId);
+        signal.throwIfAborted();
+        view();
+        return runs;
+      }
+      if (action === 'index' || (action === 'analyze' && indexRunId)) {
+        invariant(indexRunId, 'INVALID_COMMAND', 'Supply indexRunId.');
+        const run = await host.editor.assets.indexes.get(indexRunId);
+        invariant(
+          run && run.assetId === assetId,
+          'NOT_FOUND',
+          'Index is not for this asset.',
+        );
+        signal.throwIfAborted();
+        view(action === 'analyze');
+        if (action === 'index') return run;
+      }
+      if (action === 'analyze') {
+        view(true);
+        return jobs.track(host.editor.assets.analyze(assetId, indexRunId));
+      }
       if (action === 'update_clips') {
         invariant(
           clips && expectedClipsRevision !== undefined,
