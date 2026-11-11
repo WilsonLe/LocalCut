@@ -2,7 +2,6 @@
 name: localcut-narration
 description: Prepare, import and time voiceover takes in LocalCut while preserving scripts, pronunciation, measured duration and generation capability limits.
 license: MIT
-compatibility: A LocalCut tab with WebMCP site tools, or an agent able to operate the ordinary editor UI.
 metadata:
   author: LocalCut
   source: Agentic Workflows 0.2.0+codex.20261018000000

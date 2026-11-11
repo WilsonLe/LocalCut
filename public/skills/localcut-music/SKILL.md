@@ -2,7 +2,6 @@
 name: localcut-music
 description: Compose or arrange original music and timed sound cues for LocalCut, using its isolated JavaScript workspace or imported audio with one shared edit clock.
 license: MIT
-compatibility: A LocalCut tab with WebMCP site tools, or an agent able to operate the ordinary editor UI.
 metadata:
   author: LocalCut
   source: Agentic Workflows 0.2.0+codex.20261018000000

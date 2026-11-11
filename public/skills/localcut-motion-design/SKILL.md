@@ -2,7 +2,6 @@
 name: localcut-motion-design
 description: Create purposeful LocalCut clip and text animation with canonical keyframes, compositing, masks and review at actual timeline times.
 license: MIT
-compatibility: A LocalCut tab with WebMCP site tools, or an agent able to operate the ordinary editor UI.
 metadata:
   author: LocalCut
   source: Agentic Workflows 0.2.0+codex.20261018000000

@@ -2,7 +2,6 @@
 name: localcut-audio-editing
 description: Restore and mix dialogue, music and effects in LocalCut using reversible clip processing, shared timing and honest listening evidence.
 license: MIT
-compatibility: A LocalCut tab with WebMCP site tools, or an agent able to operate the ordinary editor UI.
 metadata:
   author: LocalCut
   source: Agentic Workflows 0.2.0+codex.20261018000000

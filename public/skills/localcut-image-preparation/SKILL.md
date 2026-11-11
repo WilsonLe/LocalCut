@@ -2,7 +2,6 @@
 name: localcut-image-preparation
 description: Select and prepare still images or food/product shots for LocalCut while preserving originals, truthful details, composition and explicit generation boundaries.
 license: MIT
-compatibility: A LocalCut tab with WebMCP site tools, or an agent able to operate the ordinary editor UI.
 metadata:
   author: LocalCut
   source: Agentic Workflows 0.2.0+codex.20261018000000

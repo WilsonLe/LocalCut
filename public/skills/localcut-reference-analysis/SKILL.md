@@ -2,7 +2,6 @@
 name: localcut-reference-analysis
 description: Study supplied video, audio or image references and translate observed pacing, framing, type and sound into an original LocalCut edit.
 license: MIT
-compatibility: A LocalCut tab with WebMCP site tools, or an agent able to operate the ordinary editor UI.
 metadata:
   author: LocalCut
   source: Agentic Workflows 0.2.0+codex.20261018000000

@@ -2,7 +2,6 @@
 name: localcut-captions
 description: Transcribe local project audio with explicit Whisper preparation and create or revise accurately timed LocalCut captions without inventing speech.
 license: MIT
-compatibility: A LocalCut tab with WebMCP site tools, or an agent able to operate the ordinary editor UI.
 metadata:
   author: LocalCut
   source: Agentic Workflows 0.2.0+codex.20261018000000

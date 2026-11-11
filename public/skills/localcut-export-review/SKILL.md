@@ -2,7 +2,6 @@
 name: localcut-export-review
 description: Review and deliver the actual LocalCut export, preserving revision identity, technical versus visual and listening evidence, backups and job cleanup.
 license: MIT
-compatibility: A LocalCut tab with WebMCP site tools, or an agent able to operate the ordinary editor UI.
 metadata:
   author: LocalCut
   source: Agentic Workflows 0.2.0+codex.20261018000000

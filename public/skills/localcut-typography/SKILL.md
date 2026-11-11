@@ -2,7 +2,6 @@
 name: localcut-typography
 description: Choose bundled LocalCut fonts and design legible titles, captions and kinetic text for the actual language, canvas and delivery size.
 license: MIT
-compatibility: A LocalCut tab with WebMCP site tools, or an agent able to operate the ordinary editor UI.
 metadata:
   author: LocalCut
   source: Agentic Workflows 0.2.0+codex.20261018000000

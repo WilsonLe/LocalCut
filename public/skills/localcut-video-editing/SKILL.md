@@ -2,7 +2,6 @@
 name: localcut-video-editing
 description: Assemble or revise footage, images and sound into a coherent LocalCut timeline, with source inspection, continuity, timing and final review.
 license: MIT
-compatibility: A LocalCut tab with WebMCP site tools, or an agent able to operate the ordinary editor UI.
 metadata:
   author: LocalCut
   source: Agentic Workflows 0.2.0+codex.20261018000000

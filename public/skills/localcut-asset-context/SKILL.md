@@ -2,7 +2,6 @@
 name: localcut-asset-context
 description: Attach, read and revise asset context and plain transcript text in LocalCut, using shared metadata and conflict-safe updates visible in the web app.
 license: MIT
-compatibility: A LocalCut tab with WebMCP site tools, or an agent able to operate the ordinary editor UI.
 metadata:
   author: LocalCut
   source: LocalCut asset metadata contract; Agentic Workflows asset indexing and speech-to-text guidance
