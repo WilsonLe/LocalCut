@@ -4,6 +4,12 @@ This is the project record of the user's durable product and workflow choices. U
 
 Use the [current preference index](current-preferences.md) to find relevant contracts and superseding decisions. Existing dated entries and anchors remain available as decision history.
 
+## Portable editing skills and asset reference text — 12 November 2026
+
+- Expose LocalCut skills through WebMCP and publish identical portable `SKILL.md` guidance, adapting all useful Agentic Workflows editing guidance into a self-contained LocalCut set. Users must not need to know about or install the upstream suite.
+- Let users attach context and transcript text to assets and view/edit it in the web app. Keep the shared asset owner, local persistence and agent access consistent; plain transcript text is reference material separate from timed captions.
+- Preserve external-agent scope, inert discovery, shared editor validation and the removal of built-in assistant/provider features. See [skills](skills.md) and [asset text](api.md#asset-context-and-transcript-text).
+
 ## Autonomous browser project setup — 12 November 2026
 
 - Let a compatible browser agent start a project, import authorized local files and edit independently, including when LocalCut starts without an open project.

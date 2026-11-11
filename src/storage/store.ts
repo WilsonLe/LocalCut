@@ -15,6 +15,8 @@ import {
   validateSpeechTranscriptTiming,
 } from '../core/model';
 import { commitWithSignal } from './transaction';
+import { assetNotesInputSchema } from '../core/asset-notes';
+import type { AssetNotesInput } from '../core/asset-notes';
 import { checkAbort } from '../services/jobs';
 import { withQuotaRecovery } from './quota';
 import type { Asset, Project, Transcript, ProjectBackup } from '../core/model';
@@ -761,6 +763,42 @@ export class Store {
       await tx.done.catch(() => {});
       throw asEditorError(error);
     }
+  }
+  async updateAssetNotes(
+    id: string,
+    input: AssetNotesInput,
+    expectedRevision: number,
+  ): Promise<Asset> {
+    const parsed = assetNotesInputSchema.safeParse(input);
+    invariant(
+      parsed.success &&
+        Number.isSafeInteger(expectedRevision) &&
+        expectedRevision >= 0,
+      'INVALID_COMMAND',
+      'Provide valid context, transcript and notes revision.',
+    );
+    const tx = this.db.transaction('assets', 'readwrite');
+    return commitWithSignal(tx, undefined, async () => {
+      const asset = (await tx.store.get(id)) as Asset | undefined;
+      invariant(asset, 'MISSING_ASSET', `Asset ${id} missing`);
+      const revision = asset.notes?.revision ?? 0;
+      invariant(
+        revision === expectedRevision,
+        'REVISION_CONFLICT',
+        'Asset context or transcript changed. Reopen Context and transcript to load the latest text before saving.',
+      );
+      invariant(
+        revision < Number.MAX_SAFE_INTEGER,
+        'INVALID_COMMAND',
+        'Asset notes revision exhausted.',
+      );
+      const updated: Asset = {
+        ...asset,
+        notes: { ...parsed.data, revision: revision + 1 },
+      };
+      await tx.store.put(updated);
+      return updated;
+    });
   }
   async file(path: string): Promise<File> {
     try {

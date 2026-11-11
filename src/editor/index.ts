@@ -71,6 +71,8 @@ import { EditorError, invariant, asEditorError } from '../core/errors';
 import { newProject, validateProject } from '../core/model';
 import { outputAssetIds } from '../core/timeline';
 import type { Asset, Project, Transcript } from '../core/model';
+import type { AssetNotesInput } from '../core/asset-notes';
+export type { AssetNotesInput } from '../core/asset-notes';
 import { applyOperations, parseBatch } from '../core/commands';
 import { repairLegacyIdentities } from '../core/legacy-identities';
 import type { CommandBatch } from '../core/commands';
@@ -210,6 +212,20 @@ export async function createEditor(options: EditorOptions = {}) {
     };
   };
   const sessions = new Set<PreviewSession>();
+  const assetListeners = new Set<(assetId: string) => void>();
+  const assetBroadcast = new BroadcastChannel(`${namespace}-asset-metadata`);
+  const assetChanged = (assetId: string) => {
+    for (const listener of assetListeners) {
+      try {
+        listener(assetId);
+      } catch {
+        /* Consumer isolation. */
+      }
+    }
+  };
+  assetBroadcast.onmessage = (event: MessageEvent<unknown>) => {
+    if (typeof event.data === 'string') assetChanged(event.data);
+  };
   const projectListeners = new Set<(event: ProjectEvent) => void>();
   const versionListeners = new Set<(event: VersionEvent) => void>();
   const versionNotify = (event: VersionEvent) => {
@@ -962,6 +978,23 @@ export async function createEditor(options: EditorOptions = {}) {
           });
         return result.asset;
       },
+      async updateNotes(
+        id: string,
+        notes: AssetNotesInput,
+        expectedNotesRevision: number,
+      ) {
+        active();
+        const asset = await store.updateAssetNotes(
+          id,
+          notes,
+          expectedNotesRevision,
+        );
+        if (!disposed) {
+          assetChanged(id);
+          assetBroadcast.postMessage(id);
+        }
+        return asset;
+      },
       relink(
         assetId: string,
         file: Blob,
@@ -1302,6 +1335,11 @@ export async function createEditor(options: EditorOptions = {}) {
       },
     },
     events: {
+      assets(listener: (assetId: string) => void) {
+        active();
+        assetListeners.add(listener);
+        return () => assetListeners.delete(listener);
+      },
       versions(listener: (event: VersionEvent) => void) {
         active();
         versionListeners.add(listener);
@@ -1359,6 +1397,8 @@ export async function createEditor(options: EditorOptions = {}) {
       projectListeners.clear();
       versionListeners.clear();
       libraryBroadcast.close();
+      assetBroadcast.close();
+      assetListeners.clear();
       libraryListeners.clear();
       await Promise.all(
         [...libraryStores.values()].map(async (pending) =>

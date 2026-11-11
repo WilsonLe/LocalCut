@@ -181,3 +181,7 @@ Coding mutations/execution and generated Media import use fresh durable tasks wi
 ## Workspace preferences after agent removal
 
 `localcut.workspace-preferences.v1` retains only `mediaWidth`, `timelineHeight`, `mediaOpen`, `timelineSnapping` and `exportFormat`. Reads/imports discard obsolete chat/model/provider fields; writes preserve other valid local choices. Legacy backups import without restoring agent settings. Startup removes retired provider credentials, authorization state and voice presets without opening project storage or historical chat/reference sidecars. Existing authored projects, original media and transcripts remain intact. See [the removal contract](ai.md).
+
+## Authored asset notes
+
+Optional `Asset.notes` holds exact plain context/transcript text and an independent monotonic revision. The existing assets store owns atomic compare-and-swap writes; no new database or startup migration is needed. These are retained authored metadata, not disposable derivatives or automatic inference results. They remain shared across clip instances/history, survive original relinking and travel with included asset metadata through backup ID remapping. Existing backup selection rules still determine which assets are included. See the [API contract](api.md#asset-context-and-transcript-text) for validation, conflicts, events and compatibility. Timed Whisper transcripts stay in their existing transcript store.

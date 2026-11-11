@@ -1,5 +1,6 @@
 import { validationInvariant, schemaValidation } from './edit-validation';
 import { captureMetadataSchema } from './capture-metadata';
+import { assetNotesSchema } from './asset-notes';
 import { storyboardSchema, validateStoryboard } from './storyboard';
 import { z } from 'zod';
 import { averageSpeed, nominalSourceBounds } from './speed';
@@ -294,6 +295,7 @@ export const assetSchema = z
     channels: z.number().int().positive().optional(),
     status: z.enum(['ready', 'missing']),
     capture: captureMetadataSchema.optional(),
+    notes: assetNotesSchema.optional(),
   })
   .strict();
 export const transcriptSchema = z

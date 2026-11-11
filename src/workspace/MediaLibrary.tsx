@@ -15,7 +15,9 @@ import {
   Pencil,
   Trash2,
   Link,
+  FileText,
 } from 'lucide-react';
+import { AssetNotesDialog } from './AssetNotesDialog';
 import type { Asset, Editor } from '../editor';
 import { Menu } from '@base-ui/react/menu';
 import { AssetMenu, assetMenuItemClass } from './AssetMenu';
@@ -518,6 +520,7 @@ function MediaAssetCard({
   const [dialog, setDialog] = useState<'rename' | 'delete' | null>(null);
   const [name, setName] = useState('');
   const [original, setOriginal] = useState(asset);
+  const [notesAsset, setNotesAsset] = useState<Asset | null>(null);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState('');
   const actions = libraryActions ?? (
@@ -625,7 +628,29 @@ function MediaAssetCard({
           {...previewProps}
         />
       </Tooltip>
-      <AssetMenu name={asset.name}>{actions}</AssetMenu>
+      <AssetMenu name={asset.name}>
+        <Menu.Item
+          className={assetMenuItemClass}
+          onClick={() => setNotesAsset(asset)}
+        >
+          <FileText aria-hidden="true" />
+          Context and transcript
+        </Menu.Item>
+        {actions}
+      </AssetMenu>
+      {notesAsset && (
+        <AssetNotesDialog
+          asset={notesAsset}
+          editor={editor}
+          readOnly={blocked}
+          onClose={() => setNotesAsset(null)}
+          finalFocus={() =>
+            card.current?.querySelector<HTMLButtonElement>(
+              '.media-actions-trigger',
+            ) ?? false
+          }
+        />
+      )}
       <Dialog
         open={dialog !== null}
         onOpenChange={(open) => {

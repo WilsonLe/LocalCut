@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
 import type {
   Project,
@@ -230,7 +231,7 @@ async function projectSetupJourney(page: Page, base: string) {
   expect(
     (await call<Inspection>(page, 'inspect_project')).project.revision,
   ).toBe(1);
-  return { id, fixture };
+  return { id, fixture, assetId: imported.assets[0]!.id };
 }
 type Inspection = {
   project: Project;
@@ -305,12 +306,225 @@ async function persisted(page: Page, base: string, id: string) {
 }
 
 for (const base of behaviorBases) {
-  test(`workspace WebMCP creates, imports files and edits from an empty workspace @journey ${base}`, async ({
+  test(`workspace WebMCP skills publish identical portable guidance without editor startup @journey ${base}`, async ({
+    page,
+  }) => {
+    await installHarness(page);
+    const requests: string[] = [];
+    page.on('request', (request) => requests.push(request.url()));
+    await page.goto(base);
+    await workspaceReady(page);
+    expect(requests.filter((url) => url.includes('/skills/'))).toEqual([]);
+    type Catalog = {
+      version: number;
+      skills: {
+        name: string;
+        description: string;
+        sha256: string;
+        url: string;
+        licenseUrl: string;
+      }[];
+    };
+    const catalog = await call<Catalog>(page, 'skills', { action: 'list' });
+    expect(catalog.skills.length).toBeGreaterThanOrEqual(12);
+    expect(requests.filter((url) => url.endsWith('/SKILL.md'))).toEqual([]);
+    const sourceDirectory = new URL('../../public/skills/', import.meta.url);
+    const publishedIndex = JSON.parse(
+      await readFile(new URL('index.json', sourceDirectory), 'utf8'),
+    );
+    expect(
+      catalog.skills.map(({ name, description, sha256 }) => ({
+        name,
+        description,
+        sha256,
+      })),
+    ).toEqual(publishedIndex.skills);
+    for (const skill of catalog.skills) {
+      const result = await call<{ content: string; url: string }>(
+        page,
+        'skills',
+        { action: 'get', name: skill.name },
+      );
+      expect(result.content).toBe(
+        await readFile(
+          new URL(`${skill.name}/SKILL.md`, sourceDirectory),
+          'utf8',
+        ),
+      );
+      expect(result.url).toBe(
+        new URL(`${base}skills/${skill.name}/SKILL.md`, page.url()).href,
+      );
+      expect((await page.request.get(skill.licenseUrl)).ok()).toBe(true);
+    }
+    expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
+    expect(
+      requests.some((url) =>
+        /\/assets\/(editor|worker)-|huggingface|onnxruntime|openrouter/.test(
+          url,
+        ),
+      ),
+    ).toBe(false);
+    // Check the second hosting path's static publication without repeating a UI journey.
+    const rootIndex = await page.request.get(
+      new URL('/skills/index.json', page.url()).href,
+    );
+    expect(await rootIndex.json()).toEqual(publishedIndex);
+    const rootSkill = await page.request.get(
+      new URL('/skills/localcut-start/SKILL.md', page.url()).href,
+    );
+    expect(await rootSkill.text()).toBe(
+      await readFile(
+        new URL('localcut-start/SKILL.md', sourceDirectory),
+        'utf8',
+      ),
+    );
+    await page.goto(`${base}#/projects`);
+    await workspaceReady(page);
+    expect(
+      await call(page, 'skills', { action: 'get', name: 'localcut-start' }),
+    ).toHaveProperty('content');
+    await page.reload();
+    await workspaceReady(page);
+    expect(await call(page, 'skills', { action: 'list' })).toMatchObject({
+      skills: catalog.skills,
+    });
+    expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
+  });
+
+  test(`workspace WebMCP creates, imports files, edits asset notes and edits from an empty workspace @journey ${base}`, async ({
     page,
   }) => {
     await installHarness(page);
     await page.goto(base);
-    const { id, fixture } = await projectSetupJourney(page, base);
+    const { id, fixture, assetId } = await projectSetupJourney(page, base);
+    const notes = {
+      context: 'Opening shot\nKeep the original crop.',
+      transcript: 'Hello LocalCut.\n<script>plain text</script>',
+    };
+    const openNotes = async () => {
+      await page
+        .getByRole('button', {
+          name: `Actions for ${fixture.name}`,
+          exact: true,
+        })
+        .click();
+      await page
+        .getByRole('menuitem', { name: 'Context and transcript', exact: true })
+        .click();
+    };
+    await openNotes();
+    const dialog = page.getByRole('dialog', { name: 'Context and transcript' });
+    await dialog.getByLabel('Context', { exact: true }).fill(notes.context);
+    await dialog
+      .getByLabel('Transcript', { exact: true })
+      .fill(notes.transcript);
+    await dialog
+      .getByRole('button', { name: 'Save text', exact: true })
+      .click();
+    await expect(dialog).toBeHidden();
+    expect(
+      await call<Asset>(page, 'asset', {
+        action: 'inspect',
+        projectId: id,
+        assetId,
+      }),
+    ).toMatchObject({ notes: { ...notes, revision: 1 } });
+    await page.reload();
+    await projectReady(page, id);
+    await openNotes();
+    await expect(dialog.getByLabel('Context', { exact: true })).toHaveValue(
+      notes.context,
+    );
+    await expect(dialog.getByLabel('Transcript', { exact: true })).toHaveValue(
+      notes.transcript,
+    );
+    await page.screenshot({
+      path: '.artifacts/asset-context-transcript-desktop.png',
+    });
+    await dialog.getByLabel('Context', { exact: true }).fill('Unsaved draft');
+    const updated = { ...notes, context: 'Agent attached this context.' };
+    expect(
+      await call(page, 'asset', {
+        action: 'update_notes',
+        projectId: id,
+        assetId,
+        notes: updated,
+        expectedNotesRevision: 1,
+      }),
+    ).toMatchObject({ notes: { ...updated, revision: 2 } });
+    await dialog
+      .getByRole('button', { name: 'Save text', exact: true })
+      .click();
+    await expect(dialog.getByRole('alert')).toContainText('changed');
+    await expect(dialog.getByLabel('Context', { exact: true })).toHaveValue(
+      'Unsaved draft',
+    );
+    await dialog
+      .getByRole('button', { name: 'Discard draft and reload saved text' })
+      .click();
+    await expect(dialog.getByLabel('Context', { exact: true })).toHaveValue(
+      updated.context,
+    );
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('#mobile-media-trigger').click();
+    await openNotes();
+    await expect(dialog.getByLabel('Transcript', { exact: true })).toHaveValue(
+      notes.transcript,
+    );
+    await page.screenshot({
+      path: '.artifacts/asset-context-transcript-mobile.png',
+    });
+    await dialog.getByLabel('Context', { exact: true }).fill('');
+    await dialog.getByLabel('Transcript', { exact: true }).fill('');
+    await dialog
+      .getByRole('button', { name: 'Save text', exact: true })
+      .click();
+    await expect(dialog).toBeHidden();
+    expect(
+      await call(page, 'asset', { action: 'inspect', projectId: id, assetId }),
+    ).toMatchObject({ notes: { context: '', transcript: '', revision: 3 } });
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const versions = await call<ProjectVersionInfo[]>(page, 'versions', {
+      projectId: id,
+      action: 'save',
+    });
+    await openVersions(page);
+    await page
+      .getByRole('button', {
+        name: new RegExp(`^Version ${versions.at(-1)!.number} ·`),
+      })
+      .click();
+    await expect(async () => {
+      expect((await call<Inspection>(page, 'inspect_project')).readOnly).toBe(
+        true,
+      );
+    }).toPass();
+    await openNotes();
+    await expect(
+      dialog.getByLabel('Context', { exact: true }),
+    ).not.toBeEditable();
+    await expect(
+      dialog.getByRole('button', { name: 'Save text', exact: true }),
+    ).toHaveCount(0);
+    expect(
+      await call(page, 'asset', {
+        action: 'update_notes',
+        projectId: id,
+        assetId,
+        notes,
+        expectedNotesRevision: 3,
+      }),
+    ).toMatchObject({ isError: true });
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Return to current', exact: true })
+      .click();
+    await expect(async () => {
+      expect((await call<Inspection>(page, 'inspect_project')).readOnly).toBe(
+        false,
+      );
+    }).toPass();
     // A file chooser is a separate browser step. Retire its captured project
     // before selection and prove the original request cannot target the new one.
     const picker = page.waitForEvent('filechooser');
@@ -368,7 +582,7 @@ for (const base of behaviorBases) {
           ).modelContext.getTools()
         ).map((tool) => tool.name),
       ),
-    ).toEqual(['localcut_workspace']);
+    ).toEqual(['localcut_skills', 'localcut_workspace']);
     expect(
       await page.evaluate(async () =>
         (await indexedDB.databases()).filter((db) =>
@@ -477,6 +691,9 @@ for (const base of behaviorBases) {
         true,
       );
     }).toPass();
+    expect(
+      await call(page, 'skills', { action: 'get', name: 'localcut-start' }),
+    ).toHaveProperty('content');
     expect(
       (await call<Inspection>(page, 'inspect_project')).project.tracks[0]!
         .clips[0]!.text!.text,

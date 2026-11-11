@@ -218,6 +218,13 @@ export async function importAsset(
                 'readwrite',
               );
               await commitWithSignal(tx, signal, async () => {
+                // Relinking replaces technical metadata, never authored notes.
+                if (relinkId) {
+                  const previous = (await tx
+                    .objectStore('assets')
+                    .get(asset.id)) as Asset | undefined;
+                  if (previous?.notes) asset.notes = previous.notes;
+                }
                 await tx.objectStore('assets').put(asset);
                 await tx.objectStore('journal').put({
                   id: jobId,
