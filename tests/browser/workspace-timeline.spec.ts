@@ -444,10 +444,7 @@ for (const base of behaviorBases) {
           for (const panel of [
             page.getByRole('region', { name: 'Project media', exact: true }),
             page.getByRole('region', { name: 'Project preview', exact: true }),
-            page.getByRole('complementary', {
-              name: 'Editing conversation',
-              exact: true,
-            }),
+            page.locator('.workspace-header'),
           ]) {
             const box = (await panel.boundingBox())!;
             const x = box.x + box.width / 2;
