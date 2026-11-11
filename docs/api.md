@@ -1,5 +1,7 @@
 # Headless API
 
+Compatible browser agents can use this same editor facade through [WebMCP site tools](webmcp.md), bound to the project currently viewed in the workspace. No built-in assistant, provider connection or server is required.
+
 Serve dist over HTTPS or localhost. Discover the editor module URL from one fresh `modules.json` response, then retain that release for the lifetime of the integration. Its version-one contract contains `release` (a digest of the module URL map) and `modules.editor` (deployment-relative, content-hashed URLs). The discovery request uses a fresh query and `cache: 'no-store'` to bypass browser/intermediary caches; module bytes remain cacheable. If a deployment removes a discovered module before import completes, surface a reload/reconnect action and rediscover the editor module. Do not silently replace one module beneath a running engine.
 
 The stable `editor.js` compatibility alias remain available, but a server cannot retroactively invalidate an older copy already cached by a browser. Use discovery for integrations following the latest deployment, or pin the hashed URLs and retain the complete matching static release when reproducibility is required.
@@ -63,6 +65,8 @@ await editor.dispose();
 | transcription | status, prepare, transcribe, transcript, clearModelCache                                          |
 | events        | projects, jobs                                                                                    |
 | lifecycle     | job.cancel, session.dispose, artifact.dispose, editor.dispose                                     |
+
+`exports.start(projectId, options, expectedRevision?)` optionally binds a request to an authored revision. The queued export owner validates it against the same snapshot it freezes when execution starts. An intervening edit fails with `REVISION_CONFLICT`; omitting the third argument retains the existing latest-at-start behavior. The WebMCP export tool always supplies the requested revision.
 
 The source facade exports inferred Editor, EditorOptions, persisted project/clip/track types, command/receipt types, Job/Progress/events, preview types, export types, subtitle helpers, and EditorError. Generated declarations preserve transitive type references.
 

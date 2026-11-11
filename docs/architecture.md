@@ -1,5 +1,7 @@
 # Architecture
 
+The optional [WebMCP transport](webmcp.md) lazily registers project-scoped browser site tools and delegates to the existing editor facade. `WorkspaceServices.tsx` composes lazy integrations; the binding owns route/version lifetime and the transport owns registration signals and disposable job outputs. It does not restore the removed built-in assistant or providers.
+
 One application package produces the static `index.html` workspace and the independently imported `editor.js` engine. Workspace imports follow content hashes; headless integrations discover the current editor URL through `modules.json`. The public agent AI entry, provider adapters and chat UI have been removed. Heavy media/inference work remains lazy and local.
 
 The design-system configuration is shadcn Base UI, neutral Vega, CSS-first Tailwind 4, light/dark variables, and system fonts by default. Appearance can use the same locally served font catalog as authored text, through lazy settings and font preparation. The workspace uses shared button, dialog, input, select, checkbox, label, textarea and toast components. Its project and preview controls invoke the public editor API; they do not own a second project document.

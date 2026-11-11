@@ -4,6 +4,13 @@ This is the project record of the user's durable product and workflow choices. U
 
 Use the [current preference index](current-preferences.md) to find relevant contracts and superseding decisions. Existing dated entries and anchors remain available as decision history.
 
+## Vendor-neutral browser agent control — 11 November 2026
+
+- Expose WebMCP tools so any compatible agent can inspect and fully edit the project currently viewed in LocalCut, without a Codex-specific dependency.
+- Give agents direct control through the shared editor API, complete canonical command/property schema and existing local services, without another LocalCut approval step or a built-in assistant/OpenRouter dependency.
+- Preserve project/view ownership, validation, revision/request identities, Undo/Redo, explicit local model preparation and browser permissions. No application backend or separate MCP server is needed.
+- This external integration is distinct from the separately requested removal of the built-in agent AI features. The [WebMCP contract](webmcp.md) owns current behavior and evidence limits.
+
 ## Single-agent lifecycle and receipt-based progress — 15 October 2026
 
 - The main editing agent owns the session goal and working plan. Start useful work directly from the newest user request, current permitted state and saved evidence; separate goal/to-do inference must not precede or interrupt editing.

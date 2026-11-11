@@ -1,5 +1,7 @@
 # Current preference index
 
+The separately authorized [WebMCP integration](webmcp.md) and [11 November browser-agent decision](user-preferences.md#vendor-neutral-browser-agent-control--11-november-2026) permit external compatible agents to control the viewed project. This does not restore product chat, provider adapters or the removed built-in assistant.
+
 The [11 November 2026 agent removal decision](user-preferences.md#remove-agent-ai-features--11-november-2026) supersedes all earlier requirements for assistant access, chat, providers, remote transcription, speech generation and agent tools. Keep the [dated preference record](user-preferences.md) for history.
 
 | Changing                         | Current contract                                                  |
