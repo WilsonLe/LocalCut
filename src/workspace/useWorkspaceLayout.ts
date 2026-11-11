@@ -6,7 +6,6 @@ import {
   useState,
 } from 'react';
 import { interfaceScale } from './appearance';
-import { useChatViewport } from './useChatViewport';
 import { hasBlockingOverlay } from './overlays';
 import {
   saveWorkspacePreferences,
@@ -20,7 +19,7 @@ export function useWorkspaceLayout() {
   const scale = interfaceScale();
   const narrowQuery = `(max-width: ${750 * scale}px), (max-width: ${1000 * scale}px) and (max-height: ${500 * scale}px)`;
   const { preferences, saved: preferencesSaved } = useWorkspacePreferences();
-  const { chatCollapsed, exportFormat: format } = preferences;
+  const { exportFormat: format } = preferences;
   // Imports can reveal media for this session without changing the user's layout.
   const [mediaOverride, setMediaOverride] = useState<boolean | null>(null);
   const [mediaPreference, setMediaPreference] = useState(preferences.mediaOpen);
@@ -32,10 +31,6 @@ export function useWorkspaceLayout() {
     () => window.matchMedia(narrowQuery).matches,
   );
   const [mobileTab, setMobileTab] = useState<MobileTab>('edit');
-  const composerFocused = useChatViewport(
-    narrow && mobileTab === 'chat',
-    scale,
-  );
   const previousMobileTab = useRef<MobileTab>('edit');
   const selectMobileTab = (tab: MobileTab) => {
     if (tab === mobileTab) return;
@@ -55,9 +50,7 @@ export function useWorkspaceLayout() {
       const target =
         tab === 'edit'
           ? document.getElementById('workspace-editor')
-          : document.querySelector<HTMLElement>(
-              tab === 'chat' ? '.chat-session-trigger' : '#workspace-media',
-            );
+          : document.getElementById('workspace-media');
       target?.focus({ preventScroll: true });
     });
   };
@@ -151,11 +144,6 @@ export function useWorkspaceLayout() {
     saveWorkspacePreferences({ mediaOpen: !drawer });
     setMediaOverride(null);
   };
-  const toggleChat = () => {
-    if (narrow) selectMobileTab(mobileTab === 'chat' ? 'edit' : 'chat');
-    else saveWorkspacePreferences({ chatCollapsed: !chatCollapsed });
-  };
-  const visibleChatCollapsed = !narrow && chatCollapsed;
   const setFormat = (exportFormat: 'mp4' | 'webm') =>
     saveWorkspacePreferences({ exportFormat });
   useEffect(() => {
@@ -184,7 +172,6 @@ export function useWorkspaceLayout() {
     mobileTab,
     setMobileTab,
     selectMobileTab,
-    composerFocused,
     onMediaFocus,
     onMediaBlur,
     mediaTriggerRef,
@@ -192,9 +179,6 @@ export function useWorkspaceLayout() {
     drawer,
     setMediaOverride,
     toggleMedia,
-    toggleChat,
-    visibleChatCollapsed,
-    chatCollapsed,
     format,
     setFormat,
   };

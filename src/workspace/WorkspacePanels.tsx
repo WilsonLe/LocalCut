@@ -44,7 +44,7 @@ function Divider({
   vertical?: boolean;
   hidden?: boolean;
   save: (size: number) => void;
-  resizeTarget?: 'chat' | 'media';
+  resizeTarget?: 'media';
 }) {
   const [size, setSize] = useState(min);
   useEffect(() => {
@@ -105,44 +105,34 @@ export function WorkspacePanels({
   media,
   narrow,
   mobileTab,
-  chatCollapsed,
   mediaOpen,
   inert,
-  onCollapseChat,
   onCollapseMedia,
 }: {
   children: ReactNode;
   media: ReactNode;
   narrow: boolean;
   mobileTab: MobileTab;
-  chatCollapsed: boolean;
   mediaOpen: boolean;
   inert: boolean;
-  onCollapseChat: () => void;
   onCollapseMedia: () => void;
 }) {
   const { preferences } = useWorkspacePreferences();
-  const chat = useRef<PanelImperativeHandle>(null);
   const library = useRef<PanelImperativeHandle>(null);
   const group = useRef<HTMLDivElement>(null);
-  const resizing = useRef<'chat' | 'media' | null>(null);
+  const resizing = useRef<'media' | null>(null);
   const [width, setWidth] = useState(1440);
-  const conversation = Children.toArray(children);
   const minimum = window.innerWidth / interfaceScale() <= 900 ? 200 : 280;
   const mediaMinimum = window.innerWidth / interfaceScale() <= 900 ? 180 : 250;
   const mediaSize = mediaOpen
     ? Math.min(
         preferences.mediaWidth,
-        Math.max(mediaMinimum, width - minimum * 2 - 2),
+        Math.max(mediaMinimum, width - minimum - 1),
       )
     : 52;
-  const chatMaximum = Math.min(
-    560,
-    Math.max(minimum, width - mediaSize - minimum - 2),
-  );
   const mediaMaximum = Math.min(
     560,
-    Math.max(mediaMinimum, width - minimum * 2 - 2),
+    Math.max(mediaMinimum, width - minimum - 1),
   );
   useEffect(() => {
     const element = group.current;
@@ -158,32 +148,15 @@ export function WorkspacePanels({
     // Wait for the primitive to register changed constraints before restoring.
     const frame = requestAnimationFrame(() => {
       if (resizing.current) return;
-      const chatSize = chatCollapsed
-        ? 52
-        : Math.min(preferences.chatWidth, chatMaximum);
       if (Math.round(library.current?.getSize().inPixels ?? 0) !== mediaSize)
         library.current?.resize(mediaSize);
-      if (Math.round(chat.current?.getSize().inPixels ?? 0) !== chatSize)
-        chat.current?.resize(chatSize);
     });
     return () => cancelAnimationFrame(frame);
-  }, [
-    narrow,
-    chatCollapsed,
-    mediaOpen,
-    preferences.chatWidth,
-    mediaSize,
-    chatMaximum,
-    width,
-  ]);
-  const previous = useRef({ chatCollapsed, mediaOpen });
+  }, [narrow, mediaOpen, mediaSize, width]);
+  const previous = useRef(mediaOpen);
   useEffect(() => {
-    if (
-      previous.current.chatCollapsed === chatCollapsed &&
-      previous.current.mediaOpen === mediaOpen
-    )
-      return;
-    previous.current = { chatCollapsed, mediaOpen };
+    if (previous.current === mediaOpen) return;
+    previous.current = mediaOpen;
     const element = group.current;
     if (!element || narrow) return;
     element.dataset.transitioning = 'true';
@@ -195,7 +168,7 @@ export function WorkspacePanels({
       clearTimeout(timeout);
       delete element.dataset.transitioning;
     };
-  }, [chatCollapsed, mediaOpen, narrow]);
+  }, [mediaOpen, narrow]);
   return (
     <ResizablePanelGroup
       elementRef={group}
@@ -212,7 +185,7 @@ export function WorkspacePanels({
         resizing.current =
           event.defaultPrevented &&
           active?.parentElement === event.currentTarget &&
-          (target === 'chat' || target === 'media')
+          target === 'media'
             ? target
             : null;
       }}
@@ -224,23 +197,13 @@ export function WorkspacePanels({
         if (fraction === undefined) return;
         const size = Math.round(
           (fraction / 100) *
-            ((group.current?.clientWidth ?? width) -
-              Number(!chatCollapsed) -
-              Number(mediaOpen)),
+            ((group.current?.clientWidth ?? width) - Number(mediaOpen)),
         );
         if (size <= 53) {
-          if (target === 'chat' && !chatCollapsed) {
-            onCollapseChat();
-            document
-              .querySelector<HTMLButtonElement>('.conversation-toggle')
-              ?.focus();
-          }
           if (target === 'media' && mediaOpen) {
             onCollapseMedia();
             document.querySelector<HTMLButtonElement>('.media-toggle')?.focus();
           }
-        } else if (target === 'chat' && !chatCollapsed) {
-          saveWorkspacePreferences({ chatWidth: size });
         } else if (target === 'media' && mediaOpen) {
           saveWorkspacePreferences({ mediaWidth: size });
         }
@@ -281,35 +244,7 @@ export function WorkspacePanels({
         inert={narrow && mobileTab !== 'edit'}
         aria-hidden={(narrow && mobileTab !== 'edit') || undefined}
       >
-        {conversation[1]}
-      </ResizablePanel>
-      <Divider
-        resizeTarget="chat"
-        reverse
-        preferred={preferences.chatWidth}
-        label="Resize workspace chat"
-        panel={chat}
-        target="chat-panel"
-        min={minimum}
-        max={chatMaximum}
-        hidden={narrow || chatCollapsed}
-        save={(chatWidth) => saveWorkspacePreferences({ chatWidth })}
-      />
-      <ResizablePanel
-        id="chat-panel"
-        panelRef={chat}
-        defaultSize={chatCollapsed ? 52 : preferences.chatWidth}
-        collapsible
-        collapsedSize={52}
-        minSize={minimum}
-        maxSize={chatMaximum}
-        groupResizeBehavior="preserve-pixel-size"
-        className="chat-panel-slot"
-        inert={narrow && mobileTab !== 'chat'}
-        aria-hidden={(narrow && mobileTab !== 'chat') || undefined}
-        disabled={chatCollapsed}
-      >
-        {conversation[0]}
+        {children}
       </ResizablePanel>
     </ResizablePanelGroup>
   );

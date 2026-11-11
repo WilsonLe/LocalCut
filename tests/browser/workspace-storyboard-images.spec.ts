@@ -1,15 +1,10 @@
 import { behaviorBases } from './coverage-bases';
-import { installGoalReviewFixture } from './goal-review-fixture';
 import { test, expect } from '@playwright/test';
 
 import { dismissNotifications } from './workspace-notifications-helper';
 
-test.beforeEach(async ({ page }) => {
-  await installGoalReviewFixture(page);
-});
-
 for (const base of behaviorBases) {
-  test(`storyboard images insert through agent and UI with local pixels, history and backups ${base}`, async ({
+  test(`storyboard images insert through editor API and UI with local pixels, history and backups ${base}`, async ({
     page,
   }, testInfo) => {
     const remote: string[] = [];
@@ -25,9 +20,6 @@ for (const base of behaviorBases) {
       const { createEditor, readWorkspaceArchive } = (await import(
         base + 'editor.js'
       )) as typeof import('../../src/editor');
-      const { createAssistant } = (await import(
-        base + 'ai.js'
-      )) as typeof import('../../src/ai');
       const editor = await createEditor();
       const p = await editor.projects.create('Pictures in storyboard');
       const canvas = new OffscreenCanvas(160, 90);
@@ -36,72 +28,18 @@ for (const base of behaviorBases) {
       const png = await canvas.convertToBlob({ type: 'image/png' });
       const original = await editor.assets.import(png, 'Source.png').completion;
       await editor.library.forProject(p.id).place(original.id, [], null);
-      let round = 0;
-      const requests: string[] = [];
-      const assistant = createAssistant({
-        editor,
-        projectId: p.id,
-        assetIds: [original.id],
-        model: 'test',
-        execution: 'requested',
-        provider: {
-          async *stream(request) {
-            const reviewReply = await window.localcutGoalReviewReply({
-              messages: request.messages,
-              tools: request.tools,
-            });
-            if (reviewReply) {
-              yield { type: 'complete' as const, message: reviewReply };
-              return;
-            }
-            requests.push(JSON.stringify(request));
-            const actions = [
-              ['load_skill', { skillId: 'storyboard' }],
-              ['inspect_storyboard', {}],
-              [
-                'propose_action',
-                {
-                  summary: 'Insert source picture',
-                  action: {
-                    type: 'insert_storyboard_image',
-                    options: {
-                      assetId: original.id,
-                      elementId: 'agent-image',
-                      x: 100,
-                      y: 100,
-                      width: 320,
-                    },
-                  },
-                },
-              ],
-            ] as const;
-            const action = actions[round++];
-            yield {
-              type: 'complete',
-              message: {
-                role: 'assistant',
-                content: action ? null : 'Inserted picture.',
-                ...(action
-                  ? {
-                      tool_calls: [
-                        {
-                          id: crypto.randomUUID(),
-                          type: 'function',
-                          function: {
-                            name: action[0],
-                            arguments: JSON.stringify(action[1]),
-                          },
-                        },
-                      ],
-                    }
-                  : {}),
-              },
-            };
-          },
-        },
-      });
       try {
-        await assistant.run('Put this image in the whiteboard').completion;
+        await editor.storyboard.insertImage(
+          p.id,
+          {
+            assetId: original.id,
+            elementId: 'manual-image',
+            x: 100,
+            y: 100,
+            width: 320,
+          },
+          0,
+        ).completion;
         const first = await editor.projects.snapshot(p.id);
         const imageId = first.storyboard!.elements[0]!.fileId!;
         const stored = await editor.assets.inspect(imageId);
@@ -115,7 +53,7 @@ for (const base of behaviorBases) {
         };
         const exported = await editor.storyboard.export(
           p.id,
-          { format: 'png', elementIds: ['agent-image'], background: false },
+          { format: 'png', elementIds: ['manual-image'], background: false },
           1,
         ).completion;
         const color = await pixel(exported.file);
@@ -223,13 +161,13 @@ for (const base of behaviorBases) {
         }).completion;
         const copy = restored[0]!;
         const copiedImage = copy.storyboard!.elements.find(
-          (e) => e.id === 'agent-image',
+          (e) => e.id === 'manual-image',
         )!.fileId!;
         const copyPixel = await pixel(
           (
             await editor.storyboard.export(
               copy.id,
-              { format: 'png', elementIds: ['agent-image'] },
+              { format: 'png', elementIds: ['manual-image'] },
               0,
             ).completion
           ).file,
@@ -251,10 +189,8 @@ for (const base of behaviorBases) {
           before: before.revision,
           errors,
           stillAsset: still.assetId,
-          hasRemotePixels: requests.some((r) => r.includes('data:image')),
         };
       } finally {
-        await assistant.dispose();
         await editor.dispose();
       }
     }, base);
@@ -272,10 +208,9 @@ for (const base of behaviorBases) {
     expect(result.refs).toEqual(
       expect.arrayContaining([result.imageId, result.stillAsset]),
     );
-    expect(result.undone).toEqual(['agent-image']);
+    expect(result.undone).toEqual(['manual-image']);
     expect(result.after).toBe(result.before);
     expect(result.errors).toHaveLength(2);
-    expect(result.hasRemotePixels).toBe(false);
     await page.goto(`${base}#/project/${result.id}`);
     await page.getByRole('tab', { name: 'Storyboard', exact: true }).click();
     await expect(page.locator('.storyboard canvas.interactive')).toBeVisible();

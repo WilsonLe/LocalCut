@@ -11,21 +11,18 @@ export interface WorkspaceMenuProps {
   canExport: boolean;
   canBrowseVersions: boolean;
   mediaOpen: boolean;
-  chatCollapsed: boolean;
   format: 'mp4' | 'webm';
   onNew: () => void;
   onOpen: () => void;
   onBackup: () => void;
   onImportBackup: () => void;
   onToggleMedia: () => void;
-  onToggleChat: () => void;
   onExport: () => void;
   onVersions: () => void;
   onFormatChange: (format: 'mp4' | 'webm') => void;
   onAppearance: () => void;
   onShortcuts: () => void;
   onCommands: () => void;
-  onAISettings: () => void;
   onProjectExport: () => void;
   onProjectImport: () => void;
   onWorkspaceExport: () => void;
@@ -83,21 +80,18 @@ export function WorkspaceMenu({
   canExport,
   canBrowseVersions,
   mediaOpen,
-  chatCollapsed,
   format,
   onNew,
   onOpen,
   onBackup,
   onImportBackup,
   onToggleMedia,
-  onToggleChat,
   onExport,
   onVersions,
   onFormatChange,
   onAppearance,
   onShortcuts,
   onCommands,
-  onAISettings,
   onProjectExport,
   onProjectImport,
   onWorkspaceExport,
@@ -202,14 +196,6 @@ export function WorkspaceMenu({
                 <ChoiceIndicator />
                 Media library
               </Menu.CheckboxItem>
-              <Menu.CheckboxItem
-                className={choiceClass}
-                checked={!chatCollapsed}
-                onCheckedChange={onToggleChat}
-              >
-                <ChoiceIndicator />
-                Editing conversation
-              </Menu.CheckboxItem>
             </Submenu>
             <Submenu label="Export">
               <Menu.RadioGroup
@@ -242,9 +228,6 @@ export function WorkspaceMenu({
             </Menu.Item>
             <Menu.Item className={itemClass} onClick={onShortcuts}>
               Keyboard shortcuts
-            </Menu.Item>
-            <Menu.Item className={itemClass} onClick={onAISettings}>
-              AI settings
             </Menu.Item>
             <Menu.Item className={itemClass} onClick={onAppearance}>
               Appearance

@@ -71,7 +71,7 @@ export const SHORTCUT_GROUPS = [
       { keys: 'Mod + O', label: 'Open project' },
       { keys: 'Mod + I', label: 'Import media' },
       { keys: 'Mod + E', label: 'Export video' },
-      { keys: 'C / M', label: 'Toggle chat or media panel' },
+      { keys: 'M', label: 'Toggle media panel' },
       { keys: '?', label: 'Keyboard shortcuts' },
       { keys: 'Mod + K', label: 'Commands' },
     ],

@@ -1,7 +1,6 @@
 import { behaviorBases } from './coverage-bases';
 import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { dragPlayhead } from './workspace-playhead-helper';
-import { openAISettings } from './workspace-settings-helper';
 import { expect, test, type Page } from '@playwright/test';
 
 const key = 'localcut.appearance.v1';
@@ -71,7 +70,7 @@ for (const base of behaviorBases) {
     '@journey ' +
       [
         `interface size keeps timeline anchored, popups reachable and preferences durable ${base}`,
-        `interface size preserves scaled seeking, view gestures, chat resizing and page zoom guard ${base}`,
+        `interface size preserves scaled seeking, view gestures, media resizing and page zoom guard ${base}`,
       ].join(' | '),
     async ({ page, context }) => {
       await test.step(`interface size keeps timeline anchored, popups reachable and preferences durable ${base}`, async () => {
@@ -171,81 +170,6 @@ for (const base of behaviorBases) {
             ).toBeInViewport();
             await page.keyboard.press('Escape');
             await expect(dialog).not.toBeVisible();
-            const navigation = page.getByRole('navigation', {
-              name: 'Workspace sections',
-            });
-            if (await navigation.isVisible())
-              await navigation
-                .getByRole('button', { name: 'Chat', exact: true })
-                .click();
-            await page
-              .getByRole('button', { name: 'Chat sessions', exact: true })
-              .click();
-            const sessions = page.getByRole('menu', {
-              name: 'Chat sessions',
-              exact: true,
-            });
-            await expect(sessions).toBeVisible();
-            const sessionBounds = (await sessions.boundingBox())!;
-            expect(sessionBounds.x).toBeGreaterThanOrEqual(-1);
-            expect(sessionBounds.x + sessionBounds.width).toBeLessThanOrEqual(
-              viewport.width + 1,
-            );
-            await expect(
-              sessions.getByRole('menuitem', {
-                name: 'New conversation',
-                exact: true,
-              }),
-            ).toBeInViewport();
-            await sessions
-              .getByRole('menuitem', { name: 'New conversation', exact: true })
-              .click();
-            await expect(sessions).not.toBeVisible();
-            // Focusing an action reveals it in the single scrolling row, even
-            // at 320px with enlarged interface text and touch targets.
-            for (const button of await page
-              .locator('.conversation-heading .header-actions button')
-              .all()) {
-              if (!(await button.isVisible())) continue;
-              await button.focus();
-              await expect(button).toBeInViewport();
-              expect(
-                await button.evaluate((el) => {
-                  const box = el.getBoundingClientRect();
-                  return el.contains(
-                    document.elementFromPoint(
-                      box.x + box.width / 2,
-                      box.y + box.height / 2,
-                    ),
-                  );
-                }),
-              ).toBe(true);
-            }
-            await openAISettings(page);
-            const connection = page.getByRole('dialog', {
-              name: 'AI connection',
-              exact: true,
-            });
-            await expect(connection).toBeVisible();
-            // Measure the real settings body after its loading shell is replaced.
-            await expect(
-              connection.getByRole('button', { name: 'Done', exact: true }),
-            ).toBeVisible();
-            // The connection disclosure replaces the sharing popover.
-            await expect(
-              connection.getByRole('button', { name: 'Data & analytics' }),
-            ).toHaveCount(0);
-            const connectionBounds = (await connection.boundingBox())!;
-            expect(connectionBounds.x).toBeGreaterThanOrEqual(-1);
-            expect(
-              connectionBounds.x + connectionBounds.width,
-            ).toBeLessThanOrEqual(viewport.width + 1);
-            await page.keyboard.press('Escape');
-            await expect(connection).not.toBeVisible();
-            if (await navigation.isVisible())
-              await navigation
-                .getByRole('button', { name: 'Edit', exact: true })
-                .click();
           }
         }
         await openAppearance(page);
@@ -264,7 +188,7 @@ for (const base of behaviorBases) {
         .click();
       await page.keyboard.press('Escape');
       await page.keyboard.press('Escape');
-      await test.step(`interface size preserves scaled seeking, view gestures, chat resizing and page zoom guard ${base}`, async () => {
+      await test.step(`interface size preserves scaled seeking, view gestures, media resizing and page zoom guard ${base}`, async () => {
         await page.emulateMedia({ reducedMotion: 'reduce' });
         await page.setViewportSize({ width: 1440, height: 900 });
         await prepareProject(page, base, false);
@@ -307,20 +231,20 @@ for (const base of behaviorBases) {
             Number(await slider.getAttribute('aria-valuenow')),
           ).toBeLessThan(2_600_000);
           const resize = page.getByRole('separator', {
-            name: 'Resize workspace chat',
+            name: 'Resize media library',
           });
           await resize.press('Home');
-          await expect(resize).toHaveAttribute('aria-valuetext', '280 pixels');
+          await expect(resize).toHaveAttribute('aria-valuetext', '250 pixels');
           const handle = (await resize.boundingBox())!;
           await page.mouse.move(handle.x + handle.width / 2, handle.y + 30);
           await page.mouse.down();
           await page.mouse.move(
-            handle.x + handle.width / 2 - 80 * scale,
+            handle.x + handle.width / 2 + 80 * scale,
             handle.y + 30,
             { steps: 5 },
           );
           await page.mouse.up();
-          await expect(resize).toHaveAttribute('aria-valuetext', '360 pixels');
+          await expect(resize).toHaveAttribute('aria-valuetext', '330 pixels');
           // The same view anchor under the pointer survives wheel zoom and middle-button pan.
           await expect(
             page.locator('[role="listbox"], [role="menu"]'),

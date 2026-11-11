@@ -1,10 +1,5 @@
 import { behaviorBases } from './coverage-bases';
-import { selectAISettingsTab } from './workspace-settings-helper';
-import {
-  prepareOpenRouterKey,
-  openAISettings,
-  openWorkspaceGroup,
-} from './workspace-settings-helper';
+import { openWorkspaceGroup } from './workspace-settings-helper';
 import { versionJourney } from './workspace-version-journey';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -98,7 +93,7 @@ for (const base of behaviorBases) {
         `project navigation searches, switches and preserves editing ${base}`,
         `project version browsing recreates the read-only editor at ${base}`,
       ].join(' | '),
-    async ({ page, context }, testInfo) => {
+    async ({ page }, testInfo) => {
       await test.step(`project navigation searches, switches and preserves editing ${base}`, async () => {
         await page.goto(base);
         await page
@@ -115,45 +110,6 @@ for (const base of behaviorBases) {
           browser.getByText('No saved projects yet', { exact: true }),
         ).toBeVisible();
         await create(page, 'Zebra film');
-        await context.route('https://openrouter.ai/api/v1/models', (route) =>
-          route.fulfill({
-            headers: { 'access-control-allow-origin': '*' },
-            json: {
-              data: [
-                {
-                  id: 'test/navigation',
-                  name: 'Navigation model',
-                  context_length: 512000,
-                  supported_parameters: ['tools', 'tool_choice'],
-                },
-              ],
-            },
-          }),
-        );
-        await openAISettings(page);
-        const connection = page.getByRole('dialog', {
-          name: 'AI connection',
-          exact: true,
-        });
-        await prepareOpenRouterKey(page);
-        await connection
-          .getByLabel('OpenRouter API key')
-          .fill('synthetic-navigation-key');
-        await connection.getByRole('button', { name: 'Use API key' }).click();
-        await selectAISettingsTab(page, 'LLM - Chat');
-        await connection
-          .getByRole('combobox', { name: 'AI model', exact: true })
-          .click();
-        await page
-          .getByRole('option', {
-            name: 'Navigation model · test/navigation',
-            exact: true,
-          })
-          .click();
-        await connection
-          .getByRole('button', { name: 'Done', exact: true })
-          .click();
-        await page.getByLabel('Describe your edit').fill('Preserve this draft');
         await page
           .getByRole('button', { name: 'Commands', exact: true })
           .click();
@@ -219,9 +175,6 @@ for (const base of behaviorBases) {
         const stopped = await playhead.getAttribute('aria-valuenow');
         await page.waitForTimeout(150);
         expect(await playhead.getAttribute('aria-valuenow')).toBe(stopped);
-        await expect(page.getByLabel('Describe your edit')).toHaveValue(
-          'Preserve this draft',
-        );
         expect(
           await page.locator('.timeline-clip[aria-pressed="true"]').count(),
         ).toBe(selected);
@@ -240,9 +193,6 @@ for (const base of behaviorBases) {
           .filter({ hasText: /Zebra film/ })
           .click();
         await expect(playhead).toHaveAttribute('aria-valuenow', scrubbed!);
-        await expect(page.getByLabel('Describe your edit')).toHaveValue(
-          'Preserve this draft',
-        );
         expect(
           await page.locator('.timeline-clip[aria-pressed="true"]').count(),
         ).toBe(selected);

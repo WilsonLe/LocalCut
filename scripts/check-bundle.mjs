@@ -61,7 +61,7 @@ for (const root of ['dist', 'dist-root']) {
     (v) => v.isEntry && v.src === 'index.html',
   );
   assert(entry, 'App manifest entry missing');
-  const optionalEntries = new Set(['editor.js', 'ai.js']);
+  const optionalEntries = new Set(['editor.js']);
   const discovery = JSON.parse(await readFile(`${root}/modules.json`, 'utf8'));
   assert.equal(discovery.version, 1);
   assert(/^[a-f0-9]{64}$/.test(discovery.release));
@@ -71,7 +71,7 @@ for (const root of ['dist', 'dist-root']) {
       .update(JSON.stringify(discovery.modules))
       .digest('hex'),
   );
-  for (const name of ['editor', 'ai']) {
+  for (const name of ['editor']) {
     const moduleEntry = Object.values(manifest).find(
       (v) => v.isEntry && v.src === `src/${name}/index.ts`,
     );
@@ -122,7 +122,7 @@ for (const root of ['dist', 'dist-root']) {
   assert(total <= 5 * 1024 * 1024, `Aggregate JS/CSS ${total}`);
   assert(
     ![...graph].some((p) => optionalEntries.has(p) || p.includes('worker')),
-    'Engine or AI eagerly loaded',
+    'Engine eagerly loaded',
   );
   console.log(
     JSON.stringify({

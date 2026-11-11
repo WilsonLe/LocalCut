@@ -84,7 +84,7 @@ for (const base of behaviorBases) {
   }) => {
     await page.goto(base);
     const aliases: string[] = [];
-    await page.route(/\/(ai|editor)\.js$/, (route) => {
+    await page.route(/\/editor\.js$/, (route) => {
       aliases.push(route.request().url());
       return route.fulfill({
         contentType: 'text/javascript',
@@ -102,22 +102,17 @@ for (const base of behaviorBases) {
       url.searchParams.set('fresh', crypto.randomUUID());
       const response = await fetch(url, { cache: 'no-store' });
       const release = await response.json();
-      const [editor, ai] = await Promise.all([
-        import(new URL(release.modules.editor, url).href),
-        import(new URL(release.modules.ai, url).href),
-      ]);
+      const editor = await import(new URL(release.modules.editor, url).href);
       return {
         release,
         editor: typeof editor.createEditor,
-        ai: typeof ai.createOpenRouter,
       };
     }, base);
     expect(result.editor).toBe('function');
-    expect(result.ai).toBe('function');
     expect(result.release.version).toBe(1);
     expect(result.release.release).toMatch(/^[a-f0-9]{64}$/);
     expect(result.release.modules.editor).toMatch(/^assets\/editor-[^/]+\.js$/);
-    expect(result.release.modules.ai).toMatch(/^assets\/ai-[^/]+\.js$/);
+    expect(Object.keys(result.release.modules)).toEqual(['editor']);
     expect(aliases).toEqual([]);
   });
 }

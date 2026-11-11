@@ -193,7 +193,7 @@ for (const base of behaviorBases) {
       files: [],
       settings: {
         appearance: { ...defaultAppearance, theme: 'blue' },
-        workspace: { ...defaultWorkspacePreferences, chatWidth: 480 },
+        workspace: { ...defaultWorkspacePreferences, mediaWidth: 480 },
       },
     };
     const unsafe = structuredClone(backup);
@@ -262,7 +262,7 @@ for (const base of behaviorBases) {
           names: (await e.projects.list()).map((p) => p.name),
           width: JSON.parse(
             localStorage.getItem('localcut.workspace-preferences.v1')!,
-          ).preferences.chatWidth,
+          ).preferences.mediaWidth,
         };
       } finally {
         await e.dispose();

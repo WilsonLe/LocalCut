@@ -11,7 +11,7 @@ import {
   cleanup,
   interfaceLayout,
   textFonts,
-  openRouterAuthorization,
+  editorDiscovery,
 } from '../tests/safari/scenarios.mjs';
 
 if (process.platform !== 'darwin')
@@ -120,7 +120,7 @@ try {
         await request('GET', `/session/${session}/title`),
         'LocalCut',
       );
-      const authorization = await execute(openRouterAuthorization, base);
+      const discovery = await execute(editorDiscovery, base);
       const layout = await execute(interfaceLayout);
       for (const measurement of layout) {
         assert.ok(measurement.gap <= 1, JSON.stringify(measurement));
@@ -146,7 +146,7 @@ try {
         JSON.stringify(fonts),
       );
       assert.ok(fonts.bytes > 100);
-      report.results.push({ base, authorization, layout, fonts, ...result });
+      report.results.push({ base, discovery, layout, fonts, ...result });
       for (const m of result.measurements) {
         assert.ok(m.bytes > 100);
         assert.equal(m.videoCodec, 'avc');

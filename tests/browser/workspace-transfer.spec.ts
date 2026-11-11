@@ -321,7 +321,7 @@ for (const base of behaviorBases) {
     await download.saveAs(downloadPath);
     const bytes = await readFile(downloadPath);
     const backup = JSON.parse(bytes.toString());
-    expect(backup.settings.workspace.chatWidth).toBe(320);
+    expect(backup.settings.workspace.mediaWidth).toBe(300);
     expect(backup.projects).toEqual([]);
     expect(bytes.toString()).not.toContain('unrelated');
     expect(bytes.toString()).not.toContain('synthetic-backup-exclusion-key');
@@ -330,7 +330,7 @@ for (const base of behaviorBases) {
       localStorage.removeItem('localcut.openrouter-credential.v1'),
     );
     backup.settings.appearance.theme = 'blue';
-    backup.settings.workspace.chatWidth = 450;
+    backup.settings.workspace.mediaWidth = 450;
     await page.reload();
     const beforeImport = await page.evaluate(
       async () => (await indexedDB.databases()).length,
@@ -359,7 +359,7 @@ for (const base of behaviorBases) {
       await page.evaluate(
         () =>
           JSON.parse(localStorage.getItem('localcut.workspace-preferences.v1')!)
-            .preferences.chatWidth,
+            .preferences.mediaWidth,
       ),
     ).toBe(450);
     expect(

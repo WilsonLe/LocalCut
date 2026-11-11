@@ -32,7 +32,6 @@ interface CommandContext {
   canSeparate: boolean;
   canGroup: boolean;
   versionsOpen: boolean;
-  chatCollapsed: boolean;
   drawer: boolean;
   appearanceOpen: boolean;
   showProjects: () => void;
@@ -54,7 +53,6 @@ interface CommandContext {
   leaveVersion: () => void;
   restoreVersion: () => void;
   showExport: () => void;
-  toggleChat: () => void;
   toggleMedia: () => void;
   closeAppearance: () => void;
   openSettings: () => void;
@@ -72,7 +70,6 @@ interface CommandContext {
   selectClip: (id: string) => void;
   browseVersion: (id: string) => void;
   setFormat: (format: 'mp4' | 'webm') => void;
-  assistantCommands: () => WorkspaceCommand[];
 }
 
 /** Build palette presentation only after Commands is opened; callbacks retain their shared owners. */
@@ -97,7 +94,6 @@ export function workspaceCommands(
     versions,
     versionsOpen,
     format,
-    chatCollapsed,
     drawer,
     appearanceOpen,
     setDialog,
@@ -129,11 +125,9 @@ export function workspaceCommands(
     setVersionsOpen,
     showExport,
     setFormat,
-    toggleChat,
     toggleMedia,
     closeAppearance,
     openSettings,
-    assistantCommands,
   ]: [
     projectsOpen: CommandContext['projectsOpen'],
     busy: CommandContext['busy'],
@@ -154,7 +148,6 @@ export function workspaceCommands(
     versions: CommandContext['versions'],
     versionsOpen: CommandContext['versionsOpen'],
     format: CommandContext['format'],
-    chatCollapsed: CommandContext['chatCollapsed'],
     drawer: CommandContext['drawer'],
     appearanceOpen: CommandContext['appearanceOpen'],
     setDialog: CommandContext['setDialog'],
@@ -186,11 +179,9 @@ export function workspaceCommands(
     setVersionsOpen: CommandContext['setVersionsOpen'],
     showExport: CommandContext['showExport'],
     setFormat: CommandContext['setFormat'],
-    toggleChat: CommandContext['toggleChat'],
     toggleMedia: CommandContext['toggleMedia'],
     closeAppearance: CommandContext['closeAppearance'],
     openSettings: CommandContext['openSettings'],
-    assistantCommands: CommandContext['assistantCommands'],
   ],
   shortcutActions: Partial<Record<EditorShortcut, () => void>> = {},
 ): WorkspaceCommand[] {
@@ -519,17 +510,6 @@ export function workspaceCommands(
     () => setFormat('webm'),
   );
   command(
-    'chat',
-    chatCollapsed ? 'Expand chat' : 'Collapse chat',
-    'View',
-    true,
-    () => {
-      toggleChat();
-      focusEditor();
-    },
-    'C',
-  );
-  command(
     'media',
     drawer ? 'Collapse media' : 'Expand media',
     'View',
@@ -556,11 +536,5 @@ export function workspaceCommands(
     () => setDialog('shortcuts'),
     '?',
   );
-  const revealChat = (run: () => void) => () => {
-    if (chatCollapsed) toggleChat();
-    run();
-  };
-  for (const item of assistantCommands())
-    commands.push({ ...item, run: revealChat(item.run) });
   return commands;
 }

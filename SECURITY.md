@@ -2,7 +2,7 @@
 
 ## Scope and supported revisions
 
-Security fixes target the current `main` branch. There are no maintained historical release branches or promised patch timelines. Browser-local storage, optional remote providers, untrusted media/project imports, assistant proposals, credential handling and static distribution are relevant security boundaries.
+Security fixes target the current `main` branch. There are no maintained historical release branches or promised patch timelines. Browser-local storage, untrusted media/project imports, local inference and static distribution are relevant security boundaries.
 
 A local-first application still runs code downloaded from its host. Browser-persisted credentials are not an OS-protected vault, and scripts executing on the same origin may access them. Read the [privacy guide](docs/privacy.md) and [AI contract](docs/ai.md) for the exact sharing and credential rules.
 

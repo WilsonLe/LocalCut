@@ -1,21 +1,16 @@
 import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
-import { installGoalReviewFixture } from './goal-review-fixture';
 
 // Run once at the deployed base; code/runtime and persistence assertions remain complete.
 for (const base of behaviorBases) {
-  test(`browser agent composes music, persists source, imports and exports audible audio ${base}`, async ({
+  test(`browser coding composes music, persists source, imports and exports audible audio ${base}`, async ({
     page,
   }) => {
-    await installGoalReviewFixture(page);
     await page.goto(base);
     const saved = await page.evaluate(async (path) => {
       const { createEditor } = (await import(
         path + 'editor.js'
       )) as typeof import('../../src/editor');
-      const { createAssistant } = (await import(
-        path + 'ai.js'
-      )) as typeof import('../../src/ai');
       const namespace = 'coding-' + crypto.randomUUID(),
         editor = await createEditor({ namespace });
       const project = await editor.projects.create('Original score', {
@@ -28,74 +23,29 @@ for(let i=0;i<left.length;i++){const t=i/sr, note=[330,392,440,349.23,261.63][Ma
 console.log('isolation',typeof fetch,typeof navigator,typeof indexedDB,typeof process);
 console.log('rendered',writeWav('music.wav',[left,right],sr));
 let peak=0;for(const sample of left)peak=Math.max(peak,Math.abs(sample));fs.writeFile('render.json',JSON.stringify({duration,peak}));`;
-      let step = 0;
-      const calls: { name: string; args: object }[] = [
-        { name: 'load_skill', args: { skillId: 'coding' } },
-        { name: 'inspect_coding_workspace', args: {} },
-        {
-          name: 'write_file',
-          args: { path: 'compose.js', content: script, expectedRevision: 0 },
-        },
-        {
-          name: 'execute_code',
-          args: { path: 'compose.js', expectedRevision: 1 },
-        },
-        { name: 'grep', args: { pattern: 'writeWav', glob: '*.js' } },
-        {
-          name: 'import_workspace_file',
-          args: { path: 'music.wav', expectedRevision: 2 },
-        },
-      ];
-      const assistant = createAssistant({
-        editor,
-        projectId: project.id,
-        model: 'test/composer',
-        execution: 'requested',
-        context: { includeCodingWorkspace: true },
-        provider: {
-          async *stream(request) {
-            const review = await window.localcutGoalReviewReply(request);
-            if (review) {
-              yield { type: 'complete' as const, message: review };
-              return;
-            }
-            const call = calls[step++];
-            yield {
-              type: 'complete' as const,
-              message: {
-                role: 'assistant' as const,
-                content: call ? null : 'Created and imported the score.',
-                ...(call
-                  ? {
-                      tool_calls: [
-                        {
-                          id: crypto.randomUUID(),
-                          type: 'function' as const,
-                          function: {
-                            name: call.name,
-                            arguments: JSON.stringify(call.args),
-                          },
-                        },
-                      ],
-                    }
-                  : {}),
-              },
-            };
-          },
-        },
-      });
-      const turn = await assistant.run(
-        'Compose original background music and import it.',
+      await editor.coding.run(
+        project.id,
+        { type: 'write_file', path: 'compose.js', content: script },
+        0,
       ).completion;
-      const proposals = turn.proposalIds.map((id) => assistant.getProposal(id));
-      const imported = proposals.find(
-        (p) => p.result?.kind === 'coding_asset',
-      )?.result;
-      if (imported?.kind !== 'coding_asset')
-        throw new Error(
-          'Expected a completed generated Media import: ' +
-            JSON.stringify(proposals),
-        );
+      await editor.coding.run(
+        project.id,
+        { type: 'execute_code', path: 'compose.js', args: [] },
+        1,
+      ).completion;
+      const matches = await editor.coding.query(project.id, {
+        type: 'grep',
+        pattern: 'writeWav',
+        glob: '*.js',
+        ignoreCase: false,
+      }).completion;
+      if (!matches.matches?.length)
+        throw new Error('Saved composition source was not searchable');
+      const imported = await editor.coding.importFile(
+        project.id,
+        'music.wav',
+        2,
+      ).completion;
       const asset = await editor.assets.inspect(imported.assetId);
       const wave = await editor.assets.waveform(asset.id, 32).completion;
       const inspection = await editor.coding.inspect(project.id);
@@ -154,7 +104,6 @@ let peak=0;for(const sample of left)peak=Math.max(peak,Math.abs(sample));fs.writ
           await artifact.dispose();
         }
       }
-      await assistant.dispose();
       await editor.dispose();
       return {
         namespace,
@@ -219,18 +168,14 @@ let peak=0;for(const sample of left)peak=Math.max(peak,Math.abs(sample));fs.writ
     expect(restored.size).toBe(5_760_044);
   });
 
-  test(`browser coding cancellation, stale writers and headless approval ${base}`, async ({
+  test(`browser coding cancellation, stale writers and literal source edits ${base}`, async ({
     page,
   }) => {
-    await installGoalReviewFixture(page);
     await page.goto(base);
     const result = await page.evaluate(async (path) => {
       const { createEditor } = (await import(
         path + 'editor.js'
       )) as typeof import('../../src/editor');
-      const { createAssistant } = (await import(
-        path + 'ai.js'
-      )) as typeof import('../../src/ai');
       const namespace = 'coding-races-' + crypto.randomUUID(),
         editor = await createEditor({ namespace }),
         second = await createEditor({ namespace });
@@ -297,67 +242,19 @@ let peak=0;for(const sample of left)peak=Math.max(peak,Math.abs(sample));fs.writ
         } catch {
           rejected = true;
         }
-        let step = 0;
-        const assistant = createAssistant({
-          editor,
-          projectId: project.id,
-          model: 'test/review',
-          context: { includeCodingWorkspace: true },
-          provider: {
-            async *stream(request) {
-              const review = await window.localcutGoalReviewReply(request);
-              if (review) {
-                yield { type: 'complete' as const, message: review };
-                return;
-              }
-              const call =
-                step++ === 0
-                  ? { name: 'load_skill', args: { skillId: 'coding' } }
-                  : step === 2
-                    ? {
-                        name: 'write_file',
-                        args: {
-                          path: 'approved.txt',
-                          content: 'reviewed',
-                          expectedRevision: 3,
-                        },
-                      }
-                    : undefined;
-              yield {
-                type: 'complete' as const,
-                message: {
-                  role: 'assistant' as const,
-                  content: call ? null : 'Review the pending write.',
-                  ...(call
-                    ? {
-                        tool_calls: [
-                          {
-                            id: crypto.randomUUID(),
-                            type: 'function' as const,
-                            function: {
-                              name: call.name,
-                              arguments: JSON.stringify(call.args),
-                            },
-                          },
-                        ],
-                      }
-                    : {}),
-                },
-              };
-            },
-          },
-        });
-        const turn = await assistant.run('Write the source file.').completion;
         const before = await editor.coding.inspect(project.id);
-        await assistant.approveProposal(turn.proposalIds[0]!);
+        await editor.coding.run(
+          project.id,
+          { type: 'write_file', path: 'saved.txt', content: 'reviewed' },
+          3,
+        ).completion;
         const approved = await editor.coding.inspect(project.id);
-        await assistant.dispose();
         const literal = "$& $$ $` $'";
         await editor.coding.run(
           project.id,
           {
             type: 'edit_file',
-            path: 'approved.txt',
+            path: 'saved.txt',
             oldText: 'reviewed',
             newText: literal,
             replaceAll: false,
@@ -366,7 +263,7 @@ let peak=0;for(const sample of left)peak=Math.max(peak,Math.abs(sample));fs.writ
         ).completion;
         const edited = await editor.coding.query(project.id, {
           type: 'read_file',
-          path: 'approved.txt',
+          path: 'saved.txt',
         }).completion;
         await editor.coding.run(
           project.id,
@@ -403,11 +300,11 @@ let peak=0;for(const sample of left)peak=Math.max(peak,Math.abs(sample));fs.writ
     expect(result.after.files.map((f) => f.path)).toEqual(['/project/loop.js']);
     expect(result.conflict).toBe('REVISION_CONFLICT');
     expect(result.rejected).toBe(true);
+    expect(result.before.files.some((f) => f.path.endsWith('saved.txt'))).toBe(
+      false,
+    );
     expect(
-      result.before.files.some((f) => f.path.endsWith('approved.txt')),
-    ).toBe(false);
-    expect(
-      result.approved.files.some((f) => f.path.endsWith('approved.txt')),
+      result.approved.files.some((f) => f.path.endsWith('saved.txt')),
     ).toBe(true);
     expect(result.edited).toBe("$& $$ $` $'");
     expect(result.nested).toMatchObject({

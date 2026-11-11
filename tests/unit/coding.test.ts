@@ -6,11 +6,6 @@ import {
   validateCodingState,
 } from '../../src/core/coding';
 import type { CodingState } from '../../src/core/coding';
-import {
-  capabilityDiscovery,
-  parseTool,
-  toolDefinitions,
-} from '../../src/ai/tools';
 
 const initial = (): CodingState => ({
   version: 1,
@@ -300,58 +295,4 @@ console.log(__log.constructor('return typeof fetch')());`);
     expect(codingGlob('**/*.js', '/project/folder/a.js')).toBe(true);
     expect(codingGlob('*.js', '/project/folder/a.js')).toBe(false);
   });
-});
-
-it('discovers coding support separately from loading, sharing and mutation schemas', () => {
-  const caps = {
-    coding: true,
-    undo: false,
-    redo: false,
-    export: false,
-    transcriptionStatus: false,
-    transcription: false,
-    transcriptionPreparation: false,
-  };
-  const loaded = new Set<import('../../src/ai/skills').SkillId>(['coding']);
-  expect(capabilityDiscovery(false, caps).tools.execute_code).toMatchObject({
-    supported: true,
-    available: false,
-  });
-  expect(
-    capabilityDiscovery(false, caps, loaded).tools.execute_code.blockers,
-  ).toEqual([expect.objectContaining({ reason: 'sharing_disabled' })]);
-  const tools = toolDefinitions(false, caps, loaded, false, true, true);
-  expect(tools.map((t) => t.function.name)).toEqual(
-    expect.arrayContaining([
-      'read_file',
-      'write_file',
-      'edit_file',
-      'glob',
-      'grep',
-      'bash',
-      'execute_code',
-      'import_workspace_file',
-      'propose_action',
-    ]),
-  );
-  expect(
-    parseTool(
-      'write_file',
-      JSON.stringify({
-        path: 'sources/a.js',
-        content: 'const x=1;',
-        expectedRevision: 0,
-      }),
-    ).args,
-  ).toMatchObject({ expectedRevision: 0 });
-  expect(() =>
-    parseTool(
-      'write_file',
-      JSON.stringify({
-        path: '/credentials',
-        content: 'x',
-        expectedRevision: 0,
-      }),
-    ),
-  ).toThrow();
 });

@@ -1,15 +1,10 @@
 import { behaviorBases } from './coverage-bases';
-import { installGoalReviewFixture } from './goal-review-fixture';
 import { test, expect } from '@playwright/test';
 
 import { dismissNotifications } from './workspace-notifications-helper';
 
-test.beforeEach(async ({ page }) => {
-  await installGoalReviewFixture(page);
-});
-
 for (const base of behaviorBases) {
-  test(`storyboard exports local formats, Media persistence and agent timeline reuse ${base}`, async ({
+  test(`storyboard exports local formats, Media persistence and timeline reuse ${base}`, async ({
     page,
   }, testInfo) => {
     const remote: string[] = [];
@@ -264,11 +259,7 @@ for (const base of behaviorBases) {
         const { createEditor } = (await import(
           base + 'editor.js'
         )) as typeof import('../../src/editor');
-        const { createAssistant } = (await import(
-          base + 'ai.js'
-        )) as typeof import('../../src/ai');
         const editor = await createEditor();
-        let assistant: ReturnType<typeof createAssistant> | undefined;
         try {
           const project = await editor.projects.snapshot(result.id);
           const exported = await editor.storyboard.export(
@@ -280,94 +271,32 @@ for (const base of behaviorBases) {
             .forProject(project.id)
             .file(result.stored.entryId);
           const asset = await editor.assets.inspect(result.stored.assetId);
-          const requests: string[] = [];
-          let round = 0;
-          const call = (name: string, args: unknown) => ({
-            id: crypto.randomUUID(),
-            type: 'function' as const,
-            function: { name, arguments: JSON.stringify(args) },
-          });
-          assistant = createAssistant({
-            editor,
-            projectId: project.id,
-            model: 'test',
-            execution: 'requested',
-            provider: {
-              stream: async function* (request) {
-                const reviewReply = await window.localcutGoalReviewReply({
-                  messages: request.messages,
-                  tools: request.tools,
-                });
-                if (reviewReply) {
-                  yield { type: 'complete' as const, message: reviewReply };
-                  return;
-                }
-                requests.push(JSON.stringify(request));
-                const tools = [
-                  [call('load_skill', { skillId: 'storyboard' })],
-                  [
-                    call('propose_action', {
-                      summary: 'Store transparent diagram',
-                      action: {
-                        type: 'store_storyboard',
-                        options: {
-                          format: 'png',
-                          elementIds: ['box'],
-                          background: false,
-                        },
-                      },
-                    }),
-                  ],
-                  [call('load_skill', { skillId: 'editing' })],
-                ];
-                if (round === 3) {
-                  const results = request.messages
-                    .filter((m) => m.role === 'tool')
-                    .map((m) => JSON.parse(m.content));
-                  const stored = results.find(
-                    (r) => r.result?.kind === 'storyboard_asset',
-                  ).result;
-                  tools.push([
-                    call('inspect_asset', { assetId: stored.assetId }),
-                    call('propose_edits', {
-                      summary: 'Place stored diagram',
-                      operations: [
-                        {
-                          type: 'addTrack',
-                          track: { id: 'diagrams', kind: 'overlay' },
-                        },
-                        {
-                          type: 'insertClip',
-                          trackId: 'diagrams',
-                          clip: {
-                            id: 'diagram-clip',
-                            kind: 'image',
-                            assetId: stored.assetId,
-                            startUs: 0,
-                            durationUs: 2e6,
-                            width: asset.width,
-                            height: asset.height,
-                          },
-                        },
-                      ],
-                    }),
-                  ]);
-                }
-                const tool_calls = tools[round++];
-                yield {
-                  type: 'complete',
-                  message: {
-                    role: 'assistant',
-                    content: tool_calls ? '' : 'Diagram stored and placed.',
-                    ...(tool_calls ? { tool_calls } : {}),
-                  },
-                };
-              },
-            },
-          });
-          await assistant.run(
-            'Store the whiteboard as a transparent PNG and place it for two seconds.',
+          const stored = await editor.storyboard.store(
+            project.id,
+            { format: 'png', elementIds: ['box'], background: false },
+            project.revision,
           ).completion;
+          await editor.commands.apply({
+            projectId: project.id,
+            expectedRevision: project.revision,
+            requestId: crypto.randomUUID(),
+            operations: [
+              { type: 'addTrack', track: { id: 'diagrams', kind: 'overlay' } },
+              {
+                type: 'insertClip',
+                trackId: 'diagrams',
+                clip: {
+                  id: 'diagram-clip',
+                  kind: 'image',
+                  assetId: stored.assetId,
+                  startUs: 0,
+                  durationUs: 2e6,
+                  width: asset.width,
+                  height: asset.height,
+                },
+              },
+            ],
+          });
           const after = await editor.projects.snapshot(project.id);
           return {
             assetId: asset.id,
@@ -377,12 +306,8 @@ for (const base of behaviorBases) {
               await editor.library.forProject(project.id).list()
             ).entries.find((e) => e.id === result.stored.entryId)!.parentId,
             clip: after.tracks[0]?.clips[0],
-            providerHasBytes: requests.some(
-              (r) => r.includes('data:image') || r.includes('"file":'),
-            ),
           };
         } finally {
-          await assistant?.dispose();
           await editor.dispose();
         }
       },
@@ -397,7 +322,6 @@ for (const base of behaviorBases) {
       kind: 'image',
       durationUs: 2e6,
     });
-    expect(persisted.providerHasBytes).toBe(false);
     expect(remote).toEqual([]);
     await page.unroute('**/storyboard/**/fonts/**');
     await page.goto(`${base}#/project/${result.id}`);

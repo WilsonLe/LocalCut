@@ -1,14 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { clipSchema, newProject, validateProject } from '../../src/core/model';
-import { applyOperations, parseBatch } from '../../src/core/commands';
+import { applyOperations } from '../../src/core/commands';
 import {
   selectionIds,
   transitionPairs,
   TRANSITION_TEMPLATES,
 } from '../../src/core/timeline';
 import { valueAt, gainAt } from '../../src/core/timing';
-import { legacyCommandReceiptContent } from '../../src/core/receipt-content';
-import { proposalBatch, toolDefinitions } from '../../src/ai/tools';
 
 const project = () =>
   validateProject({
@@ -391,41 +389,5 @@ describe('editable transition templates', () => {
         },
       ]),
     ).toThrow('overlap');
-  });
-  it('exposes templates to assistant proposals without legacy receipt fallback', () => {
-    const p = project(),
-      operations = [
-        {
-          type: 'applyTransitionTemplate' as const,
-          transitionId: 't',
-          trackId: 'visual',
-          fromClipId: 'a',
-          toClipId: 'b',
-          template: 'zoom-in' as const,
-          strength: 0.3,
-        },
-      ];
-    const batch = proposalBatch(p, operations, 'request', 10);
-    expect(parseBatch(batch).operations[0]).toEqual(operations[0]);
-    expect(legacyCommandReceiptContent(batch)).toBeUndefined();
-    expect(
-      JSON.stringify(
-        toolDefinitions(
-          false,
-          {
-            undo: false,
-            redo: false,
-            export: false,
-            transcriptionStatus: false,
-            transcription: false,
-            transcriptionPreparation: false,
-          },
-          new Set(['editing']),
-        ),
-      ),
-    ).toContain('blur-dissolve');
-    expect(() =>
-      parseBatch({ ...batch, operations: [{ ...operations[0], strength: 2 }] }),
-    ).toThrow();
   });
 });

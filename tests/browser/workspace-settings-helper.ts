@@ -40,13 +40,6 @@ async function openWorkspaceSettings(page: Page) {
   }).toPass({ timeout: 10000 });
 }
 
-export async function openAISettings(page: Page) {
-  await openWorkspaceSettings(page);
-  await page
-    .getByRole('menuitem', { name: 'AI settings', exact: true })
-    .click();
-}
-
 export async function openWorkspaceGroup(page: Page, name: string) {
   await openWorkspaceSettings(page);
   await page
@@ -66,60 +59,4 @@ export async function openVideoExport(page: Page) {
   await group
     .getByRole('menuitem', { name: 'Export video', exact: true })
     .click();
-}
-
-export async function addOpenRouter(page: Page) {
-  await selectAISettingsTab(page, 'Providers');
-  await expect(
-    page.getByRole('group', { name: 'OpenRouter connection', exact: true }),
-  ).toBeVisible();
-}
-
-export async function prepareOpenRouterKey(page: Page) {
-  const dialog = page.getByRole('dialog', {
-    name: 'AI connection',
-    exact: true,
-  });
-  await selectAISettingsTab(page, 'Providers');
-  await dialog
-    .getByRole('group', { name: 'OpenRouter connection', exact: true })
-    .getByRole('button', { name: 'I have an API key', exact: true })
-    .click();
-  await expect(
-    dialog.getByLabel('OpenRouter API key', { exact: true }),
-  ).toBeVisible();
-}
-
-export async function selectAISettingsTab(
-  page: Page,
-  name: 'Providers' | 'LLM - Chat' | 'TTS - Speech' | 'STT - Transcription',
-) {
-  const sectionName = name === 'Providers' ? 'OpenRouter' : name;
-  const trigger = page
-    .getByRole('dialog', { name: 'AI connection', exact: true })
-    .getByRole('combobox', { name: 'AI settings section', exact: true });
-  if ((await trigger.textContent()) === sectionName) return;
-  await trigger.click();
-  await page.getByRole('option', { name: sectionName, exact: true }).click();
-}
-
-export async function confirmProviderDisconnect(page: Page) {
-  const confirmation = page.getByRole('dialog', { name: /^Disconnect .+\?$/ });
-  await expect(confirmation).toBeVisible();
-  await confirmation
-    .getByRole('button', { name: 'Disconnect', exact: true })
-    .click();
-  await expect(confirmation).toHaveCount(0);
-}
-
-export async function showOpenRouterTerms(page: Page) {
-  await page
-    .getByRole('button', { name: 'OpenRouter connection terms', exact: true })
-    .click();
-  const terms = page.getByRole('region', {
-    name: 'OpenRouter connection terms',
-    exact: true,
-  });
-  await expect(terms).toBeVisible();
-  return terms;
 }

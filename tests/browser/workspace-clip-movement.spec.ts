@@ -89,9 +89,6 @@ for (const base of behaviorBases) {
       }
     }, base);
     await page.goto(`${base}#/project/${id}`);
-    await page
-      .getByRole('button', { name: 'Collapse chat', exact: true })
-      .click();
     const read = () => snapshot(page, base, id);
     const clip = page.locator('[data-clip-id="moving"]');
     const ghost = page.locator('.timeline-clip-move-placeholder');

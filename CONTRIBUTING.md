@@ -27,9 +27,9 @@ Read [AGENTS.md](AGENTS.md), [user preferences](docs/user-preferences.md), and e
 
 ## Engineering expectations
 
-- Keep project edits in the shared engine. UI and assistant controls call its public APIs; do not duplicate editing state or provider logic in components.
+- Keep project edits in the shared engine. UI controls call its public APIs; do not duplicate editing state in components.
 - Preserve stable IDs, transactional edits, revisions, Undo/Redo, cancellation and owned storage cleanup. Treat saved-project and backup compatibility as public contracts.
-- Keep local workflows local. Remote data sharing and paid provider requests require the existing explicit consent/action boundaries; never bundle credentials or log tokens/callbacks.
+- Keep local workflows local. No remote AI/provider features remain; keep model preparation explicit.
 - Use existing shadcn/Base UI primitives and semantic styling. Preserve keyboard interaction, focus, text entry, accessible names and reduced-motion behavior.
 - Preserve both `/` and `/LocalCut/` hosting. Keep native codec, local inference and export evidence real; mocks may isolate transport behavior but do not prove native acceptance.
 - Keep dependencies and model/runtime revisions exact. Include license/provenance and artifact hashes for bundled assets. Do not add personal media, tokens, private logs or local environment files to Git.
@@ -40,8 +40,8 @@ The [development ownership map](docs/development.md#find-the-owner) points to th
 
 | Rule                              | Apply it in a change                                                                                                                                                                                                     | Evidence                                                                                |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| One behavior, one owner           | Workspace event handlers use the editor facade; assistant services use the same engine. Derive view state from snapshots rather than maintaining another editable document.                                              | A UI/assistant operation produces the same persisted result and receipt.                |
-| Validate at trust boundaries      | Parse imported documents, provider replies and tool arguments at their existing schema owners. Use `unknown` until validated; derive types/options from canonical schemas.                                               | Malformed input fails before mutation; valid optional fields survive.                   |
+| One behavior, one owner           | Workspace event handlers use the editor facade; headless consumers use the same engine. Derive view state from snapshots rather than maintaining another editable document.                                              | A UI/API operation produces the same persisted result and receipt.                      |
+| Validate at trust boundaries      | Parse imported documents, external API inputs at their existing schema owners. Use `unknown` until validated; derive types/options from canonical schemas.                                                               | Malformed input fails before mutation; valid optional fields survive.                   |
 | Capture mutation identity         | Keep project ID, authored revision and request ID across asynchronous work. A stale form refreshes for retry instead of silently applying to another revision.                                                           | Conflict, idempotent retry and committed-result regressions.                            |
 | Own every asynchronous lifetime   | Await or return work. At a synchronous event boundary, use `void` only when the called owner handles rejection and exposes failure. Dispose listeners/resources in `finally` or effect cleanup.                          | Cancellation, supersession, failure and late-commit behavior at the owning consumer.    |
 | Extract cohesive responsibilities | Move a service dispatcher, interaction controller or lifecycle owner with explicit typed inputs. Keep the same state owner, hook order and lazy imports; avoid arbitrary file-size limits or generic context containers. | Existing behavioral tests, public declarations and production bundle checks stay valid. |
@@ -67,7 +67,7 @@ During iteration, choose the smallest meaningful check from [development recipes
 
 For documentation-only changes, run `pnpm format:check`, check local links/anchors, and validate new commands against their implementation. Full media workloads add no evidence when runtime inputs are unchanged.
 
-Before a draft code, configuration or dependency handoff, run the affected behavior checks, static checks, documentation checks and required builds/native gates from [development](docs/development.md#expand-verification-at-the-boundary). Run the complete `pnpm check` and required transcription/performance acceptance when merging is requested. Safari and paid-provider acceptance are separately scoped. State what ran, what passed and what remains deferred. Do not claim a mocked provider request proves account entitlement or natural speech quality.
+Before a draft code, configuration or dependency handoff, run the affected behavior checks, static checks, documentation checks and required builds/native gates from [development](docs/development.md#expand-verification-at-the-boundary). Run the complete `pnpm check` and required transcription/performance acceptance when merging is requested. Safari acceptance are separately scoped. State what ran, what passed and what remains deferred.
 
 Hosted validation CI is disabled by project choice. Do not add or re-enable it; the Pages workflow packages and releases static files. Local quality evidence belongs in the PR. Documentation-only PRs use documentation checks rather than a runtime suite rerun.
 

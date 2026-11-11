@@ -13,84 +13,7 @@ declare global {
 for (const base of behaviorBases) {
   test(`native indexing keeps scenes, audio and evidence across reload ${base}`, async ({
     page,
-    context,
   }) => {
-    const model = 'test/index-contract';
-    const labelRequests: (string | undefined)[] = [];
-    const label = {
-      summary: 'Synthetic scene',
-      subjects: [],
-      scene: 'graphic',
-      style: 'flat',
-      tags: ['graphic'],
-      sound: 'tone',
-    };
-    const headers = {
-      'access-control-allow-origin': '*',
-      'access-control-allow-headers': 'authorization,content-type',
-    };
-    await context.route('https://openrouter.ai/api/v1/**', async (route) => {
-      if (route.request().method() === 'OPTIONS')
-        return route.fulfill({ headers });
-      if (route.request().url().endsWith('/models'))
-        return route.fulfill({
-          headers,
-          json: {
-            data: [
-              {
-                id: model,
-                name: 'Index contract',
-                context_length: 32000,
-                supported_parameters: [
-                  'tools',
-                  'tool_choice',
-                  'structured_outputs',
-                ],
-                architecture: {
-                  input_modalities: ['text', 'image', 'video', 'audio'],
-                },
-              },
-            ],
-          },
-        });
-      const body = route.request().postDataJSON();
-      expect(body.response_format.type).toBe('json_schema');
-      const schema = body.response_format.json_schema.schema;
-      const sceneId = schema.properties.sceneId?.enum?.[0] as
-        string | undefined;
-      const fields = sceneId ? schema.properties.label : schema;
-      expect(fields.properties.style).toEqual({
-        type: 'string',
-        description: 'Local validation limits: {"maxLength":300}',
-      });
-      expect(JSON.stringify(schema)).not.toMatch(
-        /"(?:minLength|maxLength|maxItems|const)":/,
-      );
-      expect(body.messages[0].content).toContain('"maxLength":300');
-      expect(body).not.toHaveProperty('tools');
-      if (sceneId)
-        expect(
-          body.messages[1].content.map((part: { type: string }) => part.type),
-        ).toEqual(['text', 'image_url', 'video_url']);
-      labelRequests.push(sceneId);
-      const invalid = labelRequests.length === 2;
-      const text = JSON.stringify(
-        sceneId
-          ? {
-              sceneId,
-              label: {
-                ...label,
-                style: invalid ? ['invalid type'] : 'x'.repeat(341),
-              },
-            }
-          : { ...label, style: 'x'.repeat(341) },
-      );
-      await route.fulfill({
-        headers,
-        contentType: 'text/event-stream',
-        body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: text }, finish_reason: 'stop' }], model })}\n\ndata: [DONE]\n\n`,
-      });
-    });
     await page.goto(base);
     const result = await page.evaluate(async (base) => {
       const { createEditor } = (await import(
@@ -235,38 +158,7 @@ for (const base of behaviorBases) {
           });
         }
         const again = await editor.assets.analyze(asset.id).completion;
-        const { createOpenRouter, createAssetIndexer } = (await import(
-          base + 'ai.js'
-        )) as typeof import('../../src/ai');
-        const provider = createOpenRouter();
-        provider.setKey('synthetic-index-key');
-        const indexer = createAssetIndexer({
-          editor,
-          provider,
-          model: 'test/index-contract',
-          consent: () => true,
-        });
-        let labelError: { codes: string[]; message: string } | undefined;
-        try {
-          await indexer.run(asset.id, run.id).completion;
-        } catch (error) {
-          type Failure = { code: string; cause?: Failure; message: string };
-          const e = error as Failure;
-          const codes: string[] = [];
-          for (let cause: Failure | undefined = e; cause; cause = cause.cause)
-            codes.push(cause.code);
-          labelError = { codes, message: e.message };
-        } finally {
-          await indexer.dispose();
-          provider.dispose();
-        }
-        const checkpoint = await editor.assets.indexes.get(run.id);
         return {
-          labelError,
-          labelStatus: checkpoint.status,
-          labeledScenes: checkpoint.analysis.scenes.map(
-            (scene) => !!scene.label,
-          ),
           namespace,
           assetId: asset.id,
           runId: run.id,
@@ -301,13 +193,6 @@ for (const base of behaviorBases) {
       [0, 1000000, 0, 1000000],
       [1000000, 2000000, 1000000, 2000000],
     ]);
-    expect(result.labelError).toMatchObject({
-      codes: expect.arrayContaining(['WORKER_FAILED', 'INVALID_RESPONSE']),
-      message: expect.stringContaining('required fields'),
-    });
-    expect(result.labelStatus).toBe('failed');
-    expect(result.labeledScenes).toEqual([true, false]);
-    expect(labelRequests).toEqual(['scene-1', 'scene-2']);
     expect(result.frames).toBe(8);
     expect(result.runCount).toBe(2);
     expect(result.before).toBe(result.after);
@@ -327,47 +212,33 @@ for (const base of behaviorBases) {
     await page.reload();
     const reopened = await page.evaluate(
       async ({ base, namespace, assetId, runId }) => {
-        const { createEditor } = (await import(
-          base + 'editor.js'
-        )) as typeof import('../../src/editor');
+        const { createEditor } = await import(base + 'editor.js');
         const editor = await createEditor({ namespace });
-        const { createOpenRouter, createAssetIndexer } = (await import(
-          base + 'ai.js'
-        )) as typeof import('../../src/ai');
-        const provider = createOpenRouter();
-        provider.setKey('synthetic-index-key');
-        const indexer = createAssetIndexer({
-          editor,
-          provider,
-          model: 'test/index-contract',
-          consent: () => true,
-        });
         try {
-          const resumed = await indexer.run(assetId, runId).completion;
-          // A completed repeat is entirely local, even with a fresh indexer.
-          await indexer.run(assetId, runId).completion;
-          const run = await editor.assets.indexes.get(runId),
-            artifact = run.analysis.scenes[0]!.artifacts[0]!;
-          const retained = (
-            await editor.assets.indexes.artifact(runId, artifact.id)
-          ).size;
+          const run = await editor.assets.indexes.get(runId);
+          const artifact = await editor.assets.indexes.artifact(
+            runId,
+            run.analysis.scenes[0].artifacts[0].id,
+          );
           await editor.assets.indexes.remove(runId);
           return {
-            status: resumed.status,
-            label: resumed.label,
-            responses: resumed.requests.map((request) => ({
-              sceneId: request.sceneId,
-              accepted: !!request.label,
-              retained: !!request.response,
-              style: request.label?.style,
-              rawOversized: request.response?.includes('x'.repeat(341)),
-            })),
-            retained,
+            retained: artifact.size,
             remaining: (await editor.assets.indexes.list(assetId)).length,
+            sceneTimes: run.analysis.scenes.map(
+              (scene: {
+                startUs: number;
+                endUs: number;
+                excerptStartUs: number;
+                excerptEndUs: number;
+              }) => [
+                scene.startUs,
+                scene.endUs,
+                scene.excerptStartUs,
+                scene.excerptEndUs,
+              ],
+            ),
           };
         } finally {
-          await indexer.dispose();
-          provider.dispose();
           await editor.dispose();
         }
       },
@@ -375,37 +246,7 @@ for (const base of behaviorBases) {
     );
     expect(reopened.retained).toBeGreaterThan(0);
     expect(reopened.remaining).toBe(1);
-    expect(reopened.status).toBe('complete');
-    expect(reopened.label).toEqual({ ...label, style: 'x'.repeat(300) });
-    expect(reopened.responses).toEqual([
-      {
-        sceneId: 'scene-1',
-        accepted: true,
-        retained: true,
-        style: 'x'.repeat(300),
-        rawOversized: true,
-      },
-      {
-        sceneId: 'scene-2',
-        accepted: false,
-        retained: true,
-        rawOversized: false,
-      },
-      {
-        sceneId: 'scene-2',
-        accepted: true,
-        retained: true,
-        style: 'x'.repeat(300),
-        rawOversized: true,
-      },
-      {
-        accepted: true,
-        retained: true,
-        style: 'x'.repeat(300),
-        rawOversized: true,
-      },
-    ]);
-    expect(labelRequests).toEqual(['scene-1', 'scene-2', 'scene-2', undefined]);
+    expect(reopened.sceneTimes).toEqual(result.sceneTimes);
   });
   test(`index recovery cleans unpublished files and preserves completed checkpoints ${base}`, async ({
     page,
@@ -498,7 +339,7 @@ for (const base of behaviorBases) {
   });
 }
 
-test('index publication rejects quota failures and late consent responses; retry keeps evidence', async ({
+test('local index publication rejects quota failures and incomplete checkpoints', async ({
   page,
 }) => {
   await page.goto('/');
@@ -506,12 +347,8 @@ test('index publication rejects quota failures and late consent responses; retry
     const { createEditor } = (await import(
       String('/editor.js')
     )) as typeof import('../../src/editor');
-    const { createAssetIndexer } = (await import(
-      String('/ai.js')
-    )) as typeof import('../../src/ai');
     const namespace = 'test-index-races-' + crypto.randomUUID(),
       editor = await createEditor({ namespace });
-    let indexer: ReturnType<typeof createAssetIndexer> | undefined;
     try {
       const canvas = new OffscreenCanvas(24, 32);
       canvas.getContext('2d')!.fillRect(0, 0, 24, 32);
@@ -574,97 +411,20 @@ test('index publication rejects quota failures and late consent responses; retry
       } finally {
         IDBDatabase.prototype.transaction = transaction;
       }
-      let allowed = true,
-        requests = 0,
-        unblock!: () => void,
-        entered!: () => void;
-      const ready = new Promise<void>((resolve) => {
-        entered = resolve;
-      });
-      const gate = new Promise<void>((resolve) => {
-        unblock = resolve;
-      });
-      const label = {
-        summary: 'Portrait image',
-        subjects: ['image'],
-        scene: 'plain',
-        style: 'flat',
-        tags: ['portrait'],
-        sound: '',
-      };
-      const provider = {
-        status: () => ({ connected: true }),
-        listModels: async () => [
-          { id: 'test', supportsTools: true, inputModalities: ['image'] },
-        ],
-        label: async (request: { prompt: string; media: unknown[] }) => {
-          requests++;
-          if (requests === 1) {
-            entered();
-            await gate;
-          }
-          const sceneId = request.media.length
-            ? /"sceneId":"(scene-\d+)"/.exec(request.prompt)?.[1]
-            : undefined;
-          return {
-            text: JSON.stringify(sceneId ? { sceneId, label } : label),
-            model: 'test',
-          };
-        },
-      } as unknown as import('../../src/ai').OpenRouter;
-      indexer = createAssetIndexer({
-        editor,
-        provider,
-        model: 'test',
-        consent: () => allowed,
-      });
-      const job = indexer.run(asset.id, initial.id);
-      const completion = job.completion.then(
-        () => 'unexpected',
-        (e) => e.code as string,
-      );
-      await ready;
-      allowed = false;
-      job.cancel();
-      unblock();
-      const cancellation = await completion;
-      const interrupted = await editor.assets.indexes.get(initial.id);
-      allowed = true;
-      const retried = await indexer.run(asset.id, initial.id).completion;
-      const requestCount = requests;
-      const again = await indexer.run(asset.id, initial.id).completion;
       return {
         quota,
         premature,
-        cancellation,
-        lateLabel: !!interrupted.analysis.scenes[0]!.label,
-        retained: interrupted.analysis.scenes[0]!.artifacts.length,
-        status: retried.status,
-        again: again.status,
-        requestCount,
-        requests,
-        artifacts: retried.analysis.scenes[0]!.artifacts.map((a) => a.id),
-        originalArtifacts: initial.analysis.scenes[0]!.artifacts.map(
-          (a) => a.id,
-        ),
+        artifacts: initial.analysis.scenes[0]!.artifacts.map((a) => a.id),
       };
     } finally {
-      await indexer?.dispose();
       await editor.dispose();
     }
   });
   expect(result).toMatchObject({
     quota: 'QUOTA_EXCEEDED',
     premature: 'INVALID_DOCUMENT',
-    cancellation: 'CANCELLED',
-    lateLabel: false,
-    retained: 1,
-    status: 'complete',
-    again: 'complete',
-    requestCount: 3,
-    requests: 3,
   });
-  expect(result.artifacts).toEqual(result.originalArtifacts);
+  expect(result.artifacts).toHaveLength(1);
 });
 
 test('another tab preserves an active index lease and recovers an abandoned deletion', async ({
@@ -773,84 +533,16 @@ test('another tab preserves an active index lease and recovers an abandoned dele
 });
 
 for (const base of behaviorBases) {
-  test(`native audio indexing retains timed stereo excerpts and selected-model labels ${base}`, async ({
+  test(`native audio indexing retains timed stereo excerpts without remote labeling ${base}`, async ({
     page,
-    context,
   }) => {
-    const bodies: {
-      messages: {
-        content: {
-          type: string;
-          text?: string;
-          input_audio?: { data: string; format: string };
-        }[];
-      }[];
-    }[] = [];
-    await context.route('https://openrouter.ai/api/v1/**', async (route) => {
-      const headers = {
-        'access-control-allow-origin': '*',
-        'access-control-allow-headers': 'authorization,content-type',
-      };
-      if (route.request().method() === 'OPTIONS') {
-        await route.fulfill({ headers });
-        return;
-      }
-      if (route.request().url().endsWith('/models')) {
-        await route.fulfill({
-          headers,
-          json: {
-            data: [
-              {
-                id: 'test/audio',
-                name: 'Audio model',
-                context_length: 512000,
-                supported_parameters: ['tools', 'tool_choice'],
-                architecture: { input_modalities: ['text', 'audio'] },
-              },
-            ],
-          },
-        });
-        return;
-      }
-      const body = route.request().postDataJSON();
-      bodies.push(body);
-      const parts = body.messages.at(-1).content;
-      const sceneId =
-        parts.length > 1
-          ? /"sceneId":"(scene-\d+)"/.exec(parts[0].text)?.[1]
-          : undefined;
-      const label = {
-        summary: 'Synthetic audio',
-        subjects: ['tone'],
-        scene: 'audio recording',
-        style: 'electronic',
-        tags: ['tone'],
-        sound: 'Tone or silence in the supplied excerpt',
-      };
-      await route.fulfill({
-        headers,
-        contentType: 'text/event-stream',
-        body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: JSON.stringify(sceneId ? { sceneId, label } : label) }, finish_reason: 'stop' }], model: 'test/audio' })}\n\ndata: [DONE]\n\n`,
-      });
-    });
     await page.goto(base);
     const result = await page.evaluate(async (base) => {
       const { createEditor } = (await import(
         String(base + 'editor.js')
       )) as typeof import('../../src/editor');
-      const { createOpenRouter, createAssetIndexer } = (await import(
-        String(base + 'ai.js')
-      )) as typeof import('../../src/ai');
       const editor = await createEditor({
-          namespace: 'test-audio-index-' + crypto.randomUUID(),
-        }),
-        provider = createOpenRouter();
-      provider.setKey('synthetic-audio-key');
-      const indexer = createAssetIndexer({
-        editor,
-        provider,
-        model: 'test/audio',
-        consent: () => true,
+        namespace: 'test-audio-index-' + crypto.randomUUID(),
       });
       try {
         const sampleRate = 44100,
@@ -884,7 +576,7 @@ for (const base of behaviorBases) {
         const asset = await editor.assets.import(
           new File([buffer], 'private-name.wav', { type: 'audio/wav' }),
         ).completion;
-        const run = await indexer.run(asset.id).completion;
+        const run = await editor.assets.analyze(asset.id).completion;
         const excerpts = [];
         for (const scene of run.analysis.scenes) {
           const file = await editor.assets.indexes.artifact(
@@ -908,24 +600,16 @@ for (const base of behaviorBases) {
           windows: run.analysis.audio?.length,
           sceneTimes: run.analysis.scenes.map((s) => [s.startUs, s.endUs]),
           excerpts,
-          requests: run.requests.length,
-          audioCapabilities: (
-            await editor.assets.indexes.get(run.id)
-          ).requests.map((request) => request.audioInputSupported),
           retained: (await editor.assets.indexes.list(asset.id)).length,
         };
       } finally {
-        await indexer.dispose();
-        provider.dispose();
         await editor.dispose();
       }
     }, base);
     expect(result).toMatchObject({
-      status: 'complete',
+      status: 'analyzed',
       frames: 0,
       windows: 24,
-      requests: 6,
-      audioCapabilities: [true, true, true, true, true, true],
       retained: 1,
     });
     expect(result.sceneTimes).toEqual([
@@ -945,13 +629,5 @@ for (const base of behaviorBases) {
       if (i === 1 || i === 3) expect(audio.peak).toBeGreaterThan(0.3);
       else expect(audio.peak).toBeLessThan(0.01);
     }
-    expect(bodies).toHaveLength(6);
-    expect(
-      bodies
-        .slice(0, 5)
-        .every((b) => b.messages.at(-1)!.content[1]?.type === 'input_audio'),
-    ).toBe(true);
-    expect(JSON.stringify(bodies)).not.toContain('private-name');
-    expect(JSON.stringify(bodies)).not.toContain('synthetic-audio-key');
   });
 }

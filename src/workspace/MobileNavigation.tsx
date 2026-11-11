@@ -1,11 +1,10 @@
-import { Film, Files, MessageSquare } from 'lucide-react';
+import { Film, Files } from 'lucide-react';
 import type { Ref } from 'react';
 import { Button } from '../components/ui/button';
 
-export type MobileTab = 'edit' | 'chat' | 'media';
+export type MobileTab = 'edit' | 'media';
 const tabs = [
   { id: 'edit', label: 'Edit', Icon: Film, controls: 'workspace-editor' },
-  { id: 'chat', label: 'Chat', Icon: MessageSquare, controls: 'chat-panel' },
   { id: 'media', label: 'Media', Icon: Files, controls: 'workspace-media' },
 ] as const;
 

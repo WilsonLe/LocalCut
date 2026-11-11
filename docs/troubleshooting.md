@@ -17,14 +17,6 @@ Preserve your work before recovery. Export project/workspace backups with the or
 
 Avoid repeated export retries without reading the error. If a new browser revision changes native codec behavior, record the failing codec/configuration and a minimal generated reproduction; do not silently substitute a weaker acceptance channel.
 
-## AI providers
-
-A connected key or model catalog does not prove inference access. Check the selected OpenRouter model/voice, account credits and service access. A failed service stops; choose another model or retry explicitly. See [AI service selections](ai.md#openrouter-service-selections).
-
-For OpenRouter sign-in, use the same application origin and a fresh pending attempt. A rejected or expired attempt requires a new sign-in. Never post callback URLs or keys in an issue.
-
-If you replace a key or disconnect, old operations/sessions must retire. If that fails, report redacted status and reproduction steps. Revoke compromised credentials at the provider; a local disconnect alone is not remote revocation. Review [privacy](privacy.md) before enabling indexing or a remote transcription route.
-
 ## Development setup and checks
 
 - Check `node --version` is `v24.x` and `pnpm --version` is `11.25.0`. A shell wrapper may invoke a different Node than your interactive shell; inspect the executable path when an engine warning disagrees with `node --version`.

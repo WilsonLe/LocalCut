@@ -10,7 +10,7 @@ Contributors: start with the [current preference index](current-preferences.md) 
 | ----------------------------------------------- | ------------------------------------------------------------------ |
 | [Project overview](../README.md)                | Features, demo and links to detailed guides                        |
 | [Browser support](browser-support.md)           | Chrome/Safari coverage, capture, local data and offline limits     |
-| [Getting started](getting-started.md)           | First edit, AI choices, exports, versions and portable backups     |
+| [Getting started](getting-started.md)           | First edit, exports, versions and portable backups                 |
 | [Privacy and data flows](privacy.md)            | Local storage, remote actions, credentials and deletion boundaries |
 | [Troubleshooting](troubleshooting.md)           | Storage, codec, model, provider and setup failures                 |
 | [Support](../SUPPORT.md)                        | Safe bug reports, questions and proposals                          |
@@ -27,7 +27,6 @@ Contributors: start with the [current preference index](current-preferences.md) 
 | [Architecture](architecture.md)               | Runtime boundaries and state ownership                             |
 | [API](api.md)                                 | Headless editor contracts, commands and lifecycle                  |
 | [Storage](storage.md)                         | IndexedDB/OPFS, recovery, versions and backup compatibility        |
-| [AI providers](ai.md)                         | Connections, routing, approvals and provider-specific disclosures  |
 | [Transcription](transcription.md)             | Pinned local model/runtime preparation and audio processing        |
 | [Validation](validation.md)                   | Native codec/inference/export requirements and scoped results      |
 | [Playwright journeys](playwright-journeys.md) | Compatible browser journeys and isolation boundaries               |

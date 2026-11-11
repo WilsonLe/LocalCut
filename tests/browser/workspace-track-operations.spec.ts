@@ -1,14 +1,10 @@
 import { behaviorBases } from './coverage-bases';
-import { installGoalReviewFixture } from './goal-review-fixture';
 import { expect, test } from '@playwright/test';
 
 import type { Page } from '@playwright/test';
 import { openVersions } from './workspace-settings-helper';
 import type { Project } from '../../src/editor';
 
-test.beforeEach(async ({ page }) => {
-  await installGoalReviewFixture(page);
-});
 async function snapshot(
   page: Page,
   base: string,
@@ -282,7 +278,7 @@ for (const base of behaviorBases) {
   });
 }
 for (const base of behaviorBases) {
-  test(`track disable mute solo share native preview/export and AI-approved commands ${base}`, async ({
+  test(`track disable mute solo share native preview/export and shared commands ${base}`, async ({
     page,
   }) => {
     await page.goto(base);
@@ -290,9 +286,6 @@ for (const base of behaviorBases) {
       const { createEditor } = (await import(
         base + 'editor.js'
       )) as typeof import('../../src/editor');
-      const { createAssistant } = (await import(
-        base + 'ai.js'
-      )) as typeof import('../../src/ai');
       const editor = await createEditor({
         namespace: 'test-tracks-' + crypto.randomUUID(),
       });
@@ -301,7 +294,6 @@ for (const base of behaviorBases) {
       const artifacts: Awaited<
         ReturnType<typeof editor.exports.start>['completion']
       >[] = [];
-      let assistant: ReturnType<typeof createAssistant> | undefined;
       try {
         const colors: string[] = [];
         for (const color of ['red', 'blue']) {
@@ -487,74 +479,20 @@ for (const base of behaviorBases) {
           {
             type: 'updateTrack',
             trackId: 'upper',
-            patch: { name: 'Assistant footage', disabled: true },
+            patch: { name: 'Manual footage', disabled: true },
           },
           { type: 'duplicateTrack', trackId: 'upper', newTrackId: 'copy' },
           { type: 'clearTrack', trackId: 'copy' },
           { type: 'reorderTrack', trackId: 'copy', index: 0 },
           { type: 'removeTrack', trackId: 'copy' },
         ];
-        let round = 0;
-        let exposed = '';
-        assistant = createAssistant({
-          editor,
-          projectId: p.id,
-          model: 'test/tracks',
-          provider: {
-            async *stream(request) {
-              const reviewReply = await window.localcutGoalReviewReply({
-                messages: request.messages,
-                tools: request.tools,
-              });
-              if (reviewReply) {
-                yield { type: 'complete' as const, message: reviewReply };
-                return;
-              }
-              exposed += JSON.stringify(request.tools);
-              const names =
-                round === 0
-                  ? ['load_skill']
-                  : round === 1
-                    ? ['validate_edits', 'propose_edits']
-                    : [];
-              round++;
-              yield {
-                type: 'complete' as const,
-                message: {
-                  role: 'assistant' as const,
-                  content: names.length ? null : 'Review track changes',
-                  ...(names.length
-                    ? {
-                        tool_calls: names.map((name) => ({
-                          id: crypto.randomUUID(),
-                          type: 'function' as const,
-                          function: {
-                            name,
-                            arguments: JSON.stringify(
-                              name === 'load_skill'
-                                ? { skillId: 'editing' }
-                                : name === 'propose_edits'
-                                  ? {
-                                      summary:
-                                        'Disable footage and test a duplicate',
-                                      operations,
-                                    }
-                                  : { operations },
-                            ),
-                          },
-                        })),
-                      }
-                    : {}),
-                },
-              };
-            },
-          },
-        });
-        const turn = await assistant.run(
-          'Disable footage and test track operations',
-        ).completion;
         const beforeApproval = await editor.projects.snapshot(p.id);
-        await assistant.applyProposal(turn.proposalIds[0]!);
+        await editor.commands.apply({
+          projectId: p.id,
+          expectedRevision: beforeApproval.revision,
+          requestId: crypto.randomUUID(),
+          operations,
+        });
         const afterApproval = await editor.projects.snapshot(p.id);
         const outputs: {
           state: string;
@@ -732,12 +670,10 @@ for (const base of behaviorBases) {
           beforeApproval,
           afterApproval,
           outputs,
-          exposed,
           undone,
           missing,
         };
       } finally {
-        await assistant?.dispose();
         for (const artifact of artifacts) await artifact.dispose();
         await audioContext.close();
         await editor.dispose();
@@ -746,18 +682,10 @@ for (const base of behaviorBases) {
     expect(result.initial[2]).toBeGreaterThan(200);
     expect(result.beforeApproval.tracks[1]!.disabled).toBeUndefined();
     expect(result.afterApproval.tracks[1]).toMatchObject({
-      name: 'Assistant footage',
+      name: 'Manual footage',
       disabled: true,
     });
     expect(result.afterApproval.tracks).toHaveLength(3);
-    for (const type of [
-      'updateTrack',
-      'duplicateTrack',
-      'clearTrack',
-      'removeTrack',
-      'reorderTrack',
-    ])
-      expect(result.exposed).toContain(type);
     for (const output of result.outputs) {
       const color = output.state === 'disabled' ? 0 : 2;
       expect(output.preview[color]).toBeGreaterThan(200);

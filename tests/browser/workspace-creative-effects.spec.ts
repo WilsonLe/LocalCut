@@ -1,10 +1,5 @@
 import { behaviorBases } from './coverage-bases';
-import { installGoalReviewFixture } from './goal-review-fixture';
 import { expect, test } from '@playwright/test';
-
-test.beforeEach(async ({ page }) => {
-  await installGoalReviewFixture(page);
-});
 
 for (const base of behaviorBases) {
   test(`creative effects persist, render and export native pixels/audio ${base}`, async ({
@@ -406,13 +401,12 @@ for (const base of behaviorBases) {
 }
 
 for (const base of behaviorBases) {
-  test(`local mask tracking reuses results and assistant approval persists editable motion ${base}`, async ({
+  test(`local mask tracking reuses results and shared commands persist editable motion ${base}`, async ({
     page,
   }) => {
     await page.goto(base);
     const result = await page.evaluate(async (base) => {
       const { createEditor } = await import(base + 'editor.js');
-      const { createAssistant } = await import(base + 'ai.js');
       const namespace = 'tracking-' + crypto.randomUUID();
       let editor = await createEditor({ namespace });
       try {
@@ -562,59 +556,20 @@ for (const base of behaviorBases) {
         } finally {
           window.Worker = NativeWorker;
         }
-        let round = 0;
-        const provider = {
-          stream: async function* (
-            request: import('../../src/ai').ChatRequest,
-          ) {
-            const reviewReply = await window.localcutGoalReviewReply({
-              messages: request.messages,
-              tools: request.tools,
-            });
-            if (reviewReply) {
-              yield { type: 'complete' as const, message: reviewReply };
-              return;
-            }
-            round++;
-            const call = (name: string, args: unknown) => ({
-              id: 'call-' + round,
-              type: 'function',
-              function: { name, arguments: JSON.stringify(args) },
-            });
-            const calls =
-              round === 1
-                ? [call('load_skill', { skillId: 'editing' })]
-                : round === 2
-                  ? [call('inspect_capabilities', {})]
-                  : round === 3
-                    ? [
-                        call('propose_action', {
-                          summary: 'Track the mask',
-                          action: { type: 'track_mask', clipId: 'clip' },
-                        }),
-                      ]
-                    : [];
-            yield {
-              type: 'complete',
-              message: {
-                role: 'assistant',
-                content: calls.length ? null : 'Ready',
-                ...(calls.length ? { tool_calls: calls } : {}),
-              },
-            };
-          },
-        };
-        const assistant = createAssistant({
-          editor,
-          provider,
-          projectId: project.id,
-          model: 'test/model',
-        });
-        const turn = await assistant.run('Track the mask').completion;
         const before = await editor.projects.snapshot(project.id);
-        await assistant.approveProposal(turn.proposalIds[0]);
+        await editor.commands.apply({
+          projectId: project.id,
+          expectedRevision: before.revision,
+          requestId: crypto.randomUUID(),
+          operations: [
+            {
+              type: 'updateClip',
+              clipId: 'clip',
+              patch: { mask: replay.mask },
+            },
+          ],
+        });
         const saved = await editor.projects.snapshot(project.id);
-        await assistant.dispose();
         const stale = editor.masks.track(project.id, 'clip', 1);
         let rejected = '';
         try {

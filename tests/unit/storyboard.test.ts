@@ -5,9 +5,6 @@ import {
   remapStoryboardAssets,
   storyboardSchema,
 } from '../../src/core/storyboard';
-import { projectContext, storyboardContext } from '../../src/ai/context';
-import { toolDefinitions } from '../../src/ai/tools';
-import { assistantCapabilities } from '../../src/ai/actions';
 import { StoryboardSession } from '../../src/workspace/storyboard-session';
 import type { Editor } from '../../src/editor';
 
@@ -29,41 +26,6 @@ function board(project = newProject('Film')) {
     },
   ]).project;
 }
-
-it('keeps storyboard summary pages small while full pages retain original drawing data and consent', () => {
-  const project = applyOperations(newProject('Drawing'), [
-    {
-      type: 'upsertStoryboardElements',
-      elements: Array.from({ length: 45 }, (_, i) => ({
-        id: `stroke-${i}`,
-        type: 'freedraw',
-        points: Array.from({ length: 500 }, (_, x) => [x, x % 10]),
-        strokeColor: '#abcdef',
-      })),
-    },
-  ]).project;
-  const summary = storyboardContext(project.storyboard, {}, 0, 20, 'summary');
-  const full = storyboardContext(project.storyboard, {}, 0, 20, 'full');
-  expect(summary).toMatchObject({ total: 45, nextOffset: 20 });
-  expect(summary.elements[0]).toMatchObject({
-    id: 'stroke-0',
-    pointCount: 500,
-  });
-  expect(summary.elements[0]).not.toHaveProperty('points');
-  expect(full.elements[0]).toMatchObject({
-    points: project.storyboard!.elements[0]!.points,
-    strokeColor: '#abcdef',
-  });
-  expect(JSON.stringify(summary).length).toBeLessThan(
-    JSON.stringify(full).length / 10,
-  );
-  expect(
-    storyboardContext(project.storyboard, {}, 40, 20, 'full').elements,
-  ).toHaveLength(5);
-  expect(
-    JSON.stringify(storyboardContext(board().storyboard, {}, 0, 20, 'summary')),
-  ).not.toContain('Private');
-});
 describe('project storyboard', () => {
   it('keeps legacy documents valid and authored scenes atomic with partial patches preserving hidden labels', () => {
     const legacy = newProject('Film');
@@ -157,36 +119,6 @@ describe('project storyboard', () => {
       project.storyboard!.elements.find((e) => e.id === 'arrow')!.startBinding,
     ).toBeNull();
     expect(project.tracks).toEqual([]);
-  });
-  it('keeps complete labels out of initial context and paginates consent-aware inspection', () => {
-    const project = board();
-    expect(JSON.stringify(projectContext(project))).not.toContain('Private');
-    expect(projectContext(project).storyboard.elementCount).toBe(3);
-    const page = storyboardContext(project.storyboard, {}, 0, 1);
-    expect(page).toMatchObject({ total: 3, nextOffset: 1 });
-    expect(page.elements[0]).toMatchObject({ id: 'label', hasText: true });
-    expect(JSON.stringify(page)).not.toContain('Private');
-    expect(
-      storyboardContext(project.storyboard, { includeText: true }).elements[0],
-    ).toMatchObject({ text: 'Private shot note' });
-    const capabilities = assistantCapabilities({
-      commands: {},
-      transcription: {},
-    } as never);
-    expect(
-      toolDefinitions(false, capabilities).map((t) => t.function.name),
-    ).not.toContain('inspect_storyboard');
-    expect(
-      toolDefinitions(false, capabilities, new Set(['storyboard'])).map(
-        (t) => t.function.name,
-      ),
-    ).toEqual(
-      expect.arrayContaining([
-        'inspect_storyboard',
-        'propose_edits',
-        'validate_edits',
-      ]),
-    );
   });
   it('serializes queued drawings, waits before shared history and reloads conflicts', async () => {
     let project = newProject('Film');

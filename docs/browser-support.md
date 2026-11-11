@@ -16,7 +16,7 @@ No service worker is installed, so full offline navigation is not supported. Loc
 
 ## Optional providers and privacy
 
-Local editing and default Whisper transcription process media on the device. Optional AI actions can send prompts and permitted metadata, indexing excerpts, authored speech scripts or approved transcription audio to configured providers. Saved browser credentials are readable by scripts on the same origin. Read [privacy and data flows](privacy.md) before connecting a provider.
+Local editing and Whisper transcription process media on the device. There are no provider connections or remote AI requests. See [privacy and data flows](privacy.md).
 
 ## Native browser verification
 

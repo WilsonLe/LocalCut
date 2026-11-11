@@ -24,7 +24,7 @@ declare global {
   }
 }
 for (const base of behaviorBases) {
-  test(`capture metadata survives native imports, indexes, reload and backups ${base}`, async ({
+  test(`capture metadata survives native imports, reload and backups ${base}`, async ({
     page,
   }) => {
     await page.goto(base);
@@ -150,101 +150,6 @@ for (const base of behaviorBases) {
     try {
       const proof = await page.evaluate(async (base) => {
         const editor = window.captureEditor;
-        const { createAssetIndexer } = (await import(
-          base + 'ai.js'
-        )) as typeof import('../../src/ai');
-        const prompts: string[] = [];
-        let failSummary = false;
-        const label = {
-          summary: 'Red image',
-          subjects: ['shape'],
-          scene: 'plain',
-          style: 'flat',
-          tags: ['red'],
-          sound: 'none',
-        };
-        const provider = {
-          status: () => ({ connected: true }),
-          listModels: async () => [
-            {
-              id: 'synthetic',
-              supportsTools: true,
-              inputModalities: ['image'],
-            },
-          ],
-          label: async (request: { prompt: string; media: unknown[] }) => {
-            prompts.push(request.prompt);
-            if (failSummary && !request.media.length)
-              throw new Error('Synthetic summary failure');
-            const scene = request.media.length
-              ? /"sceneId":"([^"]+)"/.exec(request.prompt)?.[1]
-              : undefined;
-            return {
-              text: JSON.stringify(scene ? { sceneId: scene, label } : label),
-              model: 'synthetic',
-            };
-          },
-        } as unknown as import('../../src/ai').OpenRouter;
-        for (const includeCaptureMetadata of [false, true]) {
-          const indexer = createAssetIndexer({
-            editor,
-            provider,
-            model: 'synthetic',
-            consent: () => true,
-            includeCaptureMetadata,
-          });
-          try {
-            await indexer.run(window.captureAssets[0]!).completion;
-          } finally {
-            await indexer.dispose();
-          }
-        }
-        let partialRun = '';
-        failSummary = true;
-        const partial = createAssetIndexer({
-          editor,
-          provider,
-          model: 'synthetic',
-          consent: () => true,
-          includeCaptureMetadata: true,
-          onRunId: (id) => {
-            partialRun = id;
-          },
-        });
-        let partialFailed: boolean;
-        try {
-          partialFailed = await partial
-            .run(window.captureAssets[0]!)
-            .completion.then(
-              () => false,
-              () => true,
-            );
-        } finally {
-          await partial.dispose();
-        }
-        failSummary = false;
-        const beforeRetry = prompts.length;
-        const retry = createAssetIndexer({
-          editor,
-          provider,
-          model: 'synthetic',
-          consent: () => true,
-          includeCaptureMetadata: false,
-        });
-        let retryCode: string | undefined;
-        try {
-          retryCode = await retry
-            .run(window.captureAssets[0]!, partialRun)
-            .completion.then(
-              () => undefined,
-              (error: { code?: string }) => error.code,
-            );
-        } finally {
-          await retry.dispose();
-        }
-        const indexes = await editor.assets.indexes.list(
-          window.captureAssets[0]!,
-        );
         const backup = await editor.projects.exportJSON(window.captureProject);
         const restored = await editor.projects.importJSON(backup);
         const restoredAssets = await Promise.all(
@@ -276,46 +181,11 @@ for (const base of behaviorBases) {
           ),
         );
         return {
-          prompts,
-          retry: {
-            partialFailed,
-            retryCode,
-            beforeRetry,
-            afterRetry: prompts.length,
-          },
-          indexes: indexes.map((r) => ({
-            capture: r.source.capture,
-            captureShared: !!r.captureShared,
-            manifests: r.requests.map((m) => !!m.captureIncluded),
-          })),
           restored: restoredAssets.map((a) => a.capture),
           workspace: workspace.assets.map((a) => a.capture),
           workspaceRestored: workspaceAssets.map((a) => a.capture),
         };
       }, base);
-      expect(proof.prompts.slice(0, 2).join(' ')).not.toContain('2024-06-15');
-      expect(proof.retry.partialFailed).toBe(true);
-      expect(proof.retry.retryCode).toBe('INVALID_COMMAND');
-      expect(proof.retry.afterRetry).toBe(proof.retry.beforeRetry);
-      expect(
-        proof.prompts
-          .slice(2)
-          .every((p) => p.includes('2024-06-15') && p.includes('153.25')),
-      ).toBe(true);
-      expect(proof.indexes).toEqual(
-        expect.arrayContaining([
-          {
-            capture: captureFixture,
-            captureShared: false,
-            manifests: [false, false],
-          },
-          {
-            capture: captureFixture,
-            captureShared: true,
-            manifests: [true, true],
-          },
-        ]),
-      );
       expect(proof.restored).toEqual(imported);
       expect(proof.workspace).toEqual(expect.arrayContaining(imported));
       expect(proof.workspaceRestored).toEqual(imported);

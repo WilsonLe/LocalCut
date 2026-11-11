@@ -1,5 +1,7 @@
 # LocalCut — Every part of your story
 
+Historical evidence: recorded before [agent AI removal](https://github.com/WilsonLe/LocalCut/issues/350); it does not describe current agent capability.
+
 An editable 15-second feature showcase: 1920 × 1080, 60 fps, H.264/AAC stereo.
 It follows LocalCut's scissors mark from `public/icons/favicon.svg`, its
 `#171717` / `#fafafa` monochrome design and system typography. Original landscape

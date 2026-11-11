@@ -14,7 +14,6 @@ import {
 } from './preferences';
 import type { WorkspacePreferences } from './preferences';
 import type { WorkspaceSettings } from '../editor';
-import { parseProviderConfiguration } from './provider-preferences';
 
 export function workspaceSettings(): WorkspaceSettings {
   return {
@@ -50,10 +49,8 @@ export function validateWorkspaceSettings(
       timelineSnapping: defaultWorkspacePreferences.timelineSnapping,
       ...settings.workspace,
     };
-    if (!('aiProviders' in p)) p.aiProviders = '';
-    // Provider settings have an explicit legacy migration; other fields stay strict.
-    if (typeof p.aiProviders === 'string' && p.aiProviders)
-      p.aiProviders = JSON.stringify(parseProviderConfiguration(p.aiProviders));
+    for (const key of ['chatWidth', 'chatCollapsed', 'aiModel', 'aiProviders'])
+      delete p[key];
     const parsed = parseWorkspacePreferences(
       JSON.stringify({ version: 1, preferences: p }),
     );

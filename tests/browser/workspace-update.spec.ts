@@ -48,7 +48,7 @@ for (const base of behaviorBases) {
     await page.setViewportSize({ width: 390, height: 844 });
     await assertHeader();
     const tabs = page.getByRole('navigation', { name: 'Workspace sections' });
-    for (const name of ['Chat', 'Expand media', 'Edit']) {
+    for (const name of ['Expand media', 'Edit']) {
       await tabs.getByRole('button', { name, exact: true }).click();
       await expect(
         page.getByRole('button', { name: 'Check for update', exact: true }),

@@ -1,14 +1,9 @@
 import { behaviorBases } from './coverage-bases';
-import { installGoalReviewFixture } from './goal-review-fixture';
 import { openVersions } from './workspace-settings-helper';
 import { test, expect } from '@playwright/test';
 
 import type { Page } from '@playwright/test';
 import type { Project } from '../../src/editor';
-
-test.beforeEach(async ({ page }) => {
-  await installGoalReviewFixture(page);
-});
 
 async function snapshot(
   page: Page,
@@ -198,7 +193,7 @@ for (const base of behaviorBases) {
     await drop(true);
     expect(remote).toEqual([]);
   });
-  test(`workspace storyboard drawing, history, approved agent, backups and mobile @journey ${base}`, async ({
+  test(`workspace storyboard drawing, history, shared API, backups and mobile @journey ${base}`, async ({
     page,
   }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -425,77 +420,24 @@ for (const base of behaviorBases) {
         const { createEditor } = (await import(
           base + 'editor.js'
         )) as typeof import('../../src/editor');
-        const { createAssistant } = (await import(
-          base + 'ai.js'
-        )) as typeof import('../../src/ai');
         const editor = await createEditor();
         const project = await editor.projects.snapshot(id);
         const shape = project.storyboard!.elements.find(
           (e) => e.type === 'rectangle',
         )!;
-        const requests: import('../../src/ai').ChatRequest[] = [];
-        let round = 0;
-        const assistant = createAssistant({
-          editor,
-          projectId: id,
-          model: 'test/storyboard',
-          provider: {
-            async *stream(request) {
-              const reviewReply = await window.localcutGoalReviewReply({
-                messages: request.messages,
-                tools: request.tools,
-              });
-              if (reviewReply) {
-                yield { type: 'complete' as const, message: reviewReply };
-                return;
-              }
-              requests.push(structuredClone(request));
-              const calls = [
-                { name: 'load_skill', args: { skillId: 'storyboard' } },
-                { name: 'inspect_storyboard', args: { limit: 1 } },
-                {
-                  name: 'propose_edits',
-                  args: {
-                    summary: 'Move the shot panel',
-                    operations: [
-                      {
-                        type: 'upsertStoryboardElements',
-                        elements: [{ id: shape.id, x: shape.x + 120 }],
-                      },
-                    ],
-                  },
-                },
-              ];
-              const call = calls[round++];
-              yield {
-                type: 'complete' as const,
-                message: {
-                  role: 'assistant' as const,
-                  content: call ? null : 'Ready for review',
-                  ...(call
-                    ? {
-                        tool_calls: [
-                          {
-                            id: crypto.randomUUID(),
-                            type: 'function' as const,
-                            function: {
-                              name: call.name,
-                              arguments: JSON.stringify(call.args),
-                            },
-                          },
-                        ],
-                      }
-                    : {}),
-                },
-              };
-            },
-          },
-        });
         try {
-          await assistant.run('Move the shot panel').completion;
-          const proposal = assistant.snapshot().proposals[0]!;
-          const before = (await editor.projects.snapshot(id)).revision;
-          await assistant.approveProposal(proposal.id);
+          const before = project.revision;
+          await editor.commands.apply({
+            projectId: id,
+            expectedRevision: before,
+            requestId: crypto.randomUUID(),
+            operations: [
+              {
+                type: 'upsertStoryboardElements',
+                elements: [{ id: shape.id, x: shape.x + 120 }],
+              },
+            ],
+          });
           const after = await editor.projects.snapshot(id);
           await editor.projects.versions.save(id);
           const version = (await editor.projects.versions.list(id))[0]!;
@@ -516,9 +458,6 @@ for (const base of behaviorBases) {
             revision: after.revision,
             expectedX: shape.x + 120,
             x: after.storyboard!.elements.find((e) => e.id === shape.id)!.x,
-            leaked: JSON.stringify(requests).includes(
-              'Private storyboard label',
-            ),
             sameVersion:
               JSON.stringify(historical.project.storyboard) ===
               JSON.stringify(after.storyboard),
@@ -532,7 +471,6 @@ for (const base of behaviorBases) {
               JSON.stringify(after.storyboard),
           };
         } finally {
-          await assistant.dispose();
           await editor.dispose();
         }
       },
@@ -540,7 +478,6 @@ for (const base of behaviorBases) {
     );
     expect(result.revision).toBe(result.before + 1);
     expect(result.x).toBe(result.expectedX);
-    expect(result.leaked).toBe(false);
     expect(result.sameVersion).toBe(true);
     expect(result.sameBackup).toBe(true);
     expect(result.otherEmpty).toBe(true);

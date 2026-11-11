@@ -1,10 +1,4 @@
 import { behaviorBases } from './coverage-bases';
-import {
-  confirmProviderDisconnect,
-  prepareOpenRouterKey,
-  openAISettings,
-  selectAISettingsTab,
-} from './workspace-settings-helper';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 async function wheel(page: Page, target: Locator, delta: number) {
@@ -19,9 +13,7 @@ async function positions(page: Page) {
     workspace: document.querySelector('.workspace-body')!.scrollTop,
     editor: document.querySelector('#editor-panel')!.scrollTop,
     header: document
-      .querySelector(
-        '.workspace-header, .mobile-edit-heading, .conversation-heading',
-      )!
+      .querySelector('.workspace-header, .mobile-edit-heading')!
       .getBoundingClientRect().top,
   }));
 }
@@ -30,7 +22,6 @@ for (const base of behaviorBases) {
   for (const interfaceSize of ['default', 'small', 'large']) {
     test(`app and popup scrolling stay contained at ${interfaceSize} interface size ${base}`, async ({
       page,
-      context,
     }, info) => {
       await page.addInitScript((interfaceSize) => {
         localStorage.setItem(
@@ -41,19 +32,6 @@ for (const base of behaviorBases) {
           }),
         );
       }, interfaceSize);
-      await context.route('https://openrouter.ai/api/v1/models', (route) =>
-        route.fulfill({
-          headers: { 'access-control-allow-origin': '*' },
-          json: {
-            data: Array.from({ length: 80 }, (_, i) => ({
-              id: `test/model-${i}`,
-              name: `Scroll model ${String(i).padStart(2, '0')}`,
-              context_length: 512000,
-              supported_parameters: ['tools', 'tool_choice'],
-            })),
-          },
-        }),
-      );
       for (const viewport of [
         { width: 1280, height: 800 },
         { width: 390, height: 500 },
@@ -116,83 +94,6 @@ for (const base of behaviorBases) {
           });
         await page.keyboard.press('Escape');
         await expect(shortcuts).toBeHidden();
-
-        await openAISettings(page);
-        const dialog = page.getByRole('dialog', {
-          name: 'AI connection',
-          exact: true,
-        });
-        await expect(dialog).toBeVisible();
-        await expect(
-          dialog.getByRole('button', {
-            name: 'I have an API key',
-            exact: true,
-          }),
-        ).toBeVisible();
-        await dialog.evaluate((el) =>
-          Promise.all(
-            el.getAnimations().map((animation) => animation.finished),
-          ),
-        );
-        await prepareOpenRouterKey(page);
-        await dialog
-          .getByLabel('OpenRouter API key', { exact: true })
-          .fill('synthetic-scroll-key');
-        await dialog
-          .getByRole('button', { name: 'Use API key', exact: true })
-          .click();
-        await selectAISettingsTab(page, 'LLM - Chat');
-        const models = dialog.getByRole('combobox', {
-          name: 'AI model',
-          exact: true,
-        });
-        await expect(models).toBeEnabled();
-        // Connecting adds provider controls; the content-sized dialog may grow.
-        // The model popup must stay separate and leave its settled size intact.
-        const connectedBounds = (await dialog.boundingBox())!;
-        expect(connectedBounds.y).toBeGreaterThanOrEqual(0);
-        expect(connectedBounds.y + connectedBounds.height).toBeLessThanOrEqual(
-          viewport.height,
-        );
-        await models.click();
-        const list = page.locator('[data-slot="combobox-list"]');
-        await expect(list).toBeVisible();
-        expect((await dialog.boundingBox())!.height).toBeCloseTo(
-          connectedBounds.height,
-          0,
-        );
-        const dialogBefore = await dialog.evaluate((el) =>
-          Array.from(el.querySelectorAll('*')).map((child) => child.scrollTop),
-        );
-        const workspaceBefore = await positions(page);
-        await wheel(page, list, 400);
-        await expect
-          .poll(() => list.evaluate((el) => el.scrollTop))
-          .toBeGreaterThan(0);
-        await list.evaluate((el) => {
-          el.scrollTop = el.scrollHeight;
-        });
-        await wheel(page, list, 1000);
-        await page.evaluate(() => new Promise(requestAnimationFrame));
-        expect(
-          await dialog.evaluate((el) =>
-            Array.from(el.querySelectorAll('*')).map(
-              (child) => child.scrollTop,
-            ),
-          ),
-        ).toEqual(dialogBefore);
-        expect(await positions(page)).toEqual(workspaceBefore);
-        await page.keyboard.press('Escape');
-        await selectAISettingsTab(page, 'Providers');
-        await dialog
-          .getByRole('button', { name: 'Disconnect OpenRouter', exact: true })
-          .click();
-        await confirmProviderDisconnect(page);
-        await page.keyboard.press('Escape');
-        await expect(dialog).toBeHidden();
-        await expect(
-          page.getByRole('button', { name: 'Workspace settings', exact: true }),
-        ).toBeFocused();
       }
     });
   }

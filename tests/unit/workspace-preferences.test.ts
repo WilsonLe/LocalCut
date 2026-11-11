@@ -33,36 +33,24 @@ describe('local workspace preference validation', () => {
           .timelineSnapping,
       ).toBe(true);
   });
-  it('normalizes bounds and rejects invalid types while retaining valid fields', () => {
+  it('drops retired AI and chat settings while retaining local editor preferences', () => {
     expect(
       parseWorkspacePreferences(
         record({
-          chatWidth: 10000,
+          chatWidth: 400,
           chatCollapsed: true,
-          mediaOpen: 'true',
-          exportFormat: 'webm',
-          aiModel: 'vendor/model:free',
-          privacy: { includeText: true },
+          aiModel: 'old-model',
+          aiProviders: '{"key":"never-save"}',
           apiKey: 'never-save',
+          mediaOpen: true,
+          exportFormat: 'webm',
         }),
       ),
     ).toEqual({
       ...defaultWorkspacePreferences,
-      chatWidth: 560,
-      chatCollapsed: true,
+      mediaOpen: true,
       exportFormat: 'webm',
-      aiModel: 'vendor/model:free',
     });
-    expect(parseWorkspacePreferences(record({ chatWidth: -1 })).chatWidth).toBe(
-      280,
-    );
-    expect(
-      parseWorkspacePreferences(record({ chatWidth: 401.6 })).chatWidth,
-    ).toBe(402);
-    for (const chatWidth of ['400', null, true])
-      expect(parseWorkspacePreferences(record({ chatWidth })).chatWidth).toBe(
-        320,
-      );
   });
   it('retains bounded media and timeline sizes with legacy defaults', () => {
     expect(
@@ -80,29 +68,5 @@ describe('local workspace preference validation', () => {
         record({ mediaWidth: 342.5, timelineHeight: 315.6 }),
       ),
     ).toMatchObject({ mediaWidth: 343, timelineHeight: 316 });
-  });
-  it('retains only a bounded model identifier, never arbitrary text or routing defaults', () => {
-    for (const aiModel of [
-      '',
-      'vendor/model:free',
-      '~deepseek/deepseek-pro-latest',
-      'a'.repeat(256),
-      `~${'a'.repeat(256)}`,
-    ])
-      expect(parseWorkspacePreferences(record({ aiModel })).aiModel).toBe(
-        aiModel,
-      );
-    for (const aiModel of [
-      'openrouter/auto',
-      'model with spaces',
-      '<script>',
-      'https://vendor/model',
-      '~',
-      '~~vendor/model',
-      'a'.repeat(257),
-      `~${'a'.repeat(257)}`,
-      12,
-    ])
-      expect(parseWorkspacePreferences(record({ aiModel })).aiModel).toBe('');
   });
 });

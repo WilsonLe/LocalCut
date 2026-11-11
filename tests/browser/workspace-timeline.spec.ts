@@ -444,10 +444,7 @@ for (const base of behaviorBases) {
           for (const panel of [
             page.getByRole('region', { name: 'Project media', exact: true }),
             page.getByRole('region', { name: 'Project preview', exact: true }),
-            page.getByRole('complementary', {
-              name: 'Editing conversation',
-              exact: true,
-            }),
+            page.locator('.workspace-header'),
           ]) {
             const box = (await panel.boundingBox())!;
             const x = box.x + box.width / 2;
@@ -508,9 +505,6 @@ for (const base of behaviorBases) {
       await page.mouse.up();
       expect((await p()).revision).toBe(revision);
     });
-    await page
-      .getByRole('button', { name: 'Collapse chat', exact: true })
-      .click();
     await test.step('a new project revision retires the active drag', async () => {
       await begin('drag.png', 2);
       await expect(ghost).toBeVisible();
