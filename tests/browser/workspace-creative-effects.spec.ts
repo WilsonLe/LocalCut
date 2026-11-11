@@ -401,6 +401,209 @@ for (const base of behaviorBases) {
 }
 
 for (const base of behaviorBases) {
+  test(`local mask tracking reuses results and shared commands persist editable motion ${base}`, async ({
+    page,
+  }) => {
+    await page.goto(base);
+    const result = await page.evaluate(async (base) => {
+      const { createEditor } = await import(base + 'editor.js');
+      const namespace = 'tracking-' + crypto.randomUUID();
+      let editor = await createEditor({ namespace });
+      try {
+        const canvas = new OffscreenCanvas(32, 32),
+          ctx = canvas.getContext('2d')!;
+        for (let y = 0; y < 32; y++)
+          for (let x = 0; x < 32; x++) {
+            const v = (x * 19 + y * 53) % 255;
+            ctx.fillStyle = `rgb(${v},${v},${v})`;
+            ctx.fillRect(x, y, 1, 1);
+          }
+        const image = await editor.assets.import(
+          new File([await canvas.convertToBlob()], 'texture.png', {
+            type: 'image/png',
+          }),
+        ).completion;
+        const source = await editor.projects.create('Moving source', {
+          width: 128,
+          height: 128,
+        });
+        await editor.commands.apply({
+          projectId: source.id,
+          expectedRevision: 0,
+          requestId: 'source',
+          operations: [
+            { type: 'addTrack', track: { id: 'video-track', kind: 'video' } },
+            {
+              type: 'insertClip',
+              trackId: 'video-track',
+              clip: {
+                id: 'moving',
+                kind: 'image',
+                assetId: image.id,
+                startUs: 0,
+                durationUs: 1000000,
+                x: 16,
+                y: 32,
+                width: 32,
+                height: 32,
+                keyframes: {
+                  x: [
+                    { timeUs: 0, value: 16 },
+                    { timeUs: 1000000, value: 48 },
+                  ],
+                },
+              },
+            },
+          ],
+        });
+        const output = await editor.exports.start(source.id, { format: 'mp4' })
+          .completion;
+        let asset;
+        try {
+          asset = await editor.assets.import(
+            new File([output.file], 'moving.mp4', { type: 'video/mp4' }),
+          ).completion;
+        } finally {
+          await output.dispose();
+        }
+        const project = await editor.projects.create('Tracking', {
+          width: 128,
+          height: 128,
+        });
+        await editor.commands.apply({
+          projectId: project.id,
+          expectedRevision: 0,
+          requestId: 'track-seed',
+          operations: [
+            { type: 'addTrack', track: { id: 'video-track', kind: 'video' } },
+            {
+              type: 'insertClip',
+              trackId: 'video-track',
+              clip: {
+                id: 'clip',
+                kind: 'video',
+                assetId: asset.id,
+                startUs: 0,
+                durationUs: asset.durationUs,
+                sourceOutUs: asset.durationUs,
+                width: 128,
+                height: 128,
+                mask: {
+                  shape: 'rectangle',
+                  x: 0.125,
+                  y: 0.25,
+                  width: 0.25,
+                  height: 0.25,
+                  invert: false,
+                  feather: 0,
+                },
+              },
+            },
+          ],
+        });
+        const first = await editor.masks.track(project.id, 'clip', 1)
+          .completion;
+        const wide = await editor.projects.create('Letterboxed tracking', {
+          width: 512,
+          height: 128,
+        });
+        await editor.commands.apply({
+          projectId: wide.id,
+          expectedRevision: 0,
+          requestId: 'wide',
+          operations: [
+            { type: 'addTrack', track: { id: 'track-wide', kind: 'video' } },
+            {
+              type: 'insertClip',
+              trackId: 'track-wide',
+              clip: {
+                id: 'wide-clip',
+                kind: 'video',
+                assetId: asset.id,
+                startUs: 0,
+                durationUs: asset.durationUs,
+                sourceOutUs: asset.durationUs,
+                width: 512,
+                height: 128,
+                mask: {
+                  shape: 'rectangle',
+                  x: 0.40625,
+                  y: 0.25,
+                  width: 0.0625,
+                  height: 0.25,
+                  invert: false,
+                  feather: 0,
+                },
+              },
+            },
+          ],
+        });
+        const fitted = await editor.masks.track(wide.id, 'wide-clip', 1)
+          .completion;
+        await editor.dispose();
+        editor = await createEditor({ namespace });
+        const NativeWorker = window.Worker;
+        let replay;
+        try {
+          window.Worker = new Proxy(NativeWorker, {
+            construct() {
+              throw new Error(
+                'A cached tracking result must not start a new worker',
+              );
+            },
+          });
+          replay = await editor.masks.track(project.id, 'clip', 1).completion;
+        } finally {
+          window.Worker = NativeWorker;
+        }
+        const before = await editor.projects.snapshot(project.id);
+        await editor.commands.apply({
+          projectId: project.id,
+          expectedRevision: before.revision,
+          requestId: crypto.randomUUID(),
+          operations: [
+            {
+              type: 'updateClip',
+              clipId: 'clip',
+              patch: { mask: replay.mask },
+            },
+          ],
+        });
+        const saved = await editor.projects.snapshot(project.id);
+        const stale = editor.masks.track(project.id, 'clip', 1);
+        let rejected = '';
+        try {
+          await stale.completion;
+        } catch (e) {
+          rejected = (e as { code: string }).code;
+        }
+        return {
+          first,
+          fitted,
+          replay,
+          beforePoints: before.tracks[0].clips[0].mask.points,
+          saved: saved.tracks[0].clips[0].mask,
+          revision: saved.revision,
+          rejected,
+        };
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    expect(result.first.mask.points.length).toBeGreaterThan(5);
+    expect(result.first.mask.points.at(-1).x).toBeGreaterThan(0.3);
+    expect(result.first.confidence).toBeGreaterThan(0.2);
+    expect(result.fitted.mask.points.at(-1).x).toBeGreaterThan(0.44);
+    expect(result.fitted.confidence).toBeGreaterThan(0.2);
+    expect(result.replay).toEqual(result.first);
+    expect(result.beforePoints).toBeUndefined();
+    expect(result.saved.points).toEqual(result.first.mask.points);
+    expect(result.revision).toBe(2);
+    expect(result.rejected).toBe('REVISION_CONFLICT');
+  });
+}
+
+for (const base of behaviorBases) {
   test(`black transitions keep endpoint blends and mask drafts retime with speed ${base}`, async ({
     page,
   }) => {
@@ -633,7 +836,7 @@ for (const base of behaviorBases) {
       .click();
     await expect(form).not.toBeVisible();
     const saved = await page.evaluate(
-      async ({ id }) => {
+      async ({ base, id }) => {
         const { createEditor } = await import(base + 'editor.js');
         const e = await createEditor();
         try {

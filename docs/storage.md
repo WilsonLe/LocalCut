@@ -122,8 +122,6 @@ Cancelling a reusable consumer Job detaches its wait while shared work continues
 
 The queue retains inputs/results until the user removes their task. Removing a record deletes its owned queue data and disposes retained export artifacts; it does not delete imported originals, project edits or transcription/index outputs. Browser quota/eviction still applies. Reverting the feature leaves this sidecar unused; older builds can continue reading existing projects. Closing the application stops local processing; reopening an explicit project resumes eligible queued work, while interrupted provider submissions require review/retry.
 
-Chat export tasks (`chat.export.v1`) use this sidecar for a version-one allowlisted point-in-time transcript input and a ZIP File result. A fresh-task policy gives each explicit click its own export timestamp/snapshot; downloads reuse that task's retained result. The editor registers the handler before queue startup, so queued and abandoned running tasks rebuild only the captured input independently of the chat UI/provider. Inputs include permitted visible text/tool/proposal records, draft and local attachment metadata; no source files or executable headless caller checkpoint. No project or IndexedDB migration is needed.
-
 ## Local project organization
 
 Project records have an optional additive `catalog` field containing an independent revision, archive flag, custom thumbnail Blob and framing position. Updates are atomic revision-checked IndexedDB transactions. Edits, undo/redo and version restoration preserve this field. No database-version or project-schema migration is needed. Archiving never deletes documents, versions, receipts or originals; archived projects can still be opened, restored and exported.

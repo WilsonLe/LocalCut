@@ -69,9 +69,7 @@ export async function settingsJourney(page: Page, base: string) {
       exact: true,
     });
     await expect(media).not.toBeChecked();
-    await media.focus();
-    await page.keyboard.press('Space');
-    await expect(media).toBeChecked();
+    await expect(media).toBeDisabled();
     await expect(view).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(view).not.toBeVisible();
@@ -115,6 +113,11 @@ export async function settingsJourney(page: Page, base: string) {
         exact: true,
       }),
     ).toBeEnabled();
+    await page.keyboard.press('ArrowLeft');
+    await menu.getByRole('menuitem', { name: 'View', exact: true }).click();
+    await media.focus();
+    await page.keyboard.press('Space');
+    await expect(media).toBeChecked();
     await page.keyboard.press('ArrowLeft');
     await menu.getByRole('menuitem', { name: 'Export', exact: true }).click();
     const exports = page.getByRole('menu', { name: 'Export', exact: true });

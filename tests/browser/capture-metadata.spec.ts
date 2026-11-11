@@ -24,7 +24,7 @@ declare global {
   }
 }
 for (const base of behaviorBases) {
-  test(`capture metadata survives native imports, indexes, reload and backups ${base}`, async ({
+  test(`capture metadata survives native imports, reload and backups ${base}`, async ({
     page,
   }) => {
     await page.goto(base);
@@ -146,6 +146,89 @@ for (const base of behaviorBases) {
         },
         location: { ...captureFixture.location, source: 'quicktime-location' },
       });
-    await page.evaluate(async () => window.captureEditor.dispose());
+    const namespace = await page.evaluate(() => window.captureNamespace);
+    try {
+      const proof = await page.evaluate(async (base) => {
+        const editor = window.captureEditor;
+        const backup = await editor.projects.exportJSON(window.captureProject);
+        const restored = await editor.projects.importJSON(backup);
+        const restoredAssets = await Promise.all(
+          restored.tracks.flatMap((t) =>
+            t.clips.map((c) => editor.assets.inspect(c.assetId!)),
+          ),
+        );
+        const workspace = await editor.workspace.snapshot(
+          [window.captureProject],
+          true,
+        );
+        const selection = {
+          projectIds: [window.captureProject],
+          includeVersions: true,
+          assetIds: window.captureAssets,
+        };
+        const file = await editor.workspace.export(selection).completion;
+        const { readWorkspaceArchive } = (await import(
+          base + 'editor.js'
+        )) as typeof import('../../src/editor');
+        const archive = await readWorkspaceArchive(file);
+        const restoredWorkspace = await editor.workspace.import(
+          archive,
+          selection,
+        ).completion;
+        const workspaceAssets = await Promise.all(
+          restoredWorkspace[0]!.tracks.flatMap((t) =>
+            t.clips.map((c) => editor.assets.inspect(c.assetId!)),
+          ),
+        );
+        return {
+          restored: restoredAssets.map((a) => a.capture),
+          workspace: workspace.assets.map((a) => a.capture),
+          workspaceRestored: workspaceAssets.map((a) => a.capture),
+        };
+      }, base);
+      expect(proof.restored).toEqual(imported);
+      expect(proof.workspace).toEqual(expect.arrayContaining(imported));
+      expect(proof.workspaceRestored).toEqual(imported);
+      await page.evaluate(() => window.captureEditor.dispose());
+      await page.reload();
+      const reloaded = await page.evaluate(
+        async ({ base, namespace }) => {
+          const { createEditor } = (await import(
+            base + 'editor.js'
+          )) as typeof import('../../src/editor');
+          const editor = await createEditor({ namespace });
+          window.captureEditor = editor;
+          return (await editor.projects.list()).length;
+        },
+        { base, namespace },
+      );
+      expect(reloaded).toBe(3);
+      const retained = await page.evaluate(async () => {
+        const editor = window.captureEditor,
+          projects = await editor.projects.list(),
+          project = await editor.projects.snapshot(projects[0]!.id);
+        return Promise.all(
+          project.tracks.flatMap((t) =>
+            t.clips.map(
+              async (c) => (await editor.assets.inspect(c.assetId!)).capture,
+            ),
+          ),
+        );
+      });
+      expect(retained).toEqual(imported);
+    } finally {
+      await page.evaluate(async (namespace) => {
+        await window.captureEditor?.dispose();
+        for (const suffix of ['-v1', '-asset-index-v1', '-tasks-v1'])
+          await new Promise<void>((resolve, reject) => {
+            const request = indexedDB.deleteDatabase(namespace + suffix);
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+          });
+        await (
+          await navigator.storage.getDirectory()
+        ).removeEntry(namespace, { recursive: true });
+      }, namespace);
+    }
   });
 }
