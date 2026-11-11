@@ -4,6 +4,12 @@ This is the project record of the user's durable product and workflow choices. U
 
 Use the [current preference index](current-preferences.md) to find relevant contracts and superseding decisions. Existing dated entries and anchors remain available as decision history.
 
+## Autonomous browser project setup — 12 November 2026
+
+- Let a compatible browser agent start a project, import authorized local files and edit independently, including when LocalCut starts without an open project.
+- Keep project creation/navigation and file imports on the shared workspace/editor owners. Use the browser file-selection channel for large recordings instead of requiring base64 or manual project preparation.
+- Preserve inert registration/startup, visible-project editing scope, revision/history rules, original media, local processing and browser permissions. See the [WebMCP contract](webmcp.md).
+
 ## Vendor-neutral browser agent control — 11 November 2026
 
 - Expose WebMCP tools so any compatible agent can inspect and fully edit the project currently viewed in LocalCut, without a Codex-specific dependency.
