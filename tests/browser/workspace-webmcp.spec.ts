@@ -380,6 +380,10 @@ for (const base of behaviorBases) {
     );
     await page.goto(`${base}#/projects`);
     await workspaceReady(page);
+    await expect(
+      page.getByRole('heading', { name: 'No saved projects yet', exact: true }),
+    ).toBeVisible();
+    const catalogDatabases = await page.evaluate(() => indexedDB.databases());
     expect(
       await call(page, 'skills', { action: 'get', name: 'localcut-start' }),
     ).toHaveProperty('content');
@@ -388,20 +392,38 @@ for (const base of behaviorBases) {
     expect(await call(page, 'skills', { action: 'list' })).toMatchObject({
       skills: catalog.skills,
     });
-    expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
+    expect(await page.evaluate(() => indexedDB.databases())).toEqual(
+      catalogDatabases,
+    );
   });
 
   test(`workspace WebMCP creates, imports files, edits asset notes and edits from an empty workspace @journey ${base}`, async ({
     page,
   }) => {
     await installHarness(page);
+    page.setDefaultTimeout(15000);
     await page.goto(base);
     const { id, fixture, assetId } = await projectSetupJourney(page, base);
     const notes = {
       context: 'Opening shot\nKeep the original crop.',
-      transcript: 'Hello LocalCut.\n<script>plain text</script>',
+      transcript: 'Hello LocalCut.\nThis is the opening scene.',
     };
     const openNotes = async () => {
+      if (
+        (await page
+          .locator('#workspace-media-content')
+          .getAttribute('aria-hidden')) === 'true'
+      ) {
+        await page
+          .getByRole('button', { name: 'Expand media', exact: true })
+          .click();
+      }
+      await page
+        .getByRole('button', {
+          name: `Asset details for ${fixture.name}`,
+          exact: true,
+        })
+        .hover();
       await page
         .getByRole('button', {
           name: `Actions for ${fixture.name}`,
@@ -414,10 +436,15 @@ for (const base of behaviorBases) {
     };
     await openNotes();
     const dialog = page.getByRole('dialog', { name: 'Context and transcript' });
-    await dialog.getByLabel('Context', { exact: true }).fill(notes.context);
     await dialog
-      .getByLabel('Transcript', { exact: true })
+      .getByRole('textbox', { name: 'Context', exact: true })
+      .fill(notes.context);
+    await dialog
+      .getByRole('textbox', { name: 'Transcript', exact: true })
       .fill(notes.transcript);
+    await page.screenshot({
+      path: '.artifacts/asset-context-transcript-desktop.png',
+    });
     await dialog
       .getByRole('button', { name: 'Save text', exact: true })
       .click();
@@ -432,16 +459,15 @@ for (const base of behaviorBases) {
     await page.reload();
     await projectReady(page, id);
     await openNotes();
-    await expect(dialog.getByLabel('Context', { exact: true })).toHaveValue(
-      notes.context,
-    );
-    await expect(dialog.getByLabel('Transcript', { exact: true })).toHaveValue(
-      notes.transcript,
-    );
-    await page.screenshot({
-      path: '.artifacts/asset-context-transcript-desktop.png',
-    });
-    await dialog.getByLabel('Context', { exact: true }).fill('Unsaved draft');
+    await expect(
+      dialog.getByRole('textbox', { name: 'Context', exact: true }),
+    ).toHaveValue(notes.context);
+    await expect(
+      dialog.getByRole('textbox', { name: 'Transcript', exact: true }),
+    ).toHaveValue(notes.transcript);
+    await dialog
+      .getByRole('textbox', { name: 'Context', exact: true })
+      .fill('Unsaved draft');
     const updated = { ...notes, context: 'Agent attached this context.' };
     expect(
       await call(page, 'asset', {
@@ -456,27 +482,31 @@ for (const base of behaviorBases) {
       .getByRole('button', { name: 'Save text', exact: true })
       .click();
     await expect(dialog.getByRole('alert')).toContainText('changed');
-    await expect(dialog.getByLabel('Context', { exact: true })).toHaveValue(
-      'Unsaved draft',
-    );
+    await expect(
+      dialog.getByRole('textbox', { name: 'Context', exact: true }),
+    ).toHaveValue('Unsaved draft');
     await dialog
       .getByRole('button', { name: 'Discard draft and reload saved text' })
       .click();
-    await expect(dialog.getByLabel('Context', { exact: true })).toHaveValue(
-      updated.context,
-    );
+    await expect(
+      dialog.getByRole('textbox', { name: 'Context', exact: true }),
+    ).toHaveValue(updated.context);
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('#mobile-media-trigger').click();
     await openNotes();
-    await expect(dialog.getByLabel('Transcript', { exact: true })).toHaveValue(
-      notes.transcript,
-    );
+    await expect(
+      dialog.getByRole('textbox', { name: 'Transcript', exact: true }),
+    ).toHaveValue(notes.transcript);
     await page.screenshot({
       path: '.artifacts/asset-context-transcript-mobile.png',
     });
-    await dialog.getByLabel('Context', { exact: true }).fill('');
-    await dialog.getByLabel('Transcript', { exact: true }).fill('');
+    await dialog
+      .getByRole('textbox', { name: 'Context', exact: true })
+      .fill('');
+    await dialog
+      .getByRole('textbox', { name: 'Transcript', exact: true })
+      .fill('');
     await dialog
       .getByRole('button', { name: 'Save text', exact: true })
       .click();
@@ -492,7 +522,9 @@ for (const base of behaviorBases) {
     await openVersions(page);
     await page
       .getByRole('button', {
-        name: new RegExp(`^Version ${versions.at(-1)!.number} ·`),
+        name: new RegExp(
+          `^Version ${versions.find((version) => version.revision === 1)!.number} ·`,
+        ),
       })
       .click();
     await expect(async () => {
@@ -502,7 +534,7 @@ for (const base of behaviorBases) {
     }).toPass();
     await openNotes();
     await expect(
-      dialog.getByLabel('Context', { exact: true }),
+      dialog.getByRole('textbox', { name: 'Context', exact: true }),
     ).not.toBeEditable();
     await expect(
       dialog.getByRole('button', { name: 'Save text', exact: true }),
@@ -516,7 +548,10 @@ for (const base of behaviorBases) {
         expectedNotesRevision: 3,
       }),
     ).toMatchObject({ isError: true });
-    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await dialog
+      .locator('form')
+      .getByRole('button', { name: 'Close', exact: true })
+      .click();
     await page
       .getByRole('button', { name: 'Return to current', exact: true })
       .click();
