@@ -98,7 +98,7 @@ import { assetClip, downloadFile, projectDuration } from './helpers';
 import type { DialogName, Progress } from './WorkspaceDialogs';
 const MediaLibrary = lazy(() => import('./MediaLibrary'));
 const TaskQueueControl = lazy(() => import('./TaskQueueControl'));
-const TaskQueueNotifications = lazy(() => import('./TaskQueueNotifications'));
+const WorkspaceServices = lazy(() => import('./WorkspaceServices'));
 const ScreenRecordingDialog = onDemandDialog(
   () => import('./ScreenRecordingDialog'),
   ({ onClose }) => ({ title: 'Record screen', onClose }),
@@ -1894,7 +1894,24 @@ export function Workspace() {
       />
       {queueOwner && (
         <Suspense fallback={null}>
-          <TaskQueueNotifications editor={queueOwner} />
+          <WorkspaceServices
+            editor={queueOwner}
+            webmcp={{
+              editor,
+              project: viewProject,
+              route,
+              version: browsed,
+              selectedClipIds: selectedIds,
+              position: playbackPosition,
+              busy,
+              seek,
+              setSelection,
+              setSelected,
+              preview: previewControls,
+              onError: error,
+              refresh,
+            }}
+          />
         </Suspense>
       )}
       {recordingRoute === recordingRouteKey &&

@@ -2,6 +2,8 @@
 
 ## Compatibility
 
+[WebMCP agent control](webmcp.md) is an optional progressive enhancement using `document.modelContext.registerTool`. It requires a compatible browser and agent; unsupported browsers retain manual editing. See the WebMCP guide for setup, API references and verification limits.
+
 Current stable desktop **Google Chrome** is the complete acceptance target. Export formats are capability-checked at runtime: MP4 needs H.264/AAC and WebM needs VP9/Opus. Storage, capture and codec support also depend on the browser, OS and hardware.
 
 Native Safari has a separate macOS regression suite for storage reload and MP4 round trips. That focused coverage does not establish full Chrome parity, including WebM, local inference or performance. Mobile layouts are available, but browser/device capabilities still determine which operations work.

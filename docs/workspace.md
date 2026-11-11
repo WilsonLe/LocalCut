@@ -1,5 +1,7 @@
 # Workspace
 
+[WebMCP site tools](webmcp.md) let any compatible browser agent inspect and control the viewed project through the shared editor API. Historical views remain read-only; navigation retires previous tools and their jobs/artifacts. No built-in AI connection is required.
+
 ## Application updates
 
 LocalCut has no in-app update check or update prompt. Use the browser's installed-app update controls or refresh the app. Recovery from a missing deployment asset still offers an explicit Reload LocalCut action that preserves the project URL and saved browser data.

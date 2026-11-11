@@ -9,3 +9,7 @@ Manual editing, the storyboard, local media analysis and explicitly prepared loc
 On startup LocalCut removes obsolete local provider credentials, pending authorization state and voice presets. Saved workspace preferences discard chat/model/provider fields. Legacy backups still import supported local preferences and project data. Historical chat/reference sidecars and previously imported/generated media are left untouched; no runtime opens or restores the retired sidecars. Removing a feature does not delete original media or authored projects. See [privacy](privacy.md) and [storage](storage.md).
 
 Earlier requirements are retained in the [dated preference record](user-preferences.md) as history, not current product contracts.
+
+## External browser integration
+
+The separately requested [WebMCP site tools](webmcp.md) expose the shared local editor to compatible browser agents. They do not restore this removed product assistant, chat, provider adapters or remote inference. The [tool inventory](webmcp.md#tool-inventory) owns current external editing access.

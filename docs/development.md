@@ -194,3 +194,7 @@ The local coding API remains an independent headless engine capability. Run `pnp
 ## Agent removal checks
 
 Run `pnpm test tests/unit/workspace-preferences.test.ts tests/unit/workspace-settings.test.ts tests/unit/error-diagnostics.test.ts tests/unit/task-queue.test.ts`, both production builds and `pnpm check:bundle`. Then run `pnpm test:browser tests/browser/workspace-agent-removal.spec.ts tests/browser/workspace-resizable.spec.ts tests/browser/editor.spec.ts tests/browser/lifecycle.spec.ts`. These cover inert upgrade/startup, removed provider controls/module, manual edits, mobile tabs, resize persistence and engine lifetime. Historical chat/reference data stays inert; original media remains intact.
+
+## WebMCP checks
+
+Run `pnpm test tests/unit/webmcp.test.ts tests/unit/receipt-content.test.ts`, then `pnpm test:ui --grep "workspace WebMCP"`. The production Chrome journeys cover complete-schema edits, canonical receipts/retries, visible/persisted changes, Undo/Redo, selection/seek, historical read-only snapshots, navigation/reload, local Media import/relink, real preview pixels, native MP4 encode/decode and released URLs. The controlled registration harness isolates transport from browser availability; native discovery separately uses the actual browser API and explicitly skips when unavailable. Neither proves every agent’s interoperability or model quality. Both static builds and existing bundle caps remain required; media/inference algorithms are unchanged. Use `LOCALCUT_TEST_BASES=both` only for hosting-path diagnostics.
