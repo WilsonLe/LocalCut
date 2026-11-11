@@ -110,6 +110,63 @@ describe('LocalCut public skills tool', () => {
     expect(result).not.toHaveProperty('content');
   });
 
+  it.each(['truncated-json', 'malformed-catalog', 'unreadable-index'])(
+    'reports recovery for a successful response with %s',
+    async (failure) => {
+      const f = fixture();
+      if (failure === 'truncated-json')
+        f.fetcher.mockResolvedValueOnce(new Response('{'));
+      if (failure === 'malformed-catalog')
+        f.fetcher.mockResolvedValueOnce(
+          Response.json({ version: 1, skills: [{ name: 'localcut-start' }] }),
+        );
+      if (failure === 'unreadable-index') {
+        const response = Response.json(index);
+        vi.spyOn(response, 'json').mockRejectedValueOnce(
+          new TypeError('Body stream failed'),
+        );
+        f.fetcher.mockResolvedValueOnce(response);
+      }
+      expect(await f.invoke({ action: 'list' })).toMatchObject({
+        error: {
+          code: 'MISSING_ASSET',
+          message: expect.stringContaining('reload'),
+        },
+      });
+    },
+  );
+
+  it('reports recovery when the selected Markdown body cannot be read', async () => {
+    const f = fixture();
+    const response = new Response(markdown);
+    vi.spyOn(response, 'arrayBuffer').mockRejectedValueOnce(
+      new TypeError('Body stream failed'),
+    );
+    f.fetcher
+      .mockResolvedValueOnce(Response.json(index))
+      .mockResolvedValueOnce(response);
+    expect(await f.invoke({ action: 'get', name: skill.name })).toMatchObject({
+      error: {
+        code: 'MISSING_ASSET',
+        message: expect.stringContaining('reload'),
+      },
+    });
+  });
+
+  it('preserves cancellation when an in-flight body read fails', async () => {
+    const f = fixture();
+    const invocation = new AbortController();
+    const response = Response.json(index);
+    vi.spyOn(response, 'json').mockImplementationOnce(async () => {
+      invocation.abort();
+      throw new DOMException('Aborted body read', 'AbortError');
+    });
+    f.fetcher.mockResolvedValueOnce(response);
+    expect(await f.invoke({ action: 'list' }, invocation.signal)).toMatchObject(
+      { error: { code: 'CANCELLED' } },
+    );
+  });
+
   it('honors invocation cancellation and rejects callbacks from a retired app', async () => {
     const f = fixture();
     expect(

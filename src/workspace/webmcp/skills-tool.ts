@@ -41,14 +41,19 @@ export function skillsTool(lifetime: AbortSignal, baseUrl: string): SiteTool {
         const signal = AbortSignal.any([lifetime, options.signal]);
         signal.throwIfAborted();
         const parsed = inputSchema.parse(input);
-        const read = async (path: string) => {
+        const read = async <T>(
+          path: string,
+          decode: (response: Response) => Promise<T>,
+        ) => {
           try {
             const response = await fetch(new URL(path, baseUrl), {
               signal,
               cache: 'no-cache',
             });
             invariant(response.ok, 'MISSING_ASSET', 'Skill file unavailable.');
-            return response;
+            const result = await decode(response);
+            signal.throwIfAborted();
+            return result;
           } catch {
             signal.throwIfAborted();
             throw new EditorError(
@@ -57,10 +62,9 @@ export function skillsTool(lifetime: AbortSignal, baseUrl: string): SiteTool {
             );
           }
         };
-        const catalog = catalogSchema.parse(
-          await (await read('index.json')).json(),
+        const catalog = await read('index.json', async (response) =>
+          catalogSchema.parse(await response.json()),
         );
-        signal.throwIfAborted();
         const skills = catalog.skills.map((skill) => ({
           ...skill,
           url: new URL(`${skill.name}/SKILL.md`, baseUrl).href,
@@ -74,9 +78,9 @@ export function skillsTool(lifetime: AbortSignal, baseUrl: string): SiteTool {
           'NOT_FOUND',
           'Unknown LocalCut skill. Call localcut_skills with action list for available names.',
         );
-        const bytes = await (
-          await read(`${skill.name}/SKILL.md`)
-        ).arrayBuffer();
+        const bytes = await read(`${skill.name}/SKILL.md`, (response) =>
+          response.arrayBuffer(),
+        );
         const digest = await crypto.subtle.digest('SHA-256', bytes);
         signal.throwIfAborted();
         const sha256 = Array.from(new Uint8Array(digest), (byte) =>

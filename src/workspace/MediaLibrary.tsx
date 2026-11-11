@@ -629,6 +629,7 @@ function MediaAssetCard({
         />
       </Tooltip>
       <AssetMenu name={asset.name}>
+        {actions}
         <Menu.Item
           className={assetMenuItemClass}
           onClick={() => setNotesAsset(asset)}
@@ -636,7 +637,6 @@ function MediaAssetCard({
           <FileText aria-hidden="true" />
           Context and transcript
         </Menu.Item>
-        {actions}
       </AssetMenu>
       {notesAsset && (
         <AssetNotesDialog
