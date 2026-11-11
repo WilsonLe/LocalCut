@@ -20,7 +20,6 @@ import {
 } from '../components/ui/dialog';
 import { HistoryTable, useHistoryPage } from './HistoryTable';
 import { downloadFile } from './helpers';
-import type { SpeechTaskResult } from './speech-tasks';
 function SavedTaskResult({
   editor,
   task,
@@ -43,15 +42,9 @@ function SavedTaskResult({
           | {
               file?: File;
               text?: string;
-              rendered?: SpeechTaskResult['rendered'];
             }
           | File;
-        const blob =
-          value instanceof Blob
-            ? value
-            : 'rendered' in value
-              ? value.rendered?.file
-              : value.file;
+        const blob = value instanceof Blob ? value : value.file;
         if (blob instanceof Blob) {
           setFile(blob as File);
           if (blob.type.startsWith('audio/')) {
@@ -74,7 +67,7 @@ function SavedTaskResult({
         <audio
           src={url}
           controls
-          aria-label="Saved speech preview"
+          aria-label="Saved audio preview"
           className="w-full"
         />
       )}

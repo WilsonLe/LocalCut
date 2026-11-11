@@ -181,20 +181,6 @@ for (const base of behaviorBases) {
       page.getByRole('dialog', { name: 'Export video', exact: true }),
     ).toBeVisible();
     await page.keyboard.press('Escape');
-    await run(page, 'New chat');
-    await run(page, 'Chat sessions');
-    await expect(
-      page
-        .getByRole('menu', { name: 'Chat sessions', exact: true })
-        .getByRole('menuitemradio'),
-    ).toHaveCount(1);
-    await page.keyboard.press('Escape');
-    // The lazy picker must reopen after it has already mounted and closed.
-    await run(page, 'Chat sessions');
-    await expect(
-      page.getByRole('menu', { name: 'Chat sessions', exact: true }),
-    ).toBeVisible();
-    await page.keyboard.press('Escape');
     await run(page, 'Use WebM export format');
     await expect(
       header.getByRole('button', { name: 'Commands', exact: true }),
@@ -207,11 +193,6 @@ for (const base of behaviorBases) {
     await expect(
       header.getByRole('button', { name: 'Commands', exact: true }),
     ).toBeFocused();
-    await run(page, 'Connect OpenRouter');
-    await expect(
-      page.getByRole('dialog', { name: 'AI connection', exact: true }),
-    ).toBeVisible();
-    await page.keyboard.press('Escape');
     await page
       .getByRole('button', { name: 'Workspace settings', exact: true })
       .click();
@@ -235,10 +216,6 @@ for (const base of behaviorBases) {
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
     expect(bounds.y + bounds.height).toBeLessThanOrEqual(844);
     await page.keyboard.press('Escape');
-    await run(page, 'Expand chat');
-    await run(page, 'Collapse chat');
-    await page.reload();
-    await expect(page.locator('.conversation-panel')).toBeHidden();
     await expect(
       page
         .getByRole('navigation', { name: 'Workspace sections' })

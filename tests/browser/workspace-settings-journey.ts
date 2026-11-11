@@ -16,7 +16,7 @@ export async function settingsJourney(page: Page, base: string) {
     });
     await expect(menu).toBeVisible();
     await expect(settings).toHaveAttribute('aria-expanded', 'true');
-    await expect(menu.getByRole('menuitem')).toHaveCount(8);
+    await expect(menu.getByRole('menuitem')).toHaveCount(7);
     await expect(
       page.getByRole('menuitem', {
         name: 'Download project backup',
@@ -64,14 +64,14 @@ export async function settingsJourney(page: Page, base: string) {
     await page.keyboard.press('ArrowRight');
     const view = page.getByRole('menu', { name: 'View', exact: true });
     await expect(view).toBeVisible();
-    const conversation = view.getByRole('menuitemcheckbox', {
-      name: 'Editing conversation',
+    const media = view.getByRole('menuitemcheckbox', {
+      name: 'Media library',
       exact: true,
     });
-    await expect(conversation).toBeChecked();
-    await conversation.focus();
+    await expect(media).not.toBeChecked();
+    await media.focus();
     await page.keyboard.press('Space');
-    await expect(conversation).not.toBeChecked();
+    await expect(media).toBeChecked();
     await expect(view).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(view).not.toBeVisible();

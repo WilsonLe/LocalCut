@@ -1,64 +1,40 @@
 # Development loop
 
-Start with [CONTRIBUTING.md](../CONTRIBUTING.md), the [agent contract](../AGENTS.md) and, for workspace changes, [user preferences](user-preferences.md). Use the [setup guide](setup.md) and [command reference](#commands). Work in an issue-linked isolated feature worktree; reuse the task's existing worktree and draft PR when continuing a change.
-
-Verify Node 24, pnpm 11.25.0, and installed stable Google Chrome once, then reuse that setup throughout the iteration. Run `pnpm install --frozen-lockfile` when dependencies are missing or the lockfile changes; do not reinstall or download a browser after every edit. Generic Playwright Chromium does not satisfy the native codec acceptance gate.
-
-## Chrome behavior and deployment coverage
-
-Normal Chrome acceptance runs repeated scenarios once at `/LocalCut/`, retaining both static builds and explicitly named distinct fixture variants. Routing, callbacks and worker/asset loading do not add a second root-path execution. See [the complete matrix inventory](playwright-journeys.md#avoid-duplicate-work). To diagnose a path-specific issue, use `LOCALCUT_TEST_BASES=both pnpm test:browser tests/browser/<name>.spec.ts`; discovery with `--list` verifies selection without launching Chrome. The full matrix is diagnostic, not a second routine run after successful normal acceptance.
+Read [CONTRIBUTING.md](../CONTRIBUTING.md), the [agent guide](../AGENTS.md) and [current preferences](current-preferences.md). Reuse the task’s isolated feature worktree and tracking issue. Node 24, pnpm 11.25.0 and installed stable Google Chrome are required. Keep dependencies exact and install with `pnpm install --frozen-lockfile`. Product agent AI was removed on 11 November 2026; no editor feature requires an assistant path.
 
 ## Commands
 
-| Command                               | Purpose                                                       |
-| ------------------------------------- | ------------------------------------------------------------- |
-| `pnpm dev`                            | Local editor workspace at the root path                       |
-| `pnpm typecheck`                      | Strict browser, worker, Node/test/config checks               |
-| `pnpm lint`                           | ESLint and pure-core import boundaries                        |
-| `pnpm format:check`                   | Prettier                                                      |
-| `pnpm test`                           | Domain and service unit tests                                 |
-| `pnpm build`                          | App + `editor.js` + `ai.js` + worker assets + declarations    |
-| `pnpm build:root`                     | Equivalent build at `/` in `dist-root`                        |
-| `pnpm test:browser`                   | Production integration in Google Chrome                       |
-| `pnpm test:safari`                    | Native Safari storage and H.264/AAC regressions (macOS)       |
-| `pnpm test:profile <label> <command>` | Wall time, descendant CPU/RSS and host utilization profile    |
-| `pnpm test:tooling`                   | Resource scheduling and verified-build cache regressions      |
-| `pnpm test:ui`                        | Focused workspace tests; rebuild only stale production assets |
-| `pnpm test:transcription`             | Real pinned Whisper preparation and cached replay             |
-| `pnpm test:performance`               | Warmup, two- and five-minute 1080p exports                    |
-| `pnpm test:ai:live`                   | Opt-in real OpenRouter test; private key and model required   |
-| `pnpm check:bundle`                   | Actual entry graph and static artifact budgets                |
-| `pnpm check:docs`                     | Local Markdown file, image and heading references             |
-| `pnpm check`                          | Normal formatting/lint/type/unit/build/bundle/browser gates   |
-
-Browser commands require both production builds first, except `test:ui` and `test:safari`, which verify or build them automatically. The harness server is test-only and never enters `dist`. See [build reuse and resource scheduling](#expand-verification-at-the-boundary) and [native browser verification](browser-support.md#native-browser-verification).
-
-TypeScript 7.0.2 supplies `tsc` through the `@typescript/native` alias. The `typescript` alias supplies Microsoft's pinned v6 compatibility API for typescript-eslint; it does not replace the production compiler. Dependencies and the lockfile are exact.
+| Command                               | Purpose                                           |
+| ------------------------------------- | ------------------------------------------------- |
+| `pnpm dev`                            | Local workspace                                   |
+| `pnpm typecheck`                      | Strict source, worker, config and test checks     |
+| `pnpm lint`                           | Promise and import boundaries                     |
+| `pnpm format:check`                   | Formatting                                        |
+| `pnpm test`                           | Unit regressions                                  |
+| `pnpm build`                          | Pages app, editor entry, workers and declarations |
+| `pnpm build:root`                     | Root-path production build                        |
+| `pnpm test:browser`                   | Production stable Chrome integration              |
+| `pnpm test:ui`                        | Focused UI checks with verified build reuse       |
+| `pnpm test:tooling`                   | Local scheduling/build/check tooling              |
+| `pnpm test:transcription`             | Real local Whisper preparation and cached replay  |
+| `pnpm test:performance`               | Native two/five-minute export acceptance          |
+| `pnpm test:safari`                    | Native Safari checks                              |
+| `pnpm check:bundle`                   | Entry graph and artifact budgets                  |
+| `pnpm check:docs`                     | Local Markdown references                         |
+| `pnpm check`                          | Complete normal local gate                        |
+| `pnpm test:profile <label> <command>` | CPU/RSS/wall-time profile                         |
 
 ## Read guidance at the file's scope
 
-Read the root `AGENTS.md`, then the guides in the target file's ancestor directories. For `src/workspace/Conversation.tsx`, that is root → `src/AGENTS.md` → `src/workspace/AGENTS.md`; for a browser test, root → `tests/AGENTS.md` → `tests/browser/AGENTS.md`. Parent rules remain in force; local guides add module-specific responsibilities and check selection. Keep a new rule at the narrowest shared owner instead of copying it across guides.
+Read each ancestor `AGENTS.md` before editing. The root guide applies everywhere; the nearest module guide adds its local contract. Keep new rules narrow and link shared ownership rather than copying it.
 
 ## Find the owner
 
-| Directory                                                                                                                                        | Responsibility                                                                                           |
-| ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| [`src/workspace/`](../src/workspace/AGENTS.md)                                                                                                   | Conversation, preview, timeline, settings, and their UI state; editing goes through the shared APIs.     |
-| [`src/components/ui/`](../src/components/ui/AGENTS.md), `src/styles.css`, `src/lib/`                                                             | Shared shadcn/Base UI primitives, semantic styling, and utilities.                                       |
-| [`src/core/`](../src/core/AGENTS.md)                                                                                                             | Pure documents, commands, identity, captions, timing, and resampling.                                    |
-| [`src/editor/`](../src/editor/AGENTS.md)                                                                                                         | Public editor facade, lifecycle, jobs, and events exposed to consumers.                                  |
-| [`src/storage/`](../src/storage/AGENTS.md)                                                                                                       | IndexedDB transactions, OPFS originals, journals, recovery, and quota.                                   |
-| [`src/media/`](../src/media/AGENTS.md)                                                                                                           | Import/decode, derivatives, composition, and streaming export.                                           |
-| [`src/services/`](../src/services/AGENTS.md), [`src/workers/`](../src/workers/AGENTS.md)                                                         | Preview clock, job/worker transport, and local media/transcription execution.                            |
-| [`src/ai/`](../src/ai/AGENTS.md)                                                                                                                 | Optional OpenRouter authentication, transport, context policy, and proposed edits.                       |
-| [`tests/`](../tests/AGENTS.md): [`unit/`](../tests/unit/AGENTS.md), [`browser/`](../tests/browser/AGENTS.md), [`live/`](../tests/live/AGENTS.md) | Pure/service tests, production Chrome acceptance, and opt-in paid-provider acceptance.                   |
-| [`scripts/`](../scripts/AGENTS.md), [`.github/workflows/`](../.github/workflows/AGENTS.md)                                                       | Local builds/checks, verified build reuse, test server, and automatic Pages deployment on `main` pushes. |
-
-See [architecture](architecture.md) and [API contracts](api.md) before crossing a boundary. Preserve the existing owner instead of duplicating project state in a control or transport.
+[Workspace](../src/workspace/AGENTS.md) owns UI state and calls the [editor facade](../src/editor/AGENTS.md). [Core](../src/core/AGENTS.md) owns pure documents/commands, [storage](../src/storage/AGENTS.md) owns persistence, [media](../src/media/AGENTS.md) owns native processing, [services](../src/services/AGENTS.md) and [workers](../src/workers/AGENTS.md) own runtime lifetimes. [Tests](../tests/AGENTS.md) and [scripts](../scripts/AGENTS.md) own validation. Consult [architecture](architecture.md), [API](api.md) and [storage](storage.md) when crossing boundaries.
 
 ## Persist reusable computation
 
-Treat refresh and reopening as cache consumers. For every new or changed expensive derived computation, inspect its existing owner and enumerate its UI, editor, worker and assistant consumers before implementing it. Reuse a valid persisted result before decoding, analyzing or encoding again. Keep the [computation inventory](storage.md#reusable-computation-inventory) current; an in-memory map alone does not satisfy reuse across refreshes.
+Treat refresh and reopening as cache consumers. For every new or changed expensive derived computation, inspect its existing owner and enumerate its UI, editor, worker consumers before implementing it. Reuse a valid persisted result before decoding, analyzing or encoding again. Keep the [computation inventory](storage.md#reusable-computation-inventory) current; an in-memory map alone does not satisfy reuse across refreshes.
 
 Every production task registration declares `cache` first in its handler, using `freshTask(reason)` or a versioned reusable policy. The editor's `queued` wrapper requires the same policy. Legacy external handlers without a policy remain fresh for compatibility; new production tasks cannot omit the decision. `task-cache.ts` owns typed content keys and policy validation; `task-queue.ts` owns admission, sharing and durable completion. Keep cache logic out of UI components.
 
@@ -82,80 +58,11 @@ pnpm test:browser tests/browser/derived-cache.spec.ts tests/browser/layered-cach
 
 Select affected workspace consumers, retain native media checks, and run the performance gate when shared PCM/export behavior changes. See [storage formats and recovery](storage.md) for implementation contracts. During review, check this list against every changed computation and its consumers; undocumented session-only caching is incomplete work.
 
-## Keep agent access complete
-
-Every new or changed editing feature must ship with assistant access in the same change, following the [durable user preference](user-preferences.md#complete-agent-editing-access--11-october-2026). Before implementation, inventory the affected UI/API commands, authored properties, recipes and service actions against the [AI feature-access inventory](ai.md#editing-feature-access-inventory). Record a concrete reason for each user-owned boundary; a missing assistant path is unfinished editing work.
-
-For each included feature, verify these completion conditions:
-
-1. The shared engine owns the behavior and canonical schema; `validate_edits`/`propose_edits` expose every operation and field without a separate AI whitelist. Add new service actions through the existing capability-filtered, reviewable action path.
-2. The assistant can discover valid IDs/options/recipes and inspect the relevant state under the existing sharing policy. Extend `inspect_capabilities`, bounded catalog discovery or the owning inspection tool as needed. Keep recipe catalogs shared with the UI.
-3. The editing/service skill catalog and loaded guidance explain how to use the feature, preserve unrelated state and recover from validation/stale-revision errors. Loading remains incremental and never grants consent or approval.
-4. A meaningful regression demonstrates inspect/discover → validate/propose → requested workspace execution (or explicit default headless approval) → persisted result. Cover cancellation/rejection or immutable instance ownership when affected. The operation-complete test must still enumerate every canonical operation; add a case whenever that list grows. Property-schema parity catches fields dropped from either edit tool; new authored behavior also needs runtime assertions.
-5. Update the inventory, relevant API/workspace contract and check-selection recipe with the change. In the PR, report feature coverage and any reserved boundary explicitly.
-
-Start with `pnpm test tests/unit/assistant.test.ts` for schema/operation/property/parameter coverage and approval/privacy authority. Use the related core regressions for changed timing, text, captions, tracks or groups. After both builds are current, run `pnpm test:browser tests/browser/ai-skills.spec.ts tests/browser/ai.spec.ts tests/browser/ai-actions.spec.ts` for complete per-round discovery, wrong-domain recovery, sharing-blocked continuation, lazy guidance, fresh-turn/frozen-round authority, actual persisted approvals, history and native exports at the deployed base. The typed registry in `src/ai/tools.ts` owns both declarations and capability/error discovery for every canonical tool/action; new variants need support/loading/sharing coverage in the same change. Add the affected workspace selector when the UI changes; retain the normal integration and applicable native acceptance gates. These deterministic providers establish engine/tool access, not live model editing quality or paid inference.
-
 ## One edit, one focused check
 
-For actionable edit recovery, run `pnpm test tests/unit/edit-validation.test.ts tests/unit/chat-context.test.ts tests/unit/assistant.test.ts`, then both builds and `pnpm test:browser tests/browser/ai-edit-recovery.spec.ts`. The controlled journeys repair real transition and missing-text-style rejections, preserve exactly-once commits, reuse a validated ID after compaction and read the persisted revision after reload. It does not prove autonomous paid-model creative quality.
+Start with the changed owner's narrowest unit or production Chrome scenario. `pnpm test:ui --grep 'speed rounding'` checks/reuses both production builds. Direct browser commands require `pnpm build` followed by `pnpm build:root` first. Builds and browsers sharing `dist`/`dist-root` run sequentially. Verify selectors with `--list` before expensive runs.
 
-For assistant orchestration changes, run `pnpm test tests/unit/assistant.test.ts tests/unit/assistant-response.test.ts tests/unit/chat-context.test.ts tests/unit/goal-review.test.ts tests/unit/prompt-cache.test.ts`. This covers admitted/queued turns, immutable exchanges, live scopes, late commits, cancellation, frozen-round authority, provider-packet mutation at the async handoff, semantic compaction and stable routing. For the workspace import coordinator, run `pnpm test tests/unit/media-import.test.ts tests/unit/media-library.test.ts`; controlled jobs cover navigation/dismissal, placement serialization, failure recovery and unmount cleanup, not native decode/storage.
-
-After both current builds and bundle checks, use `pnpm test:browser tests/browser/ai.spec.ts tests/browser/ai-actions.spec.ts tests/browser/ai-skills.spec.ts tests/browser/lifecycle.spec.ts` for production assistant boundaries, and `pnpm test:ui --grep 'asset drop|folder upload|single agent edits despite failed notes|chat streams only main execution|screen recording'` for the affected workspace paths. Preserve real native import/export and recording cases; the controlled provider replies do not prove paid model quality. Broaden to other consuming speech/coding/Storyboard/UI scenarios when their dispatch path changes. Keep the complete merge gate separate from focused draft evidence.
-
-For whiteboard image insertion, run `pnpm test tests/unit/storyboard.test.ts tests/unit/storyboard-export.test.ts tests/unit/assistant.test.ts tests/unit/workspace-backup.test.ts`, then `pnpm test:ui --grep 'storyboard images insert'`. This covers agent discovery/scope/review/requested execution, image geometry and asset remapping, local canvas/export pixels, native video stills, reload, shared history, cancellation/stale timestamps and original-inclusive backup transfer at the deployed base. Media inference/export algorithms remain unchanged.
-
-For appearance font choices/loading, run `pnpm test tests/unit/appearance-fonts.test.ts tests/unit/font-cache.test.ts tests/unit/workspace-settings.test.ts`, then `pnpm test:ui --grep 'workspace appearance searches|workspace appearance previews the actual app'`. These cover the shared catalog, selected local faces, inheritance, reload/cross-tab persistence, checksum failure/retry and superseded loads. After shared-loader changes, retain `pnpm test:browser tests/browser/text-fonts.spec.ts` on current builds for authored text and native exports. Run both builds and `pnpm check:bundle` to verify lazy startup and font packaging.
-
-Choose the smallest test that exercises the changed behavior, then run the cheap static checks. For a preview scheduling change:
-
-```sh
-pnpm test tests/unit/preview-latency.test.ts
-pnpm typecheck
-pnpm lint
-pnpm format:check
-```
-
-For overlap cues and contextual transition actions, run `pnpm test tests/unit/timeline-features.test.ts tests/unit/assistant.test.ts`, then `pnpm test:ui --grep 'timeline overlap context menu|timeline audio separation'`. These cover visual span/icon state, exact-pair edits independent of selection, mouse/keyboard/touch menus, cancelled holds, locked/stale actions, shared recipes, history, reload and the deployed base. The gesture/menu state adds no assistant API; authored transitions retain the existing shared operations and discovery. Native media/inference owners are unchanged.
-
-For audio separation, groups and transition recipes, run `pnpm test tests/unit/timeline-features.test.ts`. The production scenario `pnpm test:ui --grep 'timeline audio|native separated'` covers selection and grouping, all template previews, native audio equivalence, MP4/WebM outputs, persistence at the deployed base.
-
-For workspace changes, use `pnpm dev` for interactive work, then run the matching production UI scenario:
-
-```sh
-pnpm test:ui --grep 'speed rounding'
-```
-
-This example selects the existing speed regression at `/LocalCut/`. Replace the filter with the relevant test title, or omit it to run all workspace specs. The command verifies source/configuration/dependency fingerprints and every output file, rebuilding only stale targets. It reuses current assets after test-only or documentation changes. Build stamps live in ignored `.cache/build-state/`; `dist` and `dist-root` remain deployable output only.
-
-For native file dropping and retained batch progress, use `pnpm test:ui --grep 'asset drop|compact workspace imports|workspace imports image, audio and video'`. This covers app-wide/Media hover, nested leaves, blocked/text drops, actual local image/video imports, per-file failure, cross-tab task cancellation, full-batch queue submission, early Okay/X/Escape dismissal, background editing/navigation, picker parity and persisted reloads at the deployed base. Existing picker, keyboard, mobile and recording stories dismiss the retained result dialog explicitly through `workspace-import-helper.ts`; internal media-to-timeline drags keep their pointer-based path.
-
-Keyboard and assistant service regressions have their own specs. After the same two builds are current, run `pnpm test:browser tests/browser/keyboard.spec.ts tests/browser/ai-actions.spec.ts`. The keyboard tests use real persisted edits and native playback; the assistant tests reopen native MP4/WebM artifacts. To check just the AAC configuration regression before building, use `pnpm test tests/unit/audio-config.test.ts`.
-
-For shared dialog sizing, run `pnpm test:ui --grep 'dialog sizing fits'` for content-sized short forms, rich editors, mobile backup bounds, project browsing, command search, shortcut reflow, internal scrolling and focus return at the deployed base and all interface scales. Select the affected consumer journeys as well when changing their internal layout.
-
-For track schema/locks/output/AI changes, run `pnpm test tests/unit/track-operations.test.ts tests/unit/timeline-features.test.ts tests/unit/assistant.test.ts`, then `pnpm test:ui --grep 'track menu operations|track disable mute solo|timeline add tracks'`. These cover menus, revision-bound forms, locked edits, history, the deployed base and mobile, approved assistant batches and real visual/audio MP4/WebM reopening. Composition changes retain the separate performance gate.
-
-For interface sizing and timeline anchoring, run `pnpm test:ui --grep 'interface size'`. This checks all three sizes, portal placement, narrow popup bounds, touch playback with expanded media, scaled editing gestures and saved choices at the deployed base. Native Safari's `pnpm test:safari` additionally measures size and bottom alignment before its media/storage scenarios.
-
-For a non-UI Chrome regression, build both targets after changing production code, then select its spec:
-
-```sh
-pnpm build
-pnpm build:root
-pnpm test:browser tests/browser/recovery.spec.ts
-```
-
-When only that test changed and the production builds are still current, reuse them and run the last command. Direct `test:browser` does not validate or rebuild assets. Use `--list` with that command to check selection without launching Chrome. Do not replace native codec or inference evidence with unit mocks.
-
-For documentation-only edits, check formatting and the referenced files/commands. Reuse existing code evidence when the code and tests are unchanged; a full build or browser rerun adds no evidence for a prose correction.
-
-For compatible browser stories, use [the Playwright journey inventory](playwright-journeys.md) to reuse an open app, project and tab across named steps. Batch related specs into one runner invocation before adding browser workers or tabs. The implemented combinations carry `@journey` in their titles; `pnpm test:ui --grep '@journey'` selects them at the deployed base. Original story titles remain in the enclosing test name and named steps, so their existing grep selectors still work. Keep incompatible startup, failure and native fixtures isolated.
-
-For screen-recording changes, start with `pnpm test tests/unit/screen-recording.test.ts`, then `pnpm test:ui --grep 'screen recording'`. Controlled capture streams cover native encoding, audio, import/export, retry and disposal at the deployed base. The separate stable-Chrome instance in that spec exercises real browser-tab capture using a test-only selector for its synthetic tab; it never selects the user's desktop. It uses `--disable-audio-output` to silence speaker playback while retaining the tab-capture signal and native recorded-waveform assertions; keep `--mute-audio` excluded from that instance. Native OS screen/window pickers and OS audio availability still need interactive verification on the target platform.
-
-For text-to-speech changes, start with `pnpm test tests/unit/speech.test.ts tests/unit/openrouter.test.ts`, then `pnpm test:ui --grep 'text to speech'`. These test live catalog/voice validation, multilingual request settings, cancellation, exact pitch-preserving timing, local import/history/reopening and native export. Provider interception is deterministic transport evidence; assess natural delivery separately with an explicitly connected account and a Generate action.
+Use isolated contexts, namespaces and ports. Normal journeys execute once at `/LocalCut/`; `LOCALCUT_TEST_BASES=both` is diagnostic only. Keep native codec/storage assertions real and do not substitute generic Chromium for stable Chrome.
 
 ## Expand verification at the boundary
 
@@ -163,7 +70,7 @@ For draft PR handoff, run formatting, lint, types, `pnpm check:docs`, the affect
 
 When merging is requested, run full `pnpm check` locally. It runs formatting, documentation references, lint, types, tooling regressions, units, both verified production builds, bundle budgets and the complete normal Chrome suite. Independent static checks overlap, then unit tests can overlap with the sequential build stage; browser consumers wait for verified outputs and bundle validation. Hosted CI stays disabled.
 
-Follow [validation](validation.md) for real transcription/cached replay and the five-minute export gate at merge, and during development whenever changes affect those algorithms or native capabilities. They are explicit `pnpm test:transcription` and `pnpm test:performance` commands, outside normal `check`. Real-provider testing is separately opt-in; read [AI privacy and live-test requirements](ai.md) before `pnpm test:ai:live`. Report missing capabilities or failed gates directly.
+Follow [validation](validation.md) for real transcription/cached replay and the five-minute export gate at merge, and during development whenever changes affect those algorithms or native capabilities. They are explicit `pnpm test:transcription` and `pnpm test:performance` commands, outside normal `check`. Report missing capabilities or failed gates directly.
 
 ### Coding-rule and documentation checks
 
@@ -204,18 +111,6 @@ Keep the issue, draft PR, implementation, and evidence aligned. Run exactly one 
 
 Merge requires authorization and triggers automatic Pages deployment on `main`. Complete local validation before merging and follow [deployment and rollback](../DEPLOY.md) for live release verification; a local pass or review approval does not prove merge or deployment succeeded.
 
-## Indexing checks
-
-```sh
-pnpm test tests/unit/asset-index.test.ts tests/unit/asset-index-provider.test.ts tests/unit/assistant.test.ts
-pnpm test:ui --grep 'workspace indexing|chat indexing'
-# After both current builds:
-pnpm test:browser tests/browser/asset-index.spec.ts
-pnpm test:performance
-```
-
-The native performance workload measures scanning and excerpt generation separately after its export measurements, with no provider request. Total generation/labeling work depends on detected scene count. Four-Hz discovery covers every detected shot, but can miss shots/transitions shorter than the 250 ms sample interval or visually similar cuts; lighting changes may cause extra cuts; highlight scoring describes sampled pixels rather than semantic importance. Audio uses deterministic energy/silence boundaries and bounded continuous segments, not semantic speech/music sections. LLM labels are nondeterministic. See [AI consent and live verification](ai.md#manual-asset-indexing).
-
 ## Resizable panel compatibility
 
 Workspace splits use the shadcn Base Resizable wrappers over pinned `react-resizable-panels` 4.14.3. Its browser ESM pointer calculation is patched through pnpm to translate visual pointer deltas into layout pixels under CSS zoom; keep the patch and lockfile together. This preserves the saved 75%/100%/125% interface sizes. Verify any dependency upgrade with `pnpm test:ui --grep 'workspace resizable|interface size'`, covering horizontal and vertical dividers at the deployed base. Save sizes from completed layouts, not stale imperative reads or per-move callbacks.
@@ -228,148 +123,23 @@ Production packaging moves the catalog to `fonts/<snapshot-sha256>/` and embeds 
 
 For font or animation changes, run `pnpm test tests/unit/text-library.test.ts tests/unit/text-animation.test.ts`, `pnpm test:ui --grep 'searchable fonts|bundled font pages'`, then (using the same verified builds) `pnpm test:browser tests/browser/text-fonts.spec.ts tests/browser/text-rendering.spec.ts`. The Chrome cases cover real worker glyphs, typewriter and handmade frames, native MP4/WebM reopening, integrity failures, tag search, pagination, editing and persistence at the deployed base. `pnpm test:safari` additionally covers native Safari fonts/animation through real MP4 reopening at the deployed base. Renderer changes retain the separate performance gate; inference code is unaffected by font-only work.
 
-## Durable task queue checks
-
-```sh
-pnpm test tests/unit/task-queue.test.ts tests/unit/assistant.test.ts tests/unit/speech.test.ts
-pnpm test:ui --grep 'task queue table'
-pnpm test:ui --grep 'chat response actions|text to speech'
-pnpm test:browser tests/browser/task-queue.spec.ts tests/browser/editor.spec.ts tests/browser/lifecycle.spec.ts
-```
-
-The browser commands use current production builds at the deployed base. Facade/scheduling changes also retain the real local transcription and disk-backed export performance gates. Intercepted speech requests prove queue lifecycle and transport behavior, not paid voice quality. Dictation's controlled recognition fixture proves draft integration; microphone permission and the browser's speech service require a manual supported-browser check.
-
 ## Application lifecycle checks
 
 Run `pnpm test:ui --grep 'browser-managed updates|deployment recovery|missing optional UI chunk'` to verify absent update controls/requests, desktop/mobile headers, saved-project reload and missing-asset recovery at the deployed base. Build identity remains available for error diagnostics and deployment inspection; changes to revision generation also require `node --test tests/tooling/build-state.test.mjs`, both builds and `pnpm check:bundle`. Lifecycle reload remains user-owned, outside the editing-feature access inventory.
 
-## Project header and recent-project startup checks
-
-Run `pnpm test tests/unit/recent-project.test.ts tests/unit/project-route.test.ts`, then `pnpm test:ui --grep 'project routing|workspace storyboard|chat readiness'` for header icons/keyboard/mobile bounds, all interface sizes, most-recent restoration, malformed-ID fallback, delayed conversation navigation, explicit URL precedence, fresh startup, missing projects and restored chat without startup inference at the deployed base. These navigation controls do not change authored editing operations or the assistant access inventory.
-
-## Storyboard checks
-
-Use `pnpm test tests/unit/storyboard-export.test.ts tests/unit/storyboard.test.ts tests/unit/assistant.test.ts tests/unit/workspace-backup.test.ts` for schema, partial patches, redaction, serialized canvas writes and assistant coverage. Use `pnpm test:ui --grep 'workspace storyboard'` for real Excalidraw drawing, shared history, approved agent edits, reload, versions/backups and narrow layouts at the deployed base. Excalidraw remains a lazy UI dependency; core/headless schema and commands do not import it. Add `pnpm test:ui --grep 'storyboard export'` for PNG pixels/transparency/selection/scaling, SVG/editable scene output, Media persistence, agent-to-timeline workflows and export ownership during navigation at the deployed base. `storyboard-workflows.md` owns the user/agent recipes; keep them and the AI inventory synchronized with supported commands/actions.
-
-The same Chrome selection verifies failed drawing fonts stay local and rejects dropped files/library scenes in live and historical views. `node --test tests/tooling/storyboard-assets.test.mjs` checks the pinned development/production fallback adapter; dependency updates must preserve local-only loading or deliberately update that adapter and its evidence.
-
-`scripts/storyboard-assets.ts` publishes the pinned package's drawing fonts below `storyboard/excalidraw-0.18.1/`, with a SHA-256 inventory verified by the bundle gate. Update the package pin, asset path and inventory together on upgrade. The package includes internal Radix components; its transitive peer metadata predates React 19, so verify the real diagram interactions alongside the package's declared React 19 support.
-
-## Automatic chat title checks
-
-Run `pnpm test tests/unit/chat-title.test.ts tests/unit/providers.test.ts`, then `pnpm test:ui --grep 'chat title runs|chat navigation pauses|chat picker matches'`. These cover bounded complete text, the selected model and configured route transport, independent delayed naming, session/branch ownership, failure and retirement, searchable titles, full/reduced motion and retained conversation controls at the deployed base. Provider interception establishes transport and lifecycle evidence; live naming quality and cost depend on the configured provider. Naming is session UI metadata and grants no editing/tool authority.
-
 ## Notification history checks
 
-For error diagnostics and notification history, run `pnpm test tests/unit/error-diagnostics.test.ts tests/unit/notification-history.test.ts tests/unit/services.test.ts tests/unit/task-queue.test.ts tests/unit/worker-publication.test.ts`, then `pnpm test:ui --grep 'notification history|concurrent notification reports|saved task failures stay quiet'`. The Chrome scenario covers the deployed base, original stack/session capture, clipboard success/check/reset and denial, dismissal, persisted reopening, informational notifications, unread dots, clear history, narrow layouts and simultaneous reports under a shared write lock. The saved-task journey additionally verifies quiet startup/reopening, fresh polling/retry failures, unchanged original reports and read flags across reload, clear-history persistence and no inference requests. Notification history is user-owned lifecycle UI; it grants no assistant edit operation.
-
-## Capture metadata checks
-
-Run `pnpm test tests/unit/capture-metadata.test.ts tests/unit/asset-indexer-capture.test.ts tests/unit/asset-index.test.ts tests/unit/asset-index-provider.test.ts tests/unit/assistant.test.ts tests/unit/workspace-backup.test.ts tests/unit/workspace-settings.test.ts`, then both builds and `pnpm test:browser tests/browser/capture-metadata.spec.ts tests/browser/asset-index.spec.ts`. These cover real EXIF/container extraction, independent remote redaction, capture-informed label revocation and retry recovery, native imports, index prompt manifests, local reload and backup preservation at the deployed base. Use `pnpm test:ui --grep 'workspace indexing|chat indexing'` for the shared indexing controls. Extraction bounds and supported tags are documented in [the API contract](api.md#embedded-asset-capture-metadata).
-
-## Chat persistence checks
-
-Run `pnpm test tests/unit/chat-persistence.test.ts tests/unit/assistant.test.ts tests/unit/conversation-errors.test.ts`, then `pnpm test:ui --grep 'chat readiness|chat title runs|chat navigation pauses|chat picker matches|chat continuation remembers|chat immutable tool history'`. The persistence journey covers local IndexedDB reload/selection/drafts, immutable context/tool continuation, branching, rename/title races, archive/restore, independent forks, last-active-chat recovery, concurrent-tab session creation, project/sharing isolation, startup without inference, same-effective-model continuity, historical tool replies and multi-scope save-failure recovery at the deployed base. Session retention is workspace lifecycle state and grants no assistant editing operation. The continuation journey verifies typed continuation before output, interruption recovery after local reload, reasoning-only empty-response silent recovery and identical-request retries. Native transcription/export/performance behavior is unchanged.
-
-## Chat export checks
-
-Run `pnpm test tests/unit/chat-export.test.ts tests/unit/task-queue.test.ts`, then `pnpm test:ui --grep 'chat export queues|chat export captures|chat export recovers'`. The Chrome journey verifies the chat-header icon, immutable queued snapshots, cancellation/retry, queued and abandoned-running reload recovery, actual ZIP downloads, Markdown/JSON contents, session switching and mobile bounds at the deployed base. Chat export is a user-owned download boundary and adds no assistant editing operation. Native rendering/transcription paths are unchanged.
+For error diagnostics and notification history, run `pnpm test tests/unit/error-diagnostics.test.ts tests/unit/notification-history.test.ts tests/unit/services.test.ts tests/unit/task-queue.test.ts tests/unit/worker-publication.test.ts`, then `pnpm test:ui --grep 'notification history|concurrent notification reports|saved task failures stay quiet'`. The Chrome scenario covers the deployed base, original stack/session capture, clipboard success/check/reset and denial, dismissal, persisted reopening, informational notifications, unread dots, clear history, narrow layouts and simultaneous reports under a shared write lock. The saved-task journey additionally verifies quiet startup/reopening, fresh polling/retry failures, unchanged original reports and read flags across reload, clear-history persistence and no inference requests. Notification history is user-owned lifecycle UI; it changes no editing operation.
 
 ## Dialog opening checks
 
-For on-demand dialog code, loading focus or command-palette preparation, run `pnpm test:ui --grep 'first dialog opening|dialog loading shell|commands load metadata|simple dialogs keep heavy|failed dialog chunks|retained speech dialog'`. The production Chrome cases cover the deployed base, full motion, pre-imported first openings versus repeats, slow/failed chunks, dismissal before completion, focus return across retained speech reopenings, parallel command preparation, heavy-body isolation and inert bare startup. The pre-import probe retains a 250 ms mount budget to catch the former roughly 300 ms Suspense retry floor; diagnostic timing attachments distinguish shell and resolved dialog mounts.
+For on-demand dialog code, loading focus or command-palette preparation, run `pnpm test:ui --grep 'first dialog opening|dialog loading shell|commands load metadata|simple dialogs keep heavy|failed dialog chunks'`. The production Chrome cases cover the deployed base, full motion, pre-imported first openings versus repeats, slow/failed chunks, dismissal before completion, focus return after reopening, parallel command preparation, heavy-body isolation and inert bare startup. The pre-import probe retains a 250 ms mount budget to catch the former roughly 300 ms Suspense retry floor; diagnostic timing attachments distinguish shell and resolved dialog mounts.
 
-Run affected existing consumer journeys as well, including `project switcher dialog`, `error stack trace`, `task queue table`, `workspace settings`, `screen recording`, `searchable fonts`, `speed rounding` and relevant speech/backup cases. Keep engine, transcription, storage and native export gates separate; changing only UI-module loading does not change their owners.
-
-## Requested chat execution checks
-
-Run `pnpm test tests/unit/assistant.test.ts tests/unit/task-queue.test.ts tests/unit/asset-indexer-capture.test.ts`, then `pnpm test:ui --grep 'chat parallel indexing|chat independently discloses|chat indexing requested execution|text clarification|conversation cancellation|rate-limit errors|chat executes atomic edits|conversation proposes and applies'`. Requested mode covers parallel reads/distinct-asset indexing, bounded in-flight work, out-of-order receipts, same-asset exclusion, cancellation and paid-failure barriers, tool/action-before-text ordering, sequential mutation receipts/fresh revisions, scoped indexing and explicit retry after failure, response/service cancellation and plain text clarification. Existing headless approval/privacy regressions remain in the same assistant suite. Native media processing is unchanged; these deterministic providers establish execution and transport, without paid inference.
-
-## Creative effect checks
-
-Use `pnpm test tests/unit/audio-effects-window.test.ts tests/unit/creative-effects.test.ts tests/unit/assistant.test.ts tests/unit/core.test.ts tests/unit/timeline-features.test.ts` for keep-pitch effect continuity, LUT validation/interpolation, spectral/EQ/balance processing, chroma, mask path split/timing, discovery and approved effects/tracking. Then `pnpm test:ui --grep 'creative effects|creative clip|local mask tracking|black transitions keep'` covers the deployed base, responsive controls, local import failure, persisted settings/history/backup, actual MP4/WebM pixels/PCM and native video tracking with cached replay/approved assistant persistence. Shared composition changes also require the serial `pnpm test:performance` gate. Transcription preparation/model paths are unchanged.
-
-## Media folder checks
-
-For named OPFS folders, library revisions and assistant scope, start with `pnpm test tests/unit/media-library.test.ts tests/unit/assistant.test.ts`. Run `pnpm test:ui --grep 'workspace media folders upload|folder drop traversal|media select-all'` for directory picker hierarchy, empty directory drop, folder navigation, pointer moves, focused media select-all/clearing and native input guards, rename, folder download, Trash/Restore, narrow layout, reload and independence from timeline references at the deployed base. After current production builds, run `pnpm test:browser tests/browser/media-folders.spec.ts tests/browser/project-media-roots.spec.ts` for project isolation/migration and actual OPFS readback, recursive copy/move/rename, collisions/invalid paths, stale/concurrent changes, journal recovery and retained native preview/MP4 sources. These checks exercise local organization; no provider/native computer-folder access is involved.
-
-## OpenRouter context checks
-
-For request session IDs, attribution and accounting, run:
-
-```sh
-pnpm test tests/unit/openrouter.test.ts tests/unit/openrouter-protocol.test.ts tests/unit/openrouter-auth.test.ts tests/unit/openrouter-credentials.test.ts tests/unit/providers.test.ts tests/unit/assistant.test.ts tests/unit/chat-title.test.ts tests/unit/chat-persistence.test.ts tests/unit/asset-index-provider.test.ts tests/unit/asset-indexer-capture.test.ts tests/unit/speech.test.ts
-pnpm test:ui --grep 'chat continuation remembers|chat title runs|chat readiness|TTS connector|text to speech queues retries'
-```
-
-These cover stable chat/tool/title identities, independent forks and direct operations, queued speech ownership, local reload, index-run grouping, invalid-ID rejection, multipart headers, app attribution, generation IDs, detailed accounting and existing auth/cancellation boundaries. Provider interception establishes transport, not live OpenRouter receipt or cache savings. The [documentation audit](ai.md#request-management-and-documentation-audit) records adopted and deferred recommendations. No local transcription preparation, PCM or rendering owner changes; their native gates remain separate.
-
-For connection terms, automatic context sharing and legacy chat migration:
-
-```sh
-pnpm test tests/unit/providers.test.ts tests/unit/chat-persistence.test.ts
-pnpm test:ui --grep 'OpenRouter connection shares all context|provider empty state reveals OpenRouter'
-```
-
-The production Chrome journey reads project/media names, overlay/storyboard text and frame names, attached source transcript text and imported EXIF dates/GPS through real assistant tools before and after reload. It migrates all 48 older sharing/indexing scope variants in native IndexedDB while preserving canonical selection, drafts, titles, archives and project/model/provider isolation. Intercepted replies establish transport and persistence, not paid inference quality. The connector layout journey covers desktop/phone terms and both connection choices without provider requests.
-
-For library-only upload and mixed Apple Photos folders, run `pnpm test tests/unit/media-library.test.ts`, then `pnpm test:ui --grep 'mixed photo folder upload|unsupported import format|asset drop'`. These cover visible metadata skips, native worker errors, queued siblings, initiating-project ownership, unchanged timeline/history and reload. Editing journeys use `closeMediaImportAndPlace` to explicitly seed their timeline through canonical commands; upload/attachment/indexing journeys retain `closeMediaImport` and inspect Media IDs directly.
-
-## Single OpenRouter connection checks
-
-Run `pnpm test tests/unit/providers.test.ts tests/unit/openrouter.test.ts tests/unit/openrouter-credentials.test.ts tests/unit/openrouter-auth.test.ts tests/unit/speech.test.ts tests/unit/publication.test.ts tests/unit/assistant.test.ts tests/unit/workspace-backup.test.ts tests/unit/workspace-settings.test.ts`, then `pnpm test:ui --grep 'single OpenRouter|provider empty state reveals|OpenRouter connection shares|TTS connector|OAuth UI|saved API key|saved credential'`. After both production builds, run `pnpm test:browser tests/browser/providers.spec.ts` for real native extraction and persisted source cues. The single-provider journeys replace obsolete multiple-account, ChatGPT and backup-routing journeys with migration/rejection coverage. Shared transcription integration retains `pnpm test:transcription`; queue facade changes retain `pnpm test:performance`. Provider interception proves transport and cancellation without paid inference.
-
-## Silent chat retry checks
-
-Run `pnpm test tests/unit/assistant.test.ts tests/unit/openrouter.test.ts tests/unit/openrouter-protocol.test.ts tests/unit/conversation-errors.test.ts`, then `pnpm test:ui --grep 'chat continuation remembers|rate-limit errors recover silently|chat escalated errors|chat navigation pauses'`. These cover same-turn empty/transient recovery, identical frozen context, bounded backoff/Retry-After, cancellation, permanent errors, partial-text replay prevention, committed edits executing once, primary play-icon manual Retry after exhaustion, captured context/assets, draft precedence, keyboard/mobile operation and retained navigation Resume. Intercepted provider requests prove transport/lifecycle behavior, not paid-provider availability. The inference and native media owners are unchanged.
-
-## Chat library resolution checks
-
-Run `pnpm test tests/unit/library-context.test.ts tests/unit/assistant.test.ts` and `pnpm test:ui --grep 'chat resolves named nested Media|chat indexing requested execution|chat parallel indexing settles both assets'`. These cover successful partial inspection and empty-search recovery through the already granted host policy, cached reference reads followed by an applied edit without indexing, selected-only scope preservation, withheld versus unregistered media, recursive/shallow/paginated folder queries, inherited Trash, deduplicated IDs, caller allowlists and independent sharing/service consent, stale manifests/deferred approval, frozen-round recovery and fresh-turn scope. The production workspace journey uploads an image without timeline placement/attachments, resolves its named nested folder, excludes a trashed copy, runs the existing indexer against intercepted provider replies, reads saved evidence and persists a storyboard note through reload at the deployed base. Run `tests/browser/ai-skills.spec.ts` for the shared discovery/fresh-turn contract. This establishes tool/executor/storage behavior; live model adherence is separate. Native indexing, rendering and transcription owners are unchanged.
-
-## Voice configuration checks
-
-Run `pnpm test tests/unit/voice-presets.test.ts tests/unit/speech.test.ts`, then `pnpm test:ui --grep 'text to speech'`. The Chrome journeys at the deployed base cover saving without script/audio, independent script text, speed/target-length restoration, update/duplicate, searchable selection/management, rename/archive/restore, reload/cross-tab refresh, storage denial and legacy speaker-reference generation. Real decoded audio verifies the configured duration; intercepted providers prove transport and lifecycle, not paid voice quality. Native transcription and performance owners are unchanged by preference management.
-
-### ElevenLabs configuration checks
-
-Run `pnpm test tests/unit/speech.test.ts tests/unit/voice-presets.test.ts`, then `pnpm test:ui --grep 'ElevenLabs speech configuration|speech provider controls'`. These production Chrome journeys run once at the deployed base and verify collapsed advanced controls, model capabilities, invalid configuration blocking, reload/preset reuse, immutable queued settings, asset/transcript attachment, ElevenLabs-to-Fish speaker reference reuse and real native MP3 decoding with intercepted transport. No paid synthesis or listening-quality claim follows from interception. Local inference, timing DSP and performance owners are unchanged.
-
-## Request completion checks
-
-Run `pnpm test tests/unit/goal-review.test.ts tests/unit/assistant.test.ts tests/unit/chat-persistence.test.ts tests/unit/chat-export.test.ts tests/unit/openrouter.test.ts tests/unit/openrouter-protocol.test.ts tests/unit/conversation-errors.test.ts tests/unit/chat-title.test.ts tests/unit/task-queue.test.ts tests/unit/error-diagnostics.test.ts`, then `pnpm test:ui --grep 'completion review|chat continuation remembers|rate-limit errors recover silently|conversation cancellation|text clarification'`. After both builds, run `pnpm test:browser tests/browser/ai.spec.ts tests/browser/ai-skills.spec.ts` for headless and domain discovery compatibility. The reviewer boundary/transport suites cover verbatim protocol-looking text and actual tool-call rejection, unchanged historical evidence, explicit tool-free requests, bounded diagnostic reads, arbitrary goal/task/assessment text, main-agent completion decisions, HTTP/SSE allowlisted rejection categories, permanent-error non-retry and reviewer-stage recovery. Persistence/browser cases also retain captured Retry/Resume through reload, reject stale/completed recovery targets and preserve draft precedence, image revalidation and committed-once edits. The shared assistant suite covers fresh/follow-up contracts, independent review identities, current state/receipts and concurrent project or Media changes, correction without replay, three assessment checks, caller budgets, private output, verbatim prose/Markdown replies, neutral review labels, empty-text acceptance and incomplete-stream recovery, cancellation during backoff and usage from all completed attempts. Persistence/export cases retain string and legacy observations without mutation. The new Chrome journey at the deployed base covers plain-text goal/review feedback, an initially premature offer, dependent track/title corrections applied once in the same turn, subtle contract/verdict disclosure, reload without inference and mobile exhausted checks. Auxiliary success fixtures for existing journeys preserve their execution-only scope; separately scripted completion cases establish the new control flow. Native codecs, inference/model preparation, DSP and rendering are unchanged. Live model adherence remains separately authorized provider evidence.
-
-For existing direct-provider compatibility after both builds, run `pnpm test:browser tests/browser/workspace-storyboard-images.spec.ts tests/browser/ai-actions.spec.ts tests/browser/workspace-storyboard.spec.ts tests/browser/workspace-storyboard-export.spec.ts tests/browser/workspace-track-operations.spec.ts tests/browser/workspace-creative-effects.spec.ts tests/browser/media-folders.spec.ts tests/browser/task-queue.spec.ts --grep 'storyboard images|AI approved history|drawing, history, approved agent|storyboard exports|AI-approved commands|local mask tracking|assistant media folder|full-engine assistants'`. These journeys keep synthetic auxiliary review replies separate from execution counters and verify their original native services and persisted actions.
+Run affected existing consumer journeys as well, including `project switcher dialog`, `error stack trace`, `task queue table`, `workspace settings`, `screen recording`, `searchable fonts`, `speed rounding` and relevant backup cases. Keep engine, transcription, storage and native export gates separate; changing only UI-module loading does not change their owners.
 
 ## Clip properties and instance menu checks
 
-Run `pnpm test tests/unit/assistant.test.ts tests/unit/timeline-features.test.ts`, then `pnpm test:ui --grep 'timeline clip action menus|creative clip controls|speed rounding|stale property|object keyframes|custom speed ramps|searchable fonts|bundled font pages|existing text font sizes|workspace commands discover|timeline overlap context menu|mobile touch editing|timeline clip movement|timeline narrow clips|editor combinations.*native clip activation'`. The targeted stable Chrome journeys cover the deployed base, exact repeated-asset instance ownership, tabs/drafts/invalid-field recovery, mouse/keyboard/touch and cancellation, read-only/stale menus, shared history/reload, timing, animation, text styles and retained overlap/drag controls. Tabs and menu state add no assistant API; canonical edit operations retain existing discovery/schema parity. Native media, inference and performance owners are unchanged.
-
-## Chat HTTP 400 and retry diagnostics checks
-
-Run `pnpm test tests/unit/openrouter.test.ts tests/unit/openrouter-protocol.test.ts tests/unit/assistant.test.ts tests/unit/chat-export.test.ts tests/unit/chat-persistence.test.ts tests/unit/conversation-errors.test.ts tests/unit/error-diagnostics.test.ts tests/unit/task-queue.test.ts`, then `pnpm test:ui --grep 'single agent edits despite failed notes|mobile OpenRouter chat routes supported parameters'`. These cover unspecified versus explicit output admission, recognized/unknown HTTP and SSE rejection metadata, stage propagation, safe failed-response persistence/export, explicit retry after skill loading, reload without inference and committed-once edits. Complete history and reasoning remain immutable. Controlled providers establish transport/recovery behavior; they cannot prove the original upstream rejection without its trace. Native transcription/media/performance algorithms are unchanged.
-
-## Chat streaming progress checks
-
-Run `pnpm test tests/unit/goal-review.test.ts tests/unit/assistant.test.ts`, then `pnpm test:ui --grep 'chat streams only main execution|single agent edits despite failed notes|conversation cancellation|chat navigation pauses'`. Collector regressions cover cumulative drafts before terminal acceptance, reset before transient inference retry and rejection of late text after cancellation. The production Chrome streaming journey gates actual SSE parsing between chunks for goal, to-do and completion sessions, verifies separate main replies, full/reduced motion, mobile wrapping and reload without inference. Controlled providers establish transport/lifecycle evidence; no live model quality or paid-provider receipt is claimed. Native media processing, transcription preparation and rendering owners are unchanged.
-
-## Browser coding checks
-
-Run `pnpm test tests/unit/coding.test.ts tests/unit/assistant.test.ts tests/unit/workspace-settings.test.ts`, then build both targets and run `pnpm test:browser tests/browser/coding.spec.ts tests/browser/ai-skills.spec.ts`. The coding journey runs once at the deployed base and verifies arbitrary JavaScript/WAV, filesystem isolation, requested and reviewed mutations, real Media import, stale writers, cancellation, reload and audible native MP4/WebM export. Static checks and bundle budgets cover public declarations and lazy embedded runtime packaging. Native transcription and shared media/performance algorithms are unchanged.
-
-For music-guidance changes, also run the existing `assistant.test.ts` support/loading/sharing/fresh-turn cases and `ai-skills.spec.ts` domain recovery checks. Walk through an ambiguous beginner brief, a delegated composition, a sparse/ambient preference and a cut with named cues. Check that questions resolve taste rather than create a compulsory approval wait, that layering/theory serve the brief and that actual cut timing governs synchronization. Controlled providers/native audio prove guide delivery and the existing tool path, not nicer music or model adherence; an audible quality evaluation is separate.
-
-## Auxiliary agent role checks
-
-Run `pnpm test tests/unit/goal-review.test.ts tests/unit/assistant.test.ts tests/unit/chat-persistence.test.ts tests/unit/chat-export.test.ts`, then `pnpm test:ui --grep 'single agent treats restored notes|single agent edits despite failed notes|chat streams only main execution'`. Normal checks use the deployed base once; `LOCALCUT_TEST_BASES=both` is an optional path-specific diagnostic. The role-recovery journey scripts contaminated goal, conversational/tool-markup notes and a user-facing assessment followed by three corrected internal artifacts; it verifies tool-free request framing, follow-up evidence, completed/blocked task display and reload without inference. The [branch/leaf matrix](ai.md#auxiliary-role-regression-coverage) maps every captured symptom to named local and opt-in live cases. Unit coverage also checks minimal-edit/no-op request framing, changed-only snapshot publication after each turn’s initial snapshot, targeted status/goal updates and follow-up/fork/restoration continuity. The same cases cover short-bullet instructions, complete goals longer than 50 words, and the 50-word reply/assessment guidance across execution, completion decisions and branches without injecting token caps. Unit coverage checks role-specific task selection, rejects a generic-task mutation, routes each contaminated leaf through all three agents, rejects actual auxiliary calls and preserves historical protocol/verbatim text, separate review identities, cancellation, retry/accounting and execution authority. For authorized live semantic evaluation, use `pnpm test:ai:live --grep "live auxiliary role:"`; its nine synthetic cases grade every target response and expose only sanitized outcomes. The probes include positive/negative meaning controls for excluded historical requirements, neutral introductions and task-specific evidence. The live runner retains round/tool budgets while using the selected model response allowance; safe phase/category/count diagnostics explain incomplete results without exposing provider text. Controlled providers establish request/lifecycle behavior; live model adherence requires separately authorized provider evidence. Native media, transcription and performance owners are unchanged.
-
-## Chat usage popover checks
-
-Run `pnpm test tests/unit/usage.test.ts tests/unit/assistant.test.ts tests/unit/chat-title.test.ts tests/unit/chat-persistence.test.ts tests/unit/chat-export.test.ts tests/unit/openrouter.test.ts tests/unit/asset-indexer-capture.test.ts`, then `pnpm test:ui --grep 'chat usage popover'`. The production stable Chrome journey checks per-request/agent charges, delayed naming ownership across follow-ups, saved context/rates, separate message-detail popovers without accordions, request switching, nested keyboard dismissal/focus return, long-message scrolling, reload without inference and desktop/phone bounds. Unit cases cover cache read/write separation, zero/absent prices, partial totals, recovery grouping, immutable accounting events and persistence/export. Controlled provider replies prove accounting and transport, not live billed receipt. Native codecs/transcription/performance algorithms are unchanged.
-
-## Agent narration and transcript diagnosis checks
-
-Run `pnpm test tests/unit/assistant.test.ts tests/unit/library-context.test.ts tests/unit/goal-review.test.ts tests/unit/speech.test.ts tests/unit/voice-presets.test.ts tests/unit/task-queue.test.ts tests/unit/chat-persistence.test.ts tests/unit/chat-export.test.ts --testTimeout=20000`. The extended timeout accommodates the intentionally large no-default-cap assistant fixture, not a runtime budget. Then build both targets and run `pnpm test:browser tests/browser/agent-speech.spec.ts tests/browser/ai-skills.spec.ts` plus affected speech-dialog workspace journeys. Agent narration covers discovery, requested/headless authority, a real imported WAV, native waveform readback, measured phrase metadata, music ducking, title/cut preservation, reload, explicit checkpoint reuse, project isolation and cancellation. Saved-voice cases also verify two different scripts after reload with the same stable settings ID, generated reference upload for a new script in another cut, provenance and script/audio separation, missing/archived profile rejection and headless privacy. Controlled providers establish integration, not paid synthesis quality. Preserve native transcription/performance gates for changes to those owners. The [root-cause audit](sydney-chat-root-causes.md) maps historical symptoms to current owners and unproven leads.
+Run `pnpm test tests/unit/timeline-features.test.ts`, then `pnpm test:ui --grep 'timeline clip action menus|creative clip controls|speed rounding|stale property|object keyframes|custom speed ramps|searchable fonts|bundled font pages|existing text font sizes|workspace commands discover|timeline overlap context menu|mobile touch editing|timeline clip movement|timeline narrow clips|editor combinations.*native clip activation'`. The targeted stable Chrome journeys cover the deployed base, exact repeated-asset instance ownership, tabs/drafts/invalid-field recovery, mouse/keyboard/touch and cancellation, read-only/stale menus, shared history/reload, timing, animation, text styles and retained overlap/drag controls. Tabs and menu state use the existing canonical editing schemas. Native media, inference and performance owners are unchanged.
 
 ## Playback scheduling and FPS checks
 
@@ -389,34 +159,38 @@ The opt-in production Chrome benchmark uses the same generated 1080p30 native MP
 
 Run `pnpm test tests/unit/audio-effects-window.test.ts tests/unit/core.test.ts tests/unit/speed.test.ts tests/unit/timeline-features.test.ts`, then both builds and `pnpm test:browser tests/browser/media-acceptance.spec.ts --grep 'audio mixer|trimmed audio'`. The generated-source regressions check exact starts/ends, zero gain, fades, EQ/denoise, keep-pitch and loops; native Chrome verifies finite decoded AAC with a non-silent bounded tone at an affected endpoint. The negative control must fail for the old floating-microsecond subtraction. These checks establish finite sample membership and native encoding, not subjective sound quality. Shared mixer changes retain the performance gate.
 
-## Existing-chat compaction and Retry checks
+## Chrome behavior and deployment coverage
 
-Run `pnpm test tests/unit/chat-context.test.ts tests/unit/assistant.test.ts tests/unit/openrouter.test.ts tests/unit/chat-persistence.test.ts tests/unit/chat-export.test.ts tests/unit/usage.test.ts tests/unit/conversation-errors.test.ts tests/unit/error-diagnostics.test.ts`, then `pnpm test:ui --grep 'single agent edits despite failed notes'`. The shared transport checks exact default-output admission correction, explicit budgets, unsupported controls, input overflow, bounded retry and private nested diagnostics. Working-context cases preserve full original messages/paired tool receipts and test saved prefix identity, reuse, new threshold crossing, altered history/earlier forks and failed/cancelled summaries. Production stable Chrome covers visible desktop/mobile compaction, Cancel availability, manual Retry after reload, saved checkpoint/original source readback, later reload/send and compatible branch/reload reuse, plus a committed edit executing once. Reasoning sentinels stay out of summary evidence/export, and explicit context-byte budgets prevent oversized compaction submission. Controlled replies establish lifecycle/transport/persistence, not semantic quality or live provider availability. Native transcription, media and performance owners are unchanged.
+Normal Chrome acceptance uses the deployed base once. Keep explicit fixture variants and production asset/worker coverage; see [journey policy](playwright-journeys.md). Both static builds remain required. Hosted validation is disabled; pushes to `main` deploy Pages after authorized merge.
 
-## Composer voice recording checks
+## Durable task queue checks
 
-Run `pnpm test tests/unit/microphone-recording.test.ts tests/unit/voice-presets.test.ts tests/unit/speech.test.ts`, then `pnpm test:ui --grep 'dictation'` and `pnpm test:browser tests/browser/agent-speech.spec.ts --grep 'agent saved voices'`. The composer journey uses controlled recognition text with real Chrome MediaRecorder capture, decode, import, local transcript/reference persistence and discovery after reload. The agent voice journey verifies a selected dictation reference reaches the existing synthesis action with the original WAV/transcript; providers remain controlled, so paid cloning quality is unverified. Recognition never supplies measured word timings. Local Whisper preparation/inference and performance owners are unchanged.
+Run `pnpm test tests/unit/task-queue.test.ts tests/unit/task-cache.test.ts`, then the production `tests/browser/task-queue.spec.ts` and affected editor/UI scenarios. Queue persistence, cancellation and committed results remain independent of the removed agent runtime.
 
-## Audio and video reference checks
+## Project header and recent-project startup checks
 
-For label-response contract changes, run `pnpm test tests/unit/asset-index.test.ts tests/unit/asset-index-provider.test.ts tests/unit/asset-indexer-capture.test.ts`, then both production builds and `pnpm test:browser tests/browser/asset-index.spec.ts tests/browser/workspace-indexing.spec.ts --grep 'native indexing keeps scenes|workspace indexing connection|reference attachments'`. The native video case accepts oversized scene/summary text into bounded labels, rejects a wrong field type, checkpoints the original accepted/rejected provider text, reloads into a fresh indexer, explicitly retries only the failed scene, and reuses the completed result without inference. Pure checks cover all field/item/count bounds, Unicode, invalid entries beyond retained counts and hierarchical summaries. Transport cases cover portable strict schemas (bounds retained in descriptions and instructions), JSON-object and prompt-only routes; invalid JSON/extra fields/wrong IDs retain strict rejection. Controlled provider replies establish contract and recovery evidence, not live semantic quality or upstream adherence after the fix.
+Run `pnpm test tests/unit/recent-project.test.ts tests/unit/project-route.test.ts`, then `pnpm test:ui --grep 'project routing|project navigation'`. Bare startup remains inert; recent and explicit project routes restore authoritative local snapshots.
 
-Run `pnpm test tests/unit/asset-index.test.ts tests/unit/asset-index-provider.test.ts tests/unit/asset-indexer-capture.test.ts tests/unit/assistant.test.ts tests/unit/conversation-errors.test.ts`, then `pnpm test:ui --grep "(audio|video) reference attachments|chat readiness and persisted sessions"`. The native Chrome reference journey covers file selection/drop, draft reload, Media scope, actual generated still/clip evidence, timestamp/provenance readback, cached reuse and unchanged timeline. Provenance units cover audible video with unsupported/supported audio capability and legacy unknown records; native audio readback retains the new trusted capability metadata. After both builds, run `pnpm test:browser tests/browser/asset-index.spec.ts tests/browser/ai-skills.spec.ts` for native scene/audio retention and supported/unloaded/blocked discovery. Controlled responses establish transport and lifecycle evidence; paid video comprehension and semantic quality remain separate. Native transcription and rendering/performance algorithms are unchanged.
+## Storyboard checks
 
-## Editorial quality guidance checks
+Run the storyboard unit files and `pnpm test:ui --grep 'workspace storyboard|storyboard export'`. Keep canvas edits, shared history, reload, export and Media persistence on the public editor facade. See [storyboard workflows](storyboard-workflows.md).
 
-Run `pnpm test tests/unit/assistant.test.ts tests/unit/goal-review.test.ts tests/unit/chat-context.test.ts`, then both builds and the existing `tests/browser/ai-skills.spec.ts` discovery/recovery journey. These cover lazy editorial guidance, independent assessment framing, compaction continuation, wrong-domain/sharing recovery, actual shared-command execution and fresh-turn authority. They do not grade beauty or train model weights.
+## Capture metadata checks
 
-For an authorized real-model trial, retain the rejected encoded cut, inspect source/reference evidence and timestamped failures, then have Klip revise the actual project. Review the new encoded sequence for curation, repeated compositions across different asset IDs, story/scale/pacing, crops/text/motion and narration/picture conflicts. Verify persisted timeline changes separately. State rendered, motion and listening coverage honestly. Tool/clip counts, valid geometry, presets, exported frame counts and unchanged audio placements cannot substitute for this creative review. See [editorial quality](ai.md#editorial-craft-and-creative-quality).
+Run `pnpm test tests/unit/capture-metadata.test.ts tests/unit/workspace-backup.test.ts`, then `pnpm test:browser tests/browser/capture-metadata.spec.ts`. Capture dates/GPS stay local and readable in existing projects/backups.
 
-## Prompt cache reuse checks
+## Creative effect checks
 
-Run `pnpm test tests/unit/assistant.test.ts tests/unit/receipt-progress.test.ts tests/unit/chat-context.test.ts tests/unit/goal-review.test.ts tests/unit/chat-persistence.test.ts tests/unit/chat-export.test.ts`, then `pnpm test:ui --grep 'single agent|chat streams only main execution|chat usage popover'`. These cover no maintenance inference, optional atomic/revision-checked notes, committed-once receipt recovery, immutable archives with smaller inference projection, current-state completion review and reload/cancellation. Controlled providers do not establish live creative quality; full merge/native gates remain separate.
+Run affected effects/tracking unit files and `pnpm test:ui --grep 'creative effects|creative clip|black transitions'`. Preview/export output remains native. No assistant access inventory is maintained after removal.
 
-## Targeted goal and to-do maintenance checks
+## Media folder checks
 
-Run `pnpm test tests/unit/goal-review.test.ts tests/unit/assistant.test.ts tests/unit/prompt-cache.test.ts tests/unit/chat-persistence.test.ts tests/unit/chat-export.test.ts --testTimeout=20000`, then `pnpm test:ui --grep 'single agent edits despite failed notes|single agent treats restored notes|chat streams only main execution'`. Exact replacement regressions cover atomic multi-edits, insert/delete/no-op, unique/overlapping/missing targets, unchanged whitespace/evidence, rejected full regeneration, draft privacy and cancellation/retry. A production assistant regression sends literal edit envelopes against a large retained history and checks final document strings, incremental receipts and small request data; legacy scenario fixtures separately encode their desired text into wire edits. Chrome checks actual SSE transport, accepted document display and persistence through reload. Missing-note and interrupted-turn recovery retain authoritative evidence, including consecutive interruptions. Large compacted user-input follow-ups remain within explicit context budgets; verified memory and uncovered receipts replace raw covered history. Completion assessments and canonical history remain separate. Controlled providers prove behavior and payload reduction, not live model latency or paid semantic quality. Native transcription, media and performance owners are unchanged; the full suite remains a merge gate.
+Run `pnpm test tests/unit/media-library.test.ts tests/unit/media-import.test.ts`, then `pnpm test:browser tests/browser/media-folders.spec.ts` and affected workspace import/folder scenarios. Preserve library revision, source retention, late commits and folder focus recovery.
 
-## Chat token-efficiency checks
+## Browser coding checks
 
-Run `pnpm test tests/unit/assistant.test.ts tests/unit/receipt-progress.test.ts tests/unit/chat-context.test.ts tests/unit/goal-review.test.ts tests/unit/chat-persistence.test.ts tests/unit/chat-export.test.ts`, then `pnpm test:ui --grep 'single agent|chat streams only main execution|chat usage popover'`. These cover no maintenance inference, optional atomic/revision-checked notes, committed-once receipt recovery, immutable archives with smaller inference projection, current-state completion review and reload/cancellation. Controlled providers do not establish live creative quality; full merge/native gates remain separate.
+The local coding API remains an independent headless engine capability. Run `pnpm test tests/unit/coding.test.ts tests/unit/coding-runtime.test.ts` for sandbox, filesystem and cancellation changes. It has no assistant, provider or network bindings.
+
+## Agent removal checks
+
+Run `pnpm test tests/unit/workspace-preferences.test.ts tests/unit/workspace-settings.test.ts tests/unit/error-diagnostics.test.ts tests/unit/task-queue.test.ts`, both production builds and `pnpm check:bundle`. Then run `pnpm test:browser tests/browser/workspace-agent-removal.spec.ts tests/browser/workspace-resizable.spec.ts tests/browser/editor.spec.ts tests/browser/lifecycle.spec.ts`. These cover inert upgrade/startup, removed provider controls/module, manual edits, mobile tabs, resize persistence and engine lifetime. Historical chat/reference data stays inert; original media remains intact.

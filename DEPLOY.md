@@ -42,19 +42,19 @@ pnpm exec vite preview --outDir dist-root --base / --port 4178 --strictPort
 
 This uses `http://localhost:4178/`. For a custom-base `dist` build, pass that same base to Vite preview. Preview is a development smoke check, not a production hosting service. Use an unoccupied port and keep mutable output/report directories isolated from other runs.
 
-Upload the entire chosen output to an HTTPS static host at the matching path. Preserve JavaScript module MIME types, hashed assets, worker paths, fonts and notices. No history fallback rewrite is required for hash routes. Inference is single-thread WASM and does not require multithread isolation headers. A custom content-security/network policy must account for explicitly prepared inference downloads and selected AI providers; test it with the relevant workflows rather than bypassing browser security.
+Upload the entire chosen output to an HTTPS static host at the matching path. Preserve JavaScript module MIME types, hashed assets, worker paths, fonts and notices. No history fallback rewrite is required for hash routes. Inference is single-thread WASM and does not require multithread isolation headers. A custom content-security/network policy must account for explicitly prepared inference downloads; test it with the relevant workflows rather than bypassing browser security.
 
-Use HTTPS in production (localhost is supported for development). Host the app on a dedicated origin when possible: unrelated scripts on the same origin may access persisted credentials and browser-local data. Custom provider endpoints need browser CORS permission for that exact origin. Never put secrets in build variables, source files or static configuration.
+Use HTTPS in production (localhost is supported for development). Host the app on a dedicated origin when possible: unrelated scripts on the same origin may access browser-local data. Never put secrets in build variables, source files or static configuration.
 
 ## Distribution contents
 
-Publish only `dist/` or the intentionally selected `dist-root/`. Output includes `index.html`, `modules.json`, stable `editor.js`/`ai.js` compatibility re-exports, content-hashed engine/AI/support/worker assets, declarations, icons/manifest, fonts/notices and Vite's build manifest. Keep the complete output together; do not mix assets from different builds.
+Publish only `dist/` or the intentionally selected `dist-root/`. Output includes `index.html`, `modules.json`, stable `editor.js` compatibility re-exports, content-hashed engine/support/worker assets, declarations, icons/manifest, fonts/notices and Vite's build manifest. Keep the complete output together; do not mix assets from different builds.
 
 The authored-text catalog includes roughly 297 MiB of licensed WOFF2 assets under `fonts/<snapshot-sha256>/`; the application requests only needed subsets. Preserve per-family licenses and catalog manifests with distributions. Test harnesses, fixtures, models, caches, credentials and large inference binaries remain outside deployed output.
 
 Include the root [MIT license](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md) with downloadable distributions or make them available alongside a hosted distribution. The static build does not automatically copy those root documents. Bundled notices and font licenses already present in output must also be preserved.
 
-Prefer immutable hashed-asset caching and short-lived/revalidated HTML/discovery. Headless clients discover hashed editor/AI URLs together using [the API recipe](docs/api.md); the workspace imports hashed entries directly. Old cached compatibility aliases cannot be invalidated remotely. Keep discovery, aliases and all referenced modules together. Keep prior hashed assets accessible while clients transition if the host supports it. This is hosting guidance, not a claim that upstream Pages cache headers are configurable through this repository.
+Prefer immutable hashed-asset caching and short-lived/revalidated HTML/discovery. Headless clients discover hashed editor URL using [the API recipe](docs/api.md); the workspace imports hashed entries directly. Old cached compatibility aliases cannot be invalidated remotely. Keep discovery, aliases and all referenced modules together. Keep prior hashed assets accessible while clients transition if the host supports it. This is hosting guidance, not a claim that upstream Pages cache headers are configurable through this repository.
 
 ## Cache consistency and recovery
 
@@ -67,12 +67,12 @@ A workflow configuration or successful packaging job does not prove availability
 After an authorized deployment, use a fresh Google Chrome context with generated local media:
 
 1. Verify the title and rendered workspace at the correct base, and check for missing lazy modules, worker assets, icons or fonts.
-2. On a bare URL without a remembered project or saved credentials, verify inert startup: no editing-storage initialization, media/inference workers, model downloads, permission prompts or AI requests before an explicit action. An explicit local project/catalog route, remembered-project startup and an explicit OAuth return have their documented behavior; saved credential restoration can load AI/catalogs in an existing profile.
+2. On a bare URL without a remembered project, verify inert startup: no editing-storage initialization, media/inference workers, model downloads, permission prompts before an explicit action. An explicit local project/catalog route, remembered-project startup have their documented behavior.
 3. Create a project, import generated media, render the preview and save a real supported export. Reopen the local project after reload and verify the selected editing change's relevant flow.
-4. Verify fresh `modules.json` discovery, the compatibility entries, and worker/font snapshot paths at the deployed base. Check grouped settings, provider controls and responsive/collapsible panels when touched by the release.
+4. Verify fresh `modules.json` discovery, the compatibility entries, and worker/font snapshot paths at the deployed base. Check grouped settings, responsive/collapsible panels when touched by the release.
 5. Export a portable backup with originals and check import in an isolated profile when portability/storage changes are in scope. Do not test against personal media or clear unrelated browser data.
 
-Never initiate paid requests merely to smoke-test deployment. Live sign-in, provider entitlement, remote data sharing and inference need their own explicit actions/authority and evidence. Native Safari coverage remains separate from Chrome acceptance. Record gaps instead of claiming a live flow was verified from a local result.
+Model preparation and local inference require explicit actions and their own evidence. Native Safari coverage remains separate from Chrome acceptance. Record gaps instead of claiming a live flow was verified from a local result.
 
 ## Rollback and local data compatibility
 

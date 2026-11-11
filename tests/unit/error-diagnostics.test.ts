@@ -6,50 +6,16 @@ import {
 import { asEditorError } from '../../src/core/errors';
 
 describe('local error diagnostics', () => {
-  it('retains a safe note-target failure reason without rejected document content', () => {
+  it('retains HTTP status while rejecting retired agent recovery fields', () => {
     expect(
-      safeRecoveryDetails(
-        {
-          stage: 'session_todos',
-          reason: 'document_update_target',
-          replacementIndex: 1,
-          match: 'missing',
-          rejectedDocumentUpdate: 'SECRET',
-        },
-        'INVALID_RESPONSE',
-      ),
-    ).toEqual({
-      stage: 'session_todos',
-      reason: 'document_update_target',
-    });
-  });
-  it('keeps request categories and parameters in local reports while rejecting arbitrary recovery fields', () => {
-    const details = {
-      status: 400,
-      stage: 'completion_check',
-      providerReason: 'invalid_prompt',
-      parameter: 'messages',
-    };
-    expect(
-      errorDiagnostic(
-        Object.assign(new Error('Safe error'), {
-          code: 'INVALID_REQUEST',
-          details,
-        }),
-      ).details,
-    ).toEqual(details);
-    expect(
-      safeRecoveryDetails(
-        {
-          status: 400,
-          stage: 'SECRET',
-          providerReason: 'SECRET',
-          parameter: 'SECRET',
-          reason: 'SECRET',
-        },
-        'INVALID_REQUEST',
-      ),
+      safeRecoveryDetails({
+        status: 400,
+        stage: 'session_todos',
+        providerReason: 'invalid_prompt',
+        parameter: 'messages',
+      }),
     ).toEqual({ status: 400 });
+    expect(safeRecoveryDetails({ status: '400' })).toEqual({});
   });
   it('preserves every frame and nested causes across editor normalization', () => {
     const original = new Error('Media decoding failed', {
@@ -151,22 +117,4 @@ it('keeps Safari frames and multiline headers as supplied after normalization', 
     message: error.message,
     stack: error.stack,
   });
-});
-
-it('retains the new session checklist stage through safe chat and queued diagnostic metadata', () => {
-  const details = {
-    status: 400,
-    stage: 'session_todos',
-    providerReason: 'context_length_exceeded',
-    parameter: 'max_tokens',
-  };
-  expect(safeRecoveryDetails(details, 'INVALID_REQUEST')).toEqual(details);
-  expect(
-    errorDiagnostic(
-      Object.assign(new Error('Safe rejection'), {
-        code: 'INVALID_REQUEST',
-        details,
-      }),
-    ).details,
-  ).toEqual(details);
 });

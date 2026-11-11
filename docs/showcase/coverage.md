@@ -1,6 +1,8 @@
 # Feature coverage
 
-Coverage follows the current [editing inventory](../ai.md#editing-feature-access-inventory)
+Historical evidence: recorded before [agent AI removal](https://github.com/WilsonLe/LocalCut/issues/350); it does not describe current agent capability.
+
+Coverage follows the current [editing inventory](https://github.com/WilsonLe/LocalCut/blob/2817b41246bd8005e7e19d73f1211bf9b73b9978/docs/ai.md#editing-feature-access-inventory)
 and [public API](../api.md). The 15-second limit requires grouped headings and
 simultaneous controls. Catalog variants and scalar parameters are represented
 by their families rather than receiving separate demonstrations.

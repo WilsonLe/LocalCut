@@ -1,12 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { appendAsset } from '../../src/workspace/helpers';
 import { assetSchema, newProject, validateProject } from '../../src/core/model';
-import { applyOperations, parseBatch } from '../../src/core/commands';
+import { applyOperations } from '../../src/core/commands';
 import type { EditOperation } from '../../src/core/commands';
-import { outputAssetIds, outputTracks } from '../../src/core/timeline';
-import { projectContext, timelineContext } from '../../src/ai/context';
-import { supportedEditOperations, proposalBatch } from '../../src/ai/tools';
-import { legacyCommandReceiptContent } from '../../src/core/receipt-content';
+import { outputAssetIds } from '../../src/core/timeline';
 const fixture = () =>
   validateProject({
     ...newProject('tracks'),
@@ -78,70 +75,6 @@ describe('track operations', () => {
     expect(outputAssetIds(p)).toEqual([]);
     p.tracks[1]!.clips[0]!.muted = false;
     expect(outputAssetIds(p)).toEqual(['speech']);
-  });
-  it('keeps legacy defaults and partial patches, validates names and exposes every command to AI', () => {
-    const p = fixture();
-    expect(p.tracks[0]).toMatchObject({ muted: false });
-    expect(p.tracks[0]!.disabled).toBeUndefined();
-    const operations: EditOperation[] = [
-      {
-        type: 'updateTrack',
-        trackId: 'visual',
-        patch: {
-          name: '  Main footage  ',
-          muted: true,
-          disabled: true,
-          solo: true,
-          locked: true,
-        },
-      },
-    ];
-    const parsed = parseBatch({
-      projectId: p.id,
-      requestId: 'request',
-      expectedRevision: 0,
-      operations,
-    });
-    const updated = applyOperations(p, parsed.operations).project;
-    const renamed = applyOperations(updated, [
-      { type: 'updateTrack', trackId: 'visual', patch: { name: 'New name' } },
-    ]).project;
-    expect(renamed.tracks[0]).toMatchObject({
-      name: 'New name',
-      muted: true,
-      disabled: true,
-      solo: true,
-      locked: true,
-      clips: p.tracks[0]!.clips,
-    });
-    for (const name of ['', '   ', 'x'.repeat(1001)])
-      expect(() =>
-        parseBatch({
-          ...parsed,
-          operations: [
-            { type: 'updateTrack', trackId: 'visual', patch: { name } },
-          ],
-        }),
-      ).toThrow();
-    expect(supportedEditOperations).toEqual(
-      expect.arrayContaining([
-        'addTrack',
-        'updateTrack',
-        'duplicateTrack',
-        'clearTrack',
-        'removeTrack',
-        'reorderTrack',
-      ]),
-    );
-    expect(proposalBatch(p, operations, 'request', 100).operations).toEqual(
-      parsed.operations,
-    );
-    expect(
-      legacyCommandReceiptContent({
-        ...parsed,
-        operations: [{ type: 'addTrack', track: { id: 'old', kind: 'video' } }],
-      }),
-    ).toContain('"muted":false');
   });
   it('duplicates a track at the next layer with deterministic fresh nested IDs, internal groups and transitions', () => {
     const p = fixture();
@@ -333,39 +266,5 @@ describe('track operations', () => {
       { type: 'clearTrack', trackId: 'visual' },
     ]).project;
     expect(next.tracks[0]!.clips).toEqual([]);
-  });
-  it('shares independent visual/audio solo, disabled and mute rules with redacted AI inspection', () => {
-    const p = fixture();
-    p.tracks[0]!.name = 'Private track';
-    expect(JSON.stringify(projectContext(p))).not.toContain('Private track');
-    expect(projectContext(p, { includeAssetNames: true }).tracks[0]!.name).toBe(
-      'Private track',
-    );
-    p.tracks[1]!.solo = true;
-    expect(outputTracks(p, 'visual').map((t) => t.id)).toEqual([
-      'visual',
-      'overlay',
-    ]);
-    expect(outputTracks(p, 'audio').map((t) => t.id)).toEqual(['sound']);
-    p.tracks[0]!.solo = true;
-    p.tracks[0]!.muted = true;
-    expect(outputTracks(p, 'visual').map((t) => t.id)).toEqual(['visual']);
-    expect(outputTracks(p, 'audio').map((t) => t.id)).toEqual(['sound']);
-    p.tracks[0]!.disabled = true;
-    expect(outputTracks(p, 'visual').map((t) => t.id)).toEqual(['overlay']);
-    const context = timelineContext(p, 1500000);
-    expect(context.tracks[0]).toMatchObject({
-      disabled: true,
-      visible: false,
-      audible: false,
-      clips: [
-        { id: 'a', audibleGain: 0 },
-        { id: 'b', audibleGain: 0 },
-      ],
-    });
-    expect(context.transitions).toEqual([]);
-    expect(context.tracks[0]!.name).toBeUndefined();
-    p.tracks[1]!.disabled = true;
-    expect(outputTracks(p, 'audio')).toEqual([]);
   });
 });

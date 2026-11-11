@@ -6,7 +6,6 @@ This is a statement of direction, not a dated release promise or a complete task
 
 - **Reliable local editing:** preserve projects/originals, make recovery and portable backups understandable, and keep preview/export aligned through the shared engine.
 - **Useful editing workflows:** improve timeline, text, captions, transitions, audio and keyboard/touch interaction using existing APIs and accessible controls.
-- **Explicit AI choices:** keep editing proposals reviewable, disclose every remote service/data recipient, and preserve cancellation and credential lifecycle boundaries.
 - **Browser quality:** retain actual Chrome codec/inference/export acceptance; expand native Safari coverage with measured evidence rather than assuming parity.
 - **Fast contributor feedback:** maintain focused checks, verified build reuse, isolated test state and readable ownership documentation while keeping release gates intact.
 - **Open-source readiness:** maintain contributor/support/security guidance, provenance/notices, issue/PR templates and a clear maintainer process.

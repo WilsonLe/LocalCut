@@ -155,7 +155,7 @@ const taskError = (error: unknown): TaskQueueError => {
         : code === 'REVISION_CONFLICT'
           ? 'Review the current project and submit a new request.'
           : code === 'INTERRUPTED'
-            ? 'The outcome is unknown. Review before retrying; provider charges may apply.'
+            ? 'The outcome is unknown. Review before retrying.'
             : 'Review the request and retry, or dismiss this task.';
   const metadata =
     error &&
@@ -165,7 +165,7 @@ const taskError = (error: unknown): TaskQueueError => {
     typeof error.details === 'object'
       ? error.details
       : {};
-  const details = safeRecoveryDetails(metadata, code);
+  const details = safeRecoveryDetails(metadata);
   // Recovery metadata stays bounded; diagnostics retain the source error separately.
   return {
     ...(Object.keys(details).length ? { details } : {}),

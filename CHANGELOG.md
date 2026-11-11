@@ -4,6 +4,8 @@ Current version: **0.1.0-alpha.1**. Short summaries for end users and executives
 
 ## Unreleased
 
+- Removed agent chat, provider connections, remote AI services and the public AI module. Manual editing, storyboard and local Whisper remain. Existing project/media data and legacy backups are preserved ([#350](https://github.com/WilsonLe/LocalCut/issues/350)). This removes the former headless AI API; propose a breaking prerelease change when packaging the release.
+
 - Report required text/media fields and incompatible track kinds in safe, located edit-repair feedback.
 
 - Help Klip resolve requested Media references through access already granted by the workspace, instead of asking for redundant attachment or authorization. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...codex/library-scope-recovery).

@@ -29,7 +29,7 @@ function publicModuleAliases(): Plugin {
     name: 'localcut-public-module-aliases',
     generateBundle(_options, bundle) {
       const modules: Record<string, string> = {};
-      for (const name of ['editor', 'ai']) {
+      for (const name of ['editor']) {
         const entry = Object.values(bundle).find(
           (output) =>
             output.type === 'chunk' && output.isEntry && output.name === name,
@@ -102,7 +102,6 @@ export default defineConfig(({ command }) => ({
       input: {
         app: resolve(import.meta.dirname, 'index.html'),
         editor: resolve(import.meta.dirname, 'src/editor/index.ts'),
-        ai: resolve(import.meta.dirname, 'src/ai/index.ts'),
       },
       output: {
         entryFileNames: 'assets/[name]-[hash].js',

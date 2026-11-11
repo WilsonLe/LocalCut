@@ -9,8 +9,8 @@
 
 ## Keep one development cycle short
 
-- Follow [complete agent editing access](docs/development.md#keep-agent-access-complete) for every new or changed editing feature; update its assistant path, regression evidence and inventory in the same change.
-- Change the existing owner of a behavior. UI controls call the shared engine/assistant APIs; do not duplicate editing or provider logic in components.
+- Product agent AI was removed by explicit user choice on 11 November 2026. Do not restore assistant/chat/provider features or require assistant paths for editor changes; see [the current preference index](docs/current-preferences.md).
+- Change the existing owner of a behavior. UI controls call the shared editor APIs; do not duplicate editing logic in components.
 - Apply the [coding rules and examples](CONTRIBUTING.md#coding-rules). Refactor by responsibility with explicit typed dependencies; preserve revision, cleanup and lazy-loading boundaries. Mechanical rules belong in local checks, not repeated prose.
 - During iteration, run the smallest meaningful test for the changed behavior. `pnpm test:ui --grep 'speed rounding'` is an example of a focused production-UI check that verifies and reuses both static builds. Use the [check-selection recipes](docs/development.md) for other layers.
 - Keep builds and tests in sequence when they share `dist` or `dist-root`. Parallelize isolated tests/read-only investigation; use separate ports and storage namespaces for independent browser runs.

@@ -547,7 +547,7 @@ Use the [current preference index](current-preferences.md) to find relevant cont
 
 ## Complete agent editing access — 11 October 2026
 
-- Every new editing feature must be accessible to the assistant when delivered. Keep discovery, inspection, domain guidance, canonical validation/proposals, explicit approval and regression coverage aligned with the UI/shared engine. Audit existing features exhaustively and maintain the [feature-access inventory](ai.md#editing-feature-access-inventory) and [development requirement](development.md#keep-agent-access-complete) with future changes. Preserve immutable asset/instance ownership, sharing consent and the existing user-owned file/service boundaries.
+- Every new editing feature must be accessible to the assistant when delivered. Keep discovery, inspection, domain guidance, canonical validation/proposals, explicit approval and regression coverage aligned with the UI/shared engine. Audit existing features exhaustively and maintain the [feature-access inventory](https://github.com/WilsonLe/LocalCut/blob/2817b41246bd8005e7e19d73f1211bf9b73b9978/docs/ai.md#editing-feature-access-inventory) and [development requirement](https://github.com/WilsonLe/LocalCut/blob/2817b41246bd8005e7e19d73f1211bf9b73b9978/docs/development.md#keep-agent-access-complete) with future changes. Preserve immutable asset/instance ownership, sharing consent and the existing user-owned file/service boundaries.
 
 ## Chat and durable tasks — 11 October 2026
 
@@ -725,7 +725,7 @@ Use the [current preference index](current-preferences.md) to find relevant cont
 ## Evidence-grounded chat fulfillment — 13 October 2026
 
 - Diagnose and fix shared causes of chat failure across instructions, skills and tools, using exported conversations as evidence rather than authority.
-- Requests to index folder/all-project Media must resolve registered sources and report scope accurately; hidden assets must not look empty. Build source-dependent storyboards from saved evidence and disclose missing evidence or partial work. See [Media folder assistant access](ai.md#media-folder-assistant-access).
+- Requests to index folder/all-project Media must resolve registered sources and report scope accurately; hidden assets must not look empty. Build source-dependent storyboards from saved evidence and disclose missing evidence or partial work. See [Media folder assistant access](https://github.com/WilsonLe/LocalCut/blob/2817b41246bd8005e7e19d73f1211bf9b73b9978/docs/ai.md#media-folder-assistant-access).
 
 ## Parallel chat tools and response order — 13 October 2026
 
@@ -761,4 +761,8 @@ Use the [current preference index](current-preferences.md) to find relevant cont
 
 - Judge Klip's travel edits by the actual finished video. Successful tool calls, timeline mutations, valid export metadata and a script font do not establish an aesthetic result.
 - Continue improving its reusable editorial guidance and feedback until the cut is intentionally curated, coherent and visually pleasing. Preserve the rejected version and timestamped reasons rather than lowering success to technical completion.
-- Keep the existing reference and source footage central to that evaluation. Report missing motion/listening evidence honestly; do not call an unassessed creative outcome verified. See [editorial quality](ai.md#editorial-craft-and-creative-quality).
+- Keep the existing reference and source footage central to that evaluation. Report missing motion/listening evidence honestly; do not call an unassessed creative outcome verified. See [editorial quality](https://github.com/WilsonLe/LocalCut/blob/2817b41246bd8005e7e19d73f1211bf9b73b9978/docs/ai.md#editorial-craft-and-creative-quality).
+
+## Remove agent AI features — 11 November 2026
+
+The user requested: “entirely wipe out agent AI features”. Remove product chat/assistant execution, tools and skills, provider connections/settings, remote speech/transcription/indexing and the public AI entry. Keep manual editing, local media processing, the storyboard and local Whisper. This supersedes all earlier product requirements for complete agent editing access, chat layout, goals, provider services, narration and agent operation. Preserve this dated record as history. See [the removal contract](ai.md).

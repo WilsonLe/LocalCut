@@ -1,30 +1,20 @@
+import { retireLegacyAISettings } from './legacy-ai-cleanup';
 import { useSyncExternalStore } from 'react';
-import { parseProviderConfiguration } from './provider-preferences';
 
 export const WORKSPACE_PREFERENCES_KEY = 'localcut.workspace-preferences.v1';
-export const CHAT_MIN_WIDTH = 280;
-export const CHAT_MAX_WIDTH = 560;
 export interface WorkspacePreferences {
-  chatWidth: number;
   mediaWidth: number;
   timelineHeight: number;
-  chatCollapsed: boolean;
   mediaOpen: boolean;
   timelineSnapping: boolean;
   exportFormat: 'mp4' | 'webm';
-  aiModel: string;
-  aiProviders: string;
 }
 export const defaultWorkspacePreferences: WorkspacePreferences = {
-  chatWidth: 320,
   mediaWidth: 300,
   timelineHeight: 260,
-  chatCollapsed: false,
   mediaOpen: false,
   timelineSnapping: true,
   exportFormat: 'mp4',
-  aiModel: '',
-  aiProviders: '',
 };
 
 /** Whitelist durable choices; never hydrate credentials, consent or project state. */
@@ -44,14 +34,6 @@ export function parseWorkspacePreferences(
       return result;
     const p = record.preferences;
     if (!p || typeof p !== 'object' || Array.isArray(p)) return result;
-    if (
-      'chatWidth' in p &&
-      typeof p.chatWidth === 'number' &&
-      Number.isFinite(p.chatWidth)
-    )
-      result.chatWidth = Math.round(
-        Math.max(CHAT_MIN_WIDTH, Math.min(CHAT_MAX_WIDTH, p.chatWidth)),
-      );
     for (const [field, min, max] of [
       ['mediaWidth', 250, 560],
       ['timelineHeight', 210, 700],
@@ -61,8 +43,6 @@ export function parseWorkspacePreferences(
       if (typeof value === 'number' && Number.isFinite(value))
         result[field] = Math.round(Math.max(min, Math.min(max, value)));
     }
-    if ('chatCollapsed' in p && typeof p.chatCollapsed === 'boolean')
-      result.chatCollapsed = p.chatCollapsed;
     if ('mediaOpen' in p && typeof p.mediaOpen === 'boolean')
       result.mediaOpen = p.mediaOpen;
     if ('timelineSnapping' in p && typeof p.timelineSnapping === 'boolean')
@@ -72,24 +52,6 @@ export function parseWorkspacePreferences(
       (p.exportFormat === 'mp4' || p.exportFormat === 'webm')
     )
       result.exportFormat = p.exportFormat;
-    if (
-      'aiProviders' in p &&
-      typeof p.aiProviders === 'string' &&
-      p.aiProviders
-    )
-      result.aiProviders = JSON.stringify(
-        parseProviderConfiguration(p.aiProviders),
-      );
-    if (
-      'aiModel' in p &&
-      typeof p.aiModel === 'string' &&
-      // Match the provider catalog's bounded IDs, including supported aliases.
-      !p.aiModel.includes('://') &&
-      (p.aiModel === '' ||
-        /^~?[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/.test(p.aiModel)) &&
-      p.aiModel !== 'openrouter/auto'
-    )
-      result.aiModel = p.aiModel;
   } catch {
     /* Corrupt/unsupported data leaves safe field defaults. */
   }
@@ -108,14 +70,25 @@ export function initializeWorkspacePreferences() {
   if (initialized) return;
   initialized = true;
   try {
-    snapshot = {
-      preferences: parseWorkspacePreferences(
-        localStorage.getItem(WORKSPACE_PREFERENCES_KEY),
-      ),
-      saved: true,
-    };
+    retireLegacyAISettings(localStorage);
+    const raw = localStorage.getItem(WORKSPACE_PREFERENCES_KEY);
+    const preferences = parseWorkspacePreferences(raw);
+    snapshot = { preferences, saved: true };
+    if (
+      raw &&
+      /"(?:aiModel|aiProviders|chatWidth|chatCollapsed)"\s*:/.test(raw)
+    )
+      localStorage.setItem(
+        WORKSPACE_PREFERENCES_KEY,
+        JSON.stringify({ version: 1, preferences }),
+      );
   } catch {
     snapshot = { ...snapshot, saved: false };
+  }
+  try {
+    retireLegacyAISettings(sessionStorage);
+  } catch {
+    /* Denied storage cannot restore any removed provider. */
   }
   window.addEventListener('storage', (event) => {
     try {

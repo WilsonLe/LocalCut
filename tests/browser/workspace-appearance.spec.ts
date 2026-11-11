@@ -1,9 +1,4 @@
 import { behaviorBases } from './coverage-bases';
-import { selectAISettingsTab } from './workspace-settings-helper';
-import {
-  prepareOpenRouterKey,
-  openAISettings,
-} from './workspace-settings-helper';
 import { expect, test, type Page } from '@playwright/test';
 
 const key = 'localcut.appearance.v1';
@@ -131,155 +126,6 @@ for (const base of behaviorBases) {
       ),
     ).toBe(true);
   });
-  test(
-    '@journey ' +
-      [
-        `workspace appearance preserves preview space with wide chat and expanded media ${base}`,
-        `workspace appearance keeps phone preview, timeline and chat from overlapping ${base}`,
-      ].join(' | '),
-    async ({ page }) => {
-      await test.step(`workspace appearance preserves preview space with wide chat and expanded media ${base}`, async () => {
-        await page.emulateMedia({ reducedMotion: 'reduce' });
-        await page.setViewportSize({ width: 1280, height: 900 });
-        await page.goto(base);
-        const panel = await openAppearance(page);
-        const resize = page.getByRole('separator', {
-          name: 'Resize workspace chat',
-        });
-        await resize.press('End');
-        await expect(resize).toHaveAttribute('aria-valuetext', '560 pixels');
-        await page.getByRole('button', { name: 'Expand media' }).click();
-        await page.setViewportSize({ width: 1120, height: 900 });
-        const editorWidth = () =>
-          page
-            .locator('.editing-area')
-            .evaluate((node) => node.getBoundingClientRect().width);
-        await expect.poll(editorWidth).toBeGreaterThanOrEqual(279);
-        expect(
-          (await page.locator('.preview-stage').boundingBox())!.width,
-        ).toBeGreaterThan(200);
-        await expect(
-          page.getByRole('button', { name: 'Collapse media' }),
-        ).toBeVisible();
-        // ResizeObserver publishes after layout; read both bounds and the rendered
-        // panel atomically so different observer snapshots cannot be compared.
-        await expect
-          .poll(() =>
-            resize.evaluate((node) => {
-              const current = Number(node.getAttribute('aria-valuenow'));
-              const maximum = Number(node.getAttribute('aria-valuemax'));
-              return (
-                current <= maximum &&
-                parseInt(node.getAttribute('aria-valuetext')!) ===
-                  Math.round(
-                    document
-                      .querySelector('.conversation-panel')!
-                      .getBoundingClientRect().width,
-                  )
-              );
-            }),
-          )
-          .toBe(true);
-        expect(
-          await page.evaluate(() => document.documentElement.scrollWidth),
-        ).toBe(1120);
-        await page.getByRole('button', { name: 'Collapse chat' }).click();
-        await expect
-          .poll(
-            async () =>
-              (await page.locator('.conversation-panel').boundingBox())!.width,
-          )
-          .toBe(52);
-        await page.getByRole('button', { name: 'Expand chat' }).click();
-        await expect.poll(editorWidth).toBeGreaterThanOrEqual(279);
-        await panel.getByRole('button', { name: 'Close appearance' }).click();
-        await expect(resize).toHaveAttribute('aria-valuetext', '538 pixels');
-        await page.setViewportSize({ width: 1440, height: 900 });
-        await expect(resize).toHaveAttribute('aria-valuetext', '560 pixels');
-      });
-      await page
-        .getByRole('button', { name: 'Collapse media', exact: true })
-        .click();
-      // Closing the panel can leave the settings menu mounted. End that
-      // interaction before the next phase opens settings on the same page.
-      await page.keyboard.press('Escape');
-      await page.keyboard.press('Escape');
-      // Do not carry focused desktop media into the phone breakpoint's
-      // deliberate media-focus restoration while opening another popup.
-      await page
-        .getByRole('main', { name: 'Video editor', exact: true })
-        .focus();
-      await test.step(`workspace appearance keeps phone preview, timeline and chat from overlapping ${base}`, async () => {
-        await page.emulateMedia({ reducedMotion: 'reduce' });
-        await page.setViewportSize({ width: 320, height: 844 });
-        await expect(page.locator('html')).toHaveAttribute(
-          'data-workspace-narrow',
-          'true',
-        );
-        // Continue in the already-open app.
-        const panel = await openAppearance(page);
-        await choose(page, 'Density', 'Comfortable');
-        await expect(page.locator('html')).toHaveAttribute(
-          'data-density',
-          'comfortable',
-        );
-        await expect(page.locator('#editor-panel')).toBeVisible();
-        await expect(page.locator('#chat-panel')).toBeHidden();
-        await expect(page.locator('#media-panel')).toBeHidden();
-        await expect
-          .poll(() =>
-            page.evaluate(() => {
-              const preview = document
-                .querySelector('.preview')!
-                .getBoundingClientRect();
-              const timeline = document
-                .querySelector('.timeline')!
-                .getBoundingClientRect();
-              return preview.bottom - timeline.top;
-            }),
-          )
-          .toBeLessThanOrEqual(1);
-        await page.locator('.preview-stage').scrollIntoViewIfNeeded();
-        await expect(
-          page.getByRole('region', { name: 'Project preview', exact: true }),
-        ).toBeVisible();
-        expect(
-          (await page.locator('.preview-stage').boundingBox())!.width,
-        ).toBeGreaterThan(200);
-        await page
-          .getByRole('button', { name: 'Workspace settings', exact: true })
-          .first()
-          .scrollIntoViewIfNeeded();
-        await expect(
-          page
-            .getByRole('button', { name: 'Workspace settings', exact: true })
-            .first(),
-        ).toBeVisible();
-        expect(
-          await page.evaluate(() => document.documentElement.scrollWidth),
-        ).toBe(320);
-        await expect(panel).toBeVisible();
-        await panel.getByRole('button', { name: 'Close appearance' }).click();
-        const navigation = page.getByRole('navigation', {
-          name: 'Workspace sections',
-        });
-        await navigation
-          .getByRole('button', { name: 'Chat', exact: true })
-          .click();
-        await expect(page.locator('#chat-panel')).toBeVisible();
-        await expect(page.locator('#editor-panel')).toBeHidden();
-        await expect(page.locator('#media-panel')).toBeHidden();
-        await expect(
-          navigation.getByRole('button', { name: 'Chat', exact: true }),
-        ).toHaveAttribute('aria-current', 'page');
-        const chatBounds = (await page.locator('#chat-panel').boundingBox())!;
-        const navBounds = (await navigation.boundingBox())!;
-        expect(chatBounds.y + chatBounds.height).toBeLessThanOrEqual(
-          navBounds.y,
-        );
-      });
-    },
-  );
 
   test(`workspace appearance remains usable when storage reads are blocked ${base}`, async ({
     page,
@@ -340,31 +186,6 @@ for (const base of behaviorBases) {
         },
       }),
     );
-    await openAISettings(page);
-    const connection = page.getByRole('dialog', {
-      name: 'AI connection',
-      exact: true,
-    });
-    await prepareOpenRouterKey(page);
-    await connection
-      .getByLabel('OpenRouter API key', { exact: true })
-      .fill('synthetic-appearance-key');
-    await connection
-      .getByRole('button', { name: 'Use API key', exact: true })
-      .click();
-    await selectAISettingsTab(page, 'LLM - Chat');
-    await connection
-      .getByRole('combobox', { name: 'AI model', exact: true })
-      .click();
-    await page
-      .getByRole('option', {
-        name: 'Appearance model · test/appearance',
-        exact: true,
-      })
-      .click();
-    await connection.getByRole('button', { name: 'Done', exact: true }).click();
-    const composer = page.getByRole('textbox', { name: 'Describe your edit' });
-    await composer.fill('Keep this conversation draft');
     const before = await styles(page);
     const panel = await openAppearance(page);
     await expect(
@@ -460,17 +281,13 @@ for (const base of behaviorBases) {
       /LocalCut zilla-slab/,
     );
     expect(after.radius).toBe('0px');
-    await expect(page.locator('.chat-composer')).toHaveCSS(
-      'border-radius',
-      '0px',
-    );
+
     expect(after.padding).not.toBe(before.padding);
     expect(after.accent).toBe(after.primary);
     expect(after.popover).toContain('color-mix');
     await expect(
       page.getByRole('button', { name: 'Open project', exact: true }),
     ).toHaveText(/Appearance project/);
-    await expect(composer).toHaveValue('Keep this conversation draft');
     await expect(panel.getByRole('status')).toHaveText('Saved in this browser');
     const stored = await page.evaluate(
       (key) => JSON.parse(localStorage.getItem(key)!),

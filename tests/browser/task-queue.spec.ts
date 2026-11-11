@@ -1,10 +1,5 @@
 import { behaviorBases } from './coverage-bases';
-import { installGoalReviewFixture } from './goal-review-fixture';
 import { expect, test } from '@playwright/test';
-
-test.beforeEach(async ({ page }) => {
-  await installGoalReviewFixture(page);
-});
 test('task publication observes cancellation and preserves committed results', async ({
   page,
 }) => {
@@ -313,84 +308,4 @@ test('queued engine jobs preserve public event IDs and cross-tab export disposal
   expect(
     outcome.events.filter((event) => event.state === 'completed'),
   ).toMatchObject([{ jobId: outcome.id, state: 'completed' }]);
-});
-
-test('full-engine assistants queue by default and retry without nested queue deadlock', async ({
-  page,
-}) => {
-  await page.goto('/LocalCut/');
-  const outcome = await page.evaluate(async () => {
-    const { createEditor } = await import(String('/LocalCut/editor.js'));
-    const { createAssistant, AiError } = await import(
-      String('/LocalCut/ai.js')
-    );
-    const editor = await createEditor({
-      namespace: `assistant-queue-${crypto.randomUUID()}`,
-    });
-    const project = await editor.projects.create('retry');
-    let calls = 0;
-    const provider = {
-      async *stream(request: import('../../src/ai').ChatRequest) {
-        const reviewReply = await window.localcutGoalReviewReply({
-          messages: request.messages,
-          tools: request.tools,
-        });
-        if (reviewReply) {
-          yield { type: 'complete' as const, message: reviewReply };
-          return;
-        }
-        // Exhaust the round's silent retries before testing explicit queue retry.
-        if (calls++ < 3)
-          throw new AiError('RATE_LIMITED', 'private echo', { status: 429 });
-        yield {
-          type: 'complete',
-          message: { role: 'assistant', content: 'Recovered reply.' },
-        };
-      },
-    };
-    const assistant = createAssistant({
-      editor,
-      provider,
-      projectId: project.id,
-      model: 'test',
-      context: {},
-    });
-    try {
-      const turn = assistant.run('Give a short idea');
-      await turn.completion.catch(() => {});
-      const task = (await editor.tasks.list()).find(
-        (record: { kind: string }) => record.kind === `assistant:${turn.id}`,
-      );
-      const before = await editor.tasks.get(task.id);
-      const callsBeforeRetry = calls;
-      const retry = await editor.tasks.retry(task.id);
-      const result = await retry.completion;
-      return {
-        before,
-        callsBeforeRetry,
-        after: await editor.tasks.get(task.id),
-        result,
-        calls,
-        revision: (await editor.projects.snapshot(project.id)).revision,
-        history: assistant.snapshot().historyTurns,
-      };
-    } finally {
-      await assistant.dispose();
-      await editor.dispose();
-    }
-  });
-  expect(outcome.before).toMatchObject({
-    kind: expect.stringMatching(/^assistant:/),
-    state: 'failed',
-    error: { code: 'RATE_LIMITED', details: { status: 429 } },
-  });
-  expect(outcome.after.state).toBe('completed');
-  expect(outcome.result).toMatchObject({
-    text: 'Recovered reply.',
-    proposalIds: [],
-  });
-  expect(outcome.callsBeforeRetry).toBe(3);
-  expect(outcome.calls).toBe(4);
-  expect(outcome.revision).toBe(0);
-  expect(outcome.history).toBe(1);
 });

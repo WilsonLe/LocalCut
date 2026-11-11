@@ -1,7 +1,6 @@
 import { behaviorBases } from './coverage-bases';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
-  openAISettings,
   openVideoExport,
   openWorkspaceGroup,
 } from './workspace-settings-helper';
@@ -117,13 +116,6 @@ for (const base of behaviorBases) {
     await audit('Notifications', true);
     await close('Notifications');
 
-    await openAISettings(page);
-    await audit('AI connection');
-    await page.screenshot({ path: testInfo.outputPath('desktop-ai.png') });
-    await dialog('AI connection')
-      .getByRole('button', { name: 'Done', exact: true })
-      .click();
-
     await (
       await openWorkspaceGroup(page, 'Workspace')
     )
@@ -193,17 +185,6 @@ for (const base of behaviorBases) {
             ),
           scale,
         );
-        await openAISettings(page);
-        await audit('AI connection');
-        await expect(
-          dialog('AI connection').getByRole('button', {
-            name: 'Done',
-            exact: true,
-          }),
-        ).toBeInViewport();
-        await dialog('AI connection')
-          .getByRole('button', { name: 'Done', exact: true })
-          .click();
         await (
           await openWorkspaceGroup(page, 'Workspace')
         )

@@ -21,14 +21,6 @@ Export a backup through **Settings → Project → Export project**, or **Settin
 
 To recover or transfer, keep the downloaded archive outside browser storage, open the same compatible application in a separate profile/device, preview the import contents and choose what to import. Imports create new project copies and preserve existing projects. Verify preview and source availability before removing any old copy. See [storage and portability](storage.md).
 
-## Optional AI and speech
-
-Open Chat's AI connection settings to connect OpenRouter with an existing API key or login. Choose explicit chat and speech models. Transcription defaults to local Whisper; selecting OpenRouter for transcription requires disclosed audio sharing.
-
-Ask for an edit, inspect the proposed operations and choose Apply or Discard. Approved edits use the engine and support Undo. Connection or model selection alone does not initiate paid inference.
-
-Text to speech sends the authored script and speech choices when you explicitly choose Generate. Preview the result, adjust its timing and choose Add to import it locally. Indexing uses separate permission and an explicit Index action, which can send generated excerpts. Transcription defaults to local Whisper after explicit model preparation; a configured remote STT route may send approved selected audio. Read [privacy](privacy.md) before enabling remote services.
-
 ## Export a video
 
 Open **Settings → Export**, choose MP4 or WebM from the formats supported by your browser, export and then Save video. Keep the downloaded video separately from browser-local projects. A video export is a rendered result; use a project/workspace backup if you want to edit it later.

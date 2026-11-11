@@ -1,4 +1,3 @@
-import { captureFixture } from '../capture-metadata-fixture';
 import { describe, expect, it } from 'vitest';
 import {
   measureFrame,
@@ -10,13 +9,7 @@ import {
   parseIndexSceneResponse,
   indexLabelSchema,
 } from '../../src/core/asset-index';
-import type { AssetIndexRun, FrameMetrics } from '../../src/core/asset-index';
-import {
-  newestIndexes,
-  indexCatalog,
-  searchIndexes,
-  readIndex,
-} from '../../src/ai/index-context';
+import type { FrameMetrics } from '../../src/core/asset-index';
 function frame(color: number[], timeUs: number, previous?: Uint8Array) {
   const pixels = new Uint8ClampedArray(8 * 8 * 4);
   for (let i = 0; i < 64; i++) pixels.set([...color, 255], i * 4);
@@ -30,54 +23,6 @@ const label = {
   tags: ['red'],
   sound: 'tone',
 };
-function run(id: string, assetId: string, createdAt: number): AssetIndexRun {
-  return {
-    version: 1,
-    id,
-    assetId,
-    createdAt,
-    status: 'complete',
-    invalidated: false,
-    source: {
-      kind: 'image',
-      width: 8,
-      height: 8,
-      durationUs: 0,
-      size: 64,
-      lastModified: 0,
-      hasAudio: false,
-    },
-    analysis: {
-      version: 1,
-      settings: {
-        sampleRate: 4,
-        analysisWidth: 160,
-        cutThreshold: 0.45,
-        excerptUs: 4000000,
-      },
-      frames: [],
-      scenes: [
-        {
-          ...selectScenes([frame([255, 0, 0], 0).metrics], 0, true)[0]!,
-          label,
-        },
-      ],
-      scanMs: 0,
-      generationMs: 0,
-    },
-    label,
-    requests: [
-      {
-        id: 'request',
-        prompt: 'private prompt',
-        model: 'test',
-        artifactIds: [],
-        createdAt: 0,
-        response: 'private raw reply',
-      },
-    ],
-  };
-}
 describe('deterministic asset evidence', () => {
   it('partitions silent edges, continuous audio, brief and silent assets with stable energy peaks', () => {
     const windows = Array.from({ length: 24 }, (_, i) => ({
@@ -247,148 +192,5 @@ describe('deterministic asset evidence', () => {
       { sceneId: 'host', label, tool: 'apply' },
     ])
       expect(() => parseIndexSceneResponse(JSON.stringify(invalid))).toThrow();
-  });
-});
-describe('saved index context', () => {
-  it('shares structured capture only by permission and withholds capture-informed labels after revocation', () => {
-    const asset = run('capture', 'allowed', 2);
-    asset.source.capture = captureFixture;
-    const policy = { includeCaptureMetadata: true };
-    expect(indexCatalog([asset]).assets[0]).not.toHaveProperty('capture');
-    expect(readIndex(asset)).not.toHaveProperty('capture');
-    expect(searchIndexes([asset], '2024-06-15').total).toBe(0);
-    expect(indexCatalog([asset], 10000, policy).assets[0]?.capture).toEqual(
-      captureFixture,
-    );
-    expect(readIndex(asset, 0, 20, policy).capture).toEqual(captureFixture);
-    expect(searchIndexes([asset], '153.25', 0, 20, policy).total).toBe(1);
-    asset.captureShared = true;
-    asset.label = { ...asset.label!, summary: 'Private trip on 2024-06-15' };
-    expect(newestIndexes([asset], new Set(['allowed']))).toEqual([]);
-    expect(newestIndexes([asset], new Set(['allowed']), policy)).toEqual([
-      asset,
-    ]);
-    expect(indexCatalog([asset]).assets).toEqual([]);
-    expect(searchIndexes([asset], '').total).toBe(0);
-    expect(() => readIndex(asset)).toThrow(/permission/);
-  });
-  it('selects only the newest complete valid authorized run', () => {
-    const old = run('old', 'allowed', 1),
-      fresh = run('fresh', 'allowed', 2),
-      privateRun = run('private', 'hidden', 3);
-    expect(
-      newestIndexes([old, fresh, privateRun], new Set(['allowed'])),
-    ).toEqual([fresh]);
-    fresh.invalidated = true;
-    expect(newestIndexes([old, fresh], new Set(['allowed']))).toEqual([old]);
-    old.status = 'failed';
-    expect(newestIndexes([old, fresh], new Set(['allowed']))).toEqual([]);
-  });
-  it('bounds catalog and paginates observations without requests or artifacts', () => {
-    const asset = run('id', 'allowed', 0),
-      catalog = indexCatalog([asset], 10000);
-    expect(JSON.stringify(catalog)).not.toContain('private');
-    expect(indexCatalog([asset], 1)).toMatchObject({
-      indexedAssetCount: 1,
-      assets: [],
-      truncated: true,
-    });
-    expect(searchIndexes([asset], 'red').matches).toHaveLength(1);
-    for (const query of ['tone', 'shape', 'studio', 'flat'])
-      expect(searchIndexes([asset], query).matches).toHaveLength(1);
-    expect(searchIndexes([asset], 'tone').matches[0]?.sound).toBe('tone');
-    expect(searchIndexes([asset], 'private').matches).toHaveLength(0);
-    expect(searchIndexes([asset], 'unseen').matches).toHaveLength(0);
-    expect(readIndex(asset, 1).scenes).toEqual([]);
-    expect(JSON.stringify(readIndex(asset))).not.toContain('private');
-  });
-  it('reports only successfully transmitted reference evidence and preserves unknown legacy coverage', () => {
-    const asset = run('reference', 'video', 0);
-    asset.source = {
-      ...asset.source,
-      kind: 'video',
-      durationUs: 9000000,
-      hasAudio: true,
-    };
-    const scene = asset.analysis.scenes[0]!;
-    scene.artifacts = [
-      { id: 'still', kind: 'image', type: 'image/jpeg', size: 1 },
-      { id: 'clip', kind: 'video', type: 'video/mp4', size: 1 },
-    ];
-    expect(readIndex(asset).scenes[0]?.evidence).toMatchObject({
-      recorded: false,
-      motionAssessed: false,
-      soundAssessed: false,
-      soundAssessment: 'unassessed',
-    });
-    asset.requests.push({
-      id: 'still-request',
-      sceneId: scene.id,
-      prompt: 'private',
-      model: 'image-model',
-      artifactIds: ['still'],
-      createdAt: 1,
-      label,
-    });
-    // A failed clip request must not overstate the successful still-only label.
-    asset.requests.push({
-      id: 'failed-clip',
-      sceneId: scene.id,
-      prompt: 'private',
-      model: 'video-model',
-      artifactIds: ['still', 'clip'],
-      createdAt: 2,
-      response: 'invalid',
-    });
-    expect(readIndex(asset).scenes[0]?.evidence).toEqual({
-      recorded: true,
-      still: true,
-      video: false,
-      audio: false,
-      motionAssessed: false,
-      soundAssessed: false,
-      soundAssessment: 'unassessed',
-    });
-    asset.requests.at(-1)!.label = label;
-    expect(readIndex(asset).scenes[0]?.evidence).toMatchObject({
-      video: true,
-      audio: true,
-      motionAssessed: true,
-      soundAssessed: false,
-      soundAssessment: 'unknown',
-    });
-    asset.requests.at(-1)!.audioInputSupported = false;
-    expect(readIndex(asset).scenes[0]?.evidence).toMatchObject({
-      audio: true,
-      soundAssessed: false,
-      soundAssessment: 'unsupported',
-    });
-    asset.requests.at(-1)!.audioInputSupported = true;
-    expect(readIndex(asset).scenes[0]?.evidence).toMatchObject({
-      soundAssessed: true,
-      soundAssessment: 'supported',
-    });
-    asset.source.hasAudio = false;
-    expect(readIndex(asset).scenes[0]?.evidence.soundAssessed).toBe(false);
-    expect(readIndex(asset)).toMatchObject({
-      source: { kind: 'video', durationUs: 9000000, hasAudio: false },
-      sampling: {
-        sampleRate: 4,
-        excerptUs: 4000000,
-        completeSceneCoverage: false,
-      },
-    });
-    expect(JSON.stringify(readIndex(asset))).not.toMatch(
-      /private|image-model|video-model/,
-    );
-    asset.source.kind = 'audio';
-    scene.artifacts = [
-      { id: 'wave', kind: 'audio', type: 'audio/wav', size: 1 },
-    ];
-    asset.requests.at(-1)!.artifactIds = ['wave'];
-    expect(readIndex(asset).scenes[0]?.evidence).toMatchObject({
-      motionAssessed: false,
-      soundAssessed: true,
-    });
   });
 });

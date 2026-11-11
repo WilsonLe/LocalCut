@@ -1,6 +1,6 @@
 # LocalCut
 
-A browser video editor with local media processing and an optional AI editing assistant. Import your own media, edit a timeline, and export a video without creating an account or running a backend.
+A browser video editor with local media processing. Import your own media, edit a timeline, and export a video without creating an account or running a backend.
 
 [Try LocalCut](https://wilsonle.github.io/LocalCut/) · [Get started](docs/getting-started.md) · [Contribute](CONTRIBUTING.md) · [Documentation](docs/README.md) · [Changelog](CHANGELOG.md) · [Get help](SUPPORT.md)
 
@@ -11,27 +11,23 @@ A browser video editor with local media processing and an optional AI editing as
 - Import video, audio and images; record a screen, window or browser tab through the browser's source picker.
 - Arrange tracks, trim and group clips, separate audio, adjust speed and pitch, and edit transitions.
 - Add styled and animated text, use bundled fonts, and generate captions with explicitly prepared local Whisper transcription.
-- Review AI editing proposals before applying them. Optional AI uses one OpenRouter connection with explicit service models and no backups; speech generation uses an explicit Generate action.
 - Export MP4/H.264/AAC or WebM/VP9/Opus when your browser supports the required codecs.
 - Save projects and versions in this browser and export portable project/workspace backups with optional original media.
 
-The application builds to static files. Headless consumers discover content-hashed editor and AI modules through `modules.json`, following [the API recipe](docs/api.md). Stable `editor.js` and `ai.js` compatibility aliases remain available. This repository is an application, not a published npm package (`private: true`).
+The application builds to static files. Headless consumers discover content-hashed editor module through `modules.json`, following [the API recipe](docs/api.md). Stable `editor.js` compatibility alias remains available. This repository is an application, not a published npm package (`private: true`).
 
 ## Browser support and data
 
 Use current stable desktop **Google Chrome** for the complete supported experience; Safari has focused macOS regression coverage. Export and capture capabilities vary by browser/device. See [browser support](docs/browser-support.md).
 
-Projects stay in this browser with no cloud sync; export backups with originals. Read [privacy and data flows](docs/privacy.md) before connecting optional OpenRouter.
-
 ## Your first edit
 
 1. Open the app, create a project or open one saved in this browser, and import your media.
 2. Select clips and edit the timeline or Clip properties. Preview, Undo and Redo use the same editing engine as export.
-3. Optionally connect a provider in Chat, describe an edit and review the proposed operations. Choose Apply or Discard.
-4. Open **Settings → Export**, choose an available format, export, then Save video.
-5. Use **Settings → Project → Export project** or **Settings → Workspace → Export workspace** for a backup; select original assets if the backup must stand alone.
+3. Open **Settings → Export**, choose an available format, export, then Save video.
+4. Use **Settings → Project → Export project** or **Settings → Workspace → Export workspace** for a backup; select original assets if the backup must stand alone.
 
-See the [first-edit guide](docs/getting-started.md) for versions, provider setup and backup recovery.
+See the [first-edit guide](docs/getting-started.md) for versions and backup recovery.
 
 ## Setup
 

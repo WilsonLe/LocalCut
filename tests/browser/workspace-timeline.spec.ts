@@ -508,9 +508,6 @@ for (const base of behaviorBases) {
       await page.mouse.up();
       expect((await p()).revision).toBe(revision);
     });
-    await page
-      .getByRole('button', { name: 'Collapse chat', exact: true })
-      .click();
     await test.step('a new project revision retires the active drag', async () => {
       await begin('drag.png', 2);
       await expect(ghost).toBeVisible();

@@ -1,3 +1,4 @@
+import type { WorkspaceCommand } from './commands';
 import { useMediaImport } from './useMediaImport';
 import { useWorkspaceLayout } from './useWorkspaceLayout';
 import { useTimelineEditing } from './useTimelineEditing';
@@ -52,16 +53,6 @@ const ErrorDetailsDialog = onDemandDialog(
   ({ onClose }) => ({ title: 'Error details', onClose }),
 );
 import { NotificationControl } from './NotificationControl';
-// Capture callback secrets before loading the conversation or any asynchronous work.
-import './oauth-callback';
-const Conversation = lazy(() =>
-  import('./Conversation').then(({ Conversation }) => ({
-    default: Conversation,
-  })),
-);
-import type { ConversationControls } from './Conversation';
-import type { WorkspaceCommand } from './commands';
-import type { IndexConnection } from './Conversation';
 const WorkspacePanels = lazy(() =>
   import('./WorkspacePanels').then(({ WorkspacePanels }) => ({
     default: WorkspacePanels,
@@ -191,7 +182,6 @@ export function Workspace() {
     mobileTab,
     setMobileTab,
     selectMobileTab,
-    composerFocused,
     onMediaFocus,
     onMediaBlur,
     mediaTriggerRef,
@@ -199,9 +189,6 @@ export function Workspace() {
     drawer,
     setMediaOverride,
     toggleMedia,
-    toggleChat,
-    visibleChatCollapsed,
-    chatCollapsed,
     format,
     setFormat,
   } = useWorkspaceLayout();
@@ -276,9 +263,6 @@ export function Workspace() {
   const [versionAssets, setVersionAssets] = useState<Asset[]>([]);
   const browsing = useRef(false);
   const viewProject = browsed?.project ?? project;
-  const [speechAvailable, setSpeechAvailable] = useState(false);
-  const [indexConnection, setIndexConnection] =
-    useState<IndexConnection | null>(null);
   const [selected, setSelected] = useState<string>();
   const [selection, setSelection] = useState<string[]>([]);
   const selectedIds = selectionIds(viewProject, [
@@ -333,23 +317,6 @@ export function Workspace() {
     if (!open) commandRequest.current++;
     setCommandsOpen(open);
   }, []);
-  const conversationControls = useRef<ConversationControls>(null);
-  const pendingAISettings = useRef(false);
-  const registerConversationControls = useCallback(
-    (controls: ConversationControls | null) => {
-      conversationControls.current = controls;
-      if (controls && pendingAISettings.current) {
-        pendingAISettings.current = false;
-        controls.openSettings();
-      }
-    },
-    [],
-  );
-  const showAISettings = () => {
-    if (conversationControls.current)
-      conversationControls.current.openSettings();
-    else pendingAISettings.current = true;
-  };
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [operationBusy, setBusy] = useState(false);
@@ -390,10 +357,6 @@ export function Workspace() {
   const lock = useRef(false);
   const unsubscribeVersions = useRef<(() => void) | null>(null);
   const unsubscribe = useRef<(() => void) | null>(null);
-  const disposeAssistant = useRef<(() => Promise<void>) | null>(null);
-  const registerCleanup = useCallback((cleanup: () => Promise<void>) => {
-    disposeAssistant.current = cleanup;
-  }, []);
   const [errorReport, setErrorReport] = useState<ErrorReport | null>(null);
   useLayoutEffect(() => subscribeErrorDetails(setErrorReport), []);
   const error = useCallback((value: unknown) => {
@@ -517,7 +480,6 @@ export function Workspace() {
       unsubscribeVersions.current?.();
       void artifactRef.current?.dispose();
       void (async () => {
-        await disposeAssistant.current?.();
         await editorRef.current?.dispose().catch(() => {});
         await captureQueue.current
           ?.then((tasks) => tasks.dispose())
@@ -689,7 +651,6 @@ export function Workspace() {
       mobileTab,
       narrow,
       mediaOpen: drawer,
-      chatCollapsed,
       viewingVersionId: browsed?.id ?? null,
       busy,
       trackCount: viewProject?.tracks.length ?? 0,
@@ -1212,7 +1173,6 @@ export function Workspace() {
     openProject: showProjects,
     import: !browsed ? () => fileInput.current?.click() : undefined,
     export: total && !browsed ? showExport : undefined,
-    toggleChat,
     toggleMedia,
     shortcuts: () => setDialog('shortcuts'),
     commands: () => showCommands(),
@@ -1259,7 +1219,6 @@ export function Workspace() {
               versions,
               versionsOpen,
               format,
-              narrow ? mobileTab !== 'chat' : chatCollapsed,
               drawer,
               appearanceOpen,
               setDialog,
@@ -1291,11 +1250,9 @@ export function Workspace() {
               setVersionsOpen,
               showExport,
               setFormat,
-              toggleChat,
               toggleMedia,
               closeAppearance,
               openSettings,
-              () => conversationControls.current?.commands() ?? [],
             ],
             shortcutActions,
           ),
@@ -1373,14 +1330,12 @@ export function Workspace() {
             canExport={!!total && !projectsOpen}
             canBrowseVersions={!!project && !busy && !projectsOpen}
             mediaOpen={drawer}
-            chatCollapsed={narrow ? mobileTab !== 'chat' : chatCollapsed}
             format={format}
             onNew={() => setDialog('new')}
             onOpen={showProjects}
             onBackup={backupProject}
             onImportBackup={() => backupInput.current?.click()}
             onToggleMedia={toggleMedia}
-            onToggleChat={toggleChat}
             onExport={showExport}
             onVersions={showVersions}
             onFormatChange={setFormat}
@@ -1399,7 +1354,6 @@ export function Workspace() {
             onAppearance={() => setAppearanceOpen(true)}
             onShortcuts={() => setDialog('shortcuts')}
             onCommands={showCommands}
-            onAISettings={showAISettings}
           />
         </Suspense>
       ) : (
@@ -1445,7 +1399,6 @@ export function Workspace() {
               key={project?.id}
               projectId={project?.id}
               editor={editor}
-              indexConnection={indexConnection}
               readOnly={!!browsed || navigation.blocked}
               assets={browsed ? versionAssets : assets}
               canEdit={!busy && !browsed}
@@ -1453,11 +1406,6 @@ export function Workspace() {
               onImport={() => fileInput.current?.click()}
               onImportFiles={importMedia}
               onLibraryChanged={refresh}
-              onSpeech={
-                speechAvailable
-                  ? () => conversationControls.current?.openSpeech()
-                  : undefined
-              }
               headerActions={
                 narrow && mobileTab === 'media' ? headerActions : null
               }
@@ -1548,11 +1496,9 @@ export function Workspace() {
   return (
     <div
       className="workspace"
-      data-chat-collapsed={visibleChatCollapsed}
       data-media-open={drawer}
       data-mobile-tab={mobileTab}
       data-mobile-editor={narrow && !projectsOpen}
-      data-composer-focused={composerFocused}
     >
       {fileHovering && (
         <div className="asset-drop-overlay" role="status">
@@ -1641,44 +1587,11 @@ export function Workspace() {
           <WorkspacePanels
             narrow={narrow}
             inert={projectsOpen || navigation.blocked}
-            chatCollapsed={visibleChatCollapsed}
             mediaOpen={drawer}
-            onCollapseChat={toggleChat}
             onCollapseMedia={toggleMedia}
             media={mediaPanel}
             mobileTab={mobileTab}
           >
-            <Suspense
-              fallback={
-                <aside
-                  aria-label="Editing conversation"
-                  data-collapsed={visibleChatCollapsed}
-                  className="conversation-panel min-w-0 border-b bg-background lg:border-l lg:border-b-0"
-                />
-              }
-            >
-              <Conversation
-                mobile={narrow}
-                headerActions={
-                  narrow && mobileTab === 'chat' ? headerActions : null
-                }
-                controlsRef={registerConversationControls}
-                onIndexConnection={setIndexConnection}
-                onSpeechAvailability={setSpeechAvailable}
-                editor={editor}
-                project={project}
-                readOnly={!!browsed || navigation.blocked}
-                selectedClipId={selected}
-                onApplied={refresh}
-                onNewProject={() => setDialog('new')}
-                onOpenProjects={showProjects}
-                onError={error}
-                registerCleanup={registerCleanup}
-                collapsed={visibleChatCollapsed}
-                active={!narrow || mobileTab === 'chat'}
-                onToggle={toggleChat}
-              />
-            </Suspense>
             <main
               id="workspace-editor"
               className="editing-area"
@@ -1934,7 +1847,7 @@ export function Workspace() {
           </Suspense>
         )}
       </div>
-      {narrow && !projectsOpen && !composerFocused && (
+      {narrow && !projectsOpen && (
         <Suspense
           fallback={<div className="mobile-navigation" aria-busy="true" />}
         >

@@ -1,5 +1,4 @@
 import { behaviorBases } from './coverage-bases';
-import { fulfillChatTitle } from './chat-title-fixture';
 import { openWorkspaceGroup } from './workspace-settings-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -197,44 +196,6 @@ for (const base of behaviorBases) {
     expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
     expect(resources.some((url) => /editor\.js|worker/.test(url))).toBe(false);
     await expect(page.getByRole('alert')).toHaveCount(0);
-  });
-
-  test(`project routing preserves bare navigation when conversation loads late ${base}`, async ({
-    page,
-  }) => {
-    await page.goto(base);
-    const ids = await seed(page, base);
-    let release!: () => void;
-    const ready = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    await page.route(/\/assets\/Conversation-[^/]+\.js$/, async (route) => {
-      await ready;
-      await route.continue();
-    });
-    try {
-      await page.goto(`${base}#/project/${ids.first}`);
-      await page.reload({ waitUntil: 'domcontentloaded' });
-      await expect(picker(page)).toContainText('Route first');
-      await page.evaluate(() => {
-        location.hash = '/';
-      });
-      await expect(picker(page)).toContainText('Untitled project');
-      release();
-      await expect(
-        page.getByRole('button', { name: 'Collapse chat', exact: true }),
-      ).toBeVisible();
-      await page.evaluate(
-        () =>
-          new Promise<void>((resolve) =>
-            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-          ),
-      );
-      await expect(page).toHaveURL(/#\/$/);
-      await expect(picker(page)).toContainText('Untitled project');
-    } finally {
-      release();
-    }
   });
 
   test(`project routing captures navigation while editor panels load ${base}`, async ({
@@ -486,81 +447,6 @@ for (const base of behaviorBases) {
     await expect(
       page.getByRole('button', { name: 'Saved routed title', exact: true }),
     ).toBeVisible();
-  });
-
-  test(`project routing enables restored chat without a setup request ${base}`, async ({
-    page,
-    context,
-  }) => {
-    const cors = {
-      'access-control-allow-origin': '*',
-      'access-control-allow-headers': 'authorization,content-type',
-      'access-control-allow-methods': 'GET,POST,OPTIONS',
-    };
-    let paid = 0;
-    await context.route('https://openrouter.ai/api/v1/models', (route) =>
-      route.fulfill({
-        headers: cors,
-        json: {
-          data: [
-            {
-              id: 'test/routing',
-              name: 'Routing model',
-              context_length: 512000,
-              supported_parameters: ['tools', 'tool_choice'],
-            },
-          ],
-        },
-      }),
-    );
-    await context.route(
-      'https://openrouter.ai/api/v1/chat/completions',
-      async (route) => {
-        if (route.request().method() === 'OPTIONS')
-          return route.fulfill({ headers: cors, body: '' });
-        if (await fulfillChatTitle(route)) return;
-        paid++;
-        return route.fulfill({
-          headers: cors,
-          contentType: 'text/event-stream',
-          body: `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'Project restored.' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
-        });
-      },
-    );
-    await page.goto(base);
-    const ids = await seed(page, base);
-    await page.evaluate(() => {
-      localStorage.setItem(
-        'localcut.openrouter-credential.v1',
-        JSON.stringify({ version: 1, key: 'synthetic-routed-key' }),
-      );
-      localStorage.setItem(
-        'localcut.workspace-preferences.v1',
-        JSON.stringify({
-          version: 1,
-          preferences: { aiModel: 'test/routing' },
-        }),
-      );
-    });
-    await page.goto(`${base}#/project/${ids.first}`);
-    // The fixture changed storage outside the app after startup. Hash-only
-    // navigation keeps that document; reload to exercise credential restoration.
-    await page.reload();
-    const composer = page.getByRole('textbox', {
-      name: 'Describe your edit',
-      exact: true,
-    });
-    await expect(composer).toBeEnabled();
-    expect(paid).toBe(0);
-    await page.reload();
-    await expect(composer).toBeEnabled();
-    expect(paid).toBe(0);
-    await composer.fill('Describe my project');
-    await composer.press('Enter');
-    await expect(
-      page.getByRole('log', { name: 'Conversation messages' }),
-    ).toContainText('Project restored.');
-    expect(paid).toBe(1);
   });
 }
 

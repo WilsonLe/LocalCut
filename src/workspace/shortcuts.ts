@@ -21,7 +21,6 @@ export type EditorShortcut =
   | 'openProject'
   | 'import'
   | 'export'
-  | 'toggleChat'
   | 'toggleMedia'
   | 'shortcuts'
   | 'commands'
@@ -65,7 +64,7 @@ export interface ShortcutContext {
   timelineClip?: boolean;
 }
 
-/** Single-key commands are scoped to the focused editor, never the chat. */
+/** Single-key commands are scoped to the focused editor, never a text field. */
 export function resolveShortcut(
   event: Key,
   context: ShortcutContext,
@@ -135,7 +134,6 @@ export function resolveShortcut(
   if (key === 'd') return 'duplicate';
   if (key === 't') return 'addText';
   if (key === 'n') return 'newProject';
-  if (key === 'c') return 'toggleChat';
   if (key === 'm') return 'toggleMedia';
 }
 

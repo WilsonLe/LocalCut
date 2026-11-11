@@ -1,15 +1,8 @@
-import { createAssetIndexer } from '../../src/ai/asset-indexer';
-import type { Editor } from '../../src/editor';
-import type { OpenRouter } from '../../src/ai/types';
-import { Jobs } from '../../src/services/jobs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TaskQueue } from '../../src/services/task-queue';
 import type { TaskRecord } from '../../src/services/task-queue';
 import type { TaskStorage } from '../../src/storage/tasks';
 import { pureTaskCache } from '../../src/services/task-cache';
-import { transcriptionSegments } from '../../src/ai/transcription';
-import { asEditorError } from '../../src/core/errors';
-import { errorDiagnostic } from '../../src/core/error-diagnostics';
 
 class MemoryStore implements TaskStorage {
   tasks = new Map<string, TaskRecord>();
@@ -222,149 +215,6 @@ describe('durable task queue', () => {
         .map((event) => event.id)
         .sort(),
     ).toEqual(['abandoned', 'saved-failure', 'saved-interruption']);
-  });
-  it('lets queued indexing overlap across assets while retaining same-asset exclusion', async () => {
-    const q = queue();
-    const jobs = new Jobs();
-    const started: string[] = [];
-    const releases: (() => void)[] = [];
-    const runs = new Map<string, unknown>();
-    const editor = {
-      tasks: q,
-      assets: {
-        inspect: async (assetId: string) => {
-          started.push(assetId);
-          await new Promise<void>((resolve) => releases.push(resolve));
-          return { kind: 'image' };
-        },
-        analyze: (assetId: string) =>
-          jobs.start(async () => {
-            const run = { id: assetId, assetId, status: 'complete' };
-            runs.set(assetId, run);
-            return run;
-          }),
-        indexes: {
-          withRun: async (_id: string, work: () => Promise<unknown>) => work(),
-          get: async (id: string) => runs.get(id),
-        },
-      },
-    } as unknown as Editor;
-    const provider = {
-      status: () => ({ connected: true }),
-      listModels: async () => [
-        { id: 'synthetic', supportsTools: true, inputModalities: ['image'] },
-      ],
-    } as unknown as OpenRouter;
-    const indexer = createAssetIndexer({
-      editor,
-      provider,
-      model: 'synthetic',
-      consent: () => true,
-    });
-    try {
-      const first = indexer.run('first');
-      const same = indexer.run('first');
-      const second = indexer.run('second');
-      await vi.waitFor(() => expect(started).toEqual(['first', 'second']));
-      releases[1]!();
-      await second.completion;
-      expect(started).toEqual(['first', 'second']);
-      releases[0]!();
-      await first.completion;
-      await vi.waitFor(() =>
-        expect(started).toEqual(['first', 'second', 'first']),
-      );
-      releases[2]!();
-      await same.completion;
-    } finally {
-      await q.dispose();
-      await indexer.dispose();
-      await jobs.dispose();
-    }
-  });
-  it('retains original error messages, causes and every frame through nested measurement/generation queues and reopening', async () => {
-    const storage = new MemoryStore(),
-      q = queue(storage);
-    q.register('measurement-diagnostic', {
-      cache: pureTaskCache('measurement-v1'),
-      lane: 'transcription',
-      recovery: 'manual',
-      execute: async () => {
-        try {
-          transcriptionSegments(
-            { segments: [{ text: 'private transcript', start: 2, end: 1 }] },
-            3,
-          );
-        } catch (error) {
-          (error as Error).cause = new Error(
-            'Provider rejected segment 17\nBearer test-credential',
-          );
-          (error as Error).stack =
-            'AiError: STT returned invalid or unordered timestamps.\n' +
-            Array.from(
-              { length: 200 },
-              (_, i) => `    at frame${i} (ai.js:${i}:1)`,
-            ).join('\n');
-          throw asEditorError(error);
-        }
-      },
-    });
-    q.register('speech-diagnostic', {
-      cache: pureTaskCache('speech-v1'),
-      lane: 'speech',
-      recovery: 'manual',
-      execute: async () =>
-        q.enqueue('measurement-diagnostic', {}, { label: 'Measure speech' })
-          .completion,
-    });
-    const job = q.enqueue(
-      'speech-diagnostic',
-      {},
-      { label: 'Generating speech' },
-    );
-    await expect(job.completion).rejects.toMatchObject({
-      code: 'WORKER_FAILED',
-      message: 'STT returned invalid or unordered timestamps.',
-    });
-    const saved = await q.get(job.id);
-    let validation = saved?.error?.diagnostic;
-    while (validation && validation.code !== 'INVALID_RESPONSE')
-      validation = validation.cause;
-    expect(validation?.message).toBe(
-      'STT returned invalid or unordered timestamps.',
-    );
-    expect(JSON.stringify(saved?.error?.diagnostic)).toContain(
-      'STT returned invalid or unordered timestamps.',
-    );
-    expect(JSON.stringify(saved?.error?.diagnostic)).toContain(
-      'INVALID_RESPONSE',
-    );
-    expect(JSON.stringify(saved?.error?.diagnostic)).toContain('frame199');
-    expect(JSON.stringify(saved)).toContain('Provider rejected segment 17');
-    expect(JSON.stringify(saved)).not.toMatch(
-      /private transcript|test-credential/,
-    );
-    const restored = await queue(storage).get(job.id);
-    expect(restored?.error?.diagnostic?.stack).toContain(
-      'STT returned invalid or unordered timestamps.',
-    );
-    const reserialized = errorDiagnostic(restored?.error?.diagnostic);
-    expect(JSON.stringify(reserialized)).toContain(
-      'STT returned invalid or unordered timestamps.',
-    );
-    expect(JSON.stringify(reserialized)).toContain('frame199');
-    expect(JSON.stringify(reserialized)).toContain(
-      'Provider rejected segment 17',
-    );
-    expect(JSON.stringify(reserialized)).not.toContain('test-credential');
-    const failure = await job.completion.catch((error: unknown) => error);
-    const report = errorDiagnostic(failure);
-    expect(JSON.stringify(report)).toContain(
-      'STT returned invalid or unordered timestamps.',
-    );
-    expect(JSON.stringify(report)).toContain('frame199');
-    expect(JSON.stringify(report)).toContain('Provider rejected segment 17');
-    expect(JSON.stringify(report)).not.toContain('test-credential');
   });
   it('isolates reusable cache values from public result reads, retry completion and retained handler objects', async () => {
     const storage = new MemoryStore(),
@@ -1084,72 +934,28 @@ it('retains safe HTTP metadata for actionable endpoint errors and removes privat
   expect(JSON.stringify(task)).not.toContain('secret-token');
 });
 
-it.each([
-  [
-    'INVALID_REQUEST',
-    {
-      status: 400,
-      stage: 'completion_check',
-      providerReason: 'invalid_prompt',
-      parameter: 'messages',
+it('retains safe HTTP status through a queued failure without agent recovery fields', async () => {
+  const q = queue();
+  q.register('failure', {
+    lane: 'local',
+    recovery: 'manual',
+    execute: async () => {
+      throw Object.assign(new Error('Source failure'), {
+        code: 'INVALID_REQUEST',
+        details: {
+          status: 400,
+          providerReason: 'obsolete',
+          body: 'private-body-marker',
+        },
+      });
     },
-  ],
-  [
-    'INVALID_RESPONSE',
-    { reason: 'reviewer_protocol', stage: 'request_contract' },
-  ],
-  ['INVALID_REQUEST', { reason: 'attachment_unavailable' }],
-])(
-  'preserves safe recovery metadata through a queued %s failure',
-  async (code, details) => {
-    const q = queue();
-    q.register('review', {
-      lane: 'remote',
-      recovery: 'manual',
-      execute: async () => {
-        throw Object.assign(new Error('Safe failure'), {
-          code,
-          details: { ...details, body: 'private-body-marker' },
-        });
-      },
-    });
-    const job = q.enqueue('review', {}, { label: 'Review' });
-    await expect(job.completion).rejects.toMatchObject({ code, details });
-    const task = await q.get(job.id);
-    expect(task?.error?.details).toEqual(details);
-    expect(task?.attempts).toBe(1);
-    expect(JSON.stringify(task)).not.toContain('private-body-marker');
-  },
-);
-
-it.each([
-  ['RESPONSE_INCOMPLETE', 'output_limit', { reason: 'output_limit' }],
-  ['RESPONSE_INCOMPLETE', 'empty_response', { reason: 'empty_response' }],
-  ['RESPONSE_INCOMPLETE', 'secret-token', undefined],
-  ['INVALID_REQUEST', 'output_limit', undefined],
-])(
-  'retains only known incomplete-response diagnostics for %s/%s',
-  async (code, reason, expected) => {
-    const q = queue();
-    q.register('remote', {
-      lane: 'remote',
-      recovery: 'manual',
-      execute: async () => {
-        throw Object.assign(new Error('private provider echo'), {
-          code,
-          details: { reason, body: 'private-body-marker' },
-        });
-      },
-    });
-    const job = q.enqueue('remote', {}, { label: 'Response error' });
-    await expect(job.completion).rejects.toMatchObject({
-      code,
-      details: expected,
-    });
-    const task = await q.get(job.id);
-    expect(task?.error?.details).toEqual(expected);
-    expect(task?.attempts).toBe(1);
-    expect(task?.error?.diagnostic?.message).toBe('private provider echo');
-    expect(JSON.stringify(task)).not.toContain('private-body-marker');
-  },
-);
+  });
+  const job = q.enqueue('failure', {}, { label: 'Failure' });
+  await expect(job.completion).rejects.toMatchObject({
+    code: 'INVALID_REQUEST',
+    details: { status: 400 },
+  });
+  const task = await q.get(job.id);
+  expect(task?.error?.details).toEqual({ status: 400 });
+  expect(JSON.stringify(task)).not.toContain('private-body-marker');
+});

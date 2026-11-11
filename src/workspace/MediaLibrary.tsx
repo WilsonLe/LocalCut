@@ -1,6 +1,5 @@
 import { PanelHeader } from './PanelHeader';
 import {
-  lazy,
   useEffect,
   useEffectEvent,
   useState,
@@ -10,7 +9,6 @@ import {
 import { createPortal } from 'react-dom';
 import {
   Files,
-  AudioLines,
   Music,
   Upload,
   ScreenShare,
@@ -19,10 +17,8 @@ import {
   Link,
 } from 'lucide-react';
 import type { Asset, Editor } from '../editor';
-import type { IndexConnection } from './Conversation';
-const AssetIndexControls = lazy(() => import('./AssetIndexControls'));
 import { Menu } from '@base-ui/react/menu';
-import { assetMenuItemClass } from './AssetMenu';
+import { AssetMenu, assetMenuItemClass } from './AssetMenu';
 import { Input } from '../components/ui/input';
 import {
   Dialog,
@@ -60,13 +56,11 @@ interface DragPosition {
 export default function MediaLibrary({
   projectId,
   editor,
-  indexConnection,
   readOnly,
   assets,
   canEdit,
   onImport,
   onRecord,
-  onSpeech,
   headerActions,
   onRelink,
   onRename,
@@ -78,13 +72,11 @@ export default function MediaLibrary({
 }: {
   projectId: string | undefined;
   editor: Editor | null;
-  indexConnection: IndexConnection | null;
   readOnly: boolean;
   assets: Asset[];
   canEdit: boolean;
   onImport: () => void;
   onRecord: () => void;
-  onSpeech?: () => void;
   headerActions?: React.ReactNode;
   onRelink: (id: string) => void;
   onRename: (asset: Asset, name: string) => Promise<void>;
@@ -317,18 +309,6 @@ export default function MediaLibrary({
   });
   const mediaActions = (
     <>
-      {onSpeech && !readOnly && (
-        <Tooltip content="Generate a spoken narration from your script">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Text to speech"
-            onClick={onSpeech}
-          >
-            <AudioLines />
-          </Button>
-        </Tooltip>
-      )}
       {canEdit && (
         <Tooltip content="Record screen">
           <Button
@@ -446,7 +426,6 @@ export default function MediaLibrary({
             }
             editor={editor}
             asset={asset}
-            connection={indexConnection}
             readOnly={readOnly}
             canEdit={
               canEdit &&
@@ -512,7 +491,6 @@ export default function MediaLibrary({
 function MediaAssetCard({
   editor,
   asset,
-  connection,
   readOnly,
   canEdit,
   onRelink,
@@ -526,7 +504,6 @@ function MediaAssetCard({
   editor: Editor | null;
   asset: Asset;
   canEdit: boolean;
-  connection: IndexConnection | null;
   readOnly: boolean;
   onRelink: (id: string) => void;
   onRename: (asset: Asset, name: string) => Promise<void>;
@@ -606,13 +583,8 @@ function MediaAssetCard({
       data-asset-id={asset.id}
       data-selected={selected}
     >
-      <AssetIndexControls
-        editor={editor}
-        asset={asset}
-        connection={connection}
-        readOnly={readOnly}
-        actions={actions}
-        details={
+      <Tooltip
+        content={
           <>
             <div>{asset.name}</div>
             <div>
@@ -652,7 +624,8 @@ function MediaAssetCard({
           dragPosition={dragPosition}
           {...previewProps}
         />
-      </AssetIndexControls>
+      </Tooltip>
+      <AssetMenu name={asset.name}>{actions}</AssetMenu>
       <Dialog
         open={dialog !== null}
         onOpenChange={(open) => {
@@ -673,7 +646,7 @@ function MediaAssetCard({
             <DialogDescription>
               {dialog === 'rename'
                 ? 'Update the media name in this browser. The original file stays unchanged.'
-                : `Remove ${asset.name} and all its timeline clips from this project? Undo can restore them. Original media and saved index runs are retained for saved versions.`}
+                : `Remove ${asset.name} and all its timeline clips from this project? Undo can restore them. Original media is retained for saved versions.`}
             </DialogDescription>
           </DialogHeader>
           <form

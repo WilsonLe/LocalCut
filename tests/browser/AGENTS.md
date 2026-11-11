@@ -1,11 +1,11 @@
 # Production Chrome acceptance
 
-- These tests import built `editor.js`/`ai.js` or use the production workspace. Do not substitute source/dev imports for production-entry coverage.
+- These tests import built `editor.js` or use the production workspace. Do not substitute source/dev imports for production-entry coverage.
 - [playwright.config.ts](../../playwright.config.ts) uses installed stable Chrome. Run all repeated scenarios once at `/LocalCut/` through `coverage-bases.ts`, including shared entries and asset/worker/routing checks. Preserve distinct inputs/themes/viewports/failures as named fixture variants rather than encoding them in the hosting path. `LOCALCUT_TEST_BASES=both` is an opt-in diagnostic. See [the matrix inventory](../../docs/playwright-journeys.md#avoid-duplicate-work).
 - Workspace iteration: `pnpm test:ui --grep '<title>'` verifies/reuses both builds. Engine iteration: build both targets, then `pnpm test:browser tests/browser/<name>.spec.ts`.
 - `pnpm test:browser tests/browser/<name>.spec.ts --list` checks selection without starting the browser. Do not mistake this for executed evidence.
 - Normal acceptance shares one stable Chrome process across resource-bounded workers, each with isolated contexts/tabs. `LOCALCUT_BROWSER_WORKERS` caps concurrent workers within the CPU/memory budget. Functional UI checks use reduced motion; dedicated animation, resizing and modal-focus regressions explicitly restore full motion. Combine compatible stories with named `test.step` phases, reuse journey-owned primary/secondary tabs, and preserve fresh contexts for unrelated fixtures. See [the journey inventory](../../docs/playwright-journeys.md). Keep performance/transcription in the separate one-worker `acceptance` project.
-- Keep native encode/decode, actual persisted revisions, waveform/audio values, and cancellation cleanup assertions. Intercepted OpenRouter replies prove protocol behavior, not paid inference.
+- Keep native encode/decode, actual persisted revisions, waveform/audio values, and cancellation cleanup assertions.
 - Exercise superseded requests and cross-tab conflicts with explicit synchronization; avoid assuming elapsed sleeps equal playback progress on a busy machine.
 - Preserve checksum-verified speech preparation and the fresh-worker replay with remote hosts blocked. Run `pnpm test:transcription` per [validation](../../docs/validation.md).
 - Keep the performance workload's isolated disk-backed profile and cleanup; incognito OPFS stores output in RAM and distorts processing measurements. Run `pnpm test:performance` without competing browser workloads.

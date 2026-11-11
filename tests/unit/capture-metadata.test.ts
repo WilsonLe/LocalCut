@@ -8,8 +8,6 @@ import {
   containerCapture,
   containerCreation,
 } from '../../src/media/capture-metadata';
-import { assetContext } from '../../src/ai/context';
-import { assetSchema } from '../../src/core/model';
 import {
   exifFixture,
   embedExif,
@@ -153,34 +151,5 @@ describe('embedded capture facts', () => {
     expect(
       await containerCreation(new Blob(['not a container'])),
     ).toBeUndefined();
-  });
-  it('saves additive validated asset fields while remote sharing remains independent', () => {
-    const asset = assetSchema.parse({
-      id: 'asset',
-      name: 'private',
-      kind: 'image',
-      size: 1,
-      type: 'image/jpeg',
-      durationUs: 0,
-      width: 1,
-      height: 1,
-      rotation: 0,
-      status: 'ready',
-      capture: captureFixture,
-    });
-    expect(asset.capture).toEqual(captureFixture);
-    expect(assetContext(asset)).not.toHaveProperty('capture');
-    expect(
-      assetContext(asset, {
-        includeAssetNames: true,
-        includeAssetIndexes: true,
-      }),
-    ).not.toHaveProperty('capture');
-    expect(
-      assetContext(asset, { includeCaptureMetadata: true }).capture,
-    ).toEqual(captureFixture);
-    expect(
-      assetContext(asset, { includeCaptureMetadata: true }),
-    ).not.toHaveProperty('name');
   });
 });

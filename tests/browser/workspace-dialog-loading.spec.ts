@@ -81,16 +81,6 @@ const surfaces = [
       page.getByRole('button', { name: 'Commands', exact: true }),
   },
   {
-    name: 'AI connection',
-    module: 'AIConnectionDialog',
-    action: async (page: Page) => {
-      await page
-        .getByRole('button', { name: 'Workspace settings', exact: true })
-        .click();
-      return page.getByRole('menuitem', { name: 'AI settings', exact: true });
-    },
-  },
-  {
     name: 'Projects',
     module: 'ProjectSwitcherDialog',
     project: true,
