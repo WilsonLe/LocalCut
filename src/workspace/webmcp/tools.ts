@@ -299,14 +299,18 @@ export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
         relinkAssetId
           ? host.editor.assets.relink(relinkAssetId, file)
           : host.editor.assets.import(file),
-        async (asset) => {
-          view(true);
-          const libraryOwner = host.editor.library.forProject(host.projectId);
-          const library = relinkAssetId
-            ? await libraryOwner.list()
-            : await libraryOwner.place(asset.id, [], parentId);
-          if (!lifetime.aborted) await host.refresh();
-          return { asset, libraryRevision: library.revision };
+        {
+          publication: 'engine',
+          encode: async (asset) => {
+            // The original has committed. Finish publication against its captured
+            // project even if navigation or another action retires this view.
+            const libraryOwner = host.editor.library.forProject(host.projectId);
+            const library = relinkAssetId
+              ? await libraryOwner.list()
+              : await libraryOwner.place(asset.id, [], parentId);
+            if (!lifetime.aborted) await host.refresh();
+            return { asset, libraryRevision: library.revision };
+          },
         },
       );
     },
@@ -334,18 +338,21 @@ export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
         return host.editor.assets.rename(assetId, name, expectedName);
       }
       if (action === 'waveform')
-        return jobs.track(
-          host.editor.assets.waveform(assetId, bins),
-          async (values) => Array.from(values),
-        );
+        return jobs.track(host.editor.assets.waveform(assetId, bins), {
+          publication: 'disposable',
+          encode: async (values) => Array.from(values),
+        });
       invariant(timesUs, 'INVALID_COMMAND', 'Supply timesUs for thumbnails.');
       return jobs.track(
         host.editor.assets.thumbnails(assetId, timesUs, width),
-        async (frames, file) =>
-          frames.map((frame, i) => ({
-            timeUs: frame.timeUs,
-            ...file(frame.blob, `thumbnail-${i}.png`),
-          })),
+        {
+          publication: 'disposable',
+          encode: async (frames, file) =>
+            frames.map((frame, i) => ({
+              timeUs: frame.timeUs,
+              ...file(frame.blob, `thumbnail-${i}.png`),
+            })),
+        },
       );
     },
   );
@@ -363,25 +370,30 @@ export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
           { width, height },
           current.version?.id,
         ),
-        async (result, file) => {
-          try {
-            const canvas = new OffscreenCanvas(width, height);
-            const context = canvas.getContext('2d');
-            invariant(context, 'UNSUPPORTED_CODEC', 'Canvas unavailable.');
-            context.drawImage(result.image, 0, 0, width, height);
-            return {
-              timeUs: result.timeUs,
-              projectId,
-              revision: result.revision,
-              viewingVersionId: current.version?.id ?? null,
-              ...file(
-                await canvas.convertToBlob({ type: 'image/png' }),
-                'preview.png',
-              ),
-            };
-          } finally {
-            result.image.close();
-          }
+        {
+          publication: 'disposable',
+          dispose: (result) => result.image.close(),
+          encode: async (result, file, signal) => {
+            try {
+              signal.throwIfAborted();
+              const canvas = new OffscreenCanvas(width, height);
+              const context = canvas.getContext('2d');
+              invariant(context, 'UNSUPPORTED_CODEC', 'Canvas unavailable.');
+              context.drawImage(result.image, 0, 0, width, height);
+              return {
+                timeUs: result.timeUs,
+                projectId,
+                revision: result.revision,
+                viewingVersionId: current.version?.id ?? null,
+                ...file(
+                  await canvas.convertToBlob({ type: 'image/png' }),
+                  'preview.png',
+                ),
+              };
+            } finally {
+              result.image.close();
+            }
+          },
         },
       );
     },
@@ -428,15 +440,18 @@ export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
         'Project changed before export. Reinspect first.',
       );
       return jobs.track(
-        host.editor.exports.start(projectId, options),
-        async (result, file) => ({
-          projectId: result.projectId,
-          revision: result.revision,
-          durationUs: result.durationUs,
-          format: result.format,
-          ...file(result.file, result.file.name),
-        }),
-        (result) => result.dispose(),
+        host.editor.exports.start(projectId, options, expectedRevision),
+        {
+          publication: 'disposable',
+          encode: async (result, file) => ({
+            projectId: result.projectId,
+            revision: result.revision,
+            durationUs: result.durationUs,
+            format: result.format,
+            ...file(result.file, result.file.name),
+          }),
+          dispose: (result) => result.dispose(),
+        },
       );
     },
   );
@@ -530,12 +545,15 @@ export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
           exportOptions,
           expectedRevision,
         ),
-        async (result, file) => ({
-          projectId: result.projectId,
-          revision: result.revision,
-          format: result.format,
-          ...file(result.file, result.file.name),
-        }),
+        {
+          publication: 'disposable',
+          encode: async (result, file) => ({
+            projectId: result.projectId,
+            revision: result.revision,
+            format: result.format,
+            ...file(result.file, result.file.name),
+          }),
+        },
       );
     },
   );
@@ -598,7 +616,10 @@ export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
           includeVersions: true,
           assetIds: backup.assets.map((asset) => asset.id),
         }),
-        async (file, retain) => retain(file, file.name),
+        {
+          publication: 'disposable',
+          encode: async (file, retain) => retain(file, file.name),
+        },
       );
     },
   );

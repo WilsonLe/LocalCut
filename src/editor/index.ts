@@ -1154,11 +1154,27 @@ export async function createEditor(options: EditorOptions = {}) {
           ),
         );
       },
-      start(projectId: string, options: ExportOptions) {
+      start(
+        projectId: string,
+        options: ExportOptions,
+        expectedRevision?: number,
+      ) {
         active();
         return jobs.start(
           async (signal, progress, id) => {
             const p = await store.getProject(projectId);
+            invariant(
+              expectedRevision === undefined ||
+                (Number.isSafeInteger(expectedRevision) &&
+                  expectedRevision >= 0),
+              'INVALID_COMMAND',
+              'Invalid expected export revision',
+            );
+            invariant(
+              expectedRevision === undefined || p.revision === expectedRevision,
+              'REVISION_CONFLICT',
+              'Project changed before queued export started',
+            );
             return store.lock('project-assets-' + p.id, 'shared', async () => {
               for (const assetId of outputAssetIds(p))
                 await store.file(assetId);

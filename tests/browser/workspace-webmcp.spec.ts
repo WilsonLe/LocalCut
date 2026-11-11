@@ -548,6 +548,96 @@ for (const base of behaviorBases) {
     ).toBe(asset.id);
   });
 
+  test(`workspace WebMCP queued export keeps its requested revision ${base}`, async ({
+    page,
+  }) => {
+    await installHarness(page);
+    await page.goto(base);
+    const { id } = await seed(page, base);
+    await page.goto(`${base}#/project/${id}`);
+    await ready(page);
+    await page.evaluate(async (base) => {
+      const { createEditor, freshTask } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      let release!: () => void, entered!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const running = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      editor.tasks.register('test.webmcp.export-gate', {
+        cache: freshTask('Deterministic queued-export fixture.'),
+        lane: 'export',
+        recovery: 'manual',
+        execute: async () => {
+          entered();
+          await gate;
+          return null;
+        },
+      });
+      const blocker = editor.tasks.enqueue(
+        'test.webmcp.export-gate',
+        {},
+        { label: 'Queued export test barrier' },
+      );
+      (
+        window as Window & {
+          exportGate?: { release(): void; dispose(): Promise<void> };
+        }
+      ).exportGate = {
+        release,
+        dispose: async () => {
+          release();
+          await blocker.completion;
+          await editor.dispose();
+        },
+      };
+      await running;
+    }, base);
+    try {
+      const queued = await call<{ jobId: string }>(page, 'export_video', {
+        projectId: id,
+        expectedRevision: 1,
+        format: 'mp4',
+      });
+      expect(
+        await call(page, 'apply_edits', {
+          projectId: id,
+          expectedRevision: 1,
+          requestId: 'edit-before-export',
+          operations: [{ type: 'renameProject', name: 'Newer revision' }],
+        }),
+      ).toMatchObject({ appliedRevision: 2 });
+      await page.evaluate(() =>
+        (
+          window as Window & { exportGate?: { release(): void } }
+        ).exportGate!.release(),
+      );
+      expect(
+        await call(page, 'job', {
+          projectId: id,
+          jobId: queued.jobId,
+          action: 'wait',
+        }),
+      ).toMatchObject({
+        state: 'failed',
+        error: { code: 'REVISION_CONFLICT' },
+      });
+      expect((await persisted(page, base, id)).revision).toBe(2);
+    } finally {
+      await page.evaluate(async () => {
+        const state = window as Window & {
+          exportGate?: { dispose(): Promise<void> };
+        };
+        await state.exportGate?.dispose();
+        delete state.exportGate;
+      });
+    }
+  });
+
   test(`workspace WebMCP unsupported browser keeps ordinary editing @journey ${base}`, async ({
     page,
   }) => {

@@ -38,6 +38,8 @@ Document writes require `expectedRevision`; library changes use `expectedLibrary
 
 ## Data and verification boundaries
 
+Cancellation also covers disposable transport processing after an engine job finishes, including pending PNG encoding. Partial blob URLs are revoked and native outputs are disposed. This differs from committed data: an imported original finishes Media placement in its captured project/folder even if navigation or a busy workspace retires its caller; only the later UI refresh is guarded. Video export checks the requested revision inside the queued engine owner when it captures its snapshot.
+
 Project content and generated preview/export files become available to the connected browser agent. Its provider may process results under that agent's policies. LocalCut does not select a provider or send OpenRouter requests for WebMCP. Tools expose neither saved provider credentials nor arbitrary page JavaScript, host files or unrelated projects. Local model preparation is explicit. Base64 imports accept up to 90 million characters; importing does not place clips, fetch remote URLs or run inference.
 
 The [focused checks](development.md#webmcp-checks) distinguish a controlled registration harness from actual browser discovery. Both use production-built editor APIs and browser persistence. Preview/video checks retain native rendering, encoding and readback. Browser discovery does not establish model editing quality or interoperability with every agent.

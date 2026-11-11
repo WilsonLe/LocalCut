@@ -18,21 +18,27 @@ interface OwnedJob {
   settled: Promise<void>;
   unsubscribe(): void;
   released: boolean;
+  cancel(): void;
+}
+interface ResultOptions<T> {
+  /** Engine publication wins cancellation for committed data by default. */
+  publication?: 'engine' | 'disposable';
+  encode?(
+    value: T,
+    file: (blob: Blob, name: string) => FileLink,
+    signal: AbortSignal,
+  ): Promise<unknown>;
+  dispose?(value: T): void | Promise<void>;
 }
 
 /** Own transport artifacts, never a second task queue or persisted job model. */
 export class SiteToolJobs {
   private jobs = new Map<string, OwnedJob>();
   private closed = false;
-  track<T>(
-    job: Job<T>,
-    encode: (
-      value: T,
-      file: (blob: Blob, name: string) => FileLink,
-    ) => Promise<unknown> = async (value) => value,
-    cleanup?: (value: T) => Promise<void>,
-  ) {
+  track<T>(job: Job<T>, options: ResultOptions<T> = {}) {
     invariant(!this.closed, 'DISPOSED', 'Project tools closed');
+    const controller = new AbortController();
+    const encode = options.encode ?? (async (value: T) => value);
     const row: OwnedJob = {
       job,
       event: { jobId: job.id, state: 'running', stage: 'queued' },
@@ -40,9 +46,22 @@ export class SiteToolJobs {
       settled: Promise.resolve(),
       unsubscribe: () => {},
       released: false,
+      cancel: () => {
+        job.cancel();
+        if (
+          options.publication === 'disposable' &&
+          row.event.state === 'running'
+        ) {
+          controller.abort();
+          row.event = { jobId: job.id, state: 'cancelled', stage: 'cancelled' };
+          row.result = undefined;
+          this.revoke(row);
+        }
+      },
     };
     this.jobs.set(job.id, row);
     row.unsubscribe = job.subscribe((event) => {
+      if (controller.signal.aborted) return;
       row.event =
         event.state === 'completed'
           ? { ...event, state: 'running', stage: 'Preparing tool result' }
@@ -50,19 +69,43 @@ export class SiteToolJobs {
     });
     row.settled = job.completion
       .then(async (value) => {
-        row.cleanup = cleanup ? () => cleanup(value) : undefined;
+        row.cleanup = options.dispose
+          ? async () => {
+              await options.dispose!(value);
+            }
+          : undefined;
         try {
-          row.result = await encode(value, (blob, name) => {
-            invariant(!row.released, 'DISPOSED', 'Project tools closed');
-            const link = {
-              url: URL.createObjectURL(blob),
-              name,
-              mimeType: blob.type,
-              size: blob.size,
-            };
-            row.files.push({ blob, link });
-            return link;
-          });
+          invariant(
+            !controller.signal.aborted,
+            'CANCELLED',
+            'Operation cancelled',
+          );
+          const result = await encode(
+            value,
+            (blob, name) => {
+              invariant(
+                !controller.signal.aborted,
+                'CANCELLED',
+                'Operation cancelled',
+              );
+              invariant(!row.released, 'DISPOSED', 'Project tools closed');
+              const link = {
+                url: URL.createObjectURL(blob),
+                name,
+                mimeType: blob.type,
+                size: blob.size,
+              };
+              row.files.push({ blob, link });
+              return link;
+            },
+            controller.signal,
+          );
+          invariant(
+            !controller.signal.aborted,
+            'CANCELLED',
+            'Operation cancelled',
+          );
+          row.result = result;
           row.event = {
             jobId: job.id,
             state: 'completed',
@@ -70,7 +113,7 @@ export class SiteToolJobs {
             progress: 1,
           };
         } finally {
-          if (row.released) await this.clean(row);
+          if (row.released || controller.signal.aborted) await this.clean(row);
         }
       })
       .catch((error: unknown) => {
@@ -87,7 +130,7 @@ export class SiteToolJobs {
         row.event = {
           jobId: job.id,
           state: row.error.code === 'CANCELLED' ? 'cancelled' : 'failed',
-          stage: 'failed',
+          stage: row.error.code === 'CANCELLED' ? 'cancelled' : 'failed',
         };
       })
       .finally(() => row.unsubscribe());
@@ -104,17 +147,17 @@ export class SiteToolJobs {
       'NOT_FOUND',
       'Unknown job in this project view',
     );
-    if (action === 'cancel') row.job.cancel();
+    if (action === 'cancel') row.cancel();
     if (action === 'release') {
       row.released = true;
-      row.job.cancel();
+      row.cancel();
       await row.settled;
       await this.clean(row);
       this.jobs.delete(id);
       return { jobId: id, released: true };
     }
     if (action === 'wait') {
-      const abort = () => row.job.cancel();
+      const abort = () => row.cancel();
       signal.addEventListener('abort', abort, { once: true });
       if (signal.aborted) abort();
       try {
@@ -139,8 +182,11 @@ export class SiteToolJobs {
     }
     return { ...row.event, result: row.result, error: row.error };
   }
-  private async clean(row: OwnedJob) {
+  private revoke(row: OwnedJob) {
     for (const { link } of row.files.splice(0)) URL.revokeObjectURL(link.url);
+  }
+  private async clean(row: OwnedJob) {
+    this.revoke(row);
     const cleanup = row.cleanup;
     row.cleanup = undefined;
     await cleanup?.();
@@ -149,7 +195,7 @@ export class SiteToolJobs {
     this.closed = true;
     for (const row of this.jobs.values()) {
       row.released = true;
-      row.job.cancel();
+      row.cancel();
     }
     await Promise.all(
       [...this.jobs.values()].map(async (row) => {

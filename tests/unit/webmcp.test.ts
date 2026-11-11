@@ -222,6 +222,65 @@ describe('project site tools', () => {
     );
     await f.bridge.dispose();
   });
+  it.each(['busy', 'navigation'])(
+    'finishes committed import placement after %s',
+    async (change) => {
+      const f = fixture();
+      const originatingId = f.host.projectId;
+      let complete!: (asset: { id: string }) => void;
+      const committed = new Promise<{ id: string }>((resolve) => {
+        complete = resolve;
+      });
+      const place = vi.fn(async () => ({ revision: 7 }));
+      const forProject = vi.fn(() => ({ place }));
+      f.host.editor.assets = {
+        import: () => ({
+          id: 'committed-import',
+          completion: committed,
+          cancel: vi.fn(),
+          subscribe: () => () => {},
+        }),
+      } as unknown as Editor['assets'];
+      f.host.editor.library = { forProject } as unknown as Editor['library'];
+      expect(
+        await f.invoke('import_media', {
+          projectId: originatingId,
+          name: 'sample.png',
+          mimeType: 'image/png',
+          base64: 'eA==',
+          parentId: 'captured-folder',
+        }),
+      ).toMatchObject({ jobId: 'committed-import' });
+      if (change === 'navigation') {
+        f.setView(null);
+        f.lifetime.abort();
+      } else f.setView({ ...f.current!, busy: true });
+      const retiring = change === 'navigation' ? f.bridge.dispose() : undefined;
+      complete({ id: 'imported-original' });
+      if (retiring) {
+        await retiring;
+        expect(f.host.refresh).not.toHaveBeenCalled();
+      } else {
+        expect(
+          await f.invoke('job', {
+            projectId: originatingId,
+            jobId: 'committed-import',
+            action: 'wait',
+          }),
+        ).toMatchObject({
+          state: 'completed',
+          result: { asset: { id: 'imported-original' }, libraryRevision: 7 },
+        });
+        await f.bridge.dispose();
+      }
+      expect(forProject).toHaveBeenCalledWith(originatingId);
+      expect(place).toHaveBeenCalledExactlyOnceWith(
+        'imported-original',
+        [],
+        'captured-folder',
+      );
+    },
+  );
   it('rolls back partial registration and reports a denied browser policy once', async () => {
     const f = fixture();
     let signal: AbortSignal | undefined;
@@ -273,14 +332,14 @@ describe('site job ownership', () => {
     const revoke = vi.spyOn(URL, 'revokeObjectURL');
     const cleanup = vi.fn(async () => {});
     const job = jobs.start(async () => new Blob(['local']));
-    bridge.track(
-      job,
-      async (blob, file) => {
+    bridge.track(job, {
+      publication: 'disposable',
+      encode: async (blob, file) => {
         await barrier;
         return file(blob, 'out.txt');
       },
-      cleanup,
-    );
+      dispose: cleanup,
+    });
     await job.completion;
     expect(
       await bridge.act(job.id, 'status', AbortSignal.abort()),
@@ -295,6 +354,9 @@ describe('site job ownership', () => {
       state: 'completed',
       result: { size: 5, name: 'out.txt' },
     });
+    expect(
+      await bridge.act(job.id, 'cancel', new AbortController().signal),
+    ).toMatchObject({ state: 'completed' });
     await bridge.act(job.id, 'release', new AbortController().signal);
     expect(revoke).toHaveBeenCalledOnce();
     expect(cleanup).toHaveBeenCalledOnce();
@@ -302,6 +364,52 @@ describe('site job ownership', () => {
     await jobs.dispose();
     revoke.mockRestore();
   });
+  it.each(['cancel', 'wait-abort'])(
+    'discards pending encoded artifacts on %s',
+    async (action) => {
+      const engine = new Jobs();
+      const bridge = new SiteToolJobs();
+      let finish!: () => void, entered!: () => void;
+      const barrier = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      const encoding = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      const revoke = vi.spyOn(URL, 'revokeObjectURL');
+      const create = vi.spyOn(URL, 'createObjectURL');
+      const dispose = vi.fn(async () => {});
+      const job = engine.start(async () => new Blob(['pixels']));
+      bridge.track(job, {
+        publication: 'disposable',
+        dispose,
+        encode: async (blob, file) => {
+          file(blob, 'partial.png');
+          entered();
+          await barrier;
+          return file(blob, 'complete.png');
+        },
+      });
+      await encoding;
+      const controller = new AbortController();
+      const waiting = bridge.act(job.id, 'wait', controller.signal);
+      if (action === 'cancel')
+        await bridge.act(job.id, 'cancel', new AbortController().signal);
+      else controller.abort();
+      finish();
+      expect(await waiting).toMatchObject({
+        state: 'cancelled',
+        error: { code: 'CANCELLED' },
+      });
+      expect(create).toHaveBeenCalledOnce();
+      expect(revoke).toHaveBeenCalledOnce();
+      expect(dispose).toHaveBeenCalledOnce();
+      await bridge.dispose();
+      await engine.dispose();
+      revoke.mockRestore();
+      create.mockRestore();
+    },
+  );
   it('cancels active work on view retirement and disposes a late delivered artifact', async () => {
     const jobs = new Jobs();
     const bridge = new SiteToolJobs();
@@ -317,7 +425,7 @@ describe('site job ownership', () => {
       },
       { acceptCommittedResult: true },
     );
-    bridge.track(job, async (value) => value, cleanup);
+    bridge.track(job, { encode: async (value) => value, dispose: cleanup });
     const disposed = bridge.dispose();
     finish();
     await disposed;

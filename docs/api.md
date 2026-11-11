@@ -66,6 +66,8 @@ await editor.dispose();
 | events        | projects, jobs                                                                                    |
 | lifecycle     | job.cancel, session.dispose, artifact.dispose, editor.dispose                                     |
 
+`exports.start(projectId, options, expectedRevision?)` optionally binds a request to an authored revision. The queued export owner validates it against the same snapshot it freezes when execution starts. An intervening edit fails with `REVISION_CONFLICT`; omitting the third argument retains the existing latest-at-start behavior. The WebMCP export tool always supplies the requested revision.
+
 The source facade exports inferred Editor, EditorOptions, persisted project/clip/track types, command/receipt types, Job/Progress/events, preview types, export types, subtitle helpers, and EditorError. Generated declarations preserve transitive type references.
 
 Long jobs expose completion and subscriptions. Cancellation before publication rejects completion with CANCELLED and releases an undelivered frame bitmap or export artifact. Imports and transcripts instead publish at their successful IndexedDB commit: cancellation aborts pending writes, but a commit that already succeeded returns its result even if cancellation arrives before the completion promise settles. Consumers must close returned ImageBitmaps, unsubscribe listeners, dispose delivered artifacts, and dispose the editor. Canvas and AudioContext belong to the caller. Session play/pause/seek/currentTimeUs use the audio clock; audio requires valid browser user activation.
