@@ -96,6 +96,142 @@ async function ready(page: Page) {
     )
     .toBe(true);
 }
+async function workspaceReady(page: Page) {
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const context = (document as Document & { modelContext?: ToolContext })
+          .modelContext;
+        return context
+          ? (await context.getTools()).some(
+              (tool) => tool.name === 'localcut_workspace',
+            )
+          : false;
+      }),
+    )
+    .toBe(true);
+}
+async function projectReady(page: Page, id: string) {
+  await expect(async () => {
+    expect((await call<Inspection>(page, 'inspect_project')).project.id).toBe(
+      id,
+    );
+  }).toPass();
+}
+
+async function projectSetupJourney(page: Page, base: string) {
+  await workspaceReady(page);
+  expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
+  expect(
+    await page.evaluate(() =>
+      performance
+        .getEntriesByType('resource')
+        .some((entry) => /\/assets\/(editor|worker)-/.test(entry.name)),
+    ),
+  ).toBe(false);
+  expect(await call(page, 'workspace', { action: 'status' })).toMatchObject({
+    projectId: null,
+    imports: null,
+  });
+  expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
+  const created = await call<{ project: Project }>(page, 'workspace', {
+    action: 'create_project',
+    name: 'Agent started this cut',
+    settings: { width: 128, height: 72, frameRate: { num: 25, den: 1 } },
+  });
+  const id = created.project.id;
+  await projectReady(page, id);
+  expect(
+    (await call<Inspection>(page, 'inspect_project')).project,
+  ).toMatchObject({
+    id,
+    frameRate: { num: 25, den: 1 },
+  });
+  const bytes = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 32;
+    canvas.height = 18;
+    canvas.getContext('2d')!.fillRect(0, 0, 32, 18);
+    return canvas.toDataURL('image/png').split(',')[1]!;
+  });
+  const fixture = {
+    name: 'agent-file.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(bytes, 'base64'),
+  };
+  const chooserPromise = page.waitForEvent('filechooser');
+  expect(
+    await call(page, 'workspace', {
+      action: 'import_files',
+      expectedProjectId: id,
+    }),
+  ).toMatchObject({ status: 'awaiting_file_selection' });
+  const chooser = await chooserPromise;
+  await chooser.setFiles(fixture);
+  await expect
+    .poll(
+      async () =>
+        (
+          await call<{ imports: { running: boolean } | null }>(
+            page,
+            'workspace',
+            { action: 'status' },
+          )
+        ).imports?.running,
+    )
+    .toBe(false);
+  const imported = await call<Inspection>(page, 'inspect_project');
+  expect(imported.assets).toHaveLength(1);
+  expect(imported.assets[0]).toMatchObject({
+    name: fixture.name,
+    status: 'ready',
+  });
+  expect(imported.project.tracks).toHaveLength(0);
+  await page.getByRole('button', { name: 'Okay', exact: true }).click();
+  expect(
+    await call(page, 'apply_edits', {
+      projectId: id,
+      expectedRevision: 0,
+      requestId: 'agent-setup-edit',
+      operations: [
+        {
+          type: 'addTrack',
+          track: {
+            id: 'v',
+            kind: 'video',
+            clips: [
+              {
+                id: 'agent-clip',
+                kind: 'image',
+                assetId: imported.assets[0]!.id,
+                startUs: 0,
+                durationUs: 1000000,
+              },
+            ],
+          },
+        },
+      ],
+    }),
+  ).toMatchObject({ appliedRevision: 1 });
+  await expect(page.locator('[data-clip-id="agent-clip"]')).toBeVisible();
+  const listed = await call<{ projects: { id: string; clips: number }[] }>(
+    page,
+    'workspace',
+    { action: 'list_projects' },
+  );
+  expect(listed.projects).toEqual([expect.objectContaining({ id, clips: 1 })]);
+  await page.goto(`${base}#/projects`);
+  await workspaceReady(page);
+  await expect(
+    page.getByRole('button', { name: /^Agent started this cut/ }),
+  ).toBeVisible();
+  await call(page, 'workspace', { action: 'open_project', projectId: id });
+  await projectReady(page, id);
+  expect(
+    (await call<Inspection>(page, 'inspect_project')).project.revision,
+  ).toBe(1);
+  return { id, fixture };
+}
 type Inspection = {
   project: Project;
   assets: Asset[];
@@ -169,6 +305,50 @@ async function persisted(page: Page, base: string, id: string) {
 }
 
 for (const base of behaviorBases) {
+  test(`workspace WebMCP creates, imports files and edits from an empty workspace @journey ${base}`, async ({
+    page,
+  }) => {
+    await installHarness(page);
+    await page.goto(base);
+    const { id, fixture } = await projectSetupJourney(page, base);
+    // A file chooser is a separate browser step. Retire its captured project
+    // before selection and prove the original request cannot target the new one.
+    const picker = page.waitForEvent('filechooser');
+    await call(page, 'workspace', {
+      action: 'import_files',
+      expectedProjectId: id,
+    });
+    const chooser = await picker;
+    const other = await call<{ project: Project }>(page, 'workspace', {
+      action: 'create_project',
+      name: 'Another project',
+    });
+    await projectReady(page, other.project.id);
+    expect(
+      await call(page, 'workspace', {
+        action: 'import_files',
+        expectedProjectId: other.project.id,
+      }),
+    ).toMatchObject({
+      isError: true,
+      error: {
+        code: 'INVALID_COMMAND',
+        message:
+          'Finish or cancel the pending file selection before requesting another import.',
+      },
+    });
+    await chooser.setFiles({ ...fixture, name: 'stale-selection.png' });
+    await expect(
+      page.getByText(
+        'Project changed. Review the latest values and try again.',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    expect((await call<Inspection>(page, 'inspect_project')).assets).toEqual(
+      [],
+    );
+  });
+
   test(`workspace WebMCP full edits, history, version and navigation ownership @journey ${base}`, async ({
     page,
   }) => {
@@ -179,16 +359,16 @@ for (const base of behaviorBases) {
         providerRequests.push(request.url());
     });
     await page.goto(base);
+    await workspaceReady(page);
     expect(
-      await page.evaluate(
-        async () =>
-          (
-            await (
-              document as Document & { modelContext: ToolContext }
-            ).modelContext.getTools()
-          ).length,
+      await page.evaluate(async () =>
+        (
+          await (
+            document as Document & { modelContext: ToolContext }
+          ).modelContext.getTools()
+        ).map((tool) => tool.name),
       ),
-    ).toBe(0);
+    ).toEqual(['localcut_workspace']);
     expect(
       await page.evaluate(async () =>
         (await indexedDB.databases()).filter((db) =>
@@ -677,20 +857,9 @@ for (const base of behaviorBases) {
       !supported,
       'This Chrome invocation does not expose WebMCP. Controlled registration journeys remain separate.',
     );
-    const { id } = await seed(page, base);
-    await page.goto(`${base}#/project/${id}`);
-    await ready(page);
-    expect((await call<Inspection>(page, 'inspect_project')).project.id).toBe(
-      id,
+    const { id } = await projectSetupJourney(page, base);
+    expect((await persisted(page, base, id)).name).toBe(
+      'Agent started this cut',
     );
-    expect(
-      await call(page, 'apply_edits', {
-        projectId: id,
-        expectedRevision: 1,
-        requestId: 'native-site-edit',
-        operations: [{ type: 'renameProject', name: 'Native WebMCP cut' }],
-      }),
-    ).toMatchObject({ appliedRevision: 2 });
-    expect((await persisted(page, base, id)).name).toBe('Native WebMCP cut');
   });
 }

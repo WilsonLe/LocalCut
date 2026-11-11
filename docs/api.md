@@ -1,6 +1,6 @@
 # Headless API
 
-Compatible browser agents can use this same editor facade through [WebMCP site tools](webmcp.md), bound to the project currently viewed in the workspace. No built-in assistant, provider connection or server is required.
+Compatible browser agents can use this same editor facade through [WebMCP site tools](webmcp.md). The workspace tool can create/open projects and start browser file selection from an empty screen; editing tools bind to the project currently viewed. No built-in assistant, provider connection or server is required.
 
 Serve dist over HTTPS or localhost. Discover the editor module URL from one fresh `modules.json` response, then retain that release for the lifetime of the integration. Its version-one contract contains `release` (a digest of the module URL map) and `modules.editor` (deployment-relative, content-hashed URLs). The discovery request uses a fresh query and `cache: 'no-store'` to bypass browser/intermediary caches; module bytes remain cacheable. If a deployment removes a discovered module before import completes, surface a reload/reconnect action and rediscover the editor module. Do not silently replace one module beneath a running engine.
 

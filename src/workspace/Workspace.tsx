@@ -1,5 +1,8 @@
 import type { WorkspaceCommand } from './commands';
 import { useMediaImport } from './useMediaImport';
+import { useWorkspaceWebMCP } from './useWorkspaceWebMCP';
+import type { WorkspaceFileSelection } from './webmcp/workspace-tool';
+import { EditorError } from '../core/errors';
 import { useWorkspaceLayout } from './useWorkspaceLayout';
 import { useTimelineEditing } from './useTimelineEditing';
 import { createPlaybackPosition, usePlaybackRange } from './playback-position';
@@ -348,6 +351,15 @@ export function Workspace() {
   const previewControls = useRef<PreviewControls>(null);
   const storyboardControls = useRef<StoryboardControls>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const agentFileSelection = useRef<WorkspaceFileSelection | null>(null);
+  useEffect(() => {
+    const input = fileInput.current;
+    const cancelSelection = () => {
+      agentFileSelection.current = null;
+    };
+    input?.addEventListener('cancel', cancelSelection);
+    return () => input?.removeEventListener('cancel', cancelSelection);
+  }, []);
   const backupInput = useRef<HTMLInputElement>(null);
   const instance = useRef<Promise<Editor> | null>(null);
   const currentJob = useRef<{ cancel(): void } | null>(null);
@@ -729,6 +741,34 @@ export function Workspace() {
     refresh,
     error,
     revealMedia: () => setMediaOverride(true),
+  });
+  useWorkspaceWebMCP({
+    state: {
+      route,
+      routeKey,
+      projectId: getProjectId(),
+      viewingVersionId: browsed?.id ?? null,
+      busy: busy || navigation.blocked,
+      imports: importBatch,
+    },
+    getEditor: ensureEditor,
+    openProject,
+    selectFiles: (scope) => {
+      if (agentFileSelection.current)
+        throw new EditorError(
+          'INVALID_COMMAND',
+          'Finish or cancel the pending file selection before requesting another import.',
+        );
+      if (!fileInput.current) throw new Error('Media file input unavailable.');
+      agentFileSelection.current = scope;
+      try {
+        fileInput.current.click();
+      } catch (failure) {
+        agentFileSelection.current = null;
+        throw failure;
+      }
+    },
+    onError: error,
   });
   const fileHovering = useFileDrop(
     !busy && !browsed,
@@ -1869,6 +1909,23 @@ export function Workspace() {
         onChange={(event) => {
           const files = Array.from(event.target.files ?? []);
           event.target.value = '';
+          const scope = agentFileSelection.current;
+          agentFileSelection.current = null;
+          if (
+            scope &&
+            (scope.url !== window.location.href ||
+              scope.routeKey !== routeKey ||
+              scope.projectId !== getProjectId() ||
+              browsing.current)
+          ) {
+            error(
+              new EditorError(
+                'REVISION_CONFLICT',
+                'The import project changed while selecting files. Select them again in the intended project.',
+              ),
+            );
+            return;
+          }
           if (files.length) void importMedia(files);
         }}
       />

@@ -1,6 +1,6 @@
 # Workspace
 
-[WebMCP site tools](webmcp.md) let any compatible browser agent inspect and control the viewed project through the shared editor API. Historical views remain read-only; navigation retires previous tools and their jobs/artifacts. No built-in AI connection is required.
+[WebMCP site tools](webmcp.md) let any compatible browser agent create/open projects, import browser-selected local files and control the viewed project through shared workspace/editor owners. The setup tool is available on an empty screen without initializing editing storage. Historical views remain read-only; navigation retires previous project tools and their jobs/artifacts. No built-in AI connection is required.
 
 ## Application updates
 

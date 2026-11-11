@@ -9,6 +9,7 @@ import type { CommandBatch } from '../../core/commands';
 import * as contracts from './contracts';
 import type { SiteToolHost, SiteTool } from './types';
 import { SiteToolJobs } from './jobs';
+import { toolErrorResult } from './error-result';
 
 export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
   const jobs = new SiteToolJobs();
@@ -71,24 +72,7 @@ export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
             signal,
           );
         } catch (error) {
-          return {
-            isError: true,
-            error: {
-              code:
-                error instanceof DOMException && error.name === 'AbortError'
-                  ? 'CANCELLED'
-                  : error instanceof z.ZodError
-                    ? 'INVALID_COMMAND'
-                    : error && typeof error === 'object' && 'code' in error
-                      ? error.code
-                      : 'INVALID_COMMAND',
-              message: error instanceof Error ? error.message : 'Tool failed',
-              ...(error instanceof z.ZodError ? { issues: error.issues } : {}),
-              ...(error && typeof error === 'object' && 'details' in error
-                ? { details: error.details }
-                : {}),
-            },
-          };
+          return toolErrorResult(error);
         }
       },
     });

@@ -4,6 +4,8 @@ Current version: **0.1.0-alpha.1**. Short summaries for end users and executives
 
 ## Unreleased
 
+- Let browser agents create/open projects and import local files from an empty workspace, including large recordings through browser file selection. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...wilsonle/webmcp-project-setup).
+
 - Let compatible browser agents inspect and edit the viewed project through WebMCP, including history, Media, previews and local exports. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...wilsonle/webmcp-project-control).
 
 - Removed agent chat, provider connections, remote AI services and the public AI module. Manual editing, storyboard and local Whisper remain. Existing project/media data and legacy backups are preserved ([#350](https://github.com/WilsonLe/LocalCut/issues/350)). This removes the former headless AI API; propose a breaking prerelease change when packaging the release.

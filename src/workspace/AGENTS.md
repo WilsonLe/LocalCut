@@ -1,6 +1,7 @@
 # Workspace
 
 - `useWebMCP.ts` binds optional vendor-neutral [site tools](../../docs/webmcp.md) to the viewed project/version. Keep registration lazy, route identity checked at invocation, canonical schemas/receipts intact and owned jobs/artifacts disposable. This external transport does not restore a built-in assistant or require a provider connection.
+- `useWorkspaceWebMCP.ts` exposes setup/status before a project opens. Registration/status must not initialize editing services. Reuse the shell's lazy editor, navigation and file input; preserve a file selection's originating URL/project until selection finishes, then use the ordinary media importer.
 
 - Render cached catalog summaries while revalidating; opening always reads an authoritative engine snapshot. Keep cold skeletons regional, theme-aware and reduced-motion safe. The lightweight shell/catalog may load eagerly within the bundle budget; engine and heavy panels retain their lazy boundaries.
 - Use the router and focused workspace hooks for route identity, current snapshot, navigation loading and saved-project catalog state. Derive the active screen from the URL; abort superseded loads before publishing. Preserve pending/error recovery, inert fresh startup and recent-project restoration at initial bare startup, and both hash-route hosting bases.

@@ -25,10 +25,16 @@ for (const base of behaviorBases) {
     await page
       .getByRole('button', { name: 'Workspace settings', exact: true })
       .click();
+    const settings = page.getByRole('menu', {
+      name: 'Workspace settings',
+      exact: true,
+    });
+    await expect(settings).toBeVisible();
     await expect(
       page.getByRole('menuitem', { name: 'AI settings', exact: true }),
     ).toHaveCount(0);
     await page.keyboard.press('Escape');
+    await expect(settings).toBeHidden();
     const discovery = await (
       await page.request.get(base + 'modules.json')
     ).json();
