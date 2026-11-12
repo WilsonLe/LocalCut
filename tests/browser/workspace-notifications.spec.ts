@@ -203,7 +203,18 @@ for (const base of behaviorBases) {
     await bell.click();
     await expect(log).toContainText('No notifications yet.');
     await log.getByRole('button', { name: 'Close', exact: true }).click();
-    // Simulate closing a tab before its manual task could save a terminal state.
+    // Unload the live queue before seeding a task abandoned by a closed tab.
+    // Otherwise its poll can recover the fixture before the simulated restart.
+    const workspaceUrl = page.url();
+    const fixtureUrl = new URL(`${base}notification-fixture.html`, page.url())
+      .href;
+    await page.route(fixtureUrl, (route) =>
+      route.fulfill({
+        contentType: 'text/html',
+        body: '<!doctype html><title>Task fixture</title>',
+      }),
+    );
+    await page.goto(fixtureUrl);
     await page.evaluate(async (freshId) => {
       const db = await new Promise<IDBDatabase>((resolve, reject) => {
         const request = indexedDB.open('localcut-tasks-v1', 1);
@@ -231,7 +242,7 @@ for (const base of behaviorBases) {
         db.close();
       }
     }, freshId);
-    await page.reload();
+    await page.goto(workspaceUrl);
     await expect(project).toContainText('Restart notifications');
     await expect(errors).toHaveCount(1);
     await expect(errors).toContainText('Abandoned assistant response');
