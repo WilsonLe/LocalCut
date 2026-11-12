@@ -4,6 +4,8 @@ Current version: **0.1.0-alpha.1**. Short summaries for end users and executives
 
 ## Unreleased
 
+- Guide external agents to index assets with useful context and source-timed transcripts, and verify saved content before reporting completion. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...wilsonle/asset-indexing-workflow).
+
 - Click Media assets to preview images/audio/video and edit their context and transcript directly, without changing the timeline. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...wilsonle/asset-preview).
 
 - Show browser-agent tool readiness and request activity, with connection help and a manual refresh that retains accepted jobs/results. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...wilsonle/webmcp-connection-status).
