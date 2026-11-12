@@ -1,5 +1,7 @@
 # Current preference index
 
+The [asset-content decision](user-preferences.md#asset-content-without-indexing-controls--12-november-2026) supersedes the earlier indexing-control request. Asset clicks open editable context/transcript and source-clip details; analysis stays internal with no user-facing Index controls.
+
 The [browser-agent readiness decision](user-preferences.md#browser-agent-readiness-and-manual-refresh--12-november-2026) adds visible registration status, connection help and manual refresh without claiming a verified agent connection.
 
 The [built-in-browser-first decision](user-preferences.md#built-in-browser-first-for-agents--12-november-2026) applies to interactive agent use, manual previews and every published skill. See [browser selection](browser-support.md#agent-browser-selection) for fallback and local-project transfer; required native Chrome validation remains in force.

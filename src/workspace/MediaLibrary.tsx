@@ -48,6 +48,12 @@ import {
   useFolderDialog,
 } from './MediaFolders';
 import { showErrorToast } from './error-toast';
+import { onDemandDialog } from './on-demand-dialog';
+
+const AssetViewer = onDemandDialog(
+  () => import('./AssetViewerDialog'),
+  (props) => ({ title: props.asset.name, onClose: props.onClose }),
+);
 
 interface DragPosition {
   assetId: string;
@@ -71,6 +77,8 @@ export default function MediaLibrary({
   draggingAssetId,
   onImportFiles,
   onLibraryChanged,
+  onView,
+  routeKey,
 }: {
   projectId: string | undefined;
   editor: Editor | null;
@@ -91,7 +99,24 @@ export default function MediaLibrary({
     directories?: string[],
   ) => Promise<unknown>;
   onLibraryChanged: () => Promise<unknown>;
+  onView: () => void;
+  routeKey: string;
 }) {
+  const [viewing, setViewing] = useState<{
+    asset: Asset;
+    editor: Editor;
+    projectId: string;
+    routeKey: string;
+    opener: HTMLButtonElement;
+  } | null>(null);
+  if (
+    viewing &&
+    (viewing.editor !== editor ||
+      viewing.projectId !== projectId ||
+      viewing.routeKey !== routeKey)
+  ) {
+    setViewing(null);
+  }
   const folders = useMediaFolders(
     editor,
     projectId,
@@ -206,6 +231,22 @@ export default function MediaLibrary({
             : [...selection.ids, id]
           : [id],
       );
+      if (
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.shiftKey &&
+        editor &&
+        projectId
+      ) {
+        onView();
+        setViewing({
+          asset,
+          editor,
+          projectId,
+          routeKey,
+          opener: event.currentTarget,
+        });
+      }
     },
     'aria-pressed': selectedIds.has(entryId ?? asset.id),
   });
@@ -486,6 +527,21 @@ export default function MediaLibrary({
       {folderDialog.dialog && (
         <FolderDialog control={folderDialog} state={folders} />
       )}
+      {viewing &&
+        viewing.editor === editor &&
+        viewing.projectId === projectId &&
+        viewing.routeKey === routeKey && (
+          <AssetViewer
+            key={viewing.asset.id}
+            editor={viewing.editor}
+            asset={viewing.asset}
+            readOnly={readOnly || !canEdit}
+            onClose={() => setViewing(null)}
+            finalFocus={() =>
+              viewing.opener.isConnected ? viewing.opener : false
+            }
+          />
+        )}
     </section>
   );
 }
@@ -587,6 +643,7 @@ function MediaAssetCard({
       data-selected={selected}
     >
       <Tooltip
+        disableHoverablePopup
         content={
           <>
             <div>{asset.name}</div>

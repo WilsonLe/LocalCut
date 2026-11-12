@@ -215,7 +215,8 @@ export function AssetClipPreview({
       )}
       {failure && (
         <p role="alert" className="px-3 py-2 text-sm text-destructive">
-          {failure}
+          {failure} Relink a missing file or download the source from its asset
+          actions menu.
         </p>
       )}
     </section>

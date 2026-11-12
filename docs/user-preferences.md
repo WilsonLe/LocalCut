@@ -4,6 +4,16 @@ This is the project record of the user's durable product and workflow choices. U
 
 Use the [current preference index](current-preferences.md) to find relevant contracts and superseding decisions. Existing dated entries and anchors remain available as decision history.
 
+## Asset content without indexing controls — 12 November 2026
+
+- Do not expose “index”, Index buttons, indexing progress or result summaries in the asset actions menu or viewer. This supersedes the earlier indexing-control request below.
+- Every asset can expose its context, transcript and source-clip details for the user to fill in directly. Clicking opens that editor with image/audio/video preview; no preparation step or analysis task is required.
+- Retain the existing internal analysis capability. This correction does not request automatic analysis, model downloads or transcription.
+
+## Click to view media — 12 November 2026
+
+- Click an asset in Media to view its source, including audio and video playback. Expose local indexing in both the asset actions menu and viewer. Keep viewing/indexing separate from timeline edits; preserve drag and modifier selection. See [asset viewing](workspace.md#asset-viewing).
+
 ## Browser-agent readiness and manual refresh — 12 November 2026
 
 - Show whether browser-agent tools are available and provide connection/reconnection help and a manual Refresh action in LocalCut.
