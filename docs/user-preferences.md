@@ -6,7 +6,7 @@ Use the [current preference index](current-preferences.md) to find relevant cont
 
 ## Click to view media — 12 November 2026
 
-- Click an asset in Media to view its source. Keep viewing separate from timeline edits; preserve drag and modifier selection. See [asset viewing](workspace.md#asset-viewing).
+- Click an asset in Media to view its source, including audio and video playback. Expose local indexing in both the asset actions menu and viewer. Keep viewing/indexing separate from timeline edits; preserve drag and modifier selection. See [asset viewing](workspace.md#asset-viewing).
 
 ## Source clips and task-facing copy — 12 November 2026
 

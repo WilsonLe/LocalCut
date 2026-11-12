@@ -16,6 +16,7 @@ import {
   Trash2,
   Link,
   FileText,
+  ScanSearch,
 } from 'lucide-react';
 import { AssetClipsDialog } from './AssetClipsDialog';
 import type { Asset, Editor } from '../editor';
@@ -49,6 +50,7 @@ import {
 } from './MediaFolders';
 import { showErrorToast } from './error-toast';
 import { onDemandDialog } from './on-demand-dialog';
+import { useAssetIndexing, type AssetIndexState } from './useAssetIndexing';
 
 const AssetViewer = onDemandDialog(
   () => import('./AssetViewerDialog'),
@@ -102,6 +104,10 @@ export default function MediaLibrary({
   onView: () => void;
   routeKey: string;
 }) {
+  const indexing = useAssetIndexing(editor, projectId);
+  const startIndex = (asset: Asset) => {
+    if (!readOnly && canEdit) void indexing.start(asset);
+  };
   const [viewing, setViewing] = useState<{
     asset: Asset;
     editor: Editor;
@@ -495,6 +501,8 @@ export default function MediaLibrary({
                 : dragProps(asset, entry?.id)
             }
             selected={selectedIds.has(entry?.id ?? asset.id)}
+            indexState={indexing.states[asset.id]}
+            onIndex={() => startIndex(asset)}
             dragPosition={
               draggingAssetId === asset.id && dragPosition?.assetId === asset.id
                 ? dragPosition
@@ -535,6 +543,11 @@ export default function MediaLibrary({
             key={viewing.asset.id}
             editor={viewing.editor}
             asset={viewing.asset}
+            readOnly={readOnly || !canEdit}
+            indexState={indexing.states[viewing.asset.id]}
+            onIndex={() => startIndex(viewing.asset)}
+            onCancelIndex={() => indexing.cancel(viewing.asset.id)}
+            onInspectIndex={indexing.inspect}
             onClose={() => setViewing(null)}
             finalFocus={() =>
               viewing.opener.isConnected ? viewing.opener : false
@@ -557,6 +570,8 @@ function MediaAssetCard({
   dragPosition,
   actions: libraryActions,
   selected,
+  indexState,
+  onIndex,
 }: {
   editor: Editor | null;
   asset: Asset;
@@ -569,6 +584,8 @@ function MediaAssetCard({
   dragPosition: DragPosition | null;
   actions?: React.ReactNode;
   selected: boolean;
+  indexState: AssetIndexState | undefined;
+  onIndex: () => void;
 }) {
   const blocked = readOnly || !canEdit;
   const card = useRef<HTMLDivElement>(null);
@@ -685,6 +702,19 @@ function MediaAssetCard({
       </Tooltip>
       <AssetMenu name={asset.name}>
         {actions}
+        <Menu.Item
+          className={assetMenuItemClass}
+          disabled={
+            blocked ||
+            !editor ||
+            asset.status !== 'ready' ||
+            indexState?.running
+          }
+          onClick={onIndex}
+        >
+          <ScanSearch aria-hidden="true" />
+          {indexState?.running ? 'Indexing…' : 'Index asset'}
+        </Menu.Item>
         <Menu.Item
           className={assetMenuItemClass}
           onClick={() => setClipsAsset(asset)}

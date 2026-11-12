@@ -181,6 +181,92 @@ for (const base of behaviorBases) {
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(card('Landscape.png')).toHaveAttribute('aria-pressed', 'true');
     await expect(card('tone.wav')).toHaveAttribute('aria-pressed', 'true');
+    // Both entry points share the same job. Hold native analysis at its lock
+    // boundary so progress, duplicate suppression and cancellation are observed.
+    const audioId = await card('tone.wav').evaluate(
+      (el) => el.closest<HTMLElement>('[data-asset-id]')!.dataset.assetId!,
+    );
+    await page.evaluate(async (assetId) => {
+      let acquired!: () => void;
+      const ready = new Promise<void>((resolve) => {
+        acquired = resolve;
+      });
+      const host = window as unknown as {
+        releaseViewerIndex: () => void;
+        viewerIndexLock: Promise<unknown>;
+      };
+      host.viewerIndexLock = navigator.locks.request(
+        `localcut:asset-index:analysis:${assetId}`,
+        async () => {
+          acquired();
+          await new Promise<void>((resolve) => {
+            host.releaseViewerIndex = resolve;
+          });
+        },
+      );
+      await ready;
+    }, audioId);
+    try {
+      await page
+        .getByRole('button', { name: 'Actions for tone.wav', exact: true })
+        .click();
+      await page
+        .getByRole('menuitem', { name: 'Index asset', exact: true })
+        .click();
+      await card('tone.wav').click();
+      await expect(
+        dialog('tone.wav').getByRole('button', {
+          name: 'Cancel indexing',
+          exact: true,
+        }),
+      ).toBeVisible();
+      await page.keyboard.press('Escape');
+      await page
+        .getByRole('button', { name: 'Actions for tone.wav', exact: true })
+        .click();
+      await expect(
+        page.getByRole('menuitem', { name: 'Indexing…', exact: true }),
+      ).toBeDisabled();
+      await page.keyboard.press('Escape');
+      await card('tone.wav').click();
+      await dialog('tone.wav')
+        .getByRole('button', { name: 'Cancel indexing', exact: true })
+        .click();
+      await expect(dialog('tone.wav').getByRole('status')).toContainText(
+        'Indexing cancelled',
+      );
+    } finally {
+      await page.evaluate(async () => {
+        const host = window as unknown as {
+          releaseViewerIndex: () => void;
+          viewerIndexLock: Promise<unknown>;
+        };
+        host.releaseViewerIndex();
+        await host.viewerIndexLock;
+      });
+    }
+    await dialog('tone.wav')
+      .getByRole('button', { name: 'Index asset', exact: true })
+      .click();
+    await expect(dialog('tone.wav').getByRole('status')).toContainText(
+      'Indexed ·',
+    );
+    await expect(dialog('tone.wav').getByRole('status')).toContainText(
+      '4 audio windows',
+    );
+    await page.screenshot({ path: info.outputPath('asset-viewer-audio.png') });
+    await page.keyboard.press('Escape');
+    await page
+      .getByRole('button', { name: 'Actions for Landscape.png', exact: true })
+      .click();
+    await page
+      .getByRole('menuitem', { name: 'Index asset', exact: true })
+      .click();
+    await card('Landscape.png').click();
+    await expect(dialog('Landscape.png').getByRole('status')).toContainText(
+      'Indexed · 1 scene · 1 frame',
+    );
+    await page.keyboard.press('Escape');
     for (const [name, tag] of [
       ['tone.wav', 'audio'],
       ['green.webm', 'video'],
@@ -191,6 +277,27 @@ for (const base of behaviorBases) {
       await expect
         .poll(() => source.evaluate((el: HTMLMediaElement) => el.readyState))
         .toBeGreaterThanOrEqual(1);
+      if (tag === 'video') {
+        await dialog(name)
+          .getByRole('button', { name: 'Index asset', exact: true })
+          .click();
+        await expect(dialog(name).getByRole('status')).toContainText(
+          'Indexed ·',
+        );
+        await page.screenshot({
+          path: info.outputPath('asset-viewer-video.png'),
+        });
+      }
+      const scrubber = dialog(name).getByRole('slider', {
+        name: 'Preview position',
+        exact: true,
+      });
+      await scrubber.focus();
+      await scrubber.press('End');
+      await expect
+        .poll(() => source.evaluate((el: HTMLMediaElement) => el.currentTime))
+        .toBeGreaterThan(0.2);
+      await scrubber.press('Home');
       await dialog(name)
         .getByRole('button', { name: 'Play clip', exact: true })
         .click();
@@ -207,6 +314,49 @@ for (const base of behaviorBases) {
         true,
       );
       await expect(card(name)).toBeFocused();
+    }
+    const indexes = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const projectId = location.hash.split('/')[2]!;
+        const entries = (await editor.library.forProject(projectId).list())
+          .entries;
+        const results = [];
+        for (const name of ['tone.wav', 'green.webm', 'Landscape.png']) {
+          const id = entries.find((entry) => entry.name === name)!.assetId!;
+          const runs = await editor.assets.indexes.list(id);
+          results.push({
+            name,
+            count: runs.length,
+            status: runs[0]!.status,
+            frames: runs[0]!.analysis.frames.length,
+          });
+        }
+        const tasks = (await editor.tasks.list()).filter(
+          (task) => task.kind === 'media.analyze',
+        );
+        return {
+          results,
+          completed: tasks.filter((task) => task.state === 'completed').length,
+          cancelled: tasks.filter((task) => task.state === 'cancelled').length,
+        };
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    expect(indexes.completed).toBe(3);
+    expect(indexes.cancelled).toBe(1);
+    expect(indexes.results).toHaveLength(3);
+    for (const result of indexes.results) {
+      expect(result.count).toBe(1);
+      expect(result.status).toBe('analyzed');
+      expect(result.frames).toBe(
+        result.name === 'tone.wav' ? 0 : expect.any(Number),
+      );
+      if (result.name !== 'tone.wav') expect(result.frames).toBeGreaterThan(0);
     }
     await catalogAndReturn();
     await card('tone.wav').click();
@@ -255,6 +405,31 @@ for (const base of behaviorBases) {
     await expect(dialog('Landscape.png').getByRole('alert')).toContainText(
       /relink/i,
     );
+    await dialog('Landscape.png')
+      .getByRole('button', { name: 'Index asset', exact: true })
+      .click();
+    await expect(
+      dialog('Landscape.png').getByRole('alert').last(),
+    ).toContainText(/missing/i);
     await page.keyboard.press('Escape');
+    await page.reload();
+    await page
+      .getByRole('button', { name: 'Expand media', exact: true })
+      .click();
+    for (const name of ['tone.wav', 'green.webm']) {
+      await card(name).click();
+      await expect(dialog(name).getByRole('status')).toContainText('Indexed ·');
+      await expect(
+        dialog(name).getByRole('slider', {
+          name: 'Preview position',
+          exact: true,
+        }),
+      ).toBeEnabled();
+      if (name === 'tone.wav')
+        await page.screenshot({
+          path: info.outputPath('asset-viewer-audio-mobile.png'),
+        });
+      await page.keyboard.press('Escape');
+    }
   });
 }
