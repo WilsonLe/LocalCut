@@ -42,3 +42,7 @@ ExifReader 4.46.0, Mattias Wallander and contributors, MPL-2.0. Used locally for
 ## Browser coding runtime
 
 just-bash 3.6.0 (Vercel and contributors, Apache-2.0) supplies the browser shell; quickjs-emscripten-core and @jitl/quickjs-singlefile-browser-release-sync 0.32.0 (Jake Teton-Landis and contributors, MIT) embed QuickJS (Fabrice Bellard and Charlie Gordon, MIT). The runtime and its browser-bundled dependencies retain their notices in [coding licenses](public/notices/coding-LICENSES.txt). Native optional compression modules are not used or built. Sources: https://github.com/vercel-labs/just-bash and https://github.com/justjake/quickjs-emscripten.
+
+## Agent workflow guidance
+
+The portable [LocalCut skills](docs/skills.md) adapt editing guidance from Agentic Workflows `0.2.0+codex.20261018000000` (MIT), copyright (c) 2026 Wilson Le. Each shipped `public/skills/localcut-*/` folder includes the complete upstream MIT license as `LICENSE.txt`; the Markdown footer identifies source areas. The same files are served through WebMCP. See [adaptation decisions](docs/skills.md#adaptation-and-provenance) for included/excluded workflows and capability limits. No upstream binaries, provider setup or external helper dependencies are included.

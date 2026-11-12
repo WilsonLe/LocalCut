@@ -25,6 +25,7 @@ Contributors: start with the [current preference index](current-preferences.md) 
 | [Source setup](setup.md)                      | Prerequisites, installation, local start and next steps            |
 | [Development](development.md)                 | Module ownership, focused checks, build reuse and failure recovery |
 | [Architecture](architecture.md)               | Runtime boundaries and state ownership                             |
+| [Agent skills](skills.md)                     | Portable editing workflows and WebMCP guidance                     |
 | [API](api.md)                                 | Headless editor contracts, commands and lifecycle                  |
 | [Storage](storage.md)                         | IndexedDB/OPFS, recovery, versions and backup compatibility        |
 | [Transcription](transcription.md)             | Pinned local model/runtime preparation and audio processing        |

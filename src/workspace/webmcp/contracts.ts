@@ -3,6 +3,7 @@ import { batchSchema } from '../../core/commands';
 import { codingOperationSchema, codingQuerySchema } from '../../core/coding';
 import { libraryOperationSchema } from '../../core/media-library';
 import { maskSchema } from '../../core/effects';
+import { assetClipsSchema } from '../../core/asset-clips';
 import { storyboardImageOptionsSchema } from '../../core/storyboard-image';
 import {
   storyboardExportOptionsSchema,
@@ -37,7 +38,21 @@ export const importSchema = scope.extend({
 });
 export const assetSchema = scope.extend({
   assetId: id,
-  action: z.enum(['inspect', 'rename', 'thumbnails', 'waveform']),
+  action: z.enum([
+    'inspect',
+    'rename',
+    'update_clips',
+    'preview_clip',
+    'thumbnails',
+    'waveform',
+    'analyze',
+    'indexes',
+    'index',
+  ]),
+  clips: assetClipsSchema.optional(),
+  expectedClipsRevision: time.optional(),
+  clipId: id.optional(),
+  indexRunId: id.optional(),
   name: z.string().min(1).max(240).optional(),
   expectedName: z.string().optional(),
   timesUs: z.array(time).min(1).max(100).optional(),
