@@ -29,10 +29,10 @@ Read [AGENTS.md](AGENTS.md), [user preferences](docs/user-preferences.md), and e
 
 - Keep project edits in the shared engine. UI controls call its public APIs; do not duplicate editing state in components.
 - Preserve stable IDs, transactional edits, revisions, Undo/Redo, cancellation and owned storage cleanup. Treat saved-project and backup compatibility as public contracts.
-- Keep local workflows local. No remote AI/provider features remain; keep model preparation explicit.
+- Keep local workflows local. No built-in AI/provider features remain; external agents supply STT/TTS through the [speech contract](docs/transcription.md).
 - Use existing shadcn/Base UI primitives and semantic styling. Preserve keyboard interaction, focus, text entry, accessible names and reduced-motion behavior.
-- Preserve both `/` and `/LocalCut/` hosting. Keep native codec, local inference and export evidence real; mocks may isolate transport behavior but do not prove native acceptance.
-- Keep dependencies and model/runtime revisions exact. Include license/provenance and artifact hashes for bundled assets. Do not add personal media, tokens, private logs or local environment files to Git.
+- Preserve both `/` and `/LocalCut/` hosting. Keep native codec and export evidence real; mocks may isolate transport behavior but do not prove native acceptance.
+- Keep dependency versions exact. Include license/provenance and artifact hashes for bundled assets. Do not add personal media, tokens, private logs or local environment files to Git.
 
 The [development ownership map](docs/development.md#find-the-owner) points to the module responsible for each change. [Architecture](docs/architecture.md), [API](docs/api.md), [storage](docs/storage.md), [AI](docs/ai.md) and [transcription](docs/transcription.md) remain the detailed contracts.
 

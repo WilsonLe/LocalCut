@@ -13,7 +13,7 @@ Preserve your work before recovery. Export project/workspace backups with the or
 | Screen/window/tab audio missing                    | Check the browser picker and OS permissions; system/tab audio availability depends on the chosen source and platform. Only select sources you intend to record.                                |
 | Fonts or workers return 404 after self-hosting     | Build for the exact base path and publish the complete output, including hashed workers, font subsets and licenses. See [deployment](../DEPLOY.md#self-hosting).                               |
 | Transcription or narration capability unavailable  | Use the calling agent’s STT/TTS capability or supply a transcript/recorded take. LocalCut has no speech model to prepare; see [speech contracts](transcription.md).                            |
-| Cached inference works but offline reload fails    | No service worker/offline shell is installed. Cached model availability does not provide full offline application navigation.                                                                  |
+| Offline application navigation fails               | No service worker/offline shell is installed. Keep app hosting available for editing; speech capabilities belong to the external agent.                                                        |
 
 Avoid repeated export retries without reading the error. If a new browser revision changes native codec behavior, record the failing codec/configuration and a minimal generated reproduction; do not silently substitute a weaker acceptance channel.
 
