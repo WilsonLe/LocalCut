@@ -42,7 +42,7 @@ describe('browser tool registration connection', () => {
     const connection = createToolConnection();
     const context: { current?: ModelContext } = {};
     const load = vi.fn(async () => ({ tools: [f.tool] }));
-    const registration = connection.register(
+    const registration = connection.bind(
       'workspace',
       () => context.current,
       load,
@@ -68,13 +68,8 @@ describe('browser tool registration connection', () => {
     const connection = createToolConnection();
     const dispose = vi.fn();
     const load = vi.fn(async () => ({ tools: [f.tool], dispose }));
-    const app = connection.register(
-      'workspace',
-      () => f.context,
-      load,
-      vi.fn(),
-    );
-    const project = connection.register(
+    const app = connection.bind('workspace', () => f.context, load, vi.fn());
+    const project = connection.bind(
       'project',
       () => f.context,
       async () => ({ tools: [{ ...f.tool, name: 'localcut_project' }] }),
@@ -112,7 +107,7 @@ describe('browser tool registration connection', () => {
     const connection = createToolConnection();
     const pending = deferred<string>();
     let lifetime!: AbortSignal;
-    const registration = connection.register(
+    const registration = connection.bind(
       'project',
       () => f.context,
       async (signal) => {
@@ -148,7 +143,7 @@ describe('browser tool registration connection', () => {
     const load = vi.fn(async () => ({
       tools: [f.tool, { ...f.tool, name: 'second' }],
     }));
-    const registration = connection.register(
+    const registration = connection.bind(
       'workspace',
       () => context,
       load,
@@ -176,7 +171,7 @@ describe('browser tool registration connection', () => {
       .fn()
       .mockRejectedValueOnce(new Error('Chunk missing'))
       .mockResolvedValue({ tools: [f.tool] });
-    const registration = connection.register(
+    const registration = connection.bind(
       'workspace',
       () => context,
       load,
@@ -213,7 +208,7 @@ describe('browser tool registration connection', () => {
           await f.context.registerTool(tool, options);
       },
     };
-    const registration = connection.register(
+    const registration = connection.bind(
       'workspace',
       () => context,
       async () => ({ tools: [f.tool] }),
@@ -231,7 +226,7 @@ describe('browser tool registration connection', () => {
   it('observes request time without retaining input or implying an active agent connection', async () => {
     const f = fixture();
     const connection = createToolConnection(() => 1234);
-    const registration = connection.register(
+    const registration = connection.bind(
       'workspace',
       () => f.context,
       async () => ({ tools: [f.tool] }),
@@ -263,7 +258,7 @@ describe('browser tool registration connection', () => {
     const gate = deferred<void>();
     const started = deferred<void>();
     const dispose = vi.fn();
-    const registration = connection.register(
+    const registration = connection.bind(
       'project',
       () => ({
         async registerTool() {
@@ -286,14 +281,14 @@ describe('browser tool registration connection', () => {
     const first = fixture();
     const second = fixture();
     const connection = createToolConnection();
-    const old = connection.register(
+    const old = connection.bind(
       'project',
       () => first.context,
       async () => ({ tools: [first.tool] }),
       vi.fn(),
     );
     await old.ready;
-    const next = connection.register(
+    const next = connection.bind(
       'project',
       () => second.context,
       async () => ({ tools: [second.tool] }),

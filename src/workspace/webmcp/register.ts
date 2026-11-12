@@ -6,7 +6,7 @@ export function registerProjectTools(
   context: ModelContext | (() => ModelContext | undefined),
   host: SiteToolHost,
 ) {
-  return browserAgentConnection.register(
+  return browserAgentConnection.bind(
     'project',
     typeof context === 'function' ? context : () => context,
     async (signal) => {

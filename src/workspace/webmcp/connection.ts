@@ -43,7 +43,7 @@ export function createToolConnection(clock = Date.now) {
         [...refreshers.values()].map((refresh) => refresh()),
       );
     },
-    register(
+    bind(
       scope: Scope,
       getContext: () => ModelContext | undefined,
       load: (signal: AbortSignal) => Promise<ToolSet>,

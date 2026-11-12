@@ -18,7 +18,7 @@ export function useWorkspaceWebMCP(props: Props) {
     latest.current = props;
   });
   useLayoutEffect(() => {
-    const registration = browserAgentConnection.register(
+    const registration = browserAgentConnection.bind(
       'workspace',
       () =>
         (document as Document & { modelContext?: ModelContext }).modelContext,
