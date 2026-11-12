@@ -7,6 +7,7 @@ Use the [current preference index](current-preferences.md) to find relevant cont
 ## Sound effects library — 13 November 2026
 
 - Research sound effects deeply and build a library for LocalCut. The user requested research and implementation together; the [library contract](sound-effects.md) records the resulting source and implementation decisions.
+- Expand the library with more sound effects and descriptive tags so an external agent can easily search for the sounds it needs. Keep agent discovery/import guidance alongside the shared library contract.
 
 ## Asset content without indexing controls — 12 November 2026
 

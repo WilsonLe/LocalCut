@@ -53,6 +53,14 @@ describe('sound library catalogue', () => {
     ]);
     expect(findSounds(catalog, 'whoosh', 'Footsteps')).toEqual([]);
     expect(findSounds(catalog, 'missing', '')).toEqual([]);
+    expect(
+      findSounds(catalog, 'air-sweep', '', {
+        tags: ['MOVEMENT'],
+        maxDurationUs: 1000,
+      }).map((s) => s.id),
+    ).toEqual(['test-whoosh']);
+    expect(findSounds(catalog, '', '', { tags: ['move'] })).toEqual([]);
+    expect(findSounds(catalog, '', '', { minDurationUs: 1001 })).toEqual([]);
   });
 
   it('rejects ambiguous provenance, unsupported licences and unsafe identifiers or sources', () => {
@@ -66,6 +74,7 @@ describe('sound library catalogue', () => {
       { ...catalog, sounds: [{ ...sound, name: 'path/name' }] },
       { ...catalog, sounds: [{ ...sound, size: 100_000_000 }] },
       { ...catalog, sounds: [{ ...sound, durationUs: 0 }] },
+      { ...catalog, sounds: [{ ...sound, tags: ['whoosh', 'whoosh'] }] },
       {
         ...catalog,
         sources: [{ ...catalog.sources[0], url: 'javascript:alert(1)' }],

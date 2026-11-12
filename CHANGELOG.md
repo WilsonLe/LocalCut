@@ -4,7 +4,7 @@ Current version: **0.1.0-alpha.1**. Short summaries for end users and executives
 
 ## Unreleased
 
-- Browse 281 bundled CC0 sound effects by name or category, preview them, and add selected sounds to Media for editing. Source/licence evidence and reproducible WAV preparation are included. Propose an additive minor prerelease change. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...wilsonle/sound-effects-library).
+- Browse 1,039 tagged, bundled CC0 sound effects by name, category or clickable tags, preview them, and add selected sounds to Media for editing. Agents can search/filter the shared sound catalogue and import a chosen ID through existing Media tools. Source/licence evidence and reproducible WAV preparation are included. Propose an additive minor prerelease change. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...wilsonle/sound-effects-library).
 
 - Remove bundled Whisper and its model downloads. Editing skills request STT/TTS from external agents; existing transcripts, captions and media remain compatible. This removes speech inference APIs; propose a breaking prerelease change. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...wilsonle/agent-speech-only).
 

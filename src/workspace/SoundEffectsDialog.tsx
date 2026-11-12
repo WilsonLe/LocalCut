@@ -313,6 +313,33 @@ export default function SoundEffectsDialog({
                           {source.creator}
                         </a>
                       </p>
+                      <details className="mt-0.5 text-xs text-muted-foreground">
+                        <summary
+                          className="cursor-pointer truncate"
+                          aria-label={`Tags for ${sound.name}`}
+                        >
+                          {sound.tags.slice(0, 4).join(' · ')}
+                        </summary>
+                        <div
+                          className="flex flex-wrap gap-1 py-1"
+                          aria-label={`All tags for ${sound.name}`}
+                        >
+                          {sound.tags.map((tag) => (
+                            <Button
+                              key={tag}
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-1.5 text-xs"
+                              onClick={() => {
+                                setQuery(tag);
+                                navigate(0);
+                              }}
+                            >
+                              {tag}
+                            </Button>
+                          ))}
+                        </div>
+                      </details>
                     </div>
                     <Button
                       variant="outline"
@@ -344,7 +371,7 @@ export default function SoundEffectsDialog({
             )}
             <div className="flex items-center justify-between gap-2 border-t pt-3">
               <span role="status" className="text-xs text-muted-foreground">
-                {found.length} results
+                {found.length} {found.length === 1 ? 'result' : 'results'}
                 {pages > 1 ? ` · Page ${page + 1} of ${pages}` : ''}
               </span>
               {pages > 1 && (

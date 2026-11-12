@@ -12,7 +12,7 @@ Dependencies retain their upstream licenses in installed packages. Copies for th
 
 ## Bundled sound effects
 
-`public/sounds/` contains a curated CC0 1.0 sound collection from Kenney, LEGIT Audio's free OpenGameArt samples, Thimras's Park ambiences and Woven SFX. Audio retains its original CC0 dedication; it is not relicensed as LocalCut's MIT code. Optional creator credits and source links remain available in the library.
+`public/sounds/` contains a curated CC0 1.0 sound collection from Kenney, Juhani Junkala (SubspaceAudio), LEGIT Audio's free OpenGameArt samples, Thimras's Park ambiences and Woven SFX. Audio retains its original CC0 dedication; it is not relicensed as LocalCut's MIT code. Optional creator credits and source links remain available in the library.
 
 See [sound effects research and source decisions](docs/sound-effects.md), the [source/member SHA-256 lock](scripts/sound-library.lock.json), the [output catalogue](public/sounds/catalog.json) and individual notices under `public/sounds/licenses/`. The lock records exact originals and Woven's immutable repository commit. The preparation produces 48 kHz PCM WAV, preserving source identity and recording gain/excerpt transformations in `public/sounds/measurements.json`. Original Ogg sources are lossy; conversion does not restore missing fidelity. The paid LEGIT Audio collection and restricted commercial stock are not included.
 

@@ -52,7 +52,15 @@ for (const base of behaviorBases) {
       dialog.getByText('No sounds found.', { exact: false }),
     ).toBeVisible();
     await search.fill('concrete');
-    await expect(dialog.getByRole('listitem')).toHaveCount(3);
+    await expect(dialog.getByRole('listitem')).toHaveCount(5);
+    const tags = dialog.locator('summary').first();
+    await tags.click();
+    await dialog
+      .getByRole('button', { name: 'pavement', exact: true })
+      .first()
+      .click();
+    await expect(search).toHaveValue('pavement');
+    await expect(dialog.getByRole('listitem')).toHaveCount(5);
     await dialog.getByRole('combobox', { name: 'Sound category' }).click();
     await page
       .getByRole('option', { name: 'All categories', exact: true })

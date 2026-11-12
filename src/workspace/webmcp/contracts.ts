@@ -29,13 +29,31 @@ export const librarySchema = scope.extend({
   expectedLibraryRevision: time,
   operation: libraryOperationSchema,
 });
-export const importSchema = scope.extend({
-  name: z.string().min(1).max(240),
-  mimeType: z.string().max(200),
-  base64: z.string().min(1).max(90_000_000),
-  parentId: id.nullable().optional(),
-  relinkAssetId: id.optional(),
-});
+export const importSchema = scope
+  .extend({
+    soundId: id.optional(),
+    name: z.string().min(1).max(240).optional(),
+    mimeType: z.string().max(200).optional(),
+    base64: z.string().min(1).max(90_000_000).optional(),
+    parentId: id.nullable().optional(),
+    relinkAssetId: id.optional(),
+  })
+  .superRefine((input, context) => {
+    const valid = input.soundId
+      ? input.name === undefined &&
+        input.mimeType === undefined &&
+        input.base64 === undefined &&
+        input.relinkAssetId === undefined
+      : input.name !== undefined &&
+        input.mimeType !== undefined &&
+        input.base64 !== undefined;
+    if (!valid)
+      context.addIssue({
+        code: 'custom',
+        message:
+          'Supply soundId from the sound catalogue, or name, mimeType and base64 for a file. Sound imports cannot relink.',
+      });
+  });
 export const assetSchema = scope.extend({
   assetId: id,
   action: z.enum([

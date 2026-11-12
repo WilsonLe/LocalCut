@@ -10,7 +10,7 @@ A browser video editor with local media processing. Import your own media, edit 
 
 - Organize assets into source clips with previews, context and transcripts, and let compatible external agents use [LocalCut skills](docs/skills.md) and [WebMCP tools](docs/webmcp.md).
 - Import video, audio and images; record a screen, window or browser tab through the browser's source picker.
-- Find, preview and import 281 bundled CC0 [sound effects](docs/sound-effects.md), including whooshes, Foley, footsteps, impacts and ambience.
+- Find, preview and import 1,039 tagged, bundled CC0 [sound effects](docs/sound-effects.md), including whooshes, Foley, footsteps, impacts and ambience.
 - Arrange tracks, trim and group clips, separate audio, adjust speed and pitch, and edit transitions.
 - Add styled and animated text, use bundled fonts, and create captions from agent-provided speech-to-text.
 - Export MP4/H.264/AAC or WebM/VP9/Opus when your browser supports the required codecs.

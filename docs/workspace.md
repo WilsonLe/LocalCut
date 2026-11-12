@@ -4,7 +4,7 @@
 
 ## Sound effects
 
-Media's **Sound effects** action opens a searchable, categorized bundled library with volume-controlled previews and creator/source links. Add a selected sound through the normal Media importer, then drag it onto an audio track. Browsing does not edit a project; navigation/dismissal stops previews and pending downloads. Imported sounds retain the ordinary local-asset, backup and history behavior. See the [sound library contract and research](sound-effects.md).
+Media's **Sound effects** action opens a searchable, categorized bundled library with expandable/clickable tags, volume-controlled previews and creator/source links. Add a selected sound through the normal Media importer, then drag it onto an audio track. Browsing does not edit a project; navigation/dismissal stops previews and pending downloads. Imported sounds retain the ordinary local-asset, backup and history behavior. See the [sound library contract and research](sound-effects.md).
 
 ## Application updates
 

@@ -27,7 +27,7 @@ For speech-to-text (STT) and text-to-speech (TTS), use the calling agent's speec
 
 ## Edit through the shared engine
 
-Read the actual tool input schemas rather than guessing command fields. Keep one LocalCut timeline. Times are safe integer microseconds; frame rates are rational and source ranges are half-open. Keep source IDs distinct from clip instance IDs. Use catalog tools for font IDs, templates and transitions.
+Read the actual tool input schemas rather than guessing command fields. Keep one LocalCut timeline. Times are safe integer microseconds; frame rates are rational and source ranges are half-open. Keep source IDs distinct from clip instance IDs. Use catalog tools for font IDs, templates, transitions and tagged sound effects. For sounds, load localcut-audio-editing, search localcut_catalog with kind sounds, then import the chosen item.id through localcut_import_media soundId.
 
 Apply requested edits directly with `localcut_apply_edits`; no additional LocalCut approval step is required. Supply the inspected project ID/revision and a unique request ID. Related operations form one atomic batch. Preserve unrelated fields. Retry the identical raw payload and request ID after a lost reply; changed input needs a new ID. Reinspect after revision conflicts. Library and coding revisions are separate from project revisions. Saved historical views are read-only; return to the current project before editing.
 

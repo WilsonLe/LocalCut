@@ -49,6 +49,11 @@ export async function checkSounds(directory = 'public/sounds') {
   const files = new Set();
   let bytes = 0;
   for (const [index, sound] of catalog.sounds.entries()) {
+    assert(sound.tags.length >= 4, 'Insufficient search tags: ' + sound.id);
+    assert(
+      sound.tags.every((tag) => tag === tag.toLowerCase()),
+      'Tags must use a consistent lowercase vocabulary',
+    );
     const source = lock.sounds[index];
     for (const key of ['id', 'name', 'category', 'tags', 'sourceId'])
       assert.deepEqual(
@@ -105,7 +110,15 @@ export async function checkSounds(directory = 'public/sounds') {
     files,
     'Unlisted or missing sound files',
   );
-  assert(bytes <= 60 * 1024 * 1024, 'Sound library exceeds its 60 MiB budget');
+  assert.equal(
+    files.size,
+    catalog.sounds.length,
+    'Duplicate output sound files',
+  );
+  assert(
+    bytes <= 112 * 1024 * 1024,
+    'Sound library exceeds its 112 MiB budget',
+  );
   for (const category of SOUND_CATEGORIES)
     assert(
       catalog.sounds.some((sound) => sound.category === category),

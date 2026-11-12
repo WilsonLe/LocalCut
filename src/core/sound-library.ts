@@ -36,7 +36,11 @@ export const SoundCatalogSchema = z
             id,
             name: text.refine((value) => !/[\\/\0]/.test(value)),
             category: z.enum(SOUND_CATEGORIES),
-            tags: z.array(text).min(1).max(30),
+            tags: z
+              .array(text)
+              .min(1)
+              .max(30)
+              .refine((tags) => new Set(tags).size === tags.length),
             sourceId: id,
             sha256,
             size: z
@@ -73,6 +77,19 @@ export type SoundCatalog = z.infer<typeof SoundCatalogSchema>;
 export type LibrarySound = SoundCatalog['sounds'][number];
 export type SoundCategory = (typeof SOUND_CATEGORIES)[number];
 
+export const soundFilters = {
+  category: z.enum(SOUND_CATEGORIES).optional(),
+  tags: z.array(text).max(10).default([]),
+  minDurationUs: z.number().int().nonnegative().optional(),
+  maxDurationUs: z.number().int().nonnegative().optional(),
+};
+
+interface SoundFilters {
+  tags?: string[];
+  minDurationUs?: number;
+  maxDurationUs?: number;
+}
+
 function words(value: string) {
   return value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
 }
@@ -81,11 +98,31 @@ export function findSounds(
   catalog: SoundCatalog,
   query: string,
   category: SoundCategory | '',
+  filters: SoundFilters = {},
 ) {
-  const terms = words(query).split(/\s+/).filter(Boolean);
+  const terms = words(query)
+    .split(/[\s-]+/)
+    .filter(Boolean);
+  const sources = new Map(catalog.sources.map((source) => [source.id, source]));
   return catalog.sounds.filter((sound) => {
     if (category && sound.category !== category) return false;
-    const source = catalog.sources.find((item) => item.id === sound.sourceId)!;
+    if (
+      filters.minDurationUs !== undefined &&
+      sound.durationUs < filters.minDurationUs
+    )
+      return false;
+    if (
+      filters.maxDurationUs !== undefined &&
+      sound.durationUs > filters.maxDurationUs
+    )
+      return false;
+    if (
+      filters.tags?.some(
+        (tag) => !sound.tags.some((value) => words(value) === words(tag)),
+      )
+    )
+      return false;
+    const source = sources.get(sound.sourceId)!;
     const labels = words(
       [
         sound.name,
@@ -94,7 +131,7 @@ export function findSounds(
         source.name,
         source.creator,
       ].join(' '),
-    );
+    ).replaceAll('-', ' ');
     return terms.every((term) => labels.includes(term));
   });
 }
