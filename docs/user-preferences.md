@@ -4,6 +4,10 @@ This is the project record of the user's durable product and workflow choices. U
 
 Use the [current preference index](current-preferences.md) to find relevant contracts and superseding decisions. Existing dated entries and anchors remain available as decision history.
 
+## Sound effects library — 13 November 2026
+
+- Research sound effects deeply and build a library for LocalCut. The user requested research and implementation together; the [library contract](sound-effects.md) records the resulting source and implementation decisions.
+
 ## Asset content without indexing controls — 12 November 2026
 
 - Do not expose “index”, Index buttons, indexing progress or result summaries in the asset actions menu or viewer. This supersedes the earlier indexing-control request below.

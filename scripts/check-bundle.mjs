@@ -4,6 +4,7 @@ import { gzipSync } from 'node:zlib';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { checkFonts } from './check-fonts.mjs';
+import { checkSounds } from './check-sounds.mjs';
 import { checkSkills, skillIndex, skillsDirectory } from './skills-index.mjs';
 await checkSkills();
 const sourceSkills = await skillIndex(skillsDirectory);
@@ -17,6 +18,12 @@ async function files(path) {
   return result;
 }
 for (const root of ['dist', 'dist-root']) {
+  await checkSounds(`${root}/sounds`);
+  assert.equal(
+    await readFile(`${root}/sounds/catalog.json`, 'utf8'),
+    await readFile('public/sounds/catalog.json', 'utf8'),
+    'Packaged sound catalogue differs from source',
+  );
   await checkSkills(join(root, 'skills'));
   assert.deepEqual(
     await skillIndex(join(root, 'skills')),

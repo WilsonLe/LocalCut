@@ -6,16 +6,17 @@ Contributors: start with the [current preference index](current-preferences.md) 
 
 ## Use LocalCut
 
-| Guide                                           | What it covers                                                     |
-| ----------------------------------------------- | ------------------------------------------------------------------ |
-| [Project overview](../README.md)                | Features, demo and links to detailed guides                        |
-| [Browser support](browser-support.md)           | Chrome/Safari coverage, capture, local data and offline limits     |
-| [Getting started](getting-started.md)           | First edit, exports, versions and portable backups                 |
-| [Privacy and data flows](privacy.md)            | Local storage, remote actions, credentials and deletion boundaries |
-| [Troubleshooting](troubleshooting.md)           | Storage, codec, model, provider and setup failures                 |
-| [Support](../SUPPORT.md)                        | Safe bug reports, questions and proposals                          |
-| [Storyboard workflows](storyboard-workflows.md) | Diagram authoring, exports, Media reuse and cross-domain recipes   |
-| [Workspace contract](workspace.md)              | Detailed user interaction and state behavior                       |
+| Guide                                           | What it covers                                                       |
+| ----------------------------------------------- | -------------------------------------------------------------------- |
+| [Project overview](../README.md)                | Features, demo and links to detailed guides                          |
+| [Browser support](browser-support.md)           | Chrome/Safari coverage, capture, local data and offline limits       |
+| [Getting started](getting-started.md)           | First edit, exports, versions and portable backups                   |
+| [Privacy and data flows](privacy.md)            | Local storage, remote actions, credentials and deletion boundaries   |
+| [Troubleshooting](troubleshooting.md)           | Storage, codec, model, provider and setup failures                   |
+| [Support](../SUPPORT.md)                        | Safe bug reports, questions and proposals                            |
+| [Storyboard workflows](storyboard-workflows.md) | Diagram authoring, exports, Media reuse and cross-domain recipes     |
+| [Workspace contract](workspace.md)              | Detailed user interaction and state behavior                         |
+| [Sound effects](sound-effects.md)               | Bundled library, source research, rights, provenance and preparation |
 
 ## Contribute and integrate
 

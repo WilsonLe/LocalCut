@@ -1,9 +1,11 @@
 import { inputHash, recordBuild, runPnpm, target } from './build-state.mjs';
 import { mkdir, rename } from 'node:fs/promises';
 import { fontSnapshot } from './font-snapshot.ts';
+import { checkSounds } from './check-sounds.mjs';
 
 const rootBuild = process.argv.includes('--root');
 const build = target(rootBuild);
+await checkSounds();
 const input = await inputHash(build);
 await runPnpm([
   'exec',

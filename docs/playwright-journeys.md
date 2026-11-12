@@ -23,6 +23,7 @@ Normal Chrome shares one installed stable Chrome process with isolated contexts 
 | Storyboard formats, image/video-still pixels and backup remapping    | [Export](../tests/browser/workspace-storyboard-export.spec.ts), [images](../tests/browser/workspace-storyboard-images.spec.ts) |
 | Local deterministic analysis, evidence and recovery                  | [Asset analysis](../tests/browser/asset-index.spec.ts)                                                                         |
 | Native worker, decoder and engine lifetimes                          | [Lifecycle](../tests/browser/lifecycle.spec.ts)                                                                                |
+| Bundled sound search, preview/import/export, reload and cancellation | [Sound library](../tests/browser/workspace-sound-library.spec.ts)                                                              |
 | Retired speech cache and saved transcript compatibility              | [Editor](../tests/browser/editor.spec.ts), [recovery](../tests/browser/recovery.spec.ts); external agents supply STT/TTS       |
 | Long native export                                                   | [Performance](../tests/browser/performance.spec.ts), separate acceptance project                                               |
 
