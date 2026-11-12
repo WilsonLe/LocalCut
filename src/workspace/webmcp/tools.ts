@@ -11,6 +11,11 @@ import type { SiteToolHost, SiteTool } from './types';
 import { SiteToolJobs } from './jobs';
 import { toolErrorResult } from './error-result';
 import { assetClipState } from '../../core/asset-clips';
+import {
+  findSounds,
+  soundFilters,
+  SOUND_CATEGORIES,
+} from '../../core/sound-library';
 
 export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
   const jobs = new SiteToolJobs();
@@ -152,7 +157,7 @@ export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
   );
   add(
     'catalog',
-    'Discover shared font IDs, text templates, color presets, blend modes and transition recipes. Search fonts by name; use offset/limit to page.',
+    'Discover sounds, shared font IDs, text templates, color presets, blend modes and transition recipes. For kind sounds, query action/material/style keywords (all terms match), filter category, exact tags (all match), minDurationUs/maxDurationUs; inspect tags, sources, licence and facets. Import a chosen item.id with import_media soundId. Use offset/limit to page; browsing never imports audio.',
     z
       .object({
         kind: z.enum([
@@ -161,14 +166,69 @@ export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
           'colorPresets',
           'blendModes',
           'transitions',
+          'sounds',
         ]),
-        query: z.string().default(''),
+        query: z.string().max(500).default(''),
+        ...soundFilters,
         offset: z.number().int().nonnegative().default(0),
         limit: z.number().int().min(1).max(100).default(50),
       })
       .strict(),
     true,
-    async ({ kind, query, offset, limit }) => {
+    async (
+      {
+        kind,
+        query,
+        offset,
+        limit,
+        category,
+        tags,
+        minDurationUs,
+        maxDurationUs,
+      },
+      signal,
+    ) => {
+      if (kind === 'sounds') {
+        const { loadSoundCatalog } = await import('../sound-library');
+        const catalog = await loadSoundCatalog(signal);
+        signal.throwIfAborted();
+        view();
+        const matches = findSounds(catalog, query, category ?? '', {
+          tags,
+          minDurationUs,
+          maxDurationUs,
+        });
+        const counts = new Map<string, number>();
+        for (const sound of matches)
+          for (const tag of sound.tags)
+            counts.set(tag, (counts.get(tag) ?? 0) + 1);
+        return {
+          items: matches.slice(offset, offset + limit).map((sound) => ({
+            ...sound,
+            license: catalog.license,
+            source: catalog.sources.find(
+              (source) => source.id === sound.sourceId,
+            )!,
+          })),
+          total: matches.length,
+          offset,
+          nextOffset: offset + limit < matches.length ? offset + limit : null,
+          facets: {
+            categories: SOUND_CATEGORIES.map((category) => ({
+              category,
+              count: matches.filter((sound) => sound.category === category)
+                .length,
+            })),
+            tags: [...counts]
+              .sort(
+                ([a, countA], [b, countB]) =>
+                  countB - countA || a.localeCompare(b),
+              )
+              .slice(0, 100)
+              .map(([tag, count]) => ({ tag, count })),
+          },
+        };
+      }
       const catalog: readonly unknown[] =
         kind === 'fonts'
           ? TEXT_FONTS
@@ -270,16 +330,39 @@ export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
   );
   add(
     'import_media',
-    'Import provided base64 file bytes into viewed project Media, or relink an existing project asset with relinkAssetId. No clip placement or URL fetching. Up to 90 million base64 characters. Returns a job; use apply_edits to place new assets.',
+    'Import a bundled sound by soundId from catalog kind sounds, OR provide name, mimeType and base64 file bytes (up to 90 million characters). Sound IDs load verified same-origin audio; arbitrary URLs are not accepted. Byte imports can relink an existing project asset with relinkAssetId. Optional parentId targets a Media folder. Returns an import job after retrieval; wait with job, then use apply_edits to place its asset. Inspect Media before retrying a lost import response.',
     contracts.importSchema,
     false,
-    async ({ name, mimeType, base64, parentId, relinkAssetId }, signal) => {
+    async (
+      { name, mimeType, base64, soundId, parentId, relinkAssetId },
+      signal,
+    ) => {
       view(true);
       if (relinkAssetId) await assertAsset(relinkAssetId);
       signal.throwIfAborted();
       view(true);
-      const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
-      const file = new File([bytes], name, { type: mimeType });
+      let file: File;
+      if (soundId) {
+        const { loadSoundCatalog, loadSoundFile } =
+          await import('../sound-library');
+        const catalog = await loadSoundCatalog(signal);
+        signal.throwIfAborted();
+        view(true);
+        const sound = catalog.sounds.find((sound) => sound.id === soundId);
+        invariant(
+          sound,
+          'NOT_FOUND',
+          'Unknown soundId. Search catalog kind sounds again.',
+        );
+        file = await loadSoundFile(sound, signal);
+        signal.throwIfAborted();
+        view(true);
+      } else {
+        const bytes = Uint8Array.from(atob(base64!), (char) =>
+          char.charCodeAt(0),
+        );
+        file = new File([bytes], name!, { type: mimeType! });
+      }
       return jobs.track(
         relinkAssetId
           ? host.editor.assets.relink(relinkAssetId, file)

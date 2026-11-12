@@ -16,6 +16,7 @@ import {
   Trash2,
   Link,
   FileText,
+  AudioLines,
 } from 'lucide-react';
 import { AssetClipsDialog } from './AssetClipsDialog';
 import type { Asset, Editor } from '../editor';
@@ -53,6 +54,14 @@ import { onDemandDialog } from './on-demand-dialog';
 const AssetViewer = onDemandDialog(
   () => import('./AssetViewerDialog'),
   (props) => ({ title: props.asset.name, onClose: props.onClose }),
+);
+const SoundEffects = onDemandDialog(
+  () => import('./SoundEffectsDialog'),
+  (props) => ({
+    title: 'Sound effects',
+    onClose: props.onClose,
+    finalFocus: props.finalFocus,
+  }),
 );
 
 interface DragPosition {
@@ -102,6 +111,21 @@ export default function MediaLibrary({
   onView: () => void;
   routeKey: string;
 }) {
+  const [sounds, setSounds] = useState<{
+    editor: Editor | null;
+    projectId: string | undefined;
+    routeKey: string;
+    folderId: string | null;
+    opener: HTMLButtonElement;
+  } | null>(null);
+  if (
+    sounds &&
+    (sounds.editor !== editor ||
+      sounds.projectId !== projectId ||
+      sounds.routeKey !== routeKey ||
+      readOnly)
+  )
+    setSounds(null);
   const [viewing, setViewing] = useState<{
     asset: Asset;
     editor: Editor;
@@ -352,6 +376,27 @@ export default function MediaLibrary({
   });
   const mediaActions = (
     <>
+      {!readOnly && (
+        <Tooltip content="Sound effects">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Sound effects"
+            onClick={(event) => {
+              onView();
+              setSounds({
+                editor,
+                projectId,
+                routeKey,
+                folderId: folders.trash ? null : folders.parentId,
+                opener: event.currentTarget,
+              });
+            }}
+          >
+            <AudioLines aria-hidden="true" />
+          </Button>
+        </Tooltip>
+      )}
       {canEdit && (
         <Tooltip content="Record screen">
           <Button
@@ -527,6 +572,30 @@ export default function MediaLibrary({
       {folderDialog.dialog && (
         <FolderDialog control={folderDialog} state={folders} />
       )}
+      {sounds &&
+        sounds.editor === editor &&
+        sounds.projectId === projectId &&
+        sounds.routeKey === routeKey &&
+        !readOnly && (
+          <SoundEffects
+            canEdit={canEdit}
+            onClose={() => setSounds(null)}
+            onImport={(file) => onImportFiles([file], sounds.folderId)}
+            finalFocus={() => {
+              if (
+                sounds.opener.isConnected &&
+                sounds.opener.getClientRects().length &&
+                !sounds.opener.closest('[inert]')
+              )
+                return sounds.opener;
+              return (
+                document.getElementById('mobile-media-trigger') ??
+                document.getElementById('desktop-media-trigger') ??
+                false
+              );
+            }}
+          />
+        )}
       {viewing &&
         viewing.editor === editor &&
         viewing.projectId === projectId &&

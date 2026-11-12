@@ -10,6 +10,14 @@ Dependencies retain their upstream licenses in installed packages. Copies for th
 - Mediabunny: Vanilagy and contributors, MPL-2.0.
 - cn, class-variance-authority, lucide-react, tw-animate-css: upstream package notices/licenses.
 
+## Bundled sound effects
+
+`public/sounds/` contains a curated CC0 1.0 sound collection from Kenney, Juhani Junkala (SubspaceAudio), LEGIT Audio's free OpenGameArt samples, Thimras's Park ambiences and Woven SFX. Audio retains its original CC0 dedication; it is not relicensed as LocalCut's MIT code. Optional creator credits and source links remain available in the library.
+
+See [sound effects research and source decisions](docs/sound-effects.md), the [source/member SHA-256 lock](scripts/sound-library.lock.json), the [output catalogue](public/sounds/catalog.json) and individual notices under `public/sounds/licenses/`. The lock records exact originals and Woven's immutable repository commit. The preparation produces 48 kHz PCM WAV, preserving source identity and recording gain/excerpt transformations in `public/sounds/measurements.json`. Original Ogg sources are lossy; conversion does not restore missing fidelity. The paid LEGIT Audio collection and restricted commercial stock are not included.
+
+CC0 terms: https://creativecommons.org/publicdomain/zero/1.0/
+
 ## Speech test fixture
 
 tests/fixtures/jfk.wav contains a short excerpt of President John F. Kennedy's January 20, 1961 inaugural address. Federal-government speech is public domain in the United States. Source recording is distributed in whisper.cpp's test samples under its MIT repository license; this file is used solely for tests and not deployed.

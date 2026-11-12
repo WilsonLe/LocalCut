@@ -1,7 +1,14 @@
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, copyFile, writeFile, rm } from 'node:fs/promises';
+import {
+  mkdtemp,
+  mkdir,
+  copyFile,
+  writeFile,
+  readFile,
+  rm,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -17,6 +24,9 @@ test('verified build cache reuses test/docs edits and rejects source/output/envi
       'font-snapshot.ts',
       'storyboard-assets.ts',
       'build-info.ts',
+      'check-sounds.mjs',
+      'prepare-sounds.py',
+      'sound-library.lock.json',
     ])
       await copyFile(
         new URL('../../scripts/' + name, import.meta.url),
@@ -66,6 +76,22 @@ test('verified build cache reuses test/docs edits and rejects source/output/envi
     await writeFile(join(root, 'src', 'index.ts'), 'changed');
     assert.equal((await buildStatus(build)).current, false);
     await writeFile(join(root, 'src', 'index.ts'), 'production');
+    for (const name of [
+      'check-sounds.mjs',
+      'prepare-sounds.py',
+      'sound-library.lock.json',
+    ]) {
+      const path = join(root, 'scripts', name);
+      const content = await readFile(path);
+      await writeFile(path, Buffer.concat([content, Buffer.from('\n')]));
+      assert.equal(
+        (await buildStatus(build)).current,
+        false,
+        'sound validation inputs invalidate build reuse: ' + name,
+      );
+      await writeFile(path, content);
+      assert.equal((await buildStatus(build)).current, true);
+    }
     const saved = process.env.VITE_LOCALCUT_CACHE_PROBE;
     try {
       process.env.VITE_LOCALCUT_CACHE_PROBE = 'changed';

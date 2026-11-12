@@ -9,7 +9,7 @@
     {
       "name": "localcut-audio-editing",
       "description": "Restore and mix dialogue, music and effects in LocalCut using reversible clip processing, shared timing and honest listening evidence.",
-      "sha256": "832e02d9007322705f765fb39f5c7b478bca51f4f36815fadae6955a9c3d6179"
+      "sha256": "4c4b5daf2effc3f569f56b553efea43157666bbb7911c65aabd5e5bce6482f9f"
     },
     {
       "name": "localcut-captions",
@@ -54,7 +54,7 @@
     {
       "name": "localcut-start",
       "description": "Use this skill when starting an agent-led LocalCut project or choosing its browser. Prefer the built-in browser, route import-and-index requests to localcut-indexing, discover editing workflows and use correct revisions, imports and job lifetimes.",
-      "sha256": "fb7d605531fa6ba16b714957eb3f4180a486927bf761d0b131e1c652013e723a"
+      "sha256": "b82fd0ba98df42bf05a51de1a6a0314f281433f91cc51c1e1eb037c620005760"
     },
     {
       "name": "localcut-storyboards",

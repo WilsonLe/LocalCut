@@ -10,6 +10,8 @@ Local error reports and notification history retain source diagnostics with cred
 
 Browser-local scripts can access same-origin storage. Prefer a dedicated trusted origin for self-hosting. No runtime secrets or provider keys are required.
 
+The [sound effects library](sound-effects.md) fetches its public catalogue and selected checksum-verified WAVs from the same hosting origin on demand. It sends no project content to source publishers or sound services. Creator/source links open external websites only when selected. Imported sounds use ordinary local original-media storage; no account or additional persistent cache is introduced.
+
 Guest project code executes in QuickJS inside a terminable worker with a virtual project filesystem and networking disabled. It has no browser, provider, other-project or immutable-original access. Its local API remains available independently of the removed assistant.
 
 ## Browser agent access

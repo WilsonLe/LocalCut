@@ -4,6 +4,11 @@ This is the project record of the user's durable product and workflow choices. U
 
 Use the [current preference index](current-preferences.md) to find relevant contracts and superseding decisions. Existing dated entries and anchors remain available as decision history.
 
+## Sound effects library — 13 November 2026
+
+- Research sound effects deeply and build a library for LocalCut. The user requested research and implementation together; the [library contract](sound-effects.md) records the resulting source and implementation decisions.
+- Expand the library with more sound effects and descriptive tags so an external agent can easily search for the sounds it needs. Keep agent discovery/import guidance alongside the shared library contract.
+
 ## Workspace paths and root project list — 13 November 2026
 
 - Embed the workspace identity in the URL path. Opening the app root shows the saved workspace/project list, including after editing another project; do not automatically reopen the recent project.

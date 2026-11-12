@@ -182,6 +182,10 @@ Run `pnpm test tests/unit/capture-metadata.test.ts tests/unit/workspace-backup.t
 
 Run affected effects/tracking unit files and `pnpm test:ui --grep 'creative effects|creative clip|black transitions'`. Preview/export output remains native. No assistant access inventory is maintained after removal.
 
+## Sound library checks
+
+Run `pnpm test tests/unit/sound-library.test.ts tests/unit/media-import.test.ts`, `node --test tests/tooling/build-state.test.mjs`, and `node scripts/check-sounds.mjs`. Then use `pnpm test:ui --grep 'sound library'` for lazy browsing, filtering, native preview/import/export, timeline placement/reload, failure/cancellation and responsive access. Both builds and bundle checks inspect every shipped sound and source notice. See [research and reproducible preparation](sound-effects.md). These checks establish file integrity and native behavior, not comprehensive listening approval.
+
 ## Media folder checks
 
 Run `pnpm test tests/unit/media-library.test.ts tests/unit/media-import.test.ts`, then `pnpm test:browser tests/browser/media-folders.spec.ts` and affected workspace import/folder scenarios. Preserve library revision, source retention, late commits and folder focus recovery.

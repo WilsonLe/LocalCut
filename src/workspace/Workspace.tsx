@@ -1462,7 +1462,14 @@ export function Workspace() {
               canEdit={!busy && !browsed}
               draggingAssetId={draggingAsset?.id ?? null}
               onImport={() => fileInput.current?.click()}
-              onImportFiles={importMedia}
+              onImportFiles={(files, parentId, directories) => {
+                if (
+                  (project?.id ?? null) !== getProjectId() ||
+                  browsing.current
+                )
+                  return Promise.resolve(false);
+                return importMedia(files, parentId, directories);
+              }}
               onLibraryChanged={refresh}
               headerActions={
                 narrow && mobileTab === 'media' ? headerActions : null

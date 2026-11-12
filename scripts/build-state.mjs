@@ -72,6 +72,9 @@ export async function inputHash(build) {
       'font-snapshot.ts',
       'build-info.ts',
       'storyboard-assets.ts',
+      'check-sounds.mjs',
+      'prepare-sounds.py',
+      'sound-library.lock.json',
     ].map((name) => join(root, 'scripts', name)),
   ];
   const environment = Object.fromEntries(
