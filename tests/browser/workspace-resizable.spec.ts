@@ -1,3 +1,4 @@
+import { createWorkspace } from './workspace-project-helper';
 import { test, expect } from '@playwright/test';
 import { behaviorBases } from './coverage-bases';
 
@@ -8,6 +9,7 @@ for (const base of behaviorBases) {
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(base);
+    await createWorkspace(page);
     await page
       .getByRole('button', { name: 'Expand media', exact: true })
       .click();
@@ -41,7 +43,7 @@ for (const base of behaviorBases) {
       .toBe(savedWidth);
     const second = await context.newPage();
     try {
-      await second.goto(base);
+      await second.goto(page.url());
       await page
         .getByRole('button', { name: 'Collapse media', exact: true })
         .click();
@@ -111,6 +113,7 @@ for (const input of ['mouse', 'touch'] as const) {
             { interfaceSize },
           );
           await page.goto(base);
+          await createWorkspace(page);
           for (const [name, axis, direction, field] of [
             ['Resize media library', 'width', 1, 'mediaWidth'],
             ['Resize timeline', 'height', -1, 'timelineHeight'],

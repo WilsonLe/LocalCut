@@ -74,8 +74,9 @@ for (const base of behaviorBases) {
         await editor.dispose();
       }
     }, base);
-    await page.getByRole('main', { name: 'Video editor', exact: true }).focus();
-    await page.keyboard.press('ControlOrMeta+o');
+    await page
+      .getByRole('button', { name: 'Refresh projects', exact: true })
+      .click();
     await page
       .getByRole('main', { name: 'Projects', exact: true })
       .getByRole('button', { name: /^Overlap menu/ })

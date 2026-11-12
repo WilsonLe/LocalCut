@@ -9,6 +9,11 @@ Use the [current preference index](current-preferences.md) to find relevant cont
 - Research sound effects deeply and build a library for LocalCut. The user requested research and implementation together; the [library contract](sound-effects.md) records the resulting source and implementation decisions.
 - Expand the library with more sound effects and descriptive tags so an external agent can easily search for the sounds it needs. Keep agent discovery/import guidance alongside the shared library contract.
 
+## Workspace paths and root project list — 13 November 2026
+
+- Embed the workspace identity in the URL path. Opening the app root shows the saved workspace/project list, including after editing another project; do not automatically reopen the recent project.
+- Use the existing project list and editor. Preserve local project data, deep-link reloads, browser Back/Forward, both hosting bases and legacy project links. See [workspace navigation](workspace.md#project-navigation) and [static hosting](../DEPLOY.md#self-hosting).
+
 ## Asset content without indexing controls — 12 November 2026
 
 - Do not expose “index”, Index buttons, indexing progress or result summaries in the asset actions menu or viewer. This supersedes the earlier indexing-control request below.

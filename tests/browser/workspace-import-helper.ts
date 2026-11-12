@@ -28,15 +28,16 @@ export async function closeMediaImportAndPlace(page: Page) {
   await closeMediaImport(page);
   const engine = await page.evaluateHandle(async () => {
     const { createEditor } = (await import(
-      location.pathname + 'editor.js'
+      new URL(
+        'editor.js',
+        document.querySelector<HTMLLinkElement>('link[rel=manifest]')!.href,
+      ).href
     )) as { createEditor(): Promise<Editor> };
     return createEditor();
   });
   try {
     const imported = await engine.evaluate(async (engine, names) => {
-      const id = decodeURIComponent(
-        location.hash.match(/^#\/project\/([^?]+)/)![1]!,
-      );
+      const id = decodeURIComponent(location.pathname.split('/workspace/')[1]!);
       const entries = (await engine.library.forProject(id).list()).entries;
       return names.map((name) => {
         const entry = entries.find(

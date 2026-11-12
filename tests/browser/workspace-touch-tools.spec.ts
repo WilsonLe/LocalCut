@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-project-helper';
 import { behaviorBases } from './coverage-bases';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
@@ -48,7 +49,7 @@ for (const base of behaviorBases) {
         await editor.dispose();
       }
     }, base);
-    await page.goto(`${base}#/project/${id}`);
+    await navigateWorkspace(page, `${base}workspace/${id}`);
     const addText = page.getByRole('button', { name: 'Add text', exact: true });
     // Hold an existing tooltip-wrapped action without opening its dialog.
     await hold(page, addText, 'Add text');

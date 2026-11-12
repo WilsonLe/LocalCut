@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-project-helper';
 import { behaviorBases } from './coverage-bases';
 import { test, expect } from '@playwright/test';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
@@ -18,8 +19,9 @@ for (const base of behaviorBases) {
       name: 'Video editor',
       exact: true,
     });
-    await workspace.focus();
-    await page.keyboard.press('n');
+    await page
+      .getByRole('button', { name: 'New project', exact: true })
+      .click();
     const create = page.getByRole('dialog', {
       name: 'New project',
       exact: true,
@@ -553,7 +555,7 @@ for (const base of behaviorBases) {
         await editor.dispose();
       }
     }, base);
-    await page.goto(`${base}#/project/${ids.a}`);
+    await navigateWorkspace(page, `${base}workspace/${ids.a}`);
     await page
       .getByRole('button', { name: 'Expand media', exact: true })
       .click();
@@ -702,7 +704,7 @@ for (const base of behaviorBases) {
         await editor.dispose();
       }
     }, base);
-    await page.goto(`${base}#/project/${ids.a}`);
+    await navigateWorkspace(page, `${base}workspace/${ids.a}`);
     await page
       .getByRole('button', { name: 'Expand media', exact: true })
       .click();

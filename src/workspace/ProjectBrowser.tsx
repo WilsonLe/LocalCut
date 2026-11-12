@@ -103,7 +103,7 @@ export default function ProjectBrowser({
       aria-busy={busy || refreshing || !!changing}
     >
       <div className="project-browser-inner">
-        {!embedded && (
+        {!embedded && currentProjectId && (
           <Button
             variant="ghost"
             className="project-browser-back"

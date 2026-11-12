@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { behaviorBases } from './coverage-bases';
 import { closeMediaImport } from './workspace-import-helper';
 import { openVersions } from './workspace-settings-helper';
+import { createWorkspace, navigateWorkspace } from './workspace-project-helper';
 
 async function openSounds(page: Page) {
   const expand = page.getByRole('button', {
@@ -31,6 +32,7 @@ for (const base of behaviorBases) {
     const requests: string[] = [];
     page.on('request', (request) => requests.push(request.url()));
     await page.goto(base);
+    await createWorkspace(page);
     await expect(
       page.getByRole('main', { name: 'Video editor', exact: true }),
     ).toBeVisible();
@@ -194,7 +196,7 @@ for (const base of behaviorBases) {
         | undefined;
       try {
         const projectId = decodeURIComponent(
-          location.hash.match(/^#\/project\/([^?]+)/)![1]!,
+          location.pathname.split('/').at(-1)!,
         );
         const project = await editor.projects.snapshot(projectId);
         const clip = project.tracks.flatMap((track) => track.clips)[0]!;
@@ -282,6 +284,7 @@ for (const base of behaviorBases) {
         : route.continue(),
     );
     await page.goto(base);
+    await createWorkspace(page);
     await expect(
       page.getByRole('main', { name: 'Video editor', exact: true }),
     ).toBeVisible();
@@ -325,7 +328,7 @@ for (const base of behaviorBases) {
         await editor.dispose();
       }
     }, base);
-    await page.goto(`${base}#/project/${ids[0]}`);
+    await page.goto(`${base}workspace/${ids[0]}`);
     const origin = await openSounds(page);
     await origin.getByLabel('Search sound effects').fill('deep whoosh');
     let release!: () => void, arrived!: () => void;
@@ -345,9 +348,7 @@ for (const base of behaviorBases) {
         .getByRole('button', { name: 'Add Deep whoosh to Media', exact: true })
         .click();
       await reached;
-      await page.evaluate((id) => {
-        location.hash = '#/project/' + id;
-      }, ids[1]);
+      await navigateWorkspace(page, `${base}workspace/${ids[1]}`);
       await expect(origin).not.toBeVisible();
       await expect(page).toHaveURL(new RegExp(ids[1]!));
     } finally {

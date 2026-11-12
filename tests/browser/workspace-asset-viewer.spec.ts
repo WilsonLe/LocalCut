@@ -31,8 +31,9 @@ for (const base of behaviorBases) {
   }, info) => {
     page.setDefaultTimeout(15000);
     await page.goto(base);
-    await page.getByRole('main', { name: 'Video editor', exact: true }).focus();
-    await page.keyboard.press('n');
+    await page
+      .getByRole('button', { name: 'New project', exact: true })
+      .click();
     await page
       .getByLabel('Project name', { exact: true })
       .fill('Source previews');
@@ -76,7 +77,9 @@ for (const base of behaviorBases) {
         )) as typeof import('../../src/editor');
         const editor = await createEditor();
         try {
-          const id = decodeURIComponent(location.hash.split('/')[2]!);
+          const id = decodeURIComponent(
+            location.pathname.split('/workspace/')[1]!,
+          );
           return await editor.projects.snapshot(id);
         } finally {
           await editor.dispose();
@@ -109,10 +112,10 @@ for (const base of behaviorBases) {
     // optional dialog must not outlive its route or reopen after it resolves.
     const catalogAndReturn = async () => {
       await page.evaluate(() => {
-        const id = location.hash.split('/')[2]!;
+        const id = location.pathname.split('/workspace/')[1]!;
         location.hash = `/projects?project=${id}`;
       });
-      await expect(page).toHaveURL(/#\/projects\?project=/);
+      await expect(page).toHaveURL(/\/\?project=/);
       await page
         .getByRole('button', { name: 'Back to editor', exact: true })
         .click();
@@ -140,7 +143,7 @@ for (const base of behaviorBases) {
       await card('Landscape.png').click();
       await started;
       await page.goBack();
-      await expect(page).toHaveURL(/#\/projects\?project=/);
+      await expect(page).toHaveURL(/\/\?project=/);
       await expect(dialog('Landscape.png')).toHaveCount(0);
       await expect(page.getByText(/Opening landscape.png/)).toHaveCount(0);
     } finally {
@@ -227,7 +230,7 @@ for (const base of behaviorBases) {
     const audioHandle = await navigatingAudio.elementHandle();
     const navigatingUrl = await navigatingAudio.getAttribute('src');
     await page.goBack();
-    await expect(page).toHaveURL(/#\/projects\?project=/);
+    await expect(page).toHaveURL(/\/\?project=/);
     await expect(dialog('tone.wav')).toHaveCount(0);
     await expect.poll(() => revoked.includes(navigatingUrl!)).toBe(true);
     expect(
@@ -303,7 +306,7 @@ for (const base of behaviorBases) {
       )) as typeof import('../../src/editor');
       const editor = await createEditor();
       try {
-        const id = location.hash.split('/')[2]!;
+        const id = location.pathname.split('/workspace/')[1]!;
         const entries = (await editor.library.forProject(id).list()).entries;
         const values = [];
         for (const name of ['Landscape.png', 'tone.wav', 'green.webm']) {

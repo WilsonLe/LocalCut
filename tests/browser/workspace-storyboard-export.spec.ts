@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-project-helper';
 import { behaviorBases } from './coverage-bases';
 import { test, expect } from '@playwright/test';
 
@@ -324,7 +325,7 @@ for (const base of behaviorBases) {
     });
     expect(remote).toEqual([]);
     await page.unroute('**/storyboard/**/fonts/**');
-    await page.goto(`${base}#/project/${result.id}`);
+    await navigateWorkspace(page, `${base}workspace/${result.id}`);
     await page.getByRole('tab', { name: 'Storyboard', exact: true }).click();
     await expect(page.locator('.storyboard canvas.interactive')).toBeVisible();
     await dismissNotifications(page);

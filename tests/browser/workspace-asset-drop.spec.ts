@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-project-helper';
 import { behaviorBases } from './coverage-bases';
 import { test, expect, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
@@ -217,7 +218,7 @@ for (const base of behaviorBases) {
     const data = await transfer(page, [
       { name: 'blocked.png', type: 'image/png', bytes: await png(page) },
     ]);
-    await page.goto(base + '#/project/missing');
+    await navigateWorkspace(page, base + 'workspace/missing');
     await workspace.dispatchEvent('dragenter', { dataTransfer: data });
     await workspace.dispatchEvent('dragover', { dataTransfer: data });
     await expect(page.locator('.asset-drop-overlay')).toHaveCount(0);
@@ -235,7 +236,7 @@ for (const base of behaviorBases) {
     await expect(
       page.getByRole('dialog', { name: 'Import media', exact: true }),
     ).toHaveCount(0);
-    await expect(page).toHaveURL(base + '#/project/missing');
+    await expect(page).toHaveURL(base + 'workspace/missing');
     await text.dispose();
     await data.dispose();
   });
@@ -354,7 +355,7 @@ for (const base of behaviorBases) {
       await expect(
         dialog.getByRole('button', { name: 'Close', exact: true }),
       ).toBeVisible();
-      const sourceId = new URL(page.url()).hash.split('/')[2]!;
+      const sourceId = new URL(page.url()).pathname.split('/workspace/')[1]!;
       const other = await context.newPage();
       let destinationId: string | undefined;
       try {
@@ -457,7 +458,7 @@ for (const base of behaviorBases) {
               ).importObserver;
               return (await engine.projects.create('Other project')).id;
             });
-            await page.goto(base + '#/project/' + destinationId);
+            await navigateWorkspace(page, base + 'workspace/' + destinationId);
             await page
               .getByRole('button', { name: 'Edit', exact: true })
               .click();
@@ -541,7 +542,7 @@ for (const base of behaviorBases) {
               ).entries.filter((entry) => entry.assetId).length;
             }, destinationId),
           ).toBe(dismissWith === 'X' ? 1 : 0);
-          await page.goto(base + '#/project/' + sourceId);
+          await navigateWorkspace(page, base + 'workspace/' + sourceId);
           await page.getByRole('button', { name: 'Edit', exact: true }).click();
           await expect(page.locator('.timeline-clip.image')).toHaveCount(0);
           await expect(page.locator('.timeline-clip.text')).toHaveCount(1);

@@ -79,7 +79,7 @@ export function workspaceTool(
   return {
     name: 'localcut_workspace',
     description:
-      'Before a workflow, read localcut-start through localcut_skills (action get), then load relevant skills on demand. Start here for project setup, including on an empty LocalCut screen. Read status/import progress, list local project summaries, create a project with optional dimensions/frame rate, or open a local project. import_files prepares the existing browser file input and attempts to open its picker: complete it using your browser file-upload action and authorized local paths. If your browser does not open a chooser from a tool call, click Import media to open it. Large files stream through the ordinary importer without base64. Supply expectedProjectId from status (null on an empty workspace). Finish or cancel an outstanding selection before requesting another. File selection can create an Untitled project when none is open; import does not place clips. Rediscover project editing tools after opening/creation/import. Create is not an idempotent edit batch: check status/list if its response is lost before creating again. No backend or built-in AI connection is required.',
+      'Before a workflow, read localcut-start through localcut_skills (action get), then load relevant skills on demand. Start here for project setup, including on an empty LocalCut screen. Read status/import progress, list local project summaries, create a project with optional dimensions/frame rate, or open a local project. import_files prepares the existing browser file input and attempts to open its picker: complete it using your browser file-upload action and authorized local paths. If your browser does not open a chooser from a tool call, use Workspace settings > Workspace > Import media to open it, including from the root project list. Large files stream through the ordinary importer without base64. Supply expectedProjectId from status (null on an empty workspace). Finish or cancel an outstanding selection before requesting another. File selection can create an Untitled project when none is open; import does not place clips. Rediscover project editing tools after opening/creation/import. Create is not an idempotent edit batch: check status/list if its response is lost before creating again. No backend or built-in AI connection is required.',
     inputSchema: z.toJSONSchema(workspaceSchema, { io: 'input' }),
     annotations: { readOnlyHint: false, untrustedContentHint: true },
     execute: async (input, options) => {
@@ -112,7 +112,7 @@ export function workspaceTool(
             inputLabel: 'Import media',
             multiple: true,
             guidance:
-              'Complete the browser file chooser with authorized paths. If no chooser opened, click Import media to open it. Then poll workspace status until imports finish and inspect the project. Finish or cancel this selection before requesting another. No file bytes have been imported by this call yet.',
+              'Complete the browser file chooser with authorized paths. If no chooser opened, use Workspace settings > Workspace > Import media to open it, including from the root project list. Then poll workspace status until imports finish and inspect the project. Finish or cancel this selection before requesting another. No file bytes have been imported by this call yet.',
           };
         }
         const editor = await host.getEditor();

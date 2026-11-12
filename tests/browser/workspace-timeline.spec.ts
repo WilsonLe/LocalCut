@@ -111,8 +111,9 @@ for (const base of behaviorBases) {
     const add = page.getByRole('button', { name: 'Add track', exact: true });
     await expect(add).toHaveCount(0);
     const main = page.getByRole('main', { name: 'Video editor', exact: true });
-    await main.focus();
-    await page.keyboard.press('n');
+    await page
+      .getByRole('button', { name: 'New project', exact: true })
+      .click();
     await page
       .getByLabel('Project name', { exact: true })
       .fill('Track controls');
@@ -339,8 +340,9 @@ for (const base of behaviorBases) {
       }),
     );
     const main = page.getByRole('main', { name: 'Video editor', exact: true });
-    await main.focus();
-    await page.keyboard.press('n');
+    await page
+      .getByRole('button', { name: 'New project', exact: true })
+      .click();
     await page.getByLabel('Project name', { exact: true }).fill('Media drag');
     await page
       .getByRole('button', { name: 'Create project', exact: true })
@@ -715,8 +717,9 @@ for (const base of behaviorBases) {
     await page.goto(base);
     const buffer = Buffer.from(await videoSource(page, base));
     const main = page.getByRole('main', { name: 'Video editor', exact: true });
-    await main.focus();
-    await page.keyboard.press('n');
+    await page
+      .getByRole('button', { name: 'New project', exact: true })
+      .click();
     await page.getByLabel('Project name', { exact: true }).fill('Timeline');
     await page
       .getByRole('button', { name: 'Create project', exact: true })

@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-project-helper';
 import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -88,7 +89,7 @@ for (const base of behaviorBases) {
         await editor.dispose();
       }
     }, base);
-    await page.goto(`${base}#/project/${id}`);
+    await navigateWorkspace(page, `${base}workspace/${id}`);
     const read = () => snapshot(page, base, id);
     const clip = page.locator('[data-clip-id="moving"]');
     const ghost = page.locator('.timeline-clip-move-placeholder');
@@ -478,7 +479,7 @@ for (const base of behaviorBases) {
         await editor.dispose();
       }
     }, base);
-    await page.goto(`${base}#/project/${id}`);
+    await navigateWorkspace(page, `${base}workspace/${id}`);
     const clip = page.locator('[data-clip-id="narrow"]');
     await clip.scrollIntoViewIfNeeded();
     const from = (await clip.boundingBox())!;

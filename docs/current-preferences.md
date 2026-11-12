@@ -2,6 +2,8 @@
 
 The [13 November sound-library request](user-preferences.md#sound-effects-library--13-november-2026) adds researched, reusable sound effects and asks for a larger, tagged collection that external agents can search easily. See the [library contract and source decisions](sound-effects.md).
 
+The [workspace URL decision](user-preferences.md#workspace-paths-and-root-project-list--13-november-2026) makes the app root the saved-project list and gives each editor a `/workspace/<id>` path. It supersedes recent-project auto-opening; see [workspace navigation](workspace.md#project-navigation).
+
 The [agent-provided speech decision](user-preferences.md#agent-provided-stt-and-tts--12-november-2026) removes bundled Whisper entirely. Skills request STT/TTS from the calling agent; saved transcript and caption data remain compatible. See [speech and captions](transcription.md).
 
 The [asset-content decision](user-preferences.md#asset-content-without-indexing-controls--12-november-2026) supersedes the earlier indexing-control request. Asset clicks open editable context/transcript and source-clip details; analysis stays internal with no user-facing Index controls.

@@ -166,9 +166,9 @@ Normal Chrome acceptance uses the deployed base once. Keep explicit fixture vari
 
 Run `pnpm test tests/unit/task-queue.test.ts tests/unit/task-cache.test.ts`, then the production `tests/browser/task-queue.spec.ts` and affected editor/UI scenarios. Queue persistence, cancellation and committed results remain independent of the removed agent runtime.
 
-## Project header and recent-project startup checks
+## Project header and workspace path checks
 
-Run `pnpm test tests/unit/recent-project.test.ts tests/unit/project-route.test.ts`, then `pnpm test:ui --grep 'project routing|project navigation'`. Bare startup remains inert; recent and explicit project routes restore authoritative local snapshots.
+Run `pnpm test tests/unit/project-route.test.ts`, then `pnpm test:ui --grep 'project routing|project navigation'`. The root shows the catalog; fresh empty startup stays inert and explicit workspace paths restore authoritative local snapshots. Use `LOCALCUT_TEST_BASES=both` for the route/deep-link hosting diagnostic.
 
 ## Storyboard checks
 

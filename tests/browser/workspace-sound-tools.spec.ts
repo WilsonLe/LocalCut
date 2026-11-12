@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Asset, Project } from '../../src/editor';
 import type { LibrarySound } from '../../src/core/sound-library';
 import { behaviorBases } from './coverage-bases';
+import { navigateWorkspace } from './workspace-project-helper';
 import {
   call,
   installHarness,
@@ -172,7 +173,7 @@ for (const base of behaviorBases) {
     const importing = call(page, 'import_media', input);
     try {
       await reached;
-      await page.goto(`${base}#/projects`);
+      await navigateWorkspace(page, base);
       await workspaceReady(page);
     } finally {
       release();

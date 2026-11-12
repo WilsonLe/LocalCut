@@ -106,8 +106,14 @@ for (const base of behaviorBases) {
       page.getByRole('button', { name: 'Commands', exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole('button', { name: 'Open project', exact: true }),
+      page.getByRole('main', { name: 'Projects', exact: true }),
     ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'New project', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('main', { name: 'Video editor', exact: true }),
+    ).toHaveCount(0);
     expect(errors).toEqual([]);
     expect(workers).toEqual([]);
     expect(dialogs).toEqual([]);
@@ -121,8 +127,15 @@ for (const base of behaviorBases) {
       await page.evaluate(async () => ({
         dbs: await indexedDB.databases(),
         storage: Object.keys(localStorage),
+        catalog: JSON.parse(
+          localStorage.getItem('localcut.project-catalog.v1') ?? 'null',
+        ),
       })),
-    ).toEqual({ dbs: [], storage: [] });
+    ).toEqual({
+      dbs: [],
+      storage: ['localcut.project-catalog.v1'],
+      catalog: { version: 1, projects: [] },
+    });
   });
   test(`production commands/persistence/frames/export ${base}`, async ({
     page,

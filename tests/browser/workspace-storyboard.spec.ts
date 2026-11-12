@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-project-helper';
 import { behaviorBases } from './coverage-bases';
 import { openVersions } from './workspace-settings-helper';
 import { test, expect } from '@playwright/test';
@@ -74,7 +75,7 @@ for (const base of behaviorBases) {
         await editor.dispose();
       }
     }, base);
-    await page.goto(`${base}#/project/${id}`);
+    await navigateWorkspace(page, `${base}workspace/${id}`);
     await page.getByRole('tab', { name: 'Storyboard', exact: true }).click();
     const canvas = page.locator('.storyboard canvas.interactive');
     await expect(canvas).toBeVisible();
@@ -236,7 +237,7 @@ for (const base of behaviorBases) {
         await editor.dispose();
       }
     }, base);
-    await page.goto(`${base}#/project/${id}`);
+    await navigateWorkspace(page, `${base}workspace/${id}`);
     const editorTab = page.getByRole('tab', { name: 'Editor', exact: true });
     const storyboardTab = page.getByRole('tab', {
       name: 'Storyboard',
@@ -549,7 +550,7 @@ for (const base of behaviorBases) {
     await page.screenshot({
       path: testInfo.outputPath('storyboard-mobile.png'),
     });
-    await page.goto(`${base}#/project/${result.otherId}`);
+    await navigateWorkspace(page, `${base}workspace/${result.otherId}`);
     await storyboardTab.click();
     await expect(canvas).toBeVisible();
     expect(

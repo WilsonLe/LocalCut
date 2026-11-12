@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-project-helper';
 import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 
@@ -31,7 +32,7 @@ for (const base of behaviorBases) {
       await route.continue();
     });
     try {
-      await page.goto(`${base}#/project/${id}`);
+      await navigateWorkspace(page, `${base}workspace/${id}`);
       const storyboard = page.getByRole('tab', {
         name: 'Storyboard',
         exact: true,
@@ -126,7 +127,7 @@ for (const base of behaviorBases) {
       }
     }, base);
     await page
-      .getByRole('button', { name: 'Open project', exact: true })
+      .getByRole('button', { name: 'Refresh projects', exact: true })
       .click();
     const browser = page.getByRole('main', { name: 'Projects', exact: true });
     await expect(
@@ -164,9 +165,6 @@ for (const base of behaviorBases) {
       await route.continue();
     });
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await page
-      .getByRole('button', { name: 'Open project', exact: true })
-      .click();
     await expect(
       browser.getByRole('button', { name: /^Removed film/ }),
     ).toBeEnabled();
@@ -200,12 +198,21 @@ for (const base of behaviorBases) {
     await expect(
       page.getByRole('button', { name: 'Open project', exact: true }),
     ).toContainText('Keep film');
-    expect(new URL(page.url()).hash).toContain(ids.keep);
+    expect(new URL(page.url()).pathname).toContain(ids.keep);
   });
 
   test(`loading skeletons and cached failure retry remain usable ${base}`, async ({
     page,
   }, testInfo) => {
+    await page.goto(base);
+    await page.evaluate(async (base) => {
+      const { createEditor } = await import(`${base}editor.js`);
+      const editor = await createEditor();
+      await editor.dispose();
+    }, base);
+    await page.evaluate(() =>
+      localStorage.removeItem('localcut.project-catalog.v1'),
+    );
     let release!: () => void;
     const held = new Promise<void>((resolve) => {
       release = resolve;
@@ -214,7 +221,7 @@ for (const base of behaviorBases) {
       await held;
       await route.continue();
     });
-    await page.goto(`${base}#/projects`);
+    await page.goto(base);
     const browser = page.getByRole('main', { name: 'Projects', exact: true });
     const skeleton = browser.locator('.project-list-skeleton');
     await expect(skeleton).toBeVisible();
@@ -305,7 +312,7 @@ for (const base of behaviorBases) {
       }
     }, base);
     await page
-      .getByRole('button', { name: 'Open project', exact: true })
+      .getByRole('button', { name: 'Refresh projects', exact: true })
       .click();
     const browser = page.getByRole('main', { name: 'Projects', exact: true });
     await expect(
@@ -332,7 +339,7 @@ for (const base of behaviorBases) {
       await browser
         .getByRole('button', { name: /^Second cached film/ })
         .click();
-      await expect(page).toHaveURL(new RegExp(`/project/${ids.second}$`));
+      await expect(page).toHaveURL(new RegExp(`/workspace/${ids.second}$`));
       release();
       await expect(
         page.getByRole('button', { name: 'Open project', exact: true }),
@@ -348,6 +355,16 @@ for (const base of behaviorBases) {
   test(`media trigger retains keyboard focus when its tooltip loads ${base}`, async ({
     page,
   }) => {
+    await page.goto(base);
+    const id = await page.evaluate(async (base) => {
+      const { createEditor } = await import(`${base}editor.js`);
+      const editor = await createEditor();
+      try {
+        return (await editor.projects.create('Media focus')).id;
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
     let release!: () => void;
     const held = new Promise<void>((resolve) => {
       release = resolve;
@@ -356,7 +373,9 @@ for (const base of behaviorBases) {
       await held;
       await route.continue();
     });
-    await page.goto(base, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${base}workspace/${id}`, {
+      waitUntil: 'domcontentloaded',
+    });
     const trigger = page.getByRole('button', {
       name: 'Expand media',
       exact: true,

@@ -1,3 +1,5 @@
+import { createWorkspace } from './workspace-project-helper';
+import { openWorkspaceGroup } from './workspace-settings-helper';
 import { behaviorBases } from './coverage-bases';
 import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { dragPlayhead } from './workspace-playhead-helper';
@@ -40,9 +42,10 @@ async function aligned(page: Page) {
 
 async function prepareProject(page: Page, base: string, navigate = true) {
   if (navigate) await page.goto(base);
-  await page
-    .getByRole('main', { name: 'Video editor', exact: true })
-    .press('n');
+  const group = await openWorkspaceGroup(page, 'Project');
+  await group
+    .getByRole('menuitem', { name: 'New project', exact: true })
+    .click();
   await page.getByLabel('Project name', { exact: true }).fill('Sized project');
   await page
     .getByRole('button', { name: 'Create project', exact: true })
@@ -77,6 +80,7 @@ for (const base of behaviorBases) {
         await page.emulateMedia({ reducedMotion: 'reduce' });
         await page.setViewportSize({ width: 1440, height: 900 });
         await page.goto(base);
+        await createWorkspace(page);
         // A legacy appearance record retains its existing choices.
         await page.evaluate(
           (key) =>
@@ -92,7 +96,7 @@ for (const base of behaviorBases) {
           'default',
         );
         const other = await context.newPage();
-        await other.goto(base);
+        await other.goto(page.url());
         for (const [size, label, scale] of sizes) {
           await page.setViewportSize({ width: 1440, height: 900 });
           await openAppearance(page);
