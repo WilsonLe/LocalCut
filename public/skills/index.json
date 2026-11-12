@@ -4,67 +4,67 @@
     {
       "name": "localcut-asset-clips",
       "description": "Create and edit source clips inside LocalCut assets, with a source range, preview, context and transcript for each clip.",
-      "sha256": "02240cf6761bf0cff24d19652589d6db3484072a21ee85181313f1e12c7fb8aa"
+      "sha256": "d4a44b340280278c3254f8404acc0c542ae421211855cebeacc37bd61a1979c4"
     },
     {
       "name": "localcut-audio-editing",
       "description": "Restore and mix dialogue, music and effects in LocalCut using reversible clip processing, shared timing and honest listening evidence.",
-      "sha256": "a30649c399a1ed609334a8a29b32d6a9d640148748a3cd558bd52bcd71866b4d"
+      "sha256": "832e02d9007322705f765fb39f5c7b478bca51f4f36815fadae6955a9c3d6179"
     },
     {
       "name": "localcut-captions",
       "description": "Transcribe local project audio, normalize STT sound-alike errors with an agent LLM pass, and create or revise source-linked LocalCut captions without inventing speech.",
-      "sha256": "93b9852075a31e68158a6cf6ca55ebf8376e6a4185e779dba3f41a4292bc6820"
+      "sha256": "c3906574f454b6885528764335249ebcc2ff61ee74f320e359cc99d4ea380ac2"
     },
     {
       "name": "localcut-export-review",
       "description": "Review and deliver the actual LocalCut export, preserving revision identity, technical versus visual and listening evidence, backups and job cleanup.",
-      "sha256": "6ca08148ea58caecbc3c590394f7780ee9fb8da72919c6b621bbe90e391dbdda"
+      "sha256": "d1c6ab8601c8bad547bc777d50d4ca4b92b0ac5f750483147d1d4ac4858d3db4"
     },
     {
       "name": "localcut-image-preparation",
       "description": "Select and prepare still images or food/product shots for LocalCut while preserving originals, truthful details, composition and explicit generation boundaries.",
-      "sha256": "29e28bcb7dac02fd3259a67f98625a2a97e7cc677f5a9d726823411afbd66a73"
+      "sha256": "41e06b70b5b48c6485fc41bf2ec26119819af9b271d68d1962e31d18e1ffc6a5"
     },
     {
       "name": "localcut-motion-design",
       "description": "Create purposeful LocalCut clip and text animation with canonical keyframes, compositing, masks and review at actual timeline times.",
-      "sha256": "bf928993d8e2da023c2c9796d8d91a1bd6e677ca6e590763fba10d1b93cd41a0"
+      "sha256": "492a530eccc56e365610b118ca5c9253f3713aa315b1149dcd64faa3b8812acc"
     },
     {
       "name": "localcut-music",
       "description": "Compose or arrange original music and timed sound cues for LocalCut, using its isolated JavaScript workspace or imported audio with one shared edit clock.",
-      "sha256": "6fa2e1b75dc9b3de0e179a4dde1ee6be1ff504ec42862fa20cba8f530357973a"
+      "sha256": "9ea90fa7cb66df6d187be7dcafa159c22c7a214d874503cb93022ce0fe2f5841"
     },
     {
       "name": "localcut-narration",
       "description": "Prepare, import and time voiceover takes in LocalCut while preserving scripts, pronunciation, measured duration and generation capability limits.",
-      "sha256": "d6d7e819e8b8a43a74a00915f2cac374b50566ce929313aaec9a047dfe790341"
+      "sha256": "273492a559984d240ab7c2c5f8ad58a796594eb05e3134f2c9a1b12b55fd0dc3"
     },
     {
       "name": "localcut-reference-analysis",
       "description": "Study supplied video, audio or image references and translate observed pacing, framing, type and sound into an original LocalCut edit.",
-      "sha256": "fa1b4436d16eb3608a4a598479dcab0b84834ccc6ff8f939b3023cbf00a6b123"
+      "sha256": "a023d47cfc4fd4b319ef81f8380a523f7e8a507558a7564ea834e7ef376c9b7d"
     },
     {
       "name": "localcut-start",
-      "description": "Start an agent-led LocalCut project, discover editing workflows and use browser tools with correct revisions, imports and job lifetimes.",
-      "sha256": "a97a5aa395ff750f0372f4a5ba73ec9b11db7de0ef165d1f3adfdd56710a5f5a"
+      "description": "Use this skill when starting an agent-led LocalCut project or choosing its browser. Prefer the built-in browser, discover editing workflows and use correct revisions, imports and job lifetimes.",
+      "sha256": "11f62d141f386e85c5b125b4928090eba9c33fb9ab44a5ad43804604b1b18d9f"
     },
     {
       "name": "localcut-storyboards",
       "description": "Plan visual beats, arrange a LocalCut storyboard and export reusable PNG, SVG or editable scene artwork through the shared project.",
-      "sha256": "e8c57cda3edd7a0e51e6c2e03c84bbddf1832e4edb9c06a812bf421f560505b2"
+      "sha256": "c9f24be7e59cd3332425038894bb86ca6c3eb385a944ea4ec12ba55b4698e58b"
     },
     {
       "name": "localcut-typography",
       "description": "Choose bundled LocalCut fonts and design legible titles, captions and kinetic text for the actual language, canvas and delivery size.",
-      "sha256": "9b5ac0294290f9501e75ec677e92cb4e6998fb3b39d3b2511b351e979469b95a"
+      "sha256": "63b6ffa093d02efb7d17f06f034e88835e7482e6af1daa889d191d96acd2096d"
     },
     {
       "name": "localcut-video-editing",
       "description": "Assemble or revise footage, images and sound into a coherent LocalCut timeline, with source inspection, continuity, timing and final review.",
-      "sha256": "95a43b07cf3beb570653e14c1d3da1001419b3e14accc18cd2f058c69322770a"
+      "sha256": "ce92d120fb4fab36b42021e401e56e8837d7c568269fa1be2ad9569addc5fa04"
     }
   ]
 }

@@ -1,6 +1,6 @@
 ---
 name: localcut-start
-description: Start an agent-led LocalCut project, discover editing workflows and use browser tools with correct revisions, imports and job lifetimes.
+description: Use this skill when starting an agent-led LocalCut project or choosing its browser. Prefer the built-in browser, discover editing workflows and use correct revisions, imports and job lifetimes.
 license: MIT
 metadata:
   author: LocalCut
@@ -8,6 +8,8 @@ metadata:
 ---
 
 # Work in LocalCut
+
+Use the agent host's built-in browser first. Open Chrome or another external browser only when the user explicitly requests it, the built-in browser is unavailable, or a required capability fails there. State the fallback reason before switching. Missing WebMCP alone is not a reason to switch when the ordinary UI can complete the task. Before switching, back up existing work including originals, restore it in the destination and verify the intended project and media. Browser profiles do not share local data; if transfer is blocked, keep the original tab intact and report it.
 
 LocalCut is a browser video editor. Use its WebMCP site tools in the browser tab that holds the user's project. No plugin installation, account, API key, companion server or built-in assistant is needed. If your browser does not expose site tools, use the ordinary editor UI and state that limitation.
 

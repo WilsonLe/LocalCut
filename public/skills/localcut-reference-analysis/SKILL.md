@@ -9,6 +9,8 @@ metadata:
 
 # Learn from a reference
 
+Use the agent host's built-in browser first. Open Chrome or another external browser only when the user explicitly requests it, the built-in browser is unavailable, or a required capability fails there. State the fallback reason before switching. Missing WebMCP alone is not a reason to switch when the ordinary UI can complete the task. Before switching, back up existing work including originals, restore it in the destination and verify the intended project and media. Browser profiles do not share local data; if transfer is blocked, keep the original tab intact and report it.
+
 Resolve the exact user-supplied file, URL and time range. Use available browser playback, frames and audio; import an authorized local reference through LocalCut's browser file chooser when useful. LocalCut does not download a remote video from a URL or bypass site access. If your host has a suitable authorized retrieval capability, use it separately and retain provenance. A thumbnail, transcript or description only establishes that surface.
 
 Record what you actually watched, saw or heard and which ranges remain unavailable. Do not claim to have inspected inaccessible media. A transcript cannot establish camera movement, and a silent frame cannot establish music. Continue independent editing with a stated assumption if the missing detail is optional.

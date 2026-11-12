@@ -9,6 +9,8 @@ metadata:
 
 # Prepare images for a LocalCut edit
 
+Use the agent host's built-in browser first. Open Chrome or another external browser only when the user explicitly requests it, the built-in browser is unavailable, or a required capability fails there. State the fallback reason before switching. Missing WebMCP alone is not a reason to switch when the ordinary UI can complete the task. Before switching, back up existing work including originals, restore it in the destination and verify the intended project and media. Browser profiles do not share local data; if transfer is blocked, keep the original tab intact and report it.
+
 Inspect the actual source at useful detail before changing it. Establish its output role, aspect ratio, composition, adjacent-shot continuity, branding and whether generative additions/removals were requested. Preserve originals and treat a generated revision as a new asset.
 
 For ordinary placement, cropping through transforms, color treatment, masks and compositing, use LocalCut's actual edit schemas. Inspect the Media asset, then place the image at the intended duration on the existing timeline. Use storyboard artwork when suitable. LocalCut does not include a generative image-editing service; image-generation or object-replacement work requires an available authorized host tool, not an invented WebMCP operation.

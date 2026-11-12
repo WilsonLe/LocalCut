@@ -9,6 +9,8 @@ metadata:
 
 # Review and deliver a LocalCut cut
 
+Use the agent host's built-in browser first. Open Chrome or another external browser only when the user explicitly requests it, the built-in browser is unavailable, or a required capability fails there. State the fallback reason before switching. Missing WebMCP alone is not a reason to switch when the ordinary UI can complete the task. Before switching, back up existing work including originals, restore it in the destination and verify the intended project and media. Browser profiles do not share local data; if transfer is blocked, keep the original tab intact and report it.
+
 Read the brief and inspect the current project. Check duration, aspect ratio/frame rate, language, required subjects/beats, captions, soundtrack and intentional gaps. Identify unresolved placeholders or missing originals. Preserve accepted edits and prior masters.
 
 Review a rough cut before expensive export. Use `localcut_preview_frame` at the opening, closing, transitions, keyframe extrema, title/caption holds and known difficult ranges. Inspect each returned PNG rather than treating a successful job as visual approval. Play affected ranges when possible; stills cannot establish smooth motion, sync or pleasing sound. Record timestamped issues and fix through canonical revision-aware edits.

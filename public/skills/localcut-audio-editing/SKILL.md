@@ -9,6 +9,8 @@ metadata:
 
 # Edit and mix audio in LocalCut
 
+Use the agent host's built-in browser first. Open Chrome or another external browser only when the user explicitly requests it, the built-in browser is unavailable, or a required capability fails there. State the fallback reason before switching. Missing WebMCP alone is not a reason to switch when the ordinary UI can complete the task. Before switching, back up existing work including originals, restore it in the destination and verify the intended project and media. Browser profiles do not share local data; if transfer is blocked, keep the original tab intact and report it.
+
 Inspect the intended project and audio assets. Establish the audible problem, language, duration, channel intent and any supplied loudness/peak target. Listen before choosing processing when playback is available; waveforms and transcripts cannot prove intelligibility or a clean splice.
 
 LocalCut's timeline owns placement. Use discovered canonical edit schemas for gain, fades, mute, EQ/denoise, audio separation, speed and pitch preservation. Do not assume a full DAW, plugin suite, loudness meter or arbitrary filter is exposed. For unavailable treatment, state the limit and use a separately available authorized audio tool only if needed; import its new processed stem without replacing the original.
