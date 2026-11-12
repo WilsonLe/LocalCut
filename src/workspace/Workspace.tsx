@@ -55,6 +55,14 @@ const ErrorDetailsDialog = onDemandDialog(
   () => import('./ErrorDetailsDialog'),
   ({ onClose }) => ({ title: 'Error details', onClose }),
 );
+const BrowserAgentDialog = onDemandDialog(
+  () => import('./BrowserAgentDialog'),
+  ({ onClose }) => ({
+    title: 'Browser agent',
+    onClose,
+    finalFocus: () => document.getElementById('workspace-settings-trigger'),
+  }),
+);
 import { NotificationControl } from './NotificationControl';
 const WorkspacePanels = lazy(() =>
   import('./WorkspacePanels').then(({ WorkspacePanels }) => ({
@@ -212,6 +220,7 @@ export function Workspace() {
     projectId?: string;
   } | null>(null);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [browserAgentOpen, setBrowserAgentOpen] = useState(false);
   const closeAppearance = () => {
     setAppearanceOpen(false);
     document.getElementById('workspace-settings-trigger')?.focus();
@@ -1399,6 +1408,7 @@ export function Workspace() {
             onAppearance={() => setAppearanceOpen(true)}
             onShortcuts={() => setDialog('shortcuts')}
             onCommands={showCommands}
+            onBrowserAgent={() => setBrowserAgentOpen(true)}
           />
         </Suspense>
       ) : (
@@ -2079,6 +2089,9 @@ export function Workspace() {
             onClose={() => setErrorReport(null)}
           />
         </Suspense>
+      )}
+      {browserAgentOpen && (
+        <BrowserAgentDialog onClose={() => setBrowserAgentOpen(false)} />
       )}
       <Toaster
         theme={dark ? 'dark' : 'light'}

@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import { useSyncExternalStore, type ReactNode } from 'react';
 import { Menu } from '@base-ui/react/menu';
 import { Check, ChevronRight, Settings2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { browserAgentConnection, connectionLabel } from './webmcp/connection';
 
 export interface WorkspaceMenuProps {
   open: boolean;
@@ -23,6 +24,7 @@ export interface WorkspaceMenuProps {
   onAppearance: () => void;
   onShortcuts: () => void;
   onCommands: () => void;
+  onBrowserAgent: () => void;
   onProjectExport: () => void;
   onProjectImport: () => void;
   onWorkspaceExport: () => void;
@@ -92,11 +94,17 @@ export function WorkspaceMenu({
   onAppearance,
   onShortcuts,
   onCommands,
+  onBrowserAgent,
   onProjectExport,
   onProjectImport,
   onWorkspaceExport,
   onWorkspaceImport,
 }: WorkspaceMenuProps) {
+  const connection = useSyncExternalStore(
+    browserAgentConnection.subscribe,
+    browserAgentConnection.getSnapshot,
+  );
+  const label = connectionLabel(connection);
   return (
     <Menu.Root
       open={open}
@@ -231,6 +239,18 @@ export function WorkspaceMenu({
             </Menu.Item>
             <Menu.Item className={itemClass} onClick={onAppearance}>
               Appearance
+            </Menu.Item>
+            <Menu.Item className={itemClass} onClick={onBrowserAgent}>
+              <span className="flex-1">Browser agent</span>
+              <span className="text-xs text-muted-foreground">
+                {label === 'Tools ready'
+                  ? 'Ready'
+                  : label === 'Refreshing…'
+                    ? 'Refreshing…'
+                    : label === 'Registration failed'
+                      ? 'Error'
+                      : 'Unavailable'}
+              </span>
             </Menu.Item>
           </Menu.Popup>
         </Menu.Positioner>

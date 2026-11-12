@@ -16,7 +16,10 @@ export async function settingsJourney(page: Page, base: string) {
     });
     await expect(menu).toBeVisible();
     await expect(settings).toHaveAttribute('aria-expanded', 'true');
-    await expect(menu.getByRole('menuitem')).toHaveCount(7);
+    await expect(menu.getByRole('menuitem')).toHaveCount(8);
+    await expect(
+      menu.getByRole('menuitem', { name: /^Browser agent/ }),
+    ).toHaveCount(1);
     await expect(
       page.getByRole('menuitem', {
         name: 'Download project backup',
@@ -76,6 +79,21 @@ export async function settingsJourney(page: Page, base: string) {
     await expect(menu).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(menu).not.toBeVisible();
+    await expect(settings).toBeFocused();
+
+    await settings.press('ArrowDown');
+    await page.keyboard.press('End');
+    await expect(
+      menu.getByRole('menuitem', { name: /^Browser agent/ }),
+    ).toBeFocused();
+    await page.keyboard.press('Enter');
+    const browserAgent = page.getByRole('dialog', {
+      name: 'Browser agent',
+      exact: true,
+    });
+    await expect(browserAgent).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(browserAgent).not.toBeVisible();
     await expect(settings).toBeFocused();
 
     await settings.click();

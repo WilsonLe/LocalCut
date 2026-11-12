@@ -5,6 +5,7 @@ import type { PlaybackPosition } from './playback-position';
 import type { RefObject } from 'react';
 import type { PreviewControls } from './Preview';
 import type { ProjectRoute } from './project-route';
+import { registerProjectTools } from './webmcp/register';
 
 interface Props {
   editor: Editor | null;
@@ -66,38 +67,32 @@ export function useWebMCP(host: SiteToolHost | null, viewKey: string) {
   const editor = host?.editor;
   const projectId = host?.projectId;
   useLayoutEffect(() => {
-    const context = (document as Document & { modelContext?: ModelContext })
-      .modelContext;
-    if (!context?.registerTool || !editor || !projectId) return;
+    if (!editor || !projectId) return;
     let closed = false;
     const href = window.location.href;
-    const pending = import('./webmcp/register').then(
-      ({ registerProjectTools }) => {
-        if (closed) return;
-        return registerProjectTools(context, {
-          editor,
-          projectId,
-          getView: () =>
-            !closed && href === window.location.href
-              ? (latest.current?.getView() ?? null)
-              : null,
-          seek: (timeUs) => latest.current?.seek(timeUs),
-          select: (clipIds) => latest.current?.select(clipIds),
-          playback: (action) => latest.current?.playback(action),
-          onError: (error) => latest.current?.onError(error),
-          refresh: async () => {
-            await latest.current?.refresh();
-          },
-        });
+    const registration = registerProjectTools(
+      () =>
+        (document as Document & { modelContext?: ModelContext }).modelContext,
+      {
+        editor,
+        projectId,
+        getView: () =>
+          !closed && href === window.location.href
+            ? (latest.current?.getView() ?? null)
+            : null,
+        seek: (timeUs) => latest.current?.seek(timeUs),
+        select: (clipIds) => latest.current?.select(clipIds),
+        playback: (action) => latest.current?.playback(action),
+        onError: (error) => latest.current?.onError(error),
+        refresh: async () => {
+          await latest.current?.refresh();
+        },
       },
     );
-    void pending.catch((error: unknown) => {
-      if (!closed) latest.current?.onError(error);
-    });
     return () => {
       closed = true;
-      void pending
-        .then((registration) => registration?.dispose())
+      void registration
+        .dispose()
         .catch((error: unknown) => latest.current?.onError(error));
     };
   }, [editor, projectId, viewKey]);

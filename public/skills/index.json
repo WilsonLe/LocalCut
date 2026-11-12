@@ -49,7 +49,7 @@
     {
       "name": "localcut-start",
       "description": "Use this skill when starting an agent-led LocalCut project or choosing its browser. Prefer the built-in browser, discover editing workflows and use correct revisions, imports and job lifetimes.",
-      "sha256": "11f62d141f386e85c5b125b4928090eba9c33fb9ab44a5ad43804604b1b18d9f"
+      "sha256": "7ebbb26d941c3ec6f890ddf58460f60341ae59157227464ac758e94db4e5100f"
     },
     {
       "name": "localcut-storyboards",

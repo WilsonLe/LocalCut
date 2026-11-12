@@ -211,6 +211,10 @@ The desktop editor uses the space beside the independently collapsible Media lib
 
 ![Edit and Media navigation on mobile](images/manual-editor-mobile.png)
 
+## Browser agent status
+
+**Workspace settings → Browser agent** shows tool readiness/count, the last observed request and registration failures. **Refresh** retries registration while preserving saved edits, accepted LocalCut jobs and retained results. Connection help explains browser-side site-tool permissions. Readiness is not a verified agent connection; see [WebMCP status and refresh](webmcp.md#connection-status-and-refresh).
+
 ## Asset clips
 
 Open **Media → asset actions → Clips**. Select a source clip to preview its range and view/edit its name, In/Out points, Context and Transcript. Add clips, remove unwanted drafts and choose **Save**. Clip selection retains unsaved text across the collection. A conflict keeps the draft and offers **Discard draft and reload**. The responsive dialog uses the same fields on narrow screens; historical views allow selection/preview without editing controls.

@@ -14,6 +14,12 @@ Use the [current preference index](current-preferences.md) to find relevant cont
 
 - Click an asset in Media to view its source, including audio and video playback. Expose local indexing in both the asset actions menu and viewer. Keep viewing/indexing separate from timeline edits; preserve drag and modifier selection. See [asset viewing](workspace.md#asset-viewing).
 
+## Browser-agent readiness and manual refresh — 12 November 2026
+
+- Show whether browser-agent tools are available and provide connection/reconnection help and a manual Refresh action in LocalCut.
+- Distinguish registered tools and observed request activity from an agent connection. The page cannot enable browser/agent permissions or prove a live agent session.
+- Refresh registration without losing edits or cancelling LocalCut jobs/results. Keep ordinary editing and inert startup available when browser tools are unsupported. See [browser agent control](webmcp.md#connection-status-and-refresh).
+
 ## Built-in browser first for agents — 12 November 2026
 
 - Prefer the agent host's built-in browser before opening Chrome for interactive LocalCut work and manual previews. Honor an explicit user browser choice; otherwise try the built-in browser before falling back for an unavailable browser or an observed failure of a required capability.
