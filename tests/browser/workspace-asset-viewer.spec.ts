@@ -443,9 +443,14 @@ for (const base of behaviorBases) {
         const original = await editor.library
           .forProject(projectId)
           .file(entry.id);
+        const bytes = await original.arrayBuffer();
+        const root = await (
+          await navigator.storage.getDirectory()
+        ).getDirectoryHandle('localcut');
+        await root.removeEntry(entry.assetId!);
         await editor.assets.relink(
           entry.assetId!,
-          new File([original], 'green.webm', { type: 'video/webm' }),
+          new File([bytes], 'green.webm', { type: 'video/webm' }),
         ).completion;
       } finally {
         await editor.dispose();
