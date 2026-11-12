@@ -4,6 +4,11 @@ This is the project record of the user's durable product and workflow choices. U
 
 Use the [current preference index](current-preferences.md) to find relevant contracts and superseding decisions. Existing dated entries and anchors remain available as decision history.
 
+## Keep screen recording active after dismissal — 13 November 2026
+
+- Closing or hiding the screen-recording dialog must leave an active recording running until the user explicitly selects Stop recording. Keep recording controls reachable while the dialog is hidden, and reopen the same session rather than starting another capture.
+- Keep the recording through in-app navigation and retain the finished take for review, import or explicit discard. Browser capture termination, existing safety limits and workspace teardown still release native resources. See [screen recording](workspace.md#screen-recording).
+
 ## Sound effects library — 13 November 2026
 
 - Research sound effects deeply and build a library for LocalCut. The user requested research and implementation together; the [library contract](sound-effects.md) records the resulting source and implementation decisions.

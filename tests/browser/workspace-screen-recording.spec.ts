@@ -1,4 +1,5 @@
 import { behaviorBases } from './coverage-bases';
+import { createWorkspace, navigateWorkspace } from './workspace-project-helper';
 import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { openWorkspaceGroup } from './workspace-settings-helper';
 import { chromium, expect, test } from '@playwright/test';
@@ -440,7 +441,117 @@ for (const base of behaviorBases) {
     expect((await fixture(page, '')).ended).toBe(true);
   });
 
-  test(`screen recording pending permission and active capture discard ${base}`, async ({
+  test(`screen recording continues after dialog dismissal until explicit stop ${base}`, async ({
+    page,
+  }, info) => {
+    await page.goto(base);
+    await source(page);
+    const dialog = await open(page);
+    await dialog
+      .getByRole('button', { name: 'Choose source and record' })
+      .click();
+    await expect(dialog.getByRole('status')).toContainText('0:01');
+    const controls = page.getByRole('region', {
+      name: 'Screen recording controls',
+      exact: true,
+    });
+    for (const dismissal of ['Close', 'Escape', 'backdrop', 'Hide']) {
+      await test.step(dismissal, async () => {
+        if (dismissal === 'Escape') await page.keyboard.press('Escape');
+        else if (dismissal === 'backdrop') await page.mouse.click(5, 5);
+        else
+          await dialog
+            .getByRole('button', { name: dismissal, exact: true })
+            .click();
+        await expect(dialog).not.toBeVisible();
+        expect((await fixture(page, '')).ended).toBe(false);
+        await expect(controls.getByRole('status')).toContainText('Recording');
+        if (dismissal === 'Close') {
+          const elapsed = await controls.getByRole('status').textContent();
+          await expect(controls.getByRole('status')).not.toHaveText(elapsed!);
+          await page.setViewportSize({ width: 390, height: 844 });
+          await expect(controls).toBeInViewport();
+          expect(
+            await controls.evaluate((el) => el.scrollWidth <= el.clientWidth),
+          ).toBe(true);
+          await page.screenshot({
+            path: info.outputPath('recording-hidden-narrow.png'),
+          });
+          await page.setViewportSize({ width: 1280, height: 800 });
+          await page.screenshot({
+            path: info.outputPath('recording-hidden-desktop.png'),
+          });
+          await controls.screenshot({
+            path: info.outputPath('recording-controls.png'),
+          });
+        }
+        await controls
+          .getByRole('button', { name: 'Show recording', exact: true })
+          .click();
+        await expect(dialog).toBeVisible();
+        await expect
+          .poll(() =>
+            dialog
+              .getByLabel('Live recording preview')
+              .evaluate(
+                (video: HTMLVideoElement) =>
+                  video.srcObject instanceof MediaStream &&
+                  video.readyState >= 2,
+              ),
+          )
+          .toBe(true);
+        expect((await fixture(page, '')).calls).toBe(1);
+      });
+    }
+    await dialog.getByRole('button', { name: 'Hide', exact: true }).click();
+    const workspaceUrl = await createWorkspace(page, 'Recording workspace');
+    expect((await fixture(page, '')).ended).toBe(false);
+    await navigateWorkspace(page, base);
+    await expect(
+      page.getByRole('button', { name: 'New project', exact: true }),
+    ).toBeVisible();
+    expect((await fixture(page, '')).ended).toBe(false);
+    await navigateWorkspace(page, new URL(workspaceUrl).pathname);
+    await expect(
+      page.getByRole('button', { name: 'Open project', exact: true }),
+    ).toContainText('Recording workspace');
+    expect((await fixture(page, '')).ended).toBe(false);
+    await navigateWorkspace(page, base + 'invalid-recording-route');
+    await expect(dialog).not.toBeVisible();
+    expect((await fixture(page, '')).ended).toBe(false);
+    await controls.getByRole('button', { name: 'Stop recording' }).click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByLabel('Recorded video preview')).toBeVisible();
+    await expect(
+      dialog.getByRole('button', { name: 'Add to media' }),
+    ).not.toBeVisible();
+    expect((await fixture(page, '')).ended).toBe(true);
+    await page.goBack();
+    await expect(dialog).not.toBeVisible();
+    await controls.getByRole('button', { name: 'Show recording' }).click();
+    await expect(
+      dialog.getByRole('button', { name: 'Add to media' }),
+    ).toBeEnabled();
+    const previewUrl = await dialog
+      .getByLabel('Recorded video preview')
+      .getAttribute('src');
+    await page.keyboard.press('Escape');
+    await expect(controls.getByRole('status')).toHaveText('Recording ready');
+    await controls.getByRole('button', { name: 'Show recording' }).click();
+    await expect(dialog.getByLabel('Recorded video preview')).toHaveAttribute(
+      'src',
+      previewUrl!,
+    );
+    await dialog.getByRole('button', { name: 'Discard', exact: true }).click();
+    await expect(controls).not.toBeVisible();
+    await open(page);
+    await expect(
+      dialog.getByRole('button', { name: 'Choose source and record' }),
+    ).toBeEnabled();
+    expect((await fixture(page, '')).calls).toBe(1);
+  });
+
+  test(`screen recording cancels pending permission and explicit queue cancellation ${base}`, async ({
     page,
   }) => {
     await page.goto(base);
@@ -451,7 +562,7 @@ for (const base of behaviorBases) {
       .getByRole('button', { name: 'Choose source and record' })
       .click();
     await expect(dialog.getByRole('status')).toBeVisible();
-    await dialog.getByRole('button', { name: 'Discard', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     await fixture(page, 'release');
     await expect.poll(async () => (await fixture(page, '')).ended).toBe(true);
     await fixture(page, 'ready');
@@ -464,8 +575,8 @@ for (const base of behaviorBases) {
     ).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(dialog).not.toBeVisible();
-    expect((await fixture(page, '')).ended).toBe(true);
-    // Capture retains only queue metadata; discard never initializes canonical
+    expect((await fixture(page, '')).ended).toBe(false);
+    // Capture retains only queue metadata; hiding never initializes canonical
     // editing storage, imports media or creates a project.
     const databases = await page.evaluate(() => indexedDB.databases());
     expect(
@@ -473,29 +584,33 @@ for (const base of behaviorBases) {
     ).toHaveLength(0);
     await page.getByRole('button', { name: 'Task queue', exact: true }).click();
     const queue = page.getByRole('dialog', { name: 'Task queue', exact: true });
+    await queue
+      .getByRole('row', { name: 'Screen recording', exact: true })
+      .getByRole('button', { name: 'Cancel task', exact: true })
+      .click();
     await expect(
       queue
         .getByRole('row', { name: 'Screen recording', exact: true })
         .getByRole('status'),
     ).toContainText('cancelled');
+    await expect.poll(async () => (await fixture(page, '')).ended).toBe(true);
     await queue.getByRole('button', { name: 'Close', exact: true }).click();
     dialog = await open(page);
+    await expect(dialog.getByRole('alert')).toBeVisible();
     await dialog
       .getByRole('button', { name: 'Choose source and record' })
       .click();
     await expect(
       dialog.getByRole('button', { name: 'Stop recording' }),
     ).toBeVisible();
-    await page.evaluate(() => {
-      location.hash = '#/invalid-recording-route';
-    });
+    await expect(dialog.getByRole('status')).toContainText('0:01');
+    await dialog.getByRole('button', { name: 'Stop recording' }).click();
+    await expect(
+      dialog.getByRole('button', { name: 'Add to media' }),
+    ).toBeEnabled();
+    await dialog.getByRole('button', { name: 'Discard', exact: true }).click();
     await expect(dialog).not.toBeVisible();
     await expect.poll(async () => (await fixture(page, '')).ended).toBe(true);
-    await page.goBack();
-    await expect(
-      page.getByRole('button', { name: 'Workspace settings', exact: true }),
-    ).toBeVisible();
-    await expect(dialog).not.toBeVisible();
   });
 }
 
@@ -503,7 +618,7 @@ for (const base of behaviorBases) {
 // real getDisplayMedia without recording the user's desktop or replacing capture.
 test('screen recording native tab capture manual stop and source cessation', async ({
   baseURL,
-}) => {
+}, info) => {
   test.setTimeout(60000);
   const browser = await chromium.launch({
     channel: 'chrome',
@@ -600,13 +715,44 @@ test('screen recording native tab capture manual stop and source cessation', asy
           ),
         ).toBe('browser');
         await expect(dialog.getByRole('status')).toContainText('0:01');
+        if (stopMode === 'manual') {
+          await dialog
+            .getByRole('button', { name: 'Close', exact: true })
+            .click();
+          await expect(dialog).not.toBeVisible();
+          expect(
+            await page.evaluate(() =>
+              (
+                window as unknown as { nativeCapture: MediaStream }
+              ).nativeCapture
+                .getTracks()
+                .every((track) => track.readyState === 'live'),
+            ),
+          ).toBe(true);
+          // Frames produced only after dismissal must reach the final file.
+          await target.evaluate(() => {
+            document.body.style.background = '#0000ff';
+          });
+          const controls = page.getByRole('region', {
+            name: 'Screen recording controls',
+          });
+          await expect(controls.getByRole('status')).toContainText('0:03');
+          await controls
+            .getByRole('button', { name: 'Stop recording' })
+            .click();
+        }
         // Cover real browser whole-source cessation as well as LocalCut stop.
         if (stopMode === 'source-ended') await target.close();
-        else
-          await dialog.getByRole('button', { name: 'Stop recording' }).click();
         await expect(
           dialog.getByRole('button', { name: 'Add to media' }),
         ).toBeEnabled();
+        if (stopMode === 'manual') {
+          const download = page.waitForEvent('download');
+          await dialog.getByRole('link', { name: 'Save a copy' }).click();
+          await (
+            await download
+          ).saveAs(info.outputPath('native-hidden-recording.webm'));
+        }
         await dialog.getByRole('button', { name: 'Add to media' }).click();
         await closeMediaImportAndPlace(page);
         await expect(dialog).not.toBeVisible();
@@ -634,8 +780,8 @@ test('screen recording native tab capture manual stop and source cessation', asy
         );
         expect(peak).toBeGreaterThan(0.05);
         expect(saved.assets[0]!.durationUs).toBeGreaterThan(500000);
-        const green = await page.evaluate(
-          async ({ base, assetId, timeUs }) => {
+        const color = await page.evaluate(
+          async ({ base, assetId, timeUs, channel }) => {
             const { createEditor } = (await import(
               base + 'editor.js'
             )) as typeof import('../../src/editor');
@@ -651,7 +797,7 @@ test('screen recording native tab capture manual stop and source cessation', asy
               const ctx = canvas.getContext('2d')!;
               ctx.drawImage(bitmap, 0, 0, 32, 18);
               bitmap.close();
-              return ctx.getImageData(16, 9, 1, 1).data[1];
+              return ctx.getImageData(16, 9, 1, 1).data[channel];
             } finally {
               await editor.dispose();
             }
@@ -660,9 +806,12 @@ test('screen recording native tab capture manual stop and source cessation', asy
             base,
             assetId: saved.assets[0]!.id,
             timeUs: Math.floor(saved.assets[0]!.durationUs / 2),
+            channel: stopMode === 'manual' ? 2 : 1,
           },
         );
-        expect(green).toBeGreaterThan(220);
+        expect(color).toBeGreaterThan(220);
+        if (stopMode === 'manual')
+          expect(saved.assets[0]!.durationUs).toBeGreaterThan(2000000);
         expect(
           await page.evaluate(() =>
             (window as unknown as { nativeCapture: MediaStream }).nativeCapture

@@ -111,7 +111,7 @@ const TaskQueueControl = lazy(() => import('./TaskQueueControl'));
 const WorkspaceServices = lazy(() => import('./WorkspaceServices'));
 const ScreenRecordingDialog = onDemandDialog(
   () => import('./ScreenRecordingDialog'),
-  ({ onClose }) => ({ title: 'Record screen', onClose }),
+  ({ open, onClose }) => ({ title: 'Record screen', open, onClose }),
 );
 const MobileNavigation = lazy(() => import('./MobileNavigation'));
 const WorkspaceDialogs = onDemandDialog(
@@ -337,11 +337,12 @@ export function Workspace() {
     route.screen === 'invalid' ? undefined : route.projectId,
   ]);
   const [recordingRoute, setRecordingRoute] = useState<string | null>(null);
+  const [recordingLoaded, setRecordingLoaded] = useState(false);
   const [recordingAdding, setRecordingAdding] = useState(false);
   if (recordingRoute !== null && recordingRoute !== recordingRouteKey) {
     // Creating the recording's first project changes the URL during import.
     // Preserve its review/retry UI only for that same active project; other
-    // navigation retires the capture even when Back returns to an old route key.
+    // navigation hides the dialog without retiring its capture or review.
     setRecordingRoute(
       recordingAdding &&
         route.screen === 'editor' &&
@@ -896,6 +897,7 @@ export function Workspace() {
     );
   };
   const showRecording = () => {
+    setRecordingLoaded(true);
     previewControls.current?.pause();
     setRecordingRoute(recordingRouteKey);
   };
@@ -1998,24 +2000,25 @@ export function Workspace() {
           />
         </Suspense>
       )}
-      {recordingRoute === recordingRouteKey &&
-        !browsed &&
-        !navigation.blocked && (
-          <Suspense fallback={null}>
-            <ScreenRecordingDialog
-              getTasks={ensureTasks}
-              onClose={() => setRecordingRoute(null)}
-              onAdd={async (file) => {
-                setRecordingAdding(true);
-                try {
-                  return await importMedia([file]);
-                } finally {
-                  setRecordingAdding(false);
-                }
-              }}
-            />
-          </Suspense>
-        )}
+      {recordingLoaded && (
+        <Suspense fallback={null}>
+          <ScreenRecordingDialog
+            open={recordingRoute === recordingRouteKey}
+            canAdd={!browsed && !busy}
+            getTasks={ensureTasks}
+            onOpen={() => setRecordingRoute(recordingRouteKey)}
+            onClose={() => setRecordingRoute(null)}
+            onAdd={async (file) => {
+              setRecordingAdding(true);
+              try {
+                return await importMedia([file]);
+              } finally {
+                setRecordingAdding(false);
+              }
+            }}
+          />
+        </Suspense>
+      )}
       {(dialog || (busy && progress)) && (
         <Suspense fallback={null}>
           <WorkspaceDialogs

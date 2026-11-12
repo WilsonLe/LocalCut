@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Circle, LoaderCircle, Square } from 'lucide-react';
 import {
   screenRecordingError,
@@ -46,10 +46,16 @@ function sharedAudioGuidance(userAgent: string) {
 }
 
 export default function ScreenRecordingDialog({
+  open,
+  canAdd,
+  onOpen,
   onClose,
   onAdd,
   getTasks,
 }: {
+  open: boolean;
+  canAdd: boolean;
+  onOpen: () => void;
   getTasks: () => Promise<Editor['tasks']>;
   onClose: () => void;
   onAdd: (file: File) => Promise<boolean>;
@@ -62,12 +68,19 @@ export default function ScreenRecordingDialog({
   const [url, setUrl] = useState('');
   const [limited, setLimited] = useState(false);
   const [audioEnded, setAudioEnded] = useState(false);
-  const video = useRef<HTMLVideoElement>(null);
   const session = useRef<ScreenRecording | null>(null);
   const queued = useRef<Job<unknown> | null>(null);
   const controller = useRef<AbortController | null>(null);
   const active = useRef(true);
   const previewUrl = useRef('');
+  const showPreview = useCallback((element: HTMLVideoElement | null) => {
+    if (!element) return;
+    element.srcObject = session.current?.stream ?? null;
+    void element.play().catch(() => {});
+    return () => {
+      element.srcObject = null;
+    };
+  }, []);
   useEffect(() => {
     active.current = true;
     return () => {
@@ -85,15 +98,7 @@ export default function ScreenRecordingDialog({
       () => setElapsed(Math.floor((performance.now() - started) / 1000)),
       250,
     );
-    const element = video.current;
-    if (element) {
-      element.srcObject = session.current.stream;
-      void element.play().catch(() => {});
-    }
-    return () => {
-      clearInterval(timer);
-      if (element) element.srcObject = null;
-    };
+    return () => clearInterval(timer);
   }, [phase]);
   const start = async () => {
     if (controller.current) return;
@@ -101,8 +106,9 @@ export default function ScreenRecordingDialog({
     controller.current = abort;
     setError('');
     setPhase('choosing');
+    let recording: ScreenRecording | undefined;
     try {
-      const recording = await startScreenRecording(audio, abort.signal);
+      recording = await startScreenRecording(audio, abort.signal);
       if (!active.current || abort.signal.aborted) {
         recording.dispose();
         return;
@@ -115,6 +121,7 @@ export default function ScreenRecordingDialog({
         return;
       }
       const kind = `screen.capture:${crypto.randomUUID()}`;
+      const capture = recording;
       tasks.register(kind, {
         cache: {
           mode: 'fresh',
@@ -126,12 +133,12 @@ export default function ScreenRecordingDialog({
         retryable: false,
         maxAttempts: 1,
         execute: async (_input, context) => {
-          const abort = () => recording.dispose();
+          const abort = () => capture.dispose();
           context.signal.addEventListener('abort', abort, { once: true });
           if (context.signal.aborted) abort();
           try {
             context.progress({ stage: 'Recording screen' });
-            return await recording.completion;
+            return await capture.completion;
           } finally {
             context.signal.removeEventListener('abort', abort);
           }
@@ -153,7 +160,7 @@ export default function ScreenRecordingDialog({
       setUrl(previewUrl.current);
       setPhase('ready');
     } catch (failure) {
-      session.current?.dispose();
+      recording?.dispose();
       if (!active.current || abort.signal.aborted) return;
       setError(screenRecordingError(failure));
       setPhase('idle');
@@ -164,172 +171,235 @@ export default function ScreenRecordingDialog({
   const stop = () => {
     setPhase('stopping');
     session.current?.stop();
+    onOpen();
   };
-  const close = () => {
+  const discard = () => {
     controller.current?.abort();
     queued.current?.cancel();
     session.current?.dispose();
+    controller.current = null;
+    queued.current = null;
+    session.current = null;
+    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+    previewUrl.current = '';
+    setFile(undefined);
+    setUrl('');
+    setPhase('idle');
+    setAudio(false);
+    setError('');
+    setElapsed(0);
+    setLimited(false);
+    setAudioEnded(false);
     onClose();
   };
+  const close = () => {
+    if (phase === 'idle' || phase === 'choosing') discard();
+    else onClose();
+  };
   const add = async () => {
-    if (!file || phase !== 'ready') return;
+    if (!file || phase !== 'ready' || !canAdd) return;
     setPhase('adding');
     const added = await onAdd(file);
     if (!active.current) return;
-    if (added) close();
+    if (added) discard();
     else {
       setPhase('ready');
       setError('The recording could not be added. Try again or save a copy.');
     }
   };
   const supported = screenRecordingSupported();
+  const recordingLabel =
+    phase === 'recording'
+      ? `Recording ${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`
+      : phase === 'stopping'
+        ? 'Finishing recording…'
+        : phase === 'ready'
+          ? 'Recording ready'
+          : phase === 'choosing'
+            ? 'Choosing source…'
+            : phase === 'adding'
+              ? 'Adding recording…'
+              : 'Recording failed';
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open && phase !== 'adding') close();
-      }}
-    >
-      <DialogContent
-        className="sm:max-w-2xl"
-        showCloseButton={phase !== 'adding'}
-      >
-        <DialogHeader>
-          <DialogTitle>Record screen</DialogTitle>
-          <DialogDescription>
-            Choose a screen, app window or browser tab in your browser’s sharing
-            picker.
-          </DialogDescription>
-        </DialogHeader>
-        {!supported && (
-          <p role="alert">
-            Screen recording needs a supported desktop browser on HTTPS or
-            localhost.
-          </p>
-        )}
-        {phase === 'idle' && supported && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="record-shared-audio"
-                checked={audio}
-                onCheckedChange={(checked) => setAudio(checked === true)}
-                aria-describedby={
-                  audio ? 'record-shared-audio-help' : undefined
-                }
-              />
-              <Label htmlFor="record-shared-audio">Include shared audio</Label>
-            </div>
-            {audio && (
-              <p
-                id="record-shared-audio-help"
-                className="text-sm text-muted-foreground"
-              >
-                {sharedAudioGuidance(navigator.userAgent)}
-              </p>
-            )}
-          </div>
-        )}
-        {(phase === 'recording' || phase === 'stopping') && (
-          <>
-            <video
-              ref={video}
-              muted
-              autoPlay
-              playsInline
-              aria-label="Live recording preview"
-              className="aspect-video w-full rounded-md bg-black object-contain"
-            />
-            <p role="status" className="flex items-center gap-2">
+    <>
+      {!open && (phase !== 'idle' || error) && (
+        <section
+          aria-label="Screen recording controls"
+          className="fixed bottom-4 right-4 z-40 flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-2 rounded-lg border bg-popover p-2 text-sm text-popover-foreground shadow-md"
+        >
+          <span role="status" className="flex items-center gap-2 px-2">
+            {phase === 'recording' && (
               <Circle
                 className="size-3 fill-destructive text-destructive"
                 aria-hidden="true"
               />
-              {phase === 'stopping'
-                ? 'Finishing recording…'
-                : `Recording ${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`}
-              {audio && <span> · Shared audio included</span>}
-            </p>
-          </>
-        )}
-        {url && (
-          <video
-            src={url}
-            controls
-            playsInline
-            aria-label="Recorded video preview"
-            className="aspect-video w-full rounded-md bg-black object-contain"
-          />
-        )}
-        {limited && (
-          <p role="status">
-            Recording stopped at the size or 30-minute limit. You can add this
-            recording or start another.
-          </p>
-        )}
-        {audioEnded && (
-          <p role="status">
-            Recording stopped because shared audio ended. The recorded portion
-            is ready to review.
-          </p>
-        )}
-        {error && (
-          <p role="alert" className="text-destructive">
-            {error}
-          </p>
-        )}
-        <DialogFooter>
-          <Button
-            variant="outline"
-            disabled={phase === 'adding'}
-            onClick={close}
-          >
-            {phase === 'idle' ? 'Cancel' : 'Discard'}
+            )}
+            {recordingLabel}
+          </span>
+          <Button variant="outline" size="sm" onClick={onOpen}>
+            Show recording
           </Button>
-          {url && file && (
-            <Button
-              variant="outline"
-              render={<a href={url} download={file.name} />}
-            >
-              Save a copy
-            </Button>
-          )}
-          {phase === 'idle' && (
-            <Button disabled={!supported} onClick={() => void start()}>
-              <Circle />
-              Choose source and record
-            </Button>
-          )}
-          {phase === 'choosing' && (
-            <p role="status" className="flex items-center gap-2">
-              <LoaderCircle
-                className="size-4 animate-spin"
-                aria-hidden="true"
-              />
-              Choosing source…
-            </p>
-          )}
           {phase === 'recording' && (
-            <Button onClick={stop}>
+            <Button size="sm" onClick={stop}>
               <Square />
               Stop recording
             </Button>
           )}
-
-          {phase === 'adding' && (
-            <p role="status" className="flex items-center gap-2">
-              <LoaderCircle
-                className="size-4 animate-spin"
-                aria-hidden="true"
-              />
-              Adding recording…
+        </section>
+      )}
+      <Dialog
+        open={open}
+        onOpenChange={(open) => {
+          if (!open && phase !== 'adding') close();
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-2xl"
+          showCloseButton={phase !== 'adding'}
+        >
+          <DialogHeader>
+            <DialogTitle>Record screen</DialogTitle>
+            <DialogDescription>
+              Choose a screen, app window or browser tab in your browser’s
+              sharing picker.
+            </DialogDescription>
+          </DialogHeader>
+          {!supported && (
+            <p role="alert">
+              Screen recording needs a supported desktop browser on HTTPS or
+              localhost.
             </p>
           )}
-          {phase === 'ready' && (
-            <Button onClick={() => void add()}>Add to media</Button>
+          {phase === 'idle' && supported && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="record-shared-audio"
+                  checked={audio}
+                  onCheckedChange={(checked) => setAudio(checked === true)}
+                  aria-describedby={
+                    audio ? 'record-shared-audio-help' : undefined
+                  }
+                />
+                <Label htmlFor="record-shared-audio">
+                  Include shared audio
+                </Label>
+              </div>
+              {audio && (
+                <p
+                  id="record-shared-audio-help"
+                  className="text-sm text-muted-foreground"
+                >
+                  {sharedAudioGuidance(navigator.userAgent)}
+                </p>
+              )}
+            </div>
           )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          {(phase === 'recording' || phase === 'stopping') && (
+            <>
+              <video
+                ref={showPreview}
+                muted
+                autoPlay
+                playsInline
+                aria-label="Live recording preview"
+                className="aspect-video w-full rounded-md bg-black object-contain"
+              />
+              <p role="status" className="flex items-center gap-2">
+                <Circle
+                  className="size-3 fill-destructive text-destructive"
+                  aria-hidden="true"
+                />
+                {recordingLabel}
+                {audio && <span> · Shared audio included</span>}
+              </p>
+            </>
+          )}
+          {url && (
+            <video
+              src={url}
+              controls
+              playsInline
+              aria-label="Recorded video preview"
+              className="aspect-video w-full rounded-md bg-black object-contain"
+            />
+          )}
+          {limited && (
+            <p role="status">
+              Recording stopped at the size or 30-minute limit. You can add this
+              recording or start another.
+            </p>
+          )}
+          {audioEnded && (
+            <p role="status">
+              Recording stopped because shared audio ended. The recorded portion
+              is ready to review.
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="text-destructive">
+              {error}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={phase === 'adding'}
+              onClick={phase === 'ready' ? discard : close}
+            >
+              {phase === 'idle' || phase === 'choosing'
+                ? 'Cancel'
+                : phase === 'ready'
+                  ? 'Discard'
+                  : 'Hide'}
+            </Button>
+            {url && file && (
+              <Button
+                variant="outline"
+                render={<a href={url} download={file.name} />}
+              >
+                Save a copy
+              </Button>
+            )}
+            {phase === 'idle' && (
+              <Button disabled={!supported} onClick={() => void start()}>
+                <Circle />
+                Choose source and record
+              </Button>
+            )}
+            {phase === 'choosing' && (
+              <p role="status" className="flex items-center gap-2">
+                <LoaderCircle
+                  className="size-4 animate-spin"
+                  aria-hidden="true"
+                />
+                Choosing source…
+              </p>
+            )}
+            {phase === 'recording' && (
+              <Button onClick={stop}>
+                <Square />
+                Stop recording
+              </Button>
+            )}
+
+            {phase === 'adding' && (
+              <p role="status" className="flex items-center gap-2">
+                <LoaderCircle
+                  className="size-4 animate-spin"
+                  aria-hidden="true"
+                />
+                Adding recording…
+              </p>
+            )}
+            {phase === 'ready' && (
+              <Button disabled={!canAdd} onClick={() => void add()}>
+                Add to media
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
