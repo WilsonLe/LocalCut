@@ -197,6 +197,8 @@ Run `pnpm test tests/unit/workspace-preferences.test.ts tests/unit/workspace-set
 
 ## WebMCP checks
 
+For connection status and manual refresh, run `pnpm test tests/unit/webmcp-connection.test.ts tests/unit/webmcp.test.ts tests/unit/webmcp-skills.test.ts`, then `pnpm test:ui --grep 'browser agent|workspace WebMCP'`. The connection journeys cover late browser API injection, registration failure/retry, inert startup, request timestamps, mobile/focus behavior, retained jobs/results across refresh and route disposal.
+
 Run `pnpm test tests/unit/webmcp.test.ts tests/unit/receipt-content.test.ts`, then `pnpm test:ui --grep "workspace WebMCP"`. The production Chrome journeys cover complete-schema edits, canonical receipts/retries, visible/persisted changes, Undo/Redo, selection/seek, historical read-only snapshots, navigation/reload, local Media import/relink, real preview pixels, native MP4 encode/decode and released URLs. The controlled registration harness isolates transport from browser availability; native discovery separately uses the actual browser API and explicitly skips when unavailable. Neither proves every agent’s interoperability or model quality. Both static builds and existing bundle caps remain required; media/inference algorithms are unchanged. Use `LOCALCUT_TEST_BASES=both` only for hosting-path diagnostics.
 
 ## Skills and asset text checks

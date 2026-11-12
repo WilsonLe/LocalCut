@@ -14,6 +14,8 @@ Guest project code executes in QuickJS inside a terminable worker with a virtual
 
 ## Browser agent access
 
+Browser-agent status keeps registration readiness, tool counts and the last request time in memory for this page. It stores no request arguments/results, agent identity or persistent activity history, and starts no heartbeat or background request. See [status and refresh](webmcp.md#connection-status-and-refresh).
+
 [WebMCP](webmcp.md) exposes the viewed project’s content, source-clip text, local transcripts and generated previews/exports to the browser agent you use. Its provider may process results under its policies. The workspace tool can list local project summaries, create/open requested projects and start browser file selection, including on an empty screen. It cannot read host paths from JSON; the browser/agent file-selection capability supplies authorized files to the normal local importer. Files are copied to browser storage, not uploaded to a LocalCut server. Registration alone leaves editing storage and workers idle. These tools do not select a provider, send OpenRouter requests or expose saved credentials. Requested edits use the canonical editor without a second LocalCut approval step; local model preparation remains explicit.
 
 The [skills tool](skills.md) fetches public same-origin workflow Markdown/index files only on request. It reads no local project data or credentials, starts no inference and sends no provider requests. Source-clip annotations remain local until an explicitly connected agent reads the project/asset or a user exports an including backup.
