@@ -12,21 +12,22 @@ Registration fetches no guidance and initializes no editor, editing storage, wor
 
 ## Available workflows
 
-| Skill                                                                       | Purpose                                                                   |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| [Start](../public/skills/localcut-start/SKILL.md)                           | Discovery, setup, imports, revisions and jobs                             |
-| [Asset clips](../public/skills/localcut-asset-clips/SKILL.md)               | Source ranges, previews, context/transcripts and conflict recovery        |
-| [Video editing](../public/skills/localcut-video-editing/SKILL.md)           | Source inspection, continuity and one timeline                            |
-| [Reference analysis](../public/skills/localcut-reference-analysis/SKILL.md) | Observed pacing, composition and sound translated into original decisions |
-| [Storyboards](../public/skills/localcut-storyboards/SKILL.md)               | Visual beats, drawing and artwork export/reuse                            |
-| [Audio editing](../public/skills/localcut-audio-editing/SKILL.md)           | Treatment, mixing, sync and listening evidence                            |
-| [Motion design](../public/skills/localcut-motion-design/SKILL.md)           | Animation, masks, compositing and visual review                           |
-| [Typography](../public/skills/localcut-typography/SKILL.md)                 | Real bundled font IDs, glyph coverage and readability                     |
-| [Captions](../public/skills/localcut-captions/SKILL.md)                     | Explicit local Whisper preparation, speech uncertainty and timing         |
-| [Narration](../public/skills/localcut-narration/SKILL.md)                   | Recorded/imported takes, pronunciation and measured timing                |
-| [Music](../public/skills/localcut-music/SKILL.md)                           | Original instrumental synthesis or imported music on the edit clock       |
-| [Image preparation](../public/skills/localcut-image-preparation/SKILL.md)   | Image selection, truthful details and source preservation                 |
-| [Export review](../public/skills/localcut-export-review/SKILL.md)           | Actual candidate review, backups and durable delivery                     |
+| Skill                                                                       | Purpose                                                                                           |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| [Start](../public/skills/localcut-start/SKILL.md)                           | Discovery, setup, imports, revisions and jobs                                                     |
+| [Indexing](../public/skills/localcut-indexing/SKILL.md)                     | Evidence-grounded Context and normalized source-timed Transcript, saved and verified after reload |
+| [Asset clips](../public/skills/localcut-asset-clips/SKILL.md)               | Source ranges, previews, context/transcripts and conflict recovery                                |
+| [Video editing](../public/skills/localcut-video-editing/SKILL.md)           | Source inspection, continuity and one timeline                                                    |
+| [Reference analysis](../public/skills/localcut-reference-analysis/SKILL.md) | Observed pacing, composition and sound translated into original decisions                         |
+| [Storyboards](../public/skills/localcut-storyboards/SKILL.md)               | Visual beats, drawing and artwork export/reuse                                                    |
+| [Audio editing](../public/skills/localcut-audio-editing/SKILL.md)           | Treatment, mixing, sync and listening evidence                                                    |
+| [Motion design](../public/skills/localcut-motion-design/SKILL.md)           | Animation, masks, compositing and visual review                                                   |
+| [Typography](../public/skills/localcut-typography/SKILL.md)                 | Real bundled font IDs, glyph coverage and readability                                             |
+| [Captions](../public/skills/localcut-captions/SKILL.md)                     | Explicit local Whisper preparation, speech uncertainty and timing                                 |
+| [Narration](../public/skills/localcut-narration/SKILL.md)                   | Recorded/imported takes, pronunciation and measured timing                                        |
+| [Music](../public/skills/localcut-music/SKILL.md)                           | Original instrumental synthesis or imported music on the edit clock                               |
+| [Image preparation](../public/skills/localcut-image-preparation/SKILL.md)   | Image selection, truthful details and source preservation                                         |
+| [Export review](../public/skills/localcut-export-review/SKILL.md)           | Actual candidate review, backups and durable delivery                                             |
 
 Speech synthesis, generative image editing, advanced DAW/metering, remote video retrieval and singing require a suitable separately available host capability and authority for its effects. They are optional. The music skill can use the existing network-disabled project JavaScript workspace for local instrumental WAV generation without assuming Python, FFmpeg or provider access in that sandbox. Skills do not restore the removed assistant/provider features.
 
@@ -68,3 +69,11 @@ File/package checks do not prove agents will select or obey a skill. Production 
 ## Transcript normalization
 
 The captions skill requires the connected agent to run an LLM normalization pass after STT and before attaching/indexing/exporting recognized text. Asset-clips and video-editing skills route through that owner. The pass uses original-language context and phonetic plausibility to correct likely sound-alike errors while preserving raw recognition, source IDs/times and a local correction record. Ambiguous or consequential wording needs source listening or explicit uncertainty; semantic fluency alone does not verify speech. Supplied/human-corrected text remains unchanged unless correction is requested. This is published agent guidance, with no new built-in assistant, remote provider, automatic media upload or app inference path.
+
+## Asset indexing completion
+
+For “import and index” or “index this asset/video,” the start, video-editing, asset-clips and captions skills route to `localcut-indexing`. The workflow uses the existing source-clip and local Whisper APIs plus host-agent reasoning. It inspects source evidence, preserves existing human text, normalizes new recognition with recoverable raw/correction provenance, saves through revision-checked `update_clips`, and reopens/reloads to verify the visible Context and Transcript. It does not create timeline captions automatically.
+
+Technical `localcut_asset` `analyze`/`indexes`/`index` results are scene/frame evidence, not semantic completion: a completed analysis with empty clip text is incomplete. Completion is range-specific; speech needs original-language source-timed cues and useful context, while verified silent/still sources need context without invented words. Report uninspected, untranscribed, uncertain or blocked ranges and unavailable listening separately. Opening/importing media does not start indexing or model preparation, and the asset UI remains free of Index controls.
+
+Publication and controlled browser regressions establish discoverability, tool transport, saved text, source timing and visible reload persistence. They cannot establish universal host-agent adherence or transcription quality on arbitrary recordings; real local inference and agent/listening evidence must be reported separately.
