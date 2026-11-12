@@ -4,7 +4,7 @@ Current version: **0.1.0-alpha.1**. Short summaries for end users and executives
 
 ## Unreleased
 
-- Click Media assets to view original images and play video/audio; start local indexing from the asset menu or viewer without changing the timeline. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...wilsonle/asset-preview).
+- Click Media assets to preview images/audio/video and edit their context and transcript directly, without changing the timeline. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...wilsonle/asset-preview).
 
 - Organize assets into previewable source clips with context and a compact, timestamped transcript timeline. Discover 13 portable editing skills through WebMCP, including an agent-led STT normalization pass. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...wilsonle/webmcp-skills).
 

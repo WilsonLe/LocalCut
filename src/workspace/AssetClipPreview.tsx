@@ -10,14 +10,12 @@ export function AssetClipPreview({
   startUs,
   endUs,
   seek,
-  expanded = false,
 }: {
   editor: Editor | null;
   asset: Asset;
   startUs: number;
   endUs: number;
   seek?: { timeUs: number; request: number };
-  expanded?: boolean;
 }) {
   const media = useRef<HTMLMediaElement | null>(null);
   const appliedSeek = useRef<typeof seek>(undefined);
@@ -133,9 +131,7 @@ export function AssetClipPreview({
       aria-label="Clip preview"
       className="overflow-hidden rounded-lg border bg-muted/30"
     >
-      <div
-        className={`relative flex aspect-video w-full items-center justify-center overflow-hidden bg-black ${expanded ? 'max-h-[60dvh]' : 'max-h-60'}`}
-      >
+      <div className="relative flex aspect-video max-h-60 w-full items-center justify-center overflow-hidden bg-black">
         {!source && !failure && (
           <LoaderCircle
             className="size-5 animate-spin text-white/60"

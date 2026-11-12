@@ -26,7 +26,7 @@ function tone() {
 }
 
 for (const base of behaviorBases) {
-  test(`asset viewing opens original images video and audio without edits ${base}`, async ({
+  test(`asset viewing edits context and transcript for images video and audio ${base}`, async ({
     page,
   }, info) => {
     page.setDefaultTimeout(15000);
@@ -181,92 +181,6 @@ for (const base of behaviorBases) {
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(card('Landscape.png')).toHaveAttribute('aria-pressed', 'true');
     await expect(card('tone.wav')).toHaveAttribute('aria-pressed', 'true');
-    const openActions = async (name: string) => {
-      await card(name).hover();
-      await page
-        .getByRole('button', { name: `Actions for ${name}`, exact: true })
-        .click();
-    };
-    // Both entry points share the same job. Hold native analysis at its lock
-    // boundary so progress, duplicate suppression and cancellation are observed.
-    const audioId = await card('tone.wav').evaluate(
-      (el) => el.closest<HTMLElement>('[data-asset-id]')!.dataset.assetId!,
-    );
-    await page.evaluate(async (assetId) => {
-      let acquired!: () => void;
-      const ready = new Promise<void>((resolve) => {
-        acquired = resolve;
-      });
-      const host = window as unknown as {
-        releaseViewerIndex: () => void;
-        viewerIndexLock: Promise<unknown>;
-      };
-      host.viewerIndexLock = navigator.locks.request(
-        `localcut:asset-index:analysis:${assetId}`,
-        async () => {
-          acquired();
-          await new Promise<void>((resolve) => {
-            host.releaseViewerIndex = resolve;
-          });
-        },
-      );
-      await ready;
-    }, audioId);
-    try {
-      await openActions('tone.wav');
-      await page
-        .getByRole('menuitem', { name: 'Index asset', exact: true })
-        .click();
-      await card('tone.wav').click();
-      await expect(
-        dialog('tone.wav').getByRole('button', {
-          name: 'Cancel indexing',
-          exact: true,
-        }),
-      ).toBeVisible();
-      await page.keyboard.press('Escape');
-      await openActions('tone.wav');
-      await expect(
-        page.getByRole('menuitem', { name: 'Indexing…', exact: true }),
-      ).toBeDisabled();
-      await page.keyboard.press('Escape');
-      await card('tone.wav').click();
-      await dialog('tone.wav')
-        .getByRole('button', { name: 'Cancel indexing', exact: true })
-        .click();
-      await expect(dialog('tone.wav').getByRole('status')).toContainText(
-        'Indexing cancelled',
-      );
-    } finally {
-      await page.evaluate(async () => {
-        const host = window as unknown as {
-          releaseViewerIndex: () => void;
-          viewerIndexLock: Promise<unknown>;
-        };
-        host.releaseViewerIndex();
-        await host.viewerIndexLock;
-      });
-    }
-    await dialog('tone.wav')
-      .getByRole('button', { name: 'Index asset', exact: true })
-      .click();
-    await expect(dialog('tone.wav').getByRole('status')).toContainText(
-      'Indexed ·',
-    );
-    await expect(dialog('tone.wav').getByRole('status')).toContainText(
-      '4 audio windows',
-    );
-    await page.screenshot({ path: info.outputPath('asset-viewer-audio.png') });
-    await page.keyboard.press('Escape');
-    await openActions('Landscape.png');
-    await page
-      .getByRole('menuitem', { name: 'Index asset', exact: true })
-      .click();
-    await card('Landscape.png').click();
-    await expect(dialog('Landscape.png').getByRole('status')).toContainText(
-      'Indexed · 1 scene · 1 frame',
-    );
-    await page.keyboard.press('Escape');
     for (const [name, tag] of [
       ['tone.wav', 'audio'],
       ['green.webm', 'video'],
@@ -277,17 +191,6 @@ for (const base of behaviorBases) {
       await expect
         .poll(() => source.evaluate((el: HTMLMediaElement) => el.readyState))
         .toBeGreaterThanOrEqual(1);
-      if (tag === 'video') {
-        await dialog(name)
-          .getByRole('button', { name: 'Index asset', exact: true })
-          .click();
-        await expect(dialog(name).getByRole('status')).toContainText(
-          'Indexed ·',
-        );
-        await page.screenshot({
-          path: info.outputPath('asset-viewer-video.png'),
-        });
-      }
       const scrubber = dialog(name).getByRole('slider', {
         name: 'Preview position',
         exact: true,
@@ -315,47 +218,6 @@ for (const base of behaviorBases) {
       );
       await expect(card(name)).toBeFocused();
     }
-    const indexes = await page.evaluate(async (base) => {
-      const { createEditor } = (await import(
-        base + 'editor.js'
-      )) as typeof import('../../src/editor');
-      const editor = await createEditor();
-      try {
-        const projectId = location.hash.split('/')[2]!;
-        const entries = (await editor.library.forProject(projectId).list())
-          .entries;
-        const results = [];
-        for (const name of ['tone.wav', 'green.webm', 'Landscape.png']) {
-          const id = entries.find((entry) => entry.name === name)!.assetId!;
-          const runs = await editor.assets.indexes.list(id);
-          results.push({
-            name,
-            count: runs.length,
-            status: runs[0]!.status,
-            frames: runs[0]!.analysis.frames.length,
-          });
-        }
-        const tasks = (await editor.tasks.list()).filter(
-          (task) => task.kind === 'media.analyze',
-        );
-        return {
-          results,
-          completed: tasks.filter((task) => task.state === 'completed').length,
-          cancelled: tasks.filter((task) => task.state === 'cancelled').length,
-        };
-      } finally {
-        await editor.dispose();
-      }
-    }, base);
-    expect(indexes.completed).toBe(3);
-    expect(indexes.cancelled).toBe(1);
-    expect(indexes.results).toHaveLength(3);
-    for (const result of indexes.results) {
-      expect(result.count).toBe(1);
-      expect(result.status).toBe('analyzed');
-      if (result.name === 'tone.wav') expect(result.frames).toBe(0);
-      else expect(result.frames).toBeGreaterThan(0);
-    }
     await catalogAndReturn();
     await card('tone.wav').click();
     const navigatingAudio = dialog('tone.wav').locator('audio');
@@ -375,6 +237,96 @@ for (const base of behaviorBases) {
       .getByRole('button', { name: 'Back to editor', exact: true })
       .click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
+    for (const name of ['Landscape.png', 'tone.wav', 'green.webm']) {
+      await card(name).hover();
+      await page
+        .getByRole('button', { name: `Actions for ${name}`, exact: true })
+        .click();
+      await expect(page.getByRole('menuitem', { name: /index/i })).toHaveCount(
+        0,
+      );
+      await page.keyboard.press('Escape');
+      await card(name).click();
+      await expect(dialog(name)).not.toContainText(/\bindex(?:ed|ing)?\b/i);
+      await expect(
+        dialog(name).getByRole('button', { name: /index/i }),
+      ).toHaveCount(0);
+      await dialog(name)
+        .getByRole('textbox', { name: 'Context', exact: true })
+        .fill(`Context for ${name}`);
+      await dialog(name)
+        .getByRole('tab', { name: 'Transcript', exact: true })
+        .click();
+      await dialog(name)
+        .getByRole('textbox', { name: 'Transcript', exact: true })
+        .fill(`Transcript for ${name}`);
+      await dialog(name)
+        .getByRole('button', { name: 'Save', exact: true })
+        .click();
+      await expect(
+        dialog(name).getByRole('button', { name: 'Save', exact: true }),
+      ).toBeDisabled();
+      await dialog(name)
+        .getByRole('button', { name: 'Close', exact: true })
+        .click();
+      await card(name).click();
+      await expect(
+        dialog(name).getByRole('textbox', { name: 'Context', exact: true }),
+      ).toHaveValue(`Context for ${name}`);
+      await dialog(name)
+        .getByRole('tab', { name: 'Transcript', exact: true })
+        .click();
+      await expect(
+        dialog(name).getByText(`Transcript for ${name}`, { exact: true }),
+      ).toBeVisible();
+      if (name === 'tone.wav')
+        await page.screenshot({
+          path: info.outputPath('asset-viewer-audio.png'),
+        });
+      if (name === 'green.webm')
+        await page.screenshot({
+          path: info.outputPath('asset-viewer-video.png'),
+        });
+      await dialog(name)
+        .getByRole('button', { name: 'Close', exact: true })
+        .click();
+    }
+    const saved = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const id = location.hash.split('/')[2]!;
+        const entries = (await editor.library.forProject(id).list()).entries;
+        const values = [];
+        for (const name of ['Landscape.png', 'tone.wav', 'green.webm']) {
+          const asset = await editor.assets.inspect(
+            entries.find((entry) => entry.name === name)!.assetId!,
+          );
+          values.push({
+            name,
+            context: asset.clips![0]!.context,
+            transcript: asset.clips![0]!.transcript,
+          });
+          if ((await editor.assets.indexes.list(asset.id)).length)
+            throw new Error('Viewing or manual text editing started analysis.');
+        }
+        return {
+          values,
+          analysisTasks: (await editor.tasks.list()).filter(
+            (task) => task.kind === 'media.analyze',
+          ).length,
+        };
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    expect(saved.analysisTasks).toBe(0);
+    for (const value of saved.values) {
+      expect(value.context).toBe(`Context for ${value.name}`);
+      expect(value.transcript).toBe(`Transcript for ${value.name}`);
+    }
     expect(await readProject()).toEqual(before);
     await page.setViewportSize({ width: 390, height: 844 });
     await page
@@ -403,12 +355,6 @@ for (const base of behaviorBases) {
     await expect(dialog('Landscape.png').getByRole('alert')).toContainText(
       /relink/i,
     );
-    await dialog('Landscape.png')
-      .getByRole('button', { name: 'Index asset', exact: true })
-      .click();
-    await expect(
-      dialog('Landscape.png').getByRole('alert').last(),
-    ).toContainText(/missing/i);
     await page.keyboard.press('Escape');
     await page.reload();
     await page
@@ -416,7 +362,15 @@ for (const base of behaviorBases) {
       .click();
     for (const name of ['tone.wav', 'green.webm']) {
       await card(name).click();
-      await expect(dialog(name).getByRole('status')).toContainText('Indexed ·');
+      await expect(
+        dialog(name).getByRole('textbox', { name: 'Context', exact: true }),
+      ).toHaveValue(`Context for ${name}`);
+      await dialog(name)
+        .getByRole('tab', { name: 'Transcript', exact: true })
+        .click();
+      await expect(
+        dialog(name).getByText(`Transcript for ${name}`, { exact: true }),
+      ).toBeVisible();
       await expect(
         dialog(name).getByRole('slider', {
           name: 'Preview position',
@@ -427,37 +381,9 @@ for (const base of behaviorBases) {
         await page.screenshot({
           path: info.outputPath('asset-viewer-audio-mobile.png'),
         });
-      await page.keyboard.press('Escape');
+      await dialog(name)
+        .getByRole('button', { name: 'Close', exact: true })
+        .click();
     }
-    // Relinking invalidates the retained index; do not keep the former success.
-    await page.evaluate(async (base) => {
-      const { createEditor } = (await import(
-        base + 'editor.js'
-      )) as typeof import('../../src/editor');
-      const editor = await createEditor();
-      try {
-        const projectId = location.hash.split('/')[2]!;
-        const entry = (
-          await editor.library.forProject(projectId).list()
-        ).entries.find((item) => item.name === 'green.webm')!;
-        const original = await editor.library
-          .forProject(projectId)
-          .file(entry.id);
-        const bytes = await original.arrayBuffer();
-        const root = await (
-          await navigator.storage.getDirectory()
-        ).getDirectoryHandle('localcut');
-        await root.removeEntry(entry.assetId!);
-        await editor.assets.relink(
-          entry.assetId!,
-          new File([bytes], 'green.webm', { type: 'video/webm' }),
-        ).completion;
-      } finally {
-        await editor.dispose();
-      }
-    }, base);
-    await card('green.webm').click();
-    await expect(dialog('green.webm').getByRole('status')).toBeEmpty();
-    await page.keyboard.press('Escape');
   });
 }
