@@ -1,7 +1,7 @@
 # Editor facade
 
 - `index.ts` owns the public `Editor` API, job/event wiring, and disposal. Consult [API contracts](../../docs/api.md) when changing its types or behavior.
-- Keep construction explicit: importing the entry must not open storage or start workers. Preserve lazy `WorkerClient` creation and separate interactive, background, and speech lanes.
+- Keep construction explicit: importing the entry must not open storage or start workers. Preserve lazy `WorkerClient` creation and separate interactive and background media lanes.
 - Delegate canonical mutations to `Store` and pure commands. Do not replace submitted batch content with parsed/defaulted content before receipt matching.
 - Emit project events only after successful storage commits. Preserve revisions across cross-tab notifications, undo, and redo.
 - Carry an optional requested export revision into the queued `exports.start` owner and check it alongside snapshot capture; a pre-queue comparison cannot bind a later export.

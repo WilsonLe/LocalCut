@@ -62,7 +62,7 @@ await editor.dispose();
 | commands      | validate, apply, undo, redo                                                                       |
 | preview       | frame, session                                                                                    |
 | exports       | preflight, start                                                                                  |
-| transcription | status, prepare, transcribe, transcript, clearModelCache                                          |
+| transcription | transcript (saved-record readback only)                                                           |
 | events        | projects, jobs                                                                                    |
 | lifecycle     | job.cancel, session.dispose, artifact.dispose, editor.dispose                                     |
 
@@ -88,7 +88,7 @@ Times are safe integer microseconds. Frame rates are {num, den}. Source and time
 
 Crossfades and black fades require two ordered overlapping image or video clips on one video track, with no third clip intersecting the transition. Image-to-image and image-to-video transitions use the same compositor as video-to-video transitions. Commands never extend media or move neighboring clips implicitly.
 
-SRT/WebVTT helpers import/export plain cues; display caption clips burn them into frames. A media clip's transcriptId links source-timed generated cues, which are retimed through its source range, speed, and placement. Transcription accepts an exact integer-microsecond [startUs, endUs) range within the source asset. Returned cue endpoints stay inside that range even when 16 kHz input sampling pads the final sample.
+SRT/WebVTT helpers import/export plain cues; display caption clips burn them into frames. A media clip's transcriptId links source-timed generated cues, which are retimed through its source range, speed, and placement. New STT/TTS comes from the external agent; attach recognized source text/timing through asset clips and rendered captions through ordinary edits. See [speech contracts](transcription.md).
 
 Stable error codes include INVALID_DOCUMENT, INVALID_COMMAND, REVISION_CONFLICT, REQUEST_CONFLICT, NOT_FOUND, MISSING_ASSET, UNSUPPORTED_CODEC, AMBIGUOUS_STREAM, QUOTA_EXCEEDED, CANCELLED, WORKER_FAILED, PLAYBACK_BLOCKED, MODEL_REQUIRED, MODEL_DOWNLOAD_FAILED, and DISPOSED. Error messages identify the relevant operation or resource.
 
@@ -154,7 +154,7 @@ Keep pitch uses bounded, stereo-coherent WSOLA in shared preview/export PCM comp
 
 ## Durable task queue
 
-`editor.tasks` is the namespace-local queue for long-running operations. Import/relink, asset analysis/derivatives, exports, transcription preparation/inference and workspace transfers retain their existing `Job<T>` return shape but run through this queue. Preview frame/audio scheduling and atomic commands remain immediate. The workspace also queues explicit screen capture. Capture starts from an explicit browser gesture and cannot restart itself after refresh.
+`editor.tasks` is the namespace-local queue for long-running operations. Import/relink, asset analysis/derivatives, exports and workspace transfers retain their existing `Job<T>` return shape but run through this queue. Preview frame/audio scheduling and atomic commands remain immediate. The workspace also queues explicit screen capture. Capture starts from an explicit browser gesture and cannot restart itself after refresh.
 
 Production handlers declare `TaskCachePolicy`: `freshTask(reason)` preserves explicit actions, while `pureTaskCache(version)` hashes typed input content and permits completed-result reuse. Custom reusable policies provide `version`, `key`, `reuseCompleted` and optional `read`/`write` hooks for an existing result owner. The public entry exports those helpers plus `taskCacheKey` and `CacheHit`. Domain reads precede admission; cache-key claims and inputs persist before scheduling; result writes precede completed status. Reusable handlers cannot own session callbacks, canonical commits or disposable native handles.
 
@@ -284,7 +284,7 @@ Clip metadata is shared by all instances/projects using an asset. Writes do not 
 
 Legacy flat `Asset.notes` text is read as one whole-source clip with a stable asset-scoped ID and the old notes revision. Reads do not migrate storage. The first clip edit writes the canonical collection and removes the old notes field. Existing assets without either field expose a whole-source clip with empty text and revision zero. New imports persist their initial collection. Relinking preserves the latest clip collection/revision in its final transaction. Backups retain included asset metadata and clip IDs through asset-ID remapping; existing selection rules still determine included assets. Older strict parsers require a current build for new metadata. Historical views can inspect/preview current shared metadata but their UI/WebMCP consumers reject edits.
 
-The [Media UI](workspace.md#asset-clips) and [WebMCP asset tool](webmcp.md#asset-clips) call these same APIs. Plain source-clip transcripts remain separate from canonical timed Whisper transcripts and do not implicitly rewrite caption tracks.
+The [Media UI](workspace.md#asset-clips) and [WebMCP asset tool](webmcp.md#asset-clips) call these same APIs. Plain source-clip transcripts remain separate from saved canonical timed transcripts and do not implicitly rewrite caption tracks.
 
 Source-clip transcripts optionally include `transcriptCues`: ordered `{ id, timeUs, endUs, text }` entries. Timestamps use source microseconds; null timestamps preserve untimed text. IDs are unique per clip, timed intervals stay within its range, and `transcript` must equal cue text joined with newlines. The shared validator checks writes and backups. Context and Transcript appear in full-content tabs; timestamps seek the bounded source preview. These authored cues remain separate from timed caption tracks.
 

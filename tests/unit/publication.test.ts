@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Jobs } from '../../src/services/jobs';
-import { sourceCues } from '../../src/services/transcript-cues';
 import { importAsset } from '../../src/media/assets';
 import { Store } from '../../src/storage/store';
 import { commitWithSignal } from '../../src/storage/transaction';
@@ -172,26 +171,4 @@ describe('publication and cancellation', () => {
       await jobs.dispose();
     },
   );
-});
-
-it('bounds source cues to exact microsecond ranges despite padded 16 kHz samples', () => {
-  const cues = sourceCues(
-    [
-      { timestamp: [-1, 0.25], text: ' first ' },
-      { timestamp: [0.5, 2], text: 'last' },
-      { timestamp: [0.8, null], text: 'unknown end' },
-      { timestamp: [2, 3], text: 'outside' },
-      { timestamp: [null, null], text: 'unknown start' },
-    ],
-    3,
-    1_000_004,
-  );
-  expect(
-    cues.map(({ timeUs, endUs, text }) => ({ timeUs, endUs, text })),
-  ).toEqual([
-    { timeUs: 3, endUs: 250003, text: 'first' },
-    { timeUs: 500003, endUs: 1000004, text: 'last' },
-    { timeUs: 800003, endUs: 1000004, text: 'unknown end' },
-  ]);
-  expect(new Set(cues.map((cue) => cue.id)).size).toBe(cues.length);
 });

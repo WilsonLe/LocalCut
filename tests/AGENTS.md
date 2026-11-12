@@ -9,4 +9,4 @@
 - Do not run builds while browser tests consume `dist`/`dist-root`. A unique `LOCALCUT_TEST_PORT` isolates the server, not shared files or reports.
 - `pnpm test <unit-file>` selects unit tests. `pnpm test:ui --grep '<title>'` checks/reuses production builds for workspace tests. Direct browser commands require current builds.
 - Verify a browser selector cheaply with `pnpm test:browser <spec-file> --list` before an expensive run.
-- Keep normal, real-transcription, performance, evidence distinct; see [validation](../docs/validation.md). Missing required capability evidence is a failure, not a passing skip.
+- Keep normal, performance and historical inference evidence distinct; see [validation](../docs/validation.md). Missing required capability evidence is a failure, not a passing skip.

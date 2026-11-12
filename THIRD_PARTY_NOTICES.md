@@ -1,6 +1,6 @@
 # Third-party notices
 
-Dependencies retain their upstream licenses in installed packages. Copies for the design/engine stack and the pinned model card are shipped in public/notices/. LocalCut's generated artifacts include bundled third-party code; preserve this notice with distributions.
+Dependencies retain their upstream licenses in installed packages. Copies for the design/engine stack are shipped in public/notices/. LocalCut's generated artifacts include bundled third-party code; preserve this notice with distributions.
 
 - React: Meta Platforms and contributors, MIT.
 - Tailwind CSS: Tailwind Labs, MIT.
@@ -8,9 +8,6 @@ Dependencies retain their upstream licenses in installed packages. Copies for th
 - Zod: upstream contributors, MIT.
 - idb: Jake Archibald and contributors, ISC.
 - Mediabunny: Vanilagy and contributors, MPL-2.0.
-- Transformers.js: Hugging Face and contributors, Apache-2.0.
-- ONNX Runtime: Microsoft and contributors, MIT.
-- Whisper: OpenAI and contributors, MIT. The pinned Xenova/whisper-tiny model conversion declares Apache-2.0 in its model card. Model card: https://huggingface.co/Xenova/whisper-tiny. Pinned revision: 5332fcc35e32a33b86612b9a57a89be7906102b1.
 - cn, class-variance-authority, lucide-react, tw-animate-css: upstream package notices/licenses.
 
 ## Speech test fixture

@@ -19,7 +19,6 @@ if (
     'test:ui',
     'test:tooling',
     'test:safari',
-    'test:transcription',
     'test:performance',
   ].includes(args[0])
 )

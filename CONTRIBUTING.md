@@ -67,7 +67,7 @@ During iteration, choose the smallest meaningful check from [development recipes
 
 For documentation-only changes, run `pnpm format:check`, check local links/anchors, and validate new commands against their implementation. Full media workloads add no evidence when runtime inputs are unchanged.
 
-Before a draft code, configuration or dependency handoff, run the affected behavior checks, static checks, documentation checks and required builds/native gates from [development](docs/development.md#expand-verification-at-the-boundary). Run the complete `pnpm check` and required transcription/performance acceptance when merging is requested. Safari acceptance are separately scoped. State what ran, what passed and what remains deferred.
+Before a draft code, configuration or dependency handoff, run the affected behavior checks, static checks, documentation checks and required builds/native gates from [development](docs/development.md#expand-verification-at-the-boundary). Run the complete `pnpm check` and required performance acceptance when merging is requested. Safari acceptance are separately scoped. State what ran, what passed and what remains deferred.
 
 Hosted validation CI is disabled by project choice. Do not add or re-enable it; the Pages workflow packages and releases static files. Local quality evidence belongs in the PR. Documentation-only PRs use documentation checks rather than a runtime suite rerun.
 

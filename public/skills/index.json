@@ -4,7 +4,7 @@
     {
       "name": "localcut-asset-clips",
       "description": "Create and edit source clips inside LocalCut assets, with a source range, preview, context and transcript for each clip.",
-      "sha256": "d4a44b340280278c3254f8404acc0c542ae421211855cebeacc37bd61a1979c4"
+      "sha256": "984e6409e48df08abcdbba74febbffb1a709748a28e5daf60b6117ab50dad9db"
     },
     {
       "name": "localcut-audio-editing",
@@ -13,8 +13,8 @@
     },
     {
       "name": "localcut-captions",
-      "description": "Transcribe local project audio, normalize STT sound-alike errors with an agent LLM pass, and create or revise source-linked LocalCut captions without inventing speech.",
-      "sha256": "c3906574f454b6885528764335249ebcc2ff61ee74f320e359cc99d4ea380ac2"
+      "description": "Use this skill whenever transcribing speech or creating captions in LocalCut. Request STT from the external agent, normalize sound-alike errors, and preserve source timing.",
+      "sha256": "e0bb1964145c1db403d4ce80139b5121e4dab481ccff66eeaf32c6d58b7bfd53"
     },
     {
       "name": "localcut-export-review",
@@ -38,8 +38,8 @@
     },
     {
       "name": "localcut-narration",
-      "description": "Prepare, import and time voiceover takes in LocalCut while preserving scripts, pronunciation, measured duration and generation capability limits.",
-      "sha256": "273492a559984d240ab7c2c5f8ad58a796594eb05e3134f2c9a1b12b55fd0dc3"
+      "description": "Use this skill whenever creating or timing narration in LocalCut. Request TTS from the external agent, then import and review the take with measured timing.",
+      "sha256": "5a07f1782aeb76722670d8c6d1afdfe13f71f39b4427d8e24cc8fba38fd596b4"
     },
     {
       "name": "localcut-reference-analysis",
@@ -49,7 +49,7 @@
     {
       "name": "localcut-start",
       "description": "Use this skill when starting an agent-led LocalCut project or choosing its browser. Prefer the built-in browser, discover editing workflows and use correct revisions, imports and job lifetimes.",
-      "sha256": "7ebbb26d941c3ec6f890ddf58460f60341ae59157227464ac758e94db4e5100f"
+      "sha256": "5c17da1bc5afe7d599c264fc4e5b1acbbb7557cd9a39e1b43a34f45e25f49a51"
     },
     {
       "name": "localcut-storyboards",
@@ -64,7 +64,7 @@
     {
       "name": "localcut-video-editing",
       "description": "Assemble or revise footage, images and sound into a coherent LocalCut timeline, with source inspection, continuity, timing and final review.",
-      "sha256": "ce92d120fb4fab36b42021e401e56e8837d7c568269fa1be2ad9569addc5fa04"
+      "sha256": "2371e1694a74528deb43282ddbf1aaa6b10d6a03caf35c0208fb614d0b5e2bbb"
     }
   ]
 }

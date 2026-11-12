@@ -22,13 +22,13 @@ Registration fetches no guidance and initializes no editor, editing storage, wor
 | [Audio editing](../public/skills/localcut-audio-editing/SKILL.md)           | Treatment, mixing, sync and listening evidence                            |
 | [Motion design](../public/skills/localcut-motion-design/SKILL.md)           | Animation, masks, compositing and visual review                           |
 | [Typography](../public/skills/localcut-typography/SKILL.md)                 | Real bundled font IDs, glyph coverage and readability                     |
-| [Captions](../public/skills/localcut-captions/SKILL.md)                     | Explicit local Whisper preparation, speech uncertainty and timing         |
-| [Narration](../public/skills/localcut-narration/SKILL.md)                   | Recorded/imported takes, pronunciation and measured timing                |
+| [Captions](../public/skills/localcut-captions/SKILL.md)                     | Agent-provided STT, normalization, speech uncertainty and timing          |
+| [Narration](../public/skills/localcut-narration/SKILL.md)                   | Agent-provided TTS, imported takes, pronunciation and measured timing     |
 | [Music](../public/skills/localcut-music/SKILL.md)                           | Original instrumental synthesis or imported music on the edit clock       |
 | [Image preparation](../public/skills/localcut-image-preparation/SKILL.md)   | Image selection, truthful details and source preservation                 |
 | [Export review](../public/skills/localcut-export-review/SKILL.md)           | Actual candidate review, backups and durable delivery                     |
 
-Speech synthesis, generative image editing, advanced DAW/metering, remote video retrieval and singing require a suitable separately available host capability and authority for its effects. They are optional. The music skill can use the existing network-disabled project JavaScript workspace for local instrumental WAV generation without assuming Python, FFmpeg or provider access in that sandbox. Skills do not restore the removed assistant/provider features.
+STT/TTS, generative image editing, advanced DAW/metering, remote video retrieval and singing require a suitable separately available host capability and authority for its effects. Requested speech tasks use those host capabilities; missing capability is reported and supplied text/audio can be used. The music skill can use the existing network-disabled project JavaScript workspace for local instrumental WAV generation without assuming Python, FFmpeg or provider access in that sandbox. Skills do not restore the removed assistant/provider features.
 
 ## Portable files and publication
 
@@ -56,8 +56,8 @@ The inspected source was MIT-licensed Agentic Workflows `0.2.0+codex.20261018000
 | Audio Editing and restoration/mixing                                                  | Native treatment, explicit optional metering/DAW limits                                                        |
 | Motion Design                                                                         | Native animation and render review; no HyperFrames/FFmpeg runtime dependency                                   |
 | Typography and font/layout reference                                                  | Existing bundled IDs and rendered checks; no font installer                                                    |
-| Speech-to-Text                                                                        | Local Whisper/source timing; no OpenRouter/cloud route                                                         |
-| Text-to-Speech                                                                        | Narration asset/timing workflow; synthesis remains optional and external                                       |
+| Speech-to-Text                                                                        | Agent-provided STT/source timing; no bundled speech engine                                                     |
+| Text-to-Speech                                                                        | Agent-provided TTS and narration asset/timing workflow                                                         |
 | Music Composition                                                                     | Composition/cue/listening guidance; synthesis adapted to JavaScript sandbox                                    |
 | Food Image Editing                                                                    | Inspection and truthfulness generalized to image preparation; generation external                              |
 | Engineering, account operations, research, budgeting, marketing and product workflows | Excluded from editing skills because they do not operate LocalCut editing tasks                                |

@@ -1,6 +1,6 @@
 ---
 name: localcut-narration
-description: Prepare, import and time voiceover takes in LocalCut while preserving scripts, pronunciation, measured duration and generation capability limits.
+description: Use this skill whenever creating or timing narration in LocalCut. Request TTS from the external agent, then import and review the take with measured timing.
 license: MIT
 metadata:
   author: LocalCut
@@ -13,9 +13,9 @@ Use the agent host's built-in browser first. Open Chrome or another external bro
 
 Establish language, pronunciation, tone, pace and intended voice from the brief. Keep the accepted script and pronunciation substitutions distinct. LocalCut can import, place, trim and mix audio; it does not provide built-in speech generation or a voice-provider connection.
 
-Use an existing recorded take when available. For requested new synthesis, check whether the agent's host supplies an appropriate speech tool or local runtime. Use it only within authorization for the script, voice and any cost/upload. Ordinary narration does not imply voice cloning. Missing synthesis capability is a named gap; continue the cut with an explicitly labeled placeholder or the supplied take, without pretending generated speech exists.
+Use an existing recorded take when available. For requested new synthesis, request text-to-speech (TTS) from the calling agent's available speech tools or runtime. LocalCut has no bundled TTS or STT engine. Use the host capability within authorization for the script, voice and any cost/upload. Ordinary narration does not imply voice cloning. If TTS is unavailable, report the missing capability and request an agent-provided or recorded take; continue independent editing without claiming speech was generated.
 
-Preserve each accepted take and its script, voice/runtime/settings, provenance and listening status. Measure decoded duration rather than estimating timestamps from word counts. Check the actual take for pronunciation, names/numbers, missing/duplicated words, prosody and clipped endings. An STT transcript can help locate text, but cannot certify pronunciation or natural delivery.
+Preserve each accepted take and its script, voice/runtime/settings, provenance and listening status. Measure decoded duration rather than estimating timestamps from word counts. Check the actual take for pronunciation, names/numbers, missing/duplicated words, prosody and clipped endings. Request STT from the agent when transcript alignment is needed and follow `localcut-captions` for source timing and normalization. An STT transcript can help locate text, but cannot certify pronunciation or natural delivery.
 
 Import the new audio through workspace `import_files` and the browser chooser or the supported small-file import tool, wait for completion and inspect the asset. Media import does not place a timeline clip. Insert the take with canonical edits against the current project revision; use stable instance IDs and a unique request ID. The LocalCut timeline owns the slot and all music/visual cues.
 

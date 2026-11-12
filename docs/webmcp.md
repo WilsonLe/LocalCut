@@ -36,7 +36,7 @@ Open **Workspace settings → Browser agent** to see registration readiness, the
 | `library`, `import_media`, `asset` | Project Media organization, canonical import/relink/rename, local thumbnails/waveforms                         |
 | `view`, `preview_frame`            | Actual workspace selection/playhead/playback and shared native renderer                                        |
 | `export_video`, `backup_project`   | Native MP4/WebM and originals-inclusive archive for the viewed project                                         |
-| `transcription`                    | Explicit local Whisper status/preparation/transcription and project transcript readback                        |
+| `transcription`                    | Read existing saved project transcripts; external agents supply STT/TTS                                        |
 | `storyboard`, `track_mask`         | Shared image insertion, PNG/SVG/editable-scene export, Media publication and local mask motion                 |
 | `coding`                           | Existing project filesystem and network-disabled shell/QuickJS worker; generated-file import                   |
 | `job`                              | Engine job progress, cancellation, results and disposable files                                                |

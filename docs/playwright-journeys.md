@@ -23,7 +23,7 @@ Normal Chrome shares one installed stable Chrome process with isolated contexts 
 | Storyboard formats, image/video-still pixels and backup remapping    | [Export](../tests/browser/workspace-storyboard-export.spec.ts), [images](../tests/browser/workspace-storyboard-images.spec.ts) |
 | Local deterministic analysis, evidence and recovery                  | [Asset analysis](../tests/browser/asset-index.spec.ts)                                                                         |
 | Native worker, decoder and engine lifetimes                          | [Lifecycle](../tests/browser/lifecycle.spec.ts)                                                                                |
-| Real local Whisper and fresh-worker cached replay                    | [Transcription](../tests/browser/transcription.spec.ts), separate acceptance project                                           |
+| Retired speech cache and saved transcript compatibility              | [Editor](../tests/browser/editor.spec.ts), [recovery](../tests/browser/recovery.spec.ts); external agents supply STT/TTS       |
 | Long native export                                                   | [Performance](../tests/browser/performance.spec.ts), separate acceptance project                                               |
 
 Chat, remote-provider and agent-action journeys were removed with their product owners. Historic evidence remains revision-bound in [validation](validation.md). Focused UI runs use `pnpm test:ui --grep '<title>'`; direct browser runs require current builds and can validate selection with `--list`. See [development stages](development.md#expand-verification-at-the-boundary).

@@ -14,7 +14,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chrome',
-      testIgnore: ['**/transcription.spec.ts', '**/performance.spec.ts'],
+      testIgnore: ['**/performance.spec.ts'],
       use: {
         reducedMotion: 'reduce',
         connectOptions: sharedBrowser
@@ -25,7 +25,7 @@ export default defineConfig({
     {
       name: 'acceptance',
       default: false,
-      testMatch: ['**/transcription.spec.ts', '**/performance.spec.ts'],
+      testMatch: ['**/performance.spec.ts'],
       fullyParallel: false,
       workers: 1,
     },

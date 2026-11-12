@@ -4,7 +4,7 @@ On 11 November 2026 the user requested complete removal of agent AI features. Th
 
 LocalCut has no assistant, chat, AI settings, provider connection, remote transcription or generated narration. The former `ai.js` entry and its declarations are no longer published. Headless integrations use [the editor API](api.md) only.
 
-Manual editing, the storyboard, local media analysis and explicitly prepared local [Whisper transcription](transcription.md) remain. No provider account is needed. Pure speech timing helpers and saved transcript metadata remain readable for project compatibility; synthesis and generated-audio measurement services are removed.
+Manual editing, the storyboard and local media analysis remain. The later [speech decision](transcription.md) removes bundled Whisper and delegates STT/TTS to external agents. No provider account is needed. Pure speech timing helpers and saved transcript metadata remain readable for project compatibility; synthesis and generated-audio measurement services are removed.
 
 On startup LocalCut removes obsolete local provider credentials, pending authorization state and voice presets. Saved workspace preferences discard chat/model/provider fields. Legacy backups still import supported local preferences and project data. Historical chat/reference sidecars and previously imported/generated media are left untouched; no runtime opens or restores the retired sidecars. Removing a feature does not delete original media or authored projects. See [privacy](privacy.md) and [storage](storage.md).
 
