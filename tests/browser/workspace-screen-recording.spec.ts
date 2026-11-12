@@ -1,7 +1,7 @@
 import { behaviorBases } from './coverage-bases';
 import { createWorkspace, navigateWorkspace } from './workspace-project-helper';
 import { closeMediaImportAndPlace } from './workspace-import-helper';
-import { openWorkspaceGroup } from './workspace-settings-helper';
+import { openVersions, openWorkspaceGroup } from './workspace-settings-helper';
 import { chromium, expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { Asset, Project } from '../../src/editor';
@@ -441,6 +441,54 @@ for (const base of behaviorBases) {
     expect((await fixture(page, '')).ended).toBe(true);
   });
 
+  test(`screen recording remains controllable while task queue initialization is pending ${base}`, async ({
+    page,
+  }) => {
+    await page.goto(base);
+    await source(page);
+    const dialog = await open(page);
+    let held = false;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/assets/editor-*.js', async (route) => {
+      held = true;
+      await gate;
+      await route.continue();
+    });
+    try {
+      await dialog
+        .getByRole('button', { name: 'Choose source and record' })
+        .click();
+      await expect.poll(() => held).toBe(true);
+      await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+      expect((await fixture(page, '')).ended).toBe(false);
+      const controls = page.getByRole('region', {
+        name: 'Screen recording controls',
+      });
+      await expect(controls.getByRole('status')).toContainText('0:01');
+      await controls.getByRole('button', { name: 'Stop recording' }).click();
+      expect((await fixture(page, '')).ended).toBe(true);
+      await expect(dialog.getByRole('status')).toHaveText(
+        'Finishing recording…',
+      );
+      await dialog.getByRole('button', { name: 'Hide', exact: true }).click();
+      release();
+      await expect(controls.getByRole('status')).toHaveText('Recording ready');
+      await controls.getByRole('button', { name: 'Show recording' }).click();
+      await expect(
+        dialog.getByRole('button', { name: 'Add to media' }),
+      ).toBeEnabled();
+      expect((await fixture(page, '')).calls).toBe(1);
+      await dialog
+        .getByRole('button', { name: 'Discard', exact: true })
+        .click();
+    } finally {
+      release();
+    }
+  });
+
   test(`screen recording continues after dialog dismissal until explicit stop ${base}`, async ({
     page,
   }, info) => {
@@ -582,6 +630,17 @@ for (const base of behaviorBases) {
     expect(
       databases.filter((database) => database.name !== 'localcut-tasks-v1'),
     ).toHaveLength(0);
+    await createWorkspace(page, 'Recording history');
+    await openVersions(page);
+    await page
+      .getByRole('group', { name: 'Saved versions' })
+      .getByRole('button')
+      .first()
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'Return to current', exact: true }),
+    ).toBeVisible();
+    expect((await fixture(page, '')).ended).toBe(false);
     await page.getByRole('button', { name: 'Task queue', exact: true }).click();
     const queue = page.getByRole('dialog', { name: 'Task queue', exact: true });
     await queue
@@ -595,8 +654,19 @@ for (const base of behaviorBases) {
     ).toContainText('cancelled');
     await expect.poll(async () => (await fixture(page, '')).ended).toBe(true);
     await queue.getByRole('button', { name: 'Close', exact: true }).click();
-    dialog = await open(page);
+    await page
+      .getByRole('region', { name: 'Screen recording controls' })
+      .getByRole('button', { name: 'Show recording' })
+      .click();
     await expect(dialog.getByRole('alert')).toBeVisible();
+    await expect(
+      dialog.getByRole('button', { name: 'Choose source and record' }),
+    ).not.toBeVisible();
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Return to current', exact: true })
+      .click();
+    dialog = await open(page);
     await dialog
       .getByRole('button', { name: 'Choose source and record' })
       .click();

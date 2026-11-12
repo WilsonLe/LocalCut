@@ -47,14 +47,14 @@ function sharedAudioGuidance(userAgent: string) {
 
 export default function ScreenRecordingDialog({
   open,
-  canAdd,
+  canEdit,
   onOpen,
   onClose,
   onAdd,
   getTasks,
 }: {
   open: boolean;
-  canAdd: boolean;
+  canEdit: boolean;
   onOpen: () => void;
   getTasks: () => Promise<Editor['tasks']>;
   onClose: () => void;
@@ -101,9 +101,10 @@ export default function ScreenRecordingDialog({
     return () => clearInterval(timer);
   }, [phase]);
   const start = async () => {
-    if (controller.current) return;
+    if (controller.current || !canEdit) return;
     const abort = new AbortController();
     controller.current = abort;
+    session.current = null;
     setError('');
     setPhase('choosing');
     let recording: ScreenRecording | undefined;
@@ -115,6 +116,7 @@ export default function ScreenRecordingDialog({
       }
       session.current = recording;
       setElapsed(0);
+      setPhase('recording');
       const tasks = await getTasks();
       if (!active.current || abort.signal.aborted) {
         recording.dispose();
@@ -150,7 +152,6 @@ export default function ScreenRecordingDialog({
         { label: 'Screen recording' },
       );
       queued.current = job;
-      setPhase('recording');
       const result = await job.completion;
       if (!active.current || abort.signal.aborted) return;
       setFile(result.file);
@@ -193,11 +194,12 @@ export default function ScreenRecordingDialog({
     onClose();
   };
   const close = () => {
-    if (phase === 'idle' || phase === 'choosing') discard();
+    if (phase === 'idle' || (phase === 'choosing' && !session.current))
+      discard();
     else onClose();
   };
   const add = async () => {
-    if (!file || phase !== 'ready' || !canAdd) return;
+    if (!file || phase !== 'ready' || !canEdit) return;
     setPhase('adding');
     const added = await onAdd(file);
     if (!active.current) return;
@@ -362,7 +364,10 @@ export default function ScreenRecordingDialog({
               </Button>
             )}
             {phase === 'idle' && (
-              <Button disabled={!supported} onClick={() => void start()}>
+              <Button
+                disabled={!supported || !canEdit}
+                onClick={() => void start()}
+              >
                 <Circle />
                 Choose source and record
               </Button>
@@ -393,7 +398,7 @@ export default function ScreenRecordingDialog({
               </p>
             )}
             {phase === 'ready' && (
-              <Button disabled={!canAdd} onClick={() => void add()}>
+              <Button disabled={!canEdit} onClick={() => void add()}>
                 Add to media
               </Button>
             )}

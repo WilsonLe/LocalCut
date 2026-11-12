@@ -2004,7 +2004,7 @@ export function Workspace() {
         <Suspense fallback={null}>
           <ScreenRecordingDialog
             open={recordingRoute === recordingRouteKey}
-            canAdd={!browsed && !busy}
+            canEdit={!browsed && !busy}
             getTasks={ensureTasks}
             onOpen={() => setRecordingRoute(recordingRouteKey)}
             onClose={() => setRecordingRoute(null)}
