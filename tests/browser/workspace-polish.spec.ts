@@ -32,9 +32,9 @@ for (const base of behaviorBases) {
     await expect(previewInfo).toHaveAttribute('data-base-ui-tooltip-trigger');
     await page.keyboard.press('Tab');
     await previewInfo.focus();
-    await expect(page.getByRole('tooltip')).toContainText(
-      '1920 × 1080 · 30 fps',
-    );
+    await expect(
+      page.getByRole('tooltip').filter({ hasText: '1920 × 1080 · 30 fps' }),
+    ).toBeVisible();
     await page
       .getByRole('button', { name: 'Workspace settings', exact: true })
       .click();

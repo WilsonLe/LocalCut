@@ -70,7 +70,7 @@ for (const base of behaviorBases) {
       }
     }, base);
     await page
-      .getByRole('button', { name: 'Open project', exact: true })
+      .getByRole('button', { name: 'Refresh projects', exact: true })
       .click();
     await page
       .getByRole('main', { name: 'Projects' })

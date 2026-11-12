@@ -1,4 +1,5 @@
 import { createWorkspace } from './workspace-project-helper';
+import { openWorkspaceGroup } from './workspace-settings-helper';
 import { behaviorBases } from './coverage-bases';
 import { closeMediaImportAndPlace } from './workspace-import-helper';
 import { dragPlayhead } from './workspace-playhead-helper';
@@ -41,7 +42,10 @@ async function aligned(page: Page) {
 
 async function prepareProject(page: Page, base: string, navigate = true) {
   if (navigate) await page.goto(base);
-  await page.getByRole('button', { name: 'New project', exact: true }).click();
+  const group = await openWorkspaceGroup(page, 'Project');
+  await group
+    .getByRole('menuitem', { name: 'New project', exact: true })
+    .click();
   await page.getByLabel('Project name', { exact: true }).fill('Sized project');
   await page
     .getByRole('button', { name: 'Create project', exact: true })
