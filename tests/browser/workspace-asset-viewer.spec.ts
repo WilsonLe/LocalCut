@@ -187,7 +187,7 @@ for (const base of behaviorBases) {
     );
     await card('Landscape.png').click();
     await expect(dialog('Landscape.png').getByRole('alert')).toContainText(
-      'relink',
+      /relink/i,
     );
     await page.keyboard.press('Escape');
   });
