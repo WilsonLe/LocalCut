@@ -9,6 +9,8 @@ metadata:
 
 # Storyboards and reusable artwork
 
+Use the agent host's built-in browser first. Open Chrome or another external browser only when the user explicitly requests it, the built-in browser is unavailable, or a required capability fails there. State the fallback reason before switching. Missing WebMCP alone is not a reason to switch when the ordinary UI can complete the task. Before switching, back up existing work including originals, restore it in the destination and verify the intended project and media. Browser profiles do not share local data; if transfer is blocked, keep the original tab intact and report it.
+
 Use the existing LocalCut project, not another editing document. Inspect it and the available Media with `localcut_inspect_project`. For each beat, identify its purpose, source asset/range, intended timeline placement, composition, text, motion and audio cue. A short beat list is enough for a small edit. Identify missing assets and label placeholders explicitly.
 
 The Storyboard is a local whiteboard stored in the project and shared Undo/Redo. Read `localcut_apply_edits` schemas for general drawing, text, geometry and layer commands. Preserve stable element IDs and unaffected elements; use atomic, revision-aware updates. A storyboard layout does not place timeline clips or create a second playback clock.

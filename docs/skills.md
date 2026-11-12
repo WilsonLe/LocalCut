@@ -4,7 +4,7 @@ LocalCut provides self-contained editing instructions through browser site tools
 
 ## Read through WebMCP
 
-Open LocalCut in a compatible agent browser and discover its site tools. Call `localcut_skills` with `{"action":"list"}`, then `{"action":"get","name":"localcut-start"}`. Load only other workflows relevant to the request.
+Start in the agent host's built-in browser, honoring an explicit user browser choice, and discover LocalCut's site tools. Open Chrome or another external browser only when the built-in browser is unavailable or an observed failure blocks a required capability. Use the ordinary UI when missing WebMCP does not block the task. Preserve and restore a backup including originals before moving existing work between browser profiles; see [browser selection](browser-support.md#agent-browser-selection). Call `localcut_skills` with `{"action":"list"}`, then `{"action":"get","name":"localcut-start"}`. Load only other workflows relevant to the request.
 
 Listing returns names, descriptions, SHA-256 digests and Markdown/license URLs. Getting returns the full published `SKILL.md` in `content`. No project needs to be open. The tool stays available on Projects, historical views and across project navigation, until the app lifetime ends.
 
@@ -34,7 +34,7 @@ Speech synthesis, generative image editing, advanced DAW/metering, remote video 
 
 Canonical files live at `public/skills/<name>/SKILL.md`. Both static builds publish them verbatim at `<deployment-base>skills/<name>/SKILL.md`, alongside a `LICENSE.txt` per folder and generated `skills/index.json`. Pages uses `/LocalCut/`; root builds use `/`. URLs become available when that candidate is deployed.
 
-Copy/download the whole skill folder, including its license, into your agent host's configured skills directory, or give its Markdown URL to an agent that can read it. Installation and automatic selection depend on the host. Each shipped skill also requires task-facing product copy and rejects storage/implementation/workflow metatext in rendered UI or authored titles; source transcripts remain unchanged unless correction is requested. Every folder contains all required workflow guidance, with no private source paths, absent helpers or plugin dependencies. Related LocalCut skills can be discovered through the same index.
+Copy/download the whole skill folder, including its license, into your agent host's configured skills directory, or give its Markdown URL to an agent that can read it. Installation and automatic selection depend on the host. Every shipped skill contains the built-in-browser-first rule and fallback/backup guidance so a standalone installation receives it; the start skill also advertises browser selection in discovery metadata. These instructions cannot force an external host to obey. Each shipped skill also requires task-facing product copy and rejects storage/implementation/workflow metatext in rendered UI or authored titles; source transcripts remain unchanged unless correction is requested. Every folder contains all required workflow guidance, with no private source paths, absent helpers or plugin dependencies. Related LocalCut skills can be discovered through the same index.
 
 After editing Markdown/frontmatter, regenerate and verify metadata:
 

@@ -9,6 +9,8 @@ metadata:
 
 # Typography for LocalCut video
 
+Use the agent host's built-in browser first. Open Chrome or another external browser only when the user explicitly requests it, the built-in browser is unavailable, or a required capability fails there. State the fallback reason before switching. Missing WebMCP alone is not a reason to switch when the ordinary UI can complete the task. Before switching, back up existing work including originals, restore it in the destination and verify the intended project and media. Browser profiles do not share local data; if transfer is blocked, keep the original tab intact and report it.
+
 Inspect the project dimensions and rational frame rate. Establish the actual language, viewing size and role of each text layer. Reuse accepted branding and hierarchy. Use `localcut_catalog` with `kind: "fonts"` and search/pagination to obtain real font IDs, and `textTemplates` for useful starting styles. Do not invent a family ID or assume arbitrary downloaded fonts can be installed in LocalCut.
 
 Choose font family, size, weight, tracking, alignment, color/background, outline or shadow to suit the specific content. Read canonical text styles before constructing edits; values use project pixels where defined. Preserve the distinction between a bundled face and browser-synthesized bold/italic. A font name or successful load cannot prove every requested glyph rendered correctly.

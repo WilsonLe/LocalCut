@@ -9,6 +9,8 @@ metadata:
 
 # Narration for a LocalCut edit
 
+Use the agent host's built-in browser first. Open Chrome or another external browser only when the user explicitly requests it, the built-in browser is unavailable, or a required capability fails there. State the fallback reason before switching. Missing WebMCP alone is not a reason to switch when the ordinary UI can complete the task. Before switching, back up existing work including originals, restore it in the destination and verify the intended project and media. Browser profiles do not share local data; if transfer is blocked, keep the original tab intact and report it.
+
 Establish language, pronunciation, tone, pace and intended voice from the brief. Keep the accepted script and pronunciation substitutions distinct. LocalCut can import, place, trim and mix audio; it does not provide built-in speech generation or a voice-provider connection.
 
 Use an existing recorded take when available. For requested new synthesis, check whether the agent's host supplies an appropriate speech tool or local runtime. Use it only within authorization for the script, voice and any cost/upload. Ordinary narration does not imply voice cloning. Missing synthesis capability is a named gap; continue the cut with an explicitly labeled placeholder or the supplied take, without pretending generated speech exists.

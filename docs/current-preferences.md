@@ -1,5 +1,7 @@
 # Current preference index
 
+The [built-in-browser-first decision](user-preferences.md#built-in-browser-first-for-agents--12-november-2026) applies to interactive agent use, manual previews and every published skill. See [browser selection](browser-support.md#agent-browser-selection) for fallback and local-project transfer; required native Chrome validation remains in force.
+
 The [source-clip and copy decision](user-preferences.md#source-clips-and-task-facing-copy--12-november-2026) supersedes flat asset notes with annotated source clips and removes explanatory UI metatext.
 
 The [portable-skills and asset-text decision](user-preferences.md#portable-editing-skills-and-asset-reference-text--12-november-2026) adds self-contained external-agent guidance and editable asset reference text; see [skills](skills.md).

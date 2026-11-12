@@ -10,6 +10,16 @@ Native Safari has a separate macOS regression suite for storage reload and MP4 r
 
 Screen, window and tab recording use the browser's source picker. Shared audio availability depends on the chosen source, browser and OS; see [recording guidance](workspace.md) and [troubleshooting](troubleshooting.md).
 
+## Agent browser selection
+
+For interactive LocalCut work and manual previews, use the agent host's built-in browser first. Reuse the intended LocalCut tab when it is already there. Open Chrome or another external browser only when the user explicitly requests it, no built-in browser is available, or an observed failure blocks a capability required for the task. State that concrete fallback reason before switching. Do not infer incompatibility from a browser name or assume the built-in browser supports every native operation.
+
+Discover WebMCP site tools when available. If they are absent, use the ordinary editor UI in the same browser when it can complete the task; missing site tools alone does not require Chrome. Honor the user's explicit browser choice.
+
+Projects and media belong to one browser profile and origin. Before switching browsers, preserve existing work through a project/workspace backup including originals and restore it in the destination. Verify the intended project and media before editing; if backup/restore is unavailable, keep the original tab intact and report the blocked transfer rather than assuming the project is shared.
+
+The same rule is included in every [published portable skill](skills.md), including skills read through WebMCP. It guides external agents; the app cannot force an agent host's browser choice. Required native codec, storage, inference and performance acceptance tests continue to use stable Chrome under the existing [validation contract](validation.md). Built-in browser observations do not replace those gates.
+
 ## Storage, backups and offline use
 
 Projects and originals live in IndexedDB/OPFS in this browser and origin. There is no cloud sync. Browser data clearing, eviction, changing browser profiles or moving to a different host can make projects unavailable. Export project/workspace backups with originals before relying on long-term retention or transferring work. See [backups and recovery](getting-started.md#save-versions-and-backups) and [storage contracts](storage.md).

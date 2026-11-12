@@ -8,6 +8,12 @@ Use the [current preference index](current-preferences.md) to find relevant cont
 
 - Click an asset in Media to view its source, including audio and video playback. Expose local indexing in both the asset actions menu and viewer. Keep viewing/indexing separate from timeline edits; preserve drag and modifier selection. See [asset viewing](workspace.md#asset-viewing).
 
+## Built-in browser first for agents — 12 November 2026
+
+- Prefer the agent host's built-in browser before opening Chrome for interactive LocalCut work and manual previews. Honor an explicit user browser choice; otherwise try the built-in browser before falling back for an unavailable browser or an observed failure of a required capability.
+- Publish this guidance in the skills exposed to users' agents through WebMCP and portable folders, including standalone workflow skills. Missing WebMCP alone does not require switching when the UI can complete the task.
+- Preserve existing local work with a backup including originals before crossing browser profiles. Keep required native stable Chrome acceptance tests; this preference does not establish built-in browser codec/inference parity. See [browser selection](browser-support.md#agent-browser-selection).
+
 ## Source clips and task-facing copy — 12 November 2026
 
 - Assets contain source clips. Each clip has its own source range, context, transcript and preview, with a polished responsive UI for viewing and editing them.
