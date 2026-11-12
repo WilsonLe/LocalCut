@@ -9,6 +9,8 @@ metadata:
 
 # Motion design in LocalCut
 
+Use the agent host's built-in browser first. Open Chrome or another external browser only when the user explicitly requests it, the built-in browser is unavailable, or a required capability fails there. State the fallback reason before switching. Missing WebMCP alone is not a reason to switch when the ordinary UI can complete the task. Before switching, back up existing work including originals, restore it in the destination and verify the intended project and media. Browser profiles do not share local data; if transfer is blocked, keep the original tab intact and report it.
+
 Inspect the project and supplied artwork. Establish the visual idea, duration, canvas, intended audience and sound cues. Preserve accepted artwork and style. The existing LocalCut timeline owns all placement; scene-local/keyframe times must map to that clock.
 
 Read current edit schemas for transforms, opacity, effects, keyframes, text animation, blend modes, masks and transitions. Use `localcut_catalog` for available templates and recipes. Only use controls the schema exposes. Do not install a new rendering engine or assume that browser shell/QuickJS can render arbitrary HTML, Three.js or native video. External rendered intermediates are optional assets from an available authorized host tool.

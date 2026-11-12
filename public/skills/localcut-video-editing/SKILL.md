@@ -9,6 +9,8 @@ metadata:
 
 # Edit a video in LocalCut
 
+Use the agent host's built-in browser first. Open Chrome or another external browser only when the user explicitly requests it, the built-in browser is unavailable, or a required capability fails there. State the fallback reason before switching. Missing WebMCP alone is not a reason to switch when the ordinary UI can complete the task. Before switching, back up existing work including originals, restore it in the destination and verify the intended project and media. Browser profiles do not share local data; if transfer is blocked, keep the original tab intact and report it.
+
 Use LocalCut's WebMCP tools in the project tab. Read `localcut_workspace` status, open/create the intended project if needed, then inspect it with `localcut_inspect_project`. Discover tool schemas before constructing edits. No additional plugin or backend is required.
 
 ## Inspect before selecting

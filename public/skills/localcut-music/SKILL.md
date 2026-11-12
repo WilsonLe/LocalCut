@@ -9,6 +9,8 @@ metadata:
 
 # Music and timed sound
 
+Use the agent host's built-in browser first. Open Chrome or another external browser only when the user explicitly requests it, the built-in browser is unavailable, or a required capability fails there. State the fallback reason before switching. Missing WebMCP alone is not a reason to switch when the ordinary UI can complete the task. Before switching, back up existing work including originals, restore it in the destination and verify the intended project and media. Browser profiles do not share local data; if transfer is blocked, keep the original tab intact and report it.
+
 Establish mood, duration, instrumentation, cue points, dialogue space and ending/loop from the brief. Inspect the existing LocalCut cut first. Keep one project timeline; return audio at measured duration and explicit offsets rather than introducing another video clock.
 
 For original instrumental material, write a motif, harmonic movement, rhythm, sections and silence. Preserve editable notes/code, seeds, synthesis settings and sample provenance. Code synthesis can use oscillators, envelopes, noise and percussion; choosing a palette is not a substitute for composing a piece.

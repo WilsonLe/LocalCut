@@ -9,6 +9,7 @@
 
 ## Keep one development cycle short
 
+- Prefer the agent host's built-in browser for interactive LocalCut use and manual previews before opening Chrome. Follow the [browser selection contract](docs/browser-support.md#agent-browser-selection); required native Chrome acceptance gates still use stable Chrome.
 - Product agent AI was removed by explicit user choice on 11 November 2026. Do not restore assistant/chat/provider features or require assistant paths for editor changes; see [the current preference index](docs/current-preferences.md).
 - Change the existing owner of a behavior. UI controls call the shared editor APIs; do not duplicate editing logic in components.
 - Apply the [coding rules and examples](CONTRIBUTING.md#coding-rules). Refactor by responsibility with explicit typed dependencies; preserve revision, cleanup and lazy-loading boundaries. Mechanical rules belong in local checks, not repeated prose.
