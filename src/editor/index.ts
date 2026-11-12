@@ -38,11 +38,6 @@ export type {
 import { mediaTaskCache } from '../storage/media-cache';
 import { freshTask, taskCacheKey } from '../services/task-cache';
 import type { TaskCachePolicy } from '../services/task-cache';
-import {
-  MODEL as modelId,
-  MODEL_REVISION as modelRevision,
-  RUNTIME_VERSION,
-} from '../services/transcription-config';
 import { AssetIndexStore } from '../storage/asset-index';
 import type {
   AssetIndexRun,
@@ -70,7 +65,7 @@ import { WorkerClient } from '../services/worker-client';
 import { EditorError, invariant, asEditorError } from '../core/errors';
 import { newProject, validateProject } from '../core/model';
 import { outputAssetIds } from '../core/timeline';
-import type { Asset, Project, Transcript } from '../core/model';
+import type { Asset, Project } from '../core/model';
 import { validateAssetClips } from '../core/asset-clips';
 import type { AssetClip } from '../core/asset-clips';
 export { assetClipState } from '../core/asset-clips';
@@ -79,7 +74,6 @@ import { applyOperations, parseBatch } from '../core/commands';
 import { repairLegacyIdentities } from '../core/legacy-identities';
 import type { CommandBatch } from '../core/commands';
 import type { ExportOptions, ExportResult } from '../media/export';
-import { modelStatus } from '../services/transcription-status';
 import { createPreviewSession } from '../services/preview';
 import type { FrameResult, PreviewSession } from '../services/preview';
 export * from '../core/model';
@@ -134,8 +128,15 @@ export interface ProjectEvent {
   type: 'changed' | 'deleted';
 }
 export async function createEditor(options: EditorOptions = {}) {
-  const namespace = options.namespace ?? 'localcut',
-    store = await Store.open(namespace),
+  const namespace = options.namespace ?? 'localcut';
+  // Retire only this editor's obsolete model bytes. Cache access can be disabled;
+  // cleanup failure must not prevent opening authored projects.
+  try {
+    await globalThis.caches?.delete(`${namespace}-asr-v1`);
+  } catch {
+    /* Browser storage policy may deny Cache Storage. */
+  }
+  const store = await Store.open(namespace),
     jobs = new Jobs(),
     tasks = new TaskQueue(namespace);
   let disposed = false;
@@ -259,13 +260,6 @@ export async function createEditor(options: EditorOptions = {}) {
         type: 'module',
       }),
   );
-  const speech = new WorkerClient(
-    () =>
-      new Worker(
-        new URL('../workers/transcription.worker.ts', import.meta.url),
-        { type: 'module' },
-      ),
-  );
   const indexing = new WorkerClient(
     () =>
       new Worker(new URL('../workers/media.worker.ts', import.meta.url), {
@@ -287,7 +281,6 @@ export async function createEditor(options: EditorOptions = {}) {
       index?.close();
     }
   };
-  let speechQueue = Promise.resolve();
   const active = () => {
     invariant(!disposed, 'DISPOSED', 'Editor disposed');
   };
@@ -317,33 +310,6 @@ export async function createEditor(options: EditorOptions = {}) {
         ),
       { acceptCommittedResult: operation === 'import' },
     );
-  };
-  const speechRun = <T>(operation: string, payload: object) => {
-    active();
-    return jobs.start<T>((signal, progress) => {
-      const execute = async () => {
-        checkAbort(signal);
-        const abort = () =>
-          speech.reset(new EditorError('CANCELLED', 'Transcription cancelled'));
-        signal.addEventListener('abort', abort, { once: true });
-        try {
-          return await speech.run<T>(
-            operation,
-            { ...payload, namespace },
-            signal,
-            progress,
-          );
-        } finally {
-          signal.removeEventListener('abort', abort);
-        }
-      };
-      const completion = speechQueue.then(execute, execute);
-      speechQueue = completion.then(
-        () => {},
-        () => {},
-      );
-      return completion;
-    });
   };
   const queuedRawJobs = new Set<string>();
   const adoptQueuedJob = <T>(
@@ -1255,113 +1221,9 @@ export async function createEditor(options: EditorOptions = {}) {
       },
     },
     transcription: {
-      async status() {
-        active();
-        return modelStatus(namespace);
-      },
-      prepare() {
-        return speechRun<Awaited<ReturnType<typeof modelStatus>>>(
-          'prepare',
-          {},
-        );
-      },
-      transcribe(
-        assetId: string,
-        options: {
-          language?: string;
-          startUs?: number;
-          endUs?: number;
-        } = {},
-      ) {
-        active();
-        options = { ...options };
-        return jobs.start(
-          async (signal, progress, id) => {
-            const asset = await store.getAsset(assetId);
-            invariant(
-              asset.audioCodec,
-              'UNSUPPORTED_CODEC',
-              'Asset has no audio',
-            );
-            const startUs = options.startUs ?? 0,
-              endUs = options.endUs ?? asset.durationUs;
-            invariant(
-              Number.isSafeInteger(startUs) &&
-                Number.isSafeInteger(endUs) &&
-                startUs >= 0 &&
-                endUs > startUs &&
-                endUs <= asset.durationUs,
-              'INVALID_COMMAND',
-              'Invalid transcription range',
-            );
-            invariant(
-              (await modelStatus(namespace)).ready,
-              'MODEL_REQUIRED',
-              'Prepare transcription before inference',
-            );
-            const audio = await background.run<Float32Array>(
-              'speechAudio',
-              {
-                namespace,
-                jobId: id,
-                assetId,
-                startFrame: Math.round((startUs * 16000) / 1e6),
-                count: Math.ceil(((endUs - startUs) * 16000) / 1e6),
-              },
-              signal,
-              progress,
-            );
-            const local = async () => {
-              invariant(
-                (await modelStatus(namespace)).ready,
-                'MODEL_REQUIRED',
-                'Prepare transcription before inference',
-              );
-              const task = speechRun<Transcript>('transcribe', {
-                audio,
-                assetId,
-                language: options.language,
-                startUs,
-                endUs,
-              });
-              const abort = () => task.cancel();
-              signal.addEventListener('abort', abort, { once: true });
-              const unsubscribe = task.subscribe((e) =>
-                progress({ stage: e.stage, progress: e.progress }),
-              );
-              try {
-                checkAbort(signal);
-                return await task.completion;
-              } finally {
-                unsubscribe();
-                signal.removeEventListener('abort', abort);
-              }
-            };
-            checkAbort(signal);
-            const transcript = await local();
-            checkAbort(signal);
-            invariant(
-              transcript.assetId === assetId &&
-                transcript.cues.every(
-                  (cue) => cue.timeUs >= startUs && cue.endUs <= endUs,
-                ),
-              'INVALID_DOCUMENT',
-              'Transcription provider returned cues outside the requested source range',
-            );
-            await store.saveTranscript(transcript, signal);
-            return transcript;
-          },
-          { acceptCommittedResult: true },
-        );
-      },
       async transcript(id: string) {
         active();
         return store.transcript(id);
-      },
-      async clearModelCache() {
-        active();
-        speech.reset();
-        await caches.delete(`${namespace}-asr-v1`);
       },
     },
     events: {
@@ -1421,7 +1283,6 @@ export async function createEditor(options: EditorOptions = {}) {
       await jobs.dispose();
       interactive.reset();
       background.reset();
-      speech.reset();
       indexing.reset();
       broadcast.close();
       projectListeners.clear();
@@ -1441,7 +1302,7 @@ export async function createEditor(options: EditorOptions = {}) {
     },
   };
   // Public long-running operations share durable scheduling; internal preview and
-  // transcription sub-jobs keep their dedicated workers and never queue behind themselves.
+  // nested jobs never queue behind themselves.
   const queued = <A extends unknown[], R>(
     kind: string,
     operation: (...args: A) => import('../services/jobs').Job<R>,
@@ -1617,37 +1478,6 @@ export async function createEditor(options: EditorOptions = {}) {
       'Import publishes fresh project/source identities and settings.',
     ),
     lane: 'transfer',
-    recovery: 'manual',
-    acceptCommittedResult: true,
-    retryCodes: [],
-  });
-  api.transcription.prepare = queued(
-    'transcription.prepare',
-    api.transcription.prepare,
-    {
-      cache: {
-        mode: 'reuse',
-        version: 'model-prepare-v1',
-        reuseCompleted: false,
-        key: async () =>
-          taskCacheKey([modelId, modelRevision, RUNTIME_VERSION]),
-        read: async (_input, signal) => {
-          checkAbort(signal);
-          const status = await modelStatus(namespace);
-          checkAbort(signal);
-          return status.ready ? { value: status } : undefined;
-        },
-      },
-      lane: 'transcription',
-      retryCodes: ['MODEL_DOWNLOAD_FAILED', 'WORKER_FAILED'],
-    },
-  );
-  const transcribe = api.transcription.transcribe;
-  api.transcription.transcribe = queued('transcription.local', transcribe, {
-    cache: freshTask(
-      'Explicit transcription publishes canonical transcript identities; retry retains its committed result.',
-    ),
-    lane: 'transcription',
     recovery: 'manual',
     acceptCommittedResult: true,
     retryCodes: [],

@@ -146,7 +146,7 @@ export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
         playheadUs: current.playheadUs,
         busy: current.busy,
         guidance:
-          'Call apply_edits directly for requested edits; no LocalCut AI connection or second approval is required. All canonical operations/properties are accepted. Preserve unrelated fields. Reinspect on conflicts. Export/transcription return job IDs; inspect/wait/cancel/download/release with job. Model preparation is explicit. Browser permissions still apply.',
+          'Call apply_edits directly for requested edits; no LocalCut AI connection or second approval is required. All canonical operations/properties are accepted. Preserve unrelated fields. Reinspect on conflicts. Exports return job IDs; inspect/wait/cancel/download/release with job. Speech-to-text and text-to-speech use the external agent host. Browser permissions still apply.',
       };
     },
   );
@@ -528,36 +528,16 @@ export function projectTools(host: SiteToolHost, lifetime: AbortSignal) {
   );
   add(
     'transcription',
-    'Inspect local Whisper readiness, explicitly prepare its model, transcribe project source audio locally, or read a project transcript. No remote provider is used. prepare/transcribe return jobs. Read requires transcriptId; transcribe requires assetId.',
+    'Read an existing saved project transcript by transcriptId. For new speech-to-text (STT) or text-to-speech (TTS), use the external agent host capabilities and the captions/narration skills. LocalCut has no speech model or generation service.',
     contracts.transcriptionSchema,
-    false,
-    async (
-      { action, assetId, transcriptId, language, startUs, endUs },
-      signal,
-    ) => {
-      view(action === 'prepare' || action === 'transcribe');
-      if (action === 'status') return host.editor.transcription.status();
-      if (action === 'prepare')
-        return jobs.track(host.editor.transcription.prepare());
-      if (action === 'read') {
-        invariant(transcriptId, 'INVALID_COMMAND', 'Supply transcriptId.');
-        const transcript =
-          await host.editor.transcription.transcript(transcriptId);
-        invariant(transcript, 'NOT_FOUND', 'Transcript unavailable.');
-        await assertAsset(transcript.assetId);
-        return transcript;
-      }
-      invariant(assetId, 'INVALID_COMMAND', 'Supply assetId.');
-      await assertAsset(assetId);
-      signal.throwIfAborted();
-      view(true);
-      return jobs.track(
-        host.editor.transcription.transcribe(assetId, {
-          language,
-          startUs,
-          endUs,
-        }),
-      );
+    true,
+    async ({ transcriptId }) => {
+      view();
+      const transcript =
+        await host.editor.transcription.transcript(transcriptId);
+      invariant(transcript, 'NOT_FOUND', 'Transcript unavailable.');
+      await assertAsset(transcript.assetId);
+      return transcript;
     },
   );
   add(

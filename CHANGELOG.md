@@ -4,6 +4,8 @@ Current version: **0.1.0-alpha.1**. Short summaries for end users and executives
 
 ## Unreleased
 
+- Remove bundled Whisper and its model downloads. Editing skills request STT/TTS from external agents; existing transcripts, captions and media remain compatible. This removes speech inference APIs; propose a breaking prerelease change. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...wilsonle/agent-speech-only).
+
 - Guide external agents to index assets with useful context and source-timed transcripts, and verify saved content before reporting completion. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...wilsonle/asset-indexing-workflow).
 
 - Click Media assets to preview images/audio/video and edit their context and transcript directly, without changing the timeline. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...wilsonle/asset-preview).

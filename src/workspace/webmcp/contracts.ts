@@ -79,12 +79,8 @@ export const jobSchema = scope.extend({
   action: z.enum(['status', 'wait', 'cancel', 'download', 'release']),
 });
 export const transcriptionSchema = scope.extend({
-  action: z.enum(['status', 'prepare', 'transcribe', 'read']),
-  assetId: id.optional(),
-  transcriptId: id.optional(),
-  language: z.string().min(1).max(100).optional(),
-  startUs: time.optional(),
-  endUs: time.optional(),
+  action: z.literal('read'),
+  transcriptId: id,
 });
 export const storyboardSchema = revisionScope.extend({
   action: z.enum(['insertImage', 'export', 'store']),

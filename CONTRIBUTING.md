@@ -29,10 +29,10 @@ Read [AGENTS.md](AGENTS.md), [user preferences](docs/user-preferences.md), and e
 
 - Keep project edits in the shared engine. UI controls call its public APIs; do not duplicate editing state in components.
 - Preserve stable IDs, transactional edits, revisions, Undo/Redo, cancellation and owned storage cleanup. Treat saved-project and backup compatibility as public contracts.
-- Keep local workflows local. No remote AI/provider features remain; keep model preparation explicit.
+- Keep local workflows local. No built-in AI/provider features remain; external agents supply STT/TTS through the [speech contract](docs/transcription.md).
 - Use existing shadcn/Base UI primitives and semantic styling. Preserve keyboard interaction, focus, text entry, accessible names and reduced-motion behavior.
-- Preserve both `/` and `/LocalCut/` hosting. Keep native codec, local inference and export evidence real; mocks may isolate transport behavior but do not prove native acceptance.
-- Keep dependencies and model/runtime revisions exact. Include license/provenance and artifact hashes for bundled assets. Do not add personal media, tokens, private logs or local environment files to Git.
+- Preserve both `/` and `/LocalCut/` hosting. Keep native codec and export evidence real; mocks may isolate transport behavior but do not prove native acceptance.
+- Keep dependency versions exact. Include license/provenance and artifact hashes for bundled assets. Do not add personal media, tokens, private logs or local environment files to Git.
 
 The [development ownership map](docs/development.md#find-the-owner) points to the module responsible for each change. [Architecture](docs/architecture.md), [API](docs/api.md), [storage](docs/storage.md), [AI](docs/ai.md) and [transcription](docs/transcription.md) remain the detailed contracts.
 
@@ -67,7 +67,7 @@ During iteration, choose the smallest meaningful check from [development recipes
 
 For documentation-only changes, run `pnpm format:check`, check local links/anchors, and validate new commands against their implementation. Full media workloads add no evidence when runtime inputs are unchanged.
 
-Before a draft code, configuration or dependency handoff, run the affected behavior checks, static checks, documentation checks and required builds/native gates from [development](docs/development.md#expand-verification-at-the-boundary). Run the complete `pnpm check` and required transcription/performance acceptance when merging is requested. Safari acceptance are separately scoped. State what ran, what passed and what remains deferred.
+Before a draft code, configuration or dependency handoff, run the affected behavior checks, static checks, documentation checks and required builds/native gates from [development](docs/development.md#expand-verification-at-the-boundary). Run the complete `pnpm check` and required performance acceptance when merging is requested. Safari acceptance are separately scoped. State what ran, what passed and what remains deferred.
 
 Hosted validation CI is disabled by project choice. Do not add or re-enable it; the Pages workflow packages and releases static files. Local quality evidence belongs in the PR. Documentation-only PRs use documentation checks rather than a runtime suite rerun.
 

@@ -344,22 +344,6 @@ it('owned quota eviction preserves originals, edits and derivatives pinned by ac
   vi.unstubAllGlobals();
 });
 
-import { modelStatus } from '../../src/services/transcription-status';
-import { requiredUrls } from '../../src/services/transcription-config';
-it('does not report persistent readiness for valid JSON with a changed pinned checksum', async () => {
-  const url = requiredUrls().find((url) => url.endsWith('/config.json'))!;
-  vi.stubGlobal('caches', {
-    has: async () => true,
-    open: async () => ({
-      match: async (requested: string) =>
-        requested === url
-          ? new Response('{"model_type":"tampered"}')
-          : undefined,
-    }),
-  });
-  expect((await modelStatus('test')).missing).toContain(url);
-  vi.unstubAllGlobals();
-});
 it('blocks suspended preview playback without user activation', async () => {
   vi.stubGlobal('navigator', { userActivation: { hasBeenActive: false } });
   vi.stubGlobal('cancelAnimationFrame', vi.fn());

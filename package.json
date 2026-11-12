@@ -19,7 +19,6 @@
     "preview": "vite preview --port 4178 --strictPort",
     "test:browser": "node scripts/test-browser.mjs",
     "test:ui": "node scripts/test-ui.mjs",
-    "test:transcription": "playwright test --project=acceptance --grep @transcription",
     "test:performance": "playwright test --project=acceptance --grep @performance",
     "check:docs": "node scripts/check-docs.mjs",
     "check:bundle": "node scripts/check-bundle.mjs",
@@ -31,7 +30,6 @@
   "dependencies": {
     "@base-ui/react": "1.8.0",
     "@excalidraw/excalidraw": "0.18.1",
-    "@huggingface/transformers": "4.3.1",
     "@jitl/quickjs-singlefile-browser-release-sync": "0.32.0",
     "class-variance-authority": "0.7.1",
     "cmdk": "1.1.1",

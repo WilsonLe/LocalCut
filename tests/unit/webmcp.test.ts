@@ -59,6 +59,39 @@ function fixture() {
 }
 
 describe('project site tools', () => {
+  it('reads saved project transcripts without offering speech inference', async () => {
+    const f = fixture();
+    const transcript = { id: 'saved', assetId: 'asset', cues: [] };
+    const read = vi.fn(async () => transcript);
+    f.host.editor = {
+      ...f.host.editor,
+      library: {
+        forProject: () => ({
+          list: async () => ({ entries: [{ assetId: 'asset' }] }),
+        }),
+      },
+      transcription: { transcript: read },
+    } as unknown as Editor;
+    const tool = f.bridge.tools.find(
+      (item) => item.name === 'localcut_transcription',
+    )!;
+    expect(tool.annotations.readOnlyHint).toBe(true);
+    const scope = { projectId: f.host.projectId, transcriptId: 'saved' };
+    for (const action of ['status', 'prepare', 'transcribe', 'clearModelCache'])
+      expect(
+        await f.invoke('transcription', { ...scope, action }),
+      ).toMatchObject({ isError: true });
+    expect(read).not.toHaveBeenCalled();
+    expect(
+      await f.invoke('transcription', { ...scope, action: 'read' }),
+    ).toEqual(transcript);
+    read.mockResolvedValue({ ...transcript, assetId: 'foreign' });
+    expect(
+      await f.invoke('transcription', { ...scope, action: 'read' }),
+    ).toMatchObject({ isError: true, error: { code: 'NOT_FOUND' } });
+    f.bridge.dispose();
+  });
+
   it('scopes retained index reads and resumes to the viewed asset and blocks historical analysis', async () => {
     const f = fixture();
     const analyze = vi.fn(() =>

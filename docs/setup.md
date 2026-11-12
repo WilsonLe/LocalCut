@@ -6,7 +6,7 @@ For editing without a source checkout, [open LocalCut](https://wilsonle.github.i
 
 Install Node 24 LTS and check that `node --version` reports `v24.x`. Use the pinned pnpm 11.25.0. Current stable desktop Google Chrome is the native codec, OPFS, Web Locks and production integration acceptance target; see [browser support](browser-support.md).
 
-Local editing requires no runtime environment variables, accounts, backend servers or secrets. Browser storage requires HTTPS or localhost. Read [privacy and data flows](privacy.md) for local storage and explicit model downloads.
+Local editing requires no runtime environment variables, accounts, backend servers or secrets. Browser storage requires HTTPS or localhost. Read [privacy and data flows](privacy.md) for local storage and external-agent data access.
 
 ## Clone, install and start
 

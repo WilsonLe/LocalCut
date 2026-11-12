@@ -23,6 +23,8 @@ Start with `localcut_workspace` using `action: "status"`. List projects when cho
 
 For host files, call workspace `import_files` with `expectedProjectId` from status, then complete the browser file chooser with the authorized paths. If the chooser does not open, click **Import media** and complete it through the browser's upload capability. Poll status until imports finish. A webpage cannot read a host path from JSON. Import adds Media; place clips separately. For small in-memory assets, inspect the `localcut_import_media` schema. Do not create duplicate projects after a lost create response; check status/list first.
 
+For speech-to-text (STT) and text-to-speech (TTS), use the calling agent's speech capabilities. LocalCut has no speech model or speech generation service. Load `localcut-captions` for STT and `localcut-narration` for TTS; bring resulting text/timestamps or audio back through existing asset-clip/caption edits or media import. If the capability is unavailable, report that gap and request an agent-provided transcript/take while continuing independent editing.
+
 ## Edit through the shared engine
 
 Read the actual tool input schemas rather than guessing command fields. Keep one LocalCut timeline. Times are safe integer microseconds; frame rates are rational and source ranges are half-open. Keep source IDs distinct from clip instance IDs. Use catalog tools for font IDs, templates and transitions.
@@ -40,7 +42,7 @@ Long operations return job IDs. Use `localcut_job` to wait/inspect/cancel, downl
 - `localcut-storyboards` develops visual beats and reusable artwork.
 - `localcut-audio-editing`, `localcut-music` and `localcut-narration` handle the soundtrack.
 - `localcut-motion-design`, `localcut-typography` and `localcut-image-preparation` handle visuals.
-- `localcut-captions` handles local transcription and subtitle timing.
+- `localcut-captions` requests STT from the agent and handles normalization and subtitle timing.
 - `localcut-export-review` checks and delivers the actual candidate.
 
 Skills expose guidance, not extra capabilities or permission to upload, pay, publish or spawn agents. Use current tool schemas to establish what is available. Keep local edits moving when an optional external capability is unavailable, and report that gap precisely.

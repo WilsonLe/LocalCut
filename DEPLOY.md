@@ -10,7 +10,7 @@ The production URL is [https://wilsonle.github.io/LocalCut/](https://wilsonle.gi
 
 The user has authorized this automatic release behavior; merging an authorized reviewed change to `main` triggers deployment without a separate dispatch. For an approved manual redeploy, select `main` in **Actions → GitHub Pages deployment → Run workflow** and set `confirm_deploy=true`. Other refs or an unconfirmed dispatch skip packaging/deployment.
 
-Validation runs locally by project preference. Before merging runtime/configuration/dependency changes, complete `pnpm check` and applicable real transcription/performance gates from [validation](docs/validation.md). Documentation-only changes use formatting/link/command validation. Hosted check/performance workflows are disabled; Pages packaging is not a substitute for local checks. See [releasing](docs/releasing.md) for candidate identity, review and approval.
+Validation runs locally by project preference. Before merging runtime/configuration/dependency changes, complete `pnpm check` and applicable native performance gates from [validation](docs/validation.md). Documentation-only changes use formatting/link/command validation. Hosted check/performance workflows are disabled; Pages packaging is not a substitute for local checks. See [releasing](docs/releasing.md) for candidate identity, review and approval.
 
 For a fork, configure Pages publishing and change the build base if its repository name/path differs. Do not assume the upstream `/LocalCut/` build fits every fork or custom domain.
 
@@ -42,7 +42,7 @@ pnpm exec vite preview --outDir dist-root --base / --port 4178 --strictPort
 
 This uses `http://localhost:4178/`. For a custom-base `dist` build, pass that same base to Vite preview. Preview is a development smoke check, not a production hosting service. Use an unoccupied port and keep mutable output/report directories isolated from other runs.
 
-Upload the entire chosen output to an HTTPS static host at the matching path. Preserve JavaScript module MIME types, hashed assets, worker paths, fonts and notices. No history fallback rewrite is required for hash routes. Inference is single-thread WASM and does not require multithread isolation headers. A custom content-security/network policy must account for explicitly prepared inference downloads; test it with the relevant workflows rather than bypassing browser security.
+Upload the entire chosen output to an HTTPS static host at the matching path. Preserve JavaScript module MIME types, hashed assets, worker paths, fonts and notices. No history fallback rewrite is required for hash routes. LocalCut ships no speech model or inference downloads. Test a custom content-security/network policy with the relevant editing workflows rather than bypassing browser security; external agents supply their own authorized STT/TTS capabilities.
 
 Use HTTPS in production (localhost is supported for development). Host the app on a dedicated origin when possible: unrelated scripts on the same origin may access browser-local data. Never put secrets in build variables, source files or static configuration.
 
@@ -67,12 +67,12 @@ A workflow configuration or successful packaging job does not prove availability
 After an authorized deployment, use a fresh Google Chrome context with generated local media:
 
 1. Verify the title and rendered workspace at the correct base, and check for missing lazy modules, worker assets, icons or fonts.
-2. On a bare URL without a remembered project, verify inert startup: no editing-storage initialization, media/inference workers, model downloads, permission prompts before an explicit action. An explicit local project/catalog route, remembered-project startup have their documented behavior.
+2. On a bare URL without a remembered project, verify inert startup: no editing-storage initialization, media workers or permission prompts before an explicit action. An explicit local project/catalog route, remembered-project startup have their documented behavior.
 3. Create a project, import generated media, render the preview and save a real supported export. Reopen the local project after reload and verify the selected editing change's relevant flow.
 4. Verify fresh `modules.json` discovery, the compatibility entries, and worker/font snapshot paths at the deployed base. Check grouped settings, responsive/collapsible panels when touched by the release.
 5. Export a portable backup with originals and check import in an isolated profile when portability/storage changes are in scope. Do not test against personal media or clear unrelated browser data.
 
-Model preparation and local inference require explicit actions and their own evidence. Native Safari coverage remains separate from Chrome acceptance. Record gaps instead of claiming a live flow was verified from a local result.
+Saved transcript compatibility and agent-provided STT/TTS follow the [speech contract](docs/transcription.md); local validation does not prove host speech quality or availability. Native Safari coverage remains separate from Chrome acceptance. Record gaps instead of claiming a live flow was verified from a local result.
 
 ## Rollback and local data compatibility
 

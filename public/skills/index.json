@@ -4,7 +4,7 @@
     {
       "name": "localcut-asset-clips",
       "description": "Create and edit source clips inside LocalCut assets, with a source range, preview, context and transcript for each clip.",
-      "sha256": "8dcc903135f41c105c63bff2088b114474a41836ee89ca9be704fc5c2c9b4fec"
+      "sha256": "af454246c5313ca5f4aa3838530af0b802a310b5a68264aef1c907fbbfde601e"
     },
     {
       "name": "localcut-audio-editing",
@@ -13,8 +13,8 @@
     },
     {
       "name": "localcut-captions",
-      "description": "Transcribe local project audio, normalize STT sound-alike errors with an agent LLM pass, and create or revise source-linked LocalCut captions without inventing speech.",
-      "sha256": "9e1bbab364ca89b0944c9cf51466d7e304d37079779fb80fe57281709c77e08c"
+      "description": "Use this skill whenever transcribing speech or creating captions in LocalCut. Request STT from the external agent, normalize sound-alike errors, and preserve source timing.",
+      "sha256": "71be047d01f602497aa738afca949db13a7c2fdbb5c97c5ce251004a17098cbe"
     },
     {
       "name": "localcut-export-review",
@@ -29,7 +29,7 @@
     {
       "name": "localcut-indexing",
       "description": "Use when asked to index an asset/video or import and index media in LocalCut. Populate evidence-grounded Context and normalized original-language source-timed Transcript, preserve human text, and verify saved content after reload; analyze alone is incomplete.",
-      "sha256": "61c7d350c9494bd4541929bd546e2a068f3dbae814c4bbff6c5fe4b770b19918"
+      "sha256": "ec9e7319e575ef67962539382995d5db3343921d4d20426a78c422f5b3d3ef25"
     },
     {
       "name": "localcut-motion-design",
@@ -43,8 +43,8 @@
     },
     {
       "name": "localcut-narration",
-      "description": "Prepare, import and time voiceover takes in LocalCut while preserving scripts, pronunciation, measured duration and generation capability limits.",
-      "sha256": "273492a559984d240ab7c2c5f8ad58a796594eb05e3134f2c9a1b12b55fd0dc3"
+      "description": "Use this skill whenever creating or timing narration in LocalCut. Request TTS from the external agent, then import and review the take with measured timing.",
+      "sha256": "5a07f1782aeb76722670d8c6d1afdfe13f71f39b4427d8e24cc8fba38fd596b4"
     },
     {
       "name": "localcut-reference-analysis",
@@ -54,7 +54,7 @@
     {
       "name": "localcut-start",
       "description": "Use this skill when starting an agent-led LocalCut project or choosing its browser. Prefer the built-in browser, route import-and-index requests to localcut-indexing, discover editing workflows and use correct revisions, imports and job lifetimes.",
-      "sha256": "1370c7b3012fb1629d0f47b9f765002bd08040021ca82b88e8329d5ed6731738"
+      "sha256": "fb721651ab1ec937704e550ae2b62b0f82b13e7de06bd5fc85f8ee698e41c54f"
     },
     {
       "name": "localcut-storyboards",
@@ -69,7 +69,7 @@
     {
       "name": "localcut-video-editing",
       "description": "Assemble or revise footage, images and sound into a coherent LocalCut timeline, with source inspection, continuity, timing and final review.",
-      "sha256": "fa883a45d02b5d1b32d91b74f64c3d1f14fa402d088e3a42364124015afeb519"
+      "sha256": "a71c06ab9338e636f0b3ba130984e267e3934e81e58160f900ee28120863efaf"
     }
   ]
 }

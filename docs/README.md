@@ -28,7 +28,7 @@ Contributors: start with the [current preference index](current-preferences.md) 
 | [Agent skills](skills.md)                     | Portable editing workflows and WebMCP guidance                     |
 | [API](api.md)                                 | Headless editor contracts, commands and lifecycle                  |
 | [Storage](storage.md)                         | IndexedDB/OPFS, recovery, versions and backup compatibility        |
-| [Transcription](transcription.md)             | Pinned local model/runtime preparation and audio processing        |
+| [Transcription](transcription.md)             | Agent-provided STT/TTS, saved transcripts and captions             |
 | [Validation](validation.md)                   | Native codec/inference/export requirements and scoped results      |
 | [Playwright journeys](playwright-journeys.md) | Compatible browser journeys and isolation boundaries               |
 | [Agent guide](../AGENTS.md)                   | Root instructions; read the relevant nested module guides too      |

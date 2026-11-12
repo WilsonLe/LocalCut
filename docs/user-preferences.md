@@ -820,3 +820,7 @@ Follow-up: Transcription skills require an agent-LLM normalization pass for like
 ## Remove agent AI features — 11 November 2026
 
 The user requested: “entirely wipe out agent AI features”. Remove product chat/assistant execution, tools and skills, provider connections/settings, remote speech/transcription/indexing and the public AI entry. Keep manual editing, local media processing, the storyboard and local Whisper. This supersedes all earlier product requirements for complete agent editing access, chat layout, goals, provider services, narration and agent operation. Preserve this dated record as history. See [the removal contract](ai.md).
+
+## Agent-provided STT and TTS — 12 November 2026
+
+Remove LocalCut's local Whisper model entirely. Published skills request speech-to-text (STT) and text-to-speech (TTS) from the calling agent's capabilities instead of an in-app speech runtime. Remove model preparation/inference/download code and dependencies. Preserve saved transcripts, caption/source-clip editing, media and backups. External agents return recognized text/timestamps through existing edits and generated narration through ordinary media import; do not restore built-in assistant/provider features. See [speech contracts](transcription.md).

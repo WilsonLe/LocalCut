@@ -1,5 +1,7 @@
 # Current preference index
 
+The [agent-provided speech decision](user-preferences.md#agent-provided-stt-and-tts--12-november-2026) removes bundled Whisper entirely. Skills request STT/TTS from the calling agent; saved transcript and caption data remain compatible. See [speech and captions](transcription.md).
+
 The [asset-content decision](user-preferences.md#asset-content-without-indexing-controls--12-november-2026) supersedes the earlier indexing-control request. Asset clicks open editable context/transcript and source-clip details; analysis stays internal with no user-facing Index controls.
 
 The [browser-agent readiness decision](user-preferences.md#browser-agent-readiness-and-manual-refresh--12-november-2026) adds visible registration status, connection help and manual refresh without claiming a verified agent connection.
@@ -21,7 +23,7 @@ The [11 November 2026 agent removal decision](user-preferences.md#remove-agent-a
 | Local persistence and backups    | [Storage](storage.md)                                             |
 | Workspace and accessibility      | [Workspace](workspace.md), [UI guide](../src/workspace/AGENTS.md) |
 | Browser updates                  | [Browser support](browser-support.md)                             |
-| Local transcription              | [Transcription](transcription.md)                                 |
+| Agent-provided speech            | [Transcription](transcription.md)                                 |
 | Privacy and retired agent data   | [Privacy](privacy.md), [agent removal](ai.md)                     |
 | Storyboards and local coding API | [Storyboard workflows](storyboard-workflows.md), [API](api.md)    |
 

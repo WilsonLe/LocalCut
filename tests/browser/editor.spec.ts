@@ -9,6 +9,81 @@ declare global {
   }
 }
 for (const base of behaviorBases) {
+  test(`retired speech model cache is removed without inference ${base}`, async ({
+    page,
+  }) => {
+    const requests: string[] = [],
+      workers: string[] = [];
+    page.on('request', (request) => requests.push(request.url()));
+    page.on('worker', (worker) => workers.push(worker.url()));
+    await page.goto(base);
+    const result = await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        String(base + 'editor.js')
+      )) as typeof import('../../src/editor/index');
+      const namespace = 'test-retired-speech-' + crypto.randomUUID();
+      const retired = namespace + '-asr-v1';
+      const unrelated = namespace + '-other-asr-v1';
+      await (
+        await caches.open(retired)
+      ).put('/old-model', new Response('old weights'));
+      await (await caches.open(unrelated)).put('/keep', new Response('keep'));
+      const editor = await createEditor({ namespace });
+      try {
+        const project = await editor.projects.create('Saved edit');
+        const keys = Object.keys(editor.transcription);
+        const cacheKeys = await caches.keys();
+        await editor.dispose();
+        // A storage-policy denial must not make authored projects inaccessible.
+        const cacheStorage = globalThis.caches;
+        Object.defineProperty(globalThis, 'caches', {
+          configurable: true,
+          value: {
+            delete: async () => {
+              throw new DOMException('Denied', 'SecurityError');
+            },
+          },
+        });
+        let reopened;
+        try {
+          const fresh = await createEditor({ namespace });
+          try {
+            reopened = (await fresh.projects.snapshot(project.id)).id;
+          } finally {
+            await fresh.dispose();
+          }
+        } finally {
+          Object.defineProperty(globalThis, 'caches', {
+            configurable: true,
+            value: cacheStorage,
+          });
+        }
+        return {
+          retiredRemoved: !cacheKeys.includes(retired),
+          unrelatedKept: cacheKeys.includes(unrelated),
+          keys,
+          reopened,
+          projectId: project.id,
+        };
+      } finally {
+        await editor.dispose();
+        await caches.delete(unrelated);
+      }
+    }, base);
+    expect(result).toMatchObject({
+      retiredRemoved: true,
+      unrelatedKept: true,
+      keys: ['transcript'],
+    });
+    expect(result.reopened).toBe(result.projectId);
+    expect(workers).toEqual([]);
+    expect(
+      requests.filter((url) =>
+        /huggingface|onnxruntime|transcription\.worker|openrouter/.test(url),
+      ),
+    ).toEqual([]);
+  });
+
   test(`inert initial workspace ${base}`, async ({ page }) => {
     const errors: string[] = [],
       requests: string[] = [],

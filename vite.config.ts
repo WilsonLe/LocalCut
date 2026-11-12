@@ -1,28 +1,6 @@
 import { localStoryboardAssets } from './scripts/storyboard-assets';
 import { defineConfig } from 'vite';
 import type { Plugin } from 'vite';
-import { RUNTIME_CDN } from './src/services/transcription-config.ts';
-function externalInferenceAssets(): Plugin {
-  return {
-    name: 'localcut-external-inference-assets',
-    enforce: 'pre',
-    transform(code, id) {
-      if (!id.includes('onnxruntime-web')) return;
-      const name = 'ort-wasm-simd-threaded.asyncify.wasm';
-      const rewritten = code
-        .replaceAll(
-          JSON.stringify(name),
-          JSON.stringify(`${RUNTIME_CDN}/${name}`),
-        )
-        .replaceAll("'" + name + "'", JSON.stringify(`${RUNTIME_CDN}/${name}`));
-      if (rewritten !== code)
-        return {
-          code: rewritten.replaceAll('new URL(', 'new URL(/* @vite-ignore */ '),
-          map: null,
-        };
-    },
-  };
-}
 // Workspace imports follow content hashes; public headless URLs remain aliases.
 function publicModuleAliases(): Plugin {
   return {
@@ -92,7 +70,7 @@ export default defineConfig(({ command }) => ({
     ),
   },
   resolve: { alias: { '@': resolve(import.meta.dirname, 'src') } },
-  worker: { format: 'es', plugins: () => [externalInferenceAssets()] },
+  worker: { format: 'es' },
   build: {
     target: 'es2022',
     manifest: true,
