@@ -242,10 +242,16 @@ for (const base of behaviorBases) {
       await page
         .getByRole('button', { name: `Actions for ${name}`, exact: true })
         .click();
-      await expect(page.getByRole('menuitem', { name: /index/i })).toHaveCount(
-        0,
-      );
-      await page.keyboard.press('Escape');
+      const actions = page.getByRole('menu', {
+        name: `Actions for ${name}`,
+        exact: true,
+      });
+      await expect(actions).toBeVisible();
+      await expect(
+        actions.getByRole('menuitem', { name: /index/i }),
+      ).toHaveCount(0);
+      await actions.press('Escape');
+      await expect(actions).toBeHidden();
       await card(name).click();
       await expect(dialog(name)).not.toContainText(/\bindex(?:ed|ing)?\b/i);
       await expect(
@@ -264,8 +270,8 @@ for (const base of behaviorBases) {
         .getByRole('button', { name: 'Save', exact: true })
         .click();
       await expect(
-        dialog(name).getByRole('button', { name: 'Save', exact: true }),
-      ).toBeDisabled();
+        dialog(name).getByRole('button', { name: 'Done', exact: true }),
+      ).toBeVisible();
       await dialog(name)
         .getByRole('button', { name: 'Close', exact: true })
         .click();
