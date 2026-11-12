@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Circle, LoaderCircle, Square } from 'lucide-react';
+import { Circle, EyeOff, LoaderCircle, MonitorDot, Square } from 'lucide-react';
 import {
   screenRecordingError,
   screenRecordingSupported,
@@ -10,6 +10,7 @@ import type { ScreenRecording } from '../services/screen-recording';
 import { Button } from '../components/ui/button';
 import { Checkbox } from '../components/ui/checkbox';
 import { Label } from '../components/ui/label';
+import { Tooltip } from '../components/ui/tooltip';
 import {
   Dialog,
   DialogContent,
@@ -68,6 +69,7 @@ export default function ScreenRecordingDialog({
   const [url, setUrl] = useState('');
   const [limited, setLimited] = useState(false);
   const [audioEnded, setAudioEnded] = useState(false);
+  const [barHidden, setBarHidden] = useState(false);
   const session = useRef<ScreenRecording | null>(null);
   const queued = useRef<Job<unknown> | null>(null);
   const controller = useRef<AbortController | null>(null);
@@ -105,6 +107,7 @@ export default function ScreenRecordingDialog({
     const abort = new AbortController();
     controller.current = abort;
     session.current = null;
+    setBarHidden(false);
     setError('');
     setPhase('choosing');
     let recording: ScreenRecording | undefined;
@@ -159,10 +162,12 @@ export default function ScreenRecordingDialog({
       setAudioEnded(result.audioEnded);
       previewUrl.current = URL.createObjectURL(result.file);
       setUrl(previewUrl.current);
+      setBarHidden(false);
       setPhase('ready');
     } catch (failure) {
       recording?.dispose();
       if (!active.current || abort.signal.aborted) return;
+      setBarHidden(false);
       setError(screenRecordingError(failure));
       setPhase('idle');
     } finally {
@@ -194,6 +199,7 @@ export default function ScreenRecordingDialog({
     onClose();
   };
   const close = () => {
+    setBarHidden(false);
     if (phase === 'idle' || (phase === 'choosing' && !session.current))
       discard();
     else onClose();
@@ -224,7 +230,7 @@ export default function ScreenRecordingDialog({
               : 'Recording failed';
   return (
     <>
-      {!open && (phase !== 'idle' || error) && (
+      {!open && !barHidden && (phase !== 'idle' || error) && (
         <section
           aria-label="Screen recording controls"
           className="fixed bottom-4 right-4 z-40 flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-2 rounded-lg border bg-popover p-2 text-sm text-popover-foreground shadow-md"
@@ -247,6 +253,19 @@ export default function ScreenRecordingDialog({
               Stop recording
             </Button>
           )}
+          <Tooltip content="Hide recording bar">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Hide recording bar"
+              onClick={() => {
+                setBarHidden(true);
+                document.getElementById('workspace-settings-trigger')?.focus();
+              }}
+            >
+              <EyeOff aria-hidden="true" />
+            </Button>
+          </Tooltip>
         </section>
       )}
       <Dialog
@@ -368,7 +387,7 @@ export default function ScreenRecordingDialog({
                 disabled={!supported || !canEdit}
                 onClick={() => void start()}
               >
-                <Circle />
+                <MonitorDot />
                 Choose source and record
               </Button>
             )}

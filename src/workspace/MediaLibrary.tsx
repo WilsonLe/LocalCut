@@ -11,7 +11,7 @@ import {
   Files,
   Music,
   Upload,
-  ScreenShare,
+  MonitorDot,
   Pencil,
   Trash2,
   Link,
@@ -405,7 +405,7 @@ export default function MediaLibrary({
             aria-label="Record screen"
             onClick={onRecord}
           >
-            <ScreenShare aria-hidden="true" />
+            <MonitorDot aria-hidden="true" />
           </Button>
         </Tooltip>
       )}

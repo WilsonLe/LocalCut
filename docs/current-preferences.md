@@ -1,6 +1,6 @@
 # Current preference index
 
-The [recording lifetime decision](user-preferences.md#keep-screen-recording-active-after-dismissal--13-november-2026) keeps screen recording active when its dialog is hidden or the user navigates inside LocalCut. Hidden controls reopen the same session or explicitly stop it; see [screen recording](workspace.md#screen-recording).
+The [recording lifetime decision](user-preferences.md#keep-screen-recording-active-after-dismissal--13-november-2026) keeps screen recording active when its dialog or optional recording bar is hidden, or the user navigates inside LocalCut. Record screen reopens the same session; see [screen recording](workspace.md#screen-recording).
 
 The [13 November sound-library request](user-preferences.md#sound-effects-library--13-november-2026) adds researched, reusable sound effects and asks for a larger, tagged collection that external agents can search easily. See the [library contract and source decisions](sound-effects.md).
 

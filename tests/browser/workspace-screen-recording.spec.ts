@@ -552,8 +552,54 @@ for (const base of behaviorBases) {
       });
     }
     await dialog.getByRole('button', { name: 'Hide', exact: true }).click();
+    await controls
+      .getByRole('button', { name: 'Hide recording bar', exact: true })
+      .click();
+    await expect(controls).not.toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Workspace settings', exact: true }),
+    ).toBeFocused();
+    expect((await fixture(page, '')).ended).toBe(false);
+    await open(page);
+    await expect(
+      dialog.getByRole('button', { name: 'Stop recording' }),
+    ).toBeVisible();
+    expect((await fixture(page, '')).calls).toBe(1);
+    await dialog.getByRole('button', { name: 'Hide', exact: true }).click();
+    await expect(controls).toBeVisible();
     const workspaceUrl = await createWorkspace(page, 'Recording workspace');
     expect((await fixture(page, '')).ended).toBe(false);
+    const expandMedia = page.getByRole('button', {
+      name: 'Expand media',
+      exact: true,
+    });
+    await expect(
+      page.getByRole('button', { name: /^(Expand|Collapse) media$/ }),
+    ).toBeVisible();
+    if (await expandMedia.isVisible()) await expandMedia.click();
+    await expect(
+      page.getByRole('button', { name: 'Record screen', exact: true }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: info.outputPath('recording-editor-controls.png'),
+    });
+    await controls
+      .getByRole('button', { name: 'Hide recording bar', exact: true })
+      .click();
+    await expect(controls).not.toBeVisible();
+    expect((await fixture(page, '')).ended).toBe(false);
+    await page.screenshot({
+      path: info.outputPath('recording-bar-hidden.png'),
+    });
+    await page
+      .getByRole('button', { name: 'Record screen', exact: true })
+      .click();
+    await expect(
+      dialog.getByRole('button', { name: 'Stop recording' }),
+    ).toBeVisible();
+    expect((await fixture(page, '')).calls).toBe(1);
+    await dialog.getByRole('button', { name: 'Hide', exact: true }).click();
+    await expect(controls).toBeVisible();
     await navigateWorkspace(page, base);
     await expect(
       page.getByRole('button', { name: 'New project', exact: true }),
