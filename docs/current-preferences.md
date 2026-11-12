@@ -1,5 +1,7 @@
 # Current preference index
 
+The [browser-agent readiness decision](user-preferences.md#browser-agent-readiness-and-manual-refresh--12-november-2026) adds visible registration status, connection help and manual refresh without claiming a verified agent connection.
+
 The [built-in-browser-first decision](user-preferences.md#built-in-browser-first-for-agents--12-november-2026) applies to interactive agent use, manual previews and every published skill. See [browser selection](browser-support.md#agent-browser-selection) for fallback and local-project transfer; required native Chrome validation remains in force.
 
 The [source-clip and copy decision](user-preferences.md#source-clips-and-task-facing-copy--12-november-2026) supersedes flat asset notes with annotated source clips and removes explanatory UI metatext.

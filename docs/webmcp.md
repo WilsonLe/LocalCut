@@ -16,6 +16,14 @@ Read [LocalCut skills](skills.md) through `localcut_skills` (`list`, then `get` 
 
 WebMCP is an evolving browser API, not a guarantee that every agent/browser can connect. LocalCut feature-detects `document.modelContext.registerTool` and uses registration/execution AbortSignals. See the [WebMCP specification](https://webmachinelearning.github.io/webmcp/), [Chrome's imperative API](https://developer.chrome.com/docs/ai/webmcp/imperative-api) and [desktop site tools](https://learn.chatgpt.com/docs/webmcp). Chrome documents `chrome://flags/#enable-webmcp-testing` for local testing. LocalCut does not enable browser flags or enroll its hosting origin in an origin trial.
 
+## Connection status and refresh
+
+Open **Workspace settings → Browser agent** to see registration readiness, the available-tool count, the last observed request time and any registration error. **Tools ready** confirms LocalCut registered its tools; it does not establish that an agent/model can access this browser tab. No request history is treated as an active-session heartbeat. The panel’s connection help links to the current [desktop site-tool guide](https://learn.chatgpt.com/docs/webmcp); permissions and supported models are managed by the browser/agent host, not LocalCut.
+
+**Refresh** rechecks `document.modelContext` and re-publishes the application and viewed-project tools. It recovers late API injection, replacement or a failed registration without a page reload. Registrations have separate AbortSignals from tool-service lifetimes: refreshing retires old entry points but keeps accepted LocalCut work, job IDs, retained results and saved edits. Agents rediscover tools after refreshing. Changing project/version or leaving the page still retires the corresponding services, jobs and temporary URLs normally. Browser-side execution cancellation remains governed by the browser.
+
+`webmcp/connection.ts` owns registration, serial refresh and ephemeral status for both existing binding hooks. Stale registration callbacks reject new calls and cannot publish readiness after retirement. Only LocalCut’s own signal-owned registrations are replaced. Status/help/unsupported Refresh never obtain an editor, open storage, prepare models, fetch the skill catalog or poll the agent. The panel cannot turn browser access on or repair a disconnected host-side browser controller.
+
 ## Tool inventory
 
 | Tools                              | Shared owner and result                                                                                        |
