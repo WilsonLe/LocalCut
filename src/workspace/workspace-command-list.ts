@@ -206,7 +206,13 @@ export function workspaceCommands(
       showProjects,
       'Mod+O',
     );
-    command('back', 'Back to editor', 'Project', !busy, returnToEditor);
+    command(
+      'back',
+      'Back to editor',
+      'Project',
+      !busy && !!project,
+      returnToEditor,
+    );
     command('import-backup', 'Import project backup', 'Project', !busy, () =>
       importBackup(),
     );

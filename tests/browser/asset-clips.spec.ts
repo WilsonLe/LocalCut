@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-project-helper';
 import { test, expect } from '@playwright/test';
 import { behaviorBases } from './coverage-bases';
 
@@ -397,7 +398,7 @@ for (const base of behaviorBases) {
         },
         { base, kind },
       );
-      await page.goto(`${base}#/project/${seeded.projectId}`);
+      await navigateWorkspace(page, `${base}workspace/${seeded.projectId}`);
       await page
         .getByRole('button', { name: 'Expand media', exact: true })
         .click();

@@ -1,5 +1,5 @@
 import { inputHash, recordBuild, runPnpm, target } from './build-state.mjs';
-import { mkdir, rename } from 'node:fs/promises';
+import { copyFile, mkdir, rename } from 'node:fs/promises';
 import { fontSnapshot } from './font-snapshot.ts';
 
 const rootBuild = process.argv.includes('--root');
@@ -27,4 +27,6 @@ await rename(
   `${build.directory}/.fonts-snapshot`,
   `${build.directory}/fonts/${revision}`,
 );
+// GitHub Pages serves this document for workspace deep links, preserving the URL.
+await copyFile(`${build.directory}/index.html`, `${build.directory}/404.html`);
 await recordBuild(build, input);

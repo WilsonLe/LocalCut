@@ -104,16 +104,9 @@ async function fixture(page: Page, expression: string) {
   }, expression);
 }
 async function open(page: Page) {
-  const expand = page.getByRole('button', {
-    name: 'Expand media',
-    exact: true,
-  });
-  await expect(
-    page.getByRole('button', { name: /^(Expand|Collapse) media$/ }),
-  ).toBeVisible();
-  if (await expand.isVisible()) await expand.click();
-  await page
-    .getByRole('button', { name: 'Record screen', exact: true })
+  const group = await openWorkspaceGroup(page, 'Workspace');
+  await group
+    .getByRole('menuitem', { name: 'Record screen', exact: true })
     .click();
   return page.getByRole('dialog', { name: 'Record screen', exact: true });
 }

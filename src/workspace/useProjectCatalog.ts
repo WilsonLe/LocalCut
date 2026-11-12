@@ -40,6 +40,20 @@ export function useProjectCatalog(
     const token = ++generation.current;
     update({ pending: true, failed: false });
     try {
+      // An empty first visit can show the catalog without creating editing storage.
+      if (
+        !editor &&
+        typeof indexedDB.databases === 'function' &&
+        !(await indexedDB.databases()).some(
+          (database) => database.name === 'localcut-v1',
+        )
+      ) {
+        if (token === generation.current) {
+          writeProjectCatalogCache([]);
+          update({ projects: [], loaded: true });
+        }
+        return;
+      }
       const engine = await getEditor();
       const entries = await engine.projects.catalog();
       const projects = entries.map((entry) => {
@@ -78,7 +92,7 @@ export function useProjectCatalog(
     } finally {
       if (token === generation.current) update({ pending: false });
     }
-  }, [getEditor, onError]);
+  }, [editor, getEditor, onError]);
   const invalidate = useCallback(() => {
     generation.current++;
   }, []);

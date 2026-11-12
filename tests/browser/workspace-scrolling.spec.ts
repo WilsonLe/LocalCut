@@ -1,3 +1,4 @@
+import { createWorkspace } from './workspace-project-helper';
 import { behaviorBases } from './coverage-bases';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
@@ -38,6 +39,7 @@ for (const base of behaviorBases) {
       ]) {
         await page.setViewportSize(viewport);
         await page.goto(base);
+        await createWorkspace(page);
         await expect(page.locator('.editing-area')).toBeVisible();
         const editor = page.locator('#editor-panel');
         if (viewport.width < 900) {

@@ -95,7 +95,6 @@ import {
 } from './useWorkspaceProject';
 import { useProjectNavigation } from './useProjectNavigation';
 import { useProjectCatalog } from './useProjectCatalog';
-import { rememberProject } from './recent-project';
 import { selectionIds } from '../core/timeline';
 import { useAppearance } from './appearance';
 import { usePageZoomGuard } from './usePageZoomGuard';
@@ -241,7 +240,7 @@ export function Workspace() {
     clear: clearProject,
     refresh: refreshProject,
   } = useWorkspaceProject(editorRef);
-  const { route, routeKey, go } = useWorkspaceRoute({ restoreRecent: true });
+  const { route, routeKey, go } = useWorkspaceRoute();
   const projectsOpen = route.screen === 'projects';
   const [projectSwitcherOpen, setProjectSwitcherOpen] = useState(false);
   const projectSwitcherTrigger = useRef<HTMLButtonElement>(null);
@@ -339,10 +338,7 @@ export function Workspace() {
   ]);
   const [recordingRoute, setRecordingRoute] = useState<string | null>(null);
   const [recordingAdding, setRecordingAdding] = useState(false);
-  if (
-    recordingRoute !== null &&
-    (recordingRoute !== recordingRouteKey || route.screen !== 'editor')
-  ) {
+  if (recordingRoute !== null && recordingRoute !== recordingRouteKey) {
     // Creating the recording's first project changes the URL during import.
     // Preserve its review/retry UI only for that same active project; other
     // navigation retires the capture even when Back returns to an old route key.
@@ -597,7 +593,6 @@ export function Workspace() {
       setExportError('');
       resetProjectView();
       activate(next);
-      rememberProject(next.project.id);
       if (updateRoute) go('editor', snapshot.id);
       requestAnimationFrame(() => {
         if (!alive.current || getProjectId() !== snapshot.id) return;
@@ -899,6 +894,10 @@ export function Workspace() {
     requestAnimationFrame(() =>
       document.querySelector<HTMLElement>('[data-editor-shortcuts]')?.focus(),
     );
+  };
+  const showRecording = () => {
+    previewControls.current?.pause();
+    setRecordingRoute(recordingRouteKey);
   };
   const beginTransfer = (value: NonNullable<typeof transfer>) => {
     void action(async () => {
@@ -1405,6 +1404,8 @@ export function Workspace() {
             }
             onWorkspaceExport={() => beginTransfer({ mode: 'export' })}
             onWorkspaceImport={() => beginTransfer({ mode: 'import' })}
+            onRecord={showRecording}
+            onImportMedia={() => fileInput.current?.click()}
             onAppearance={() => setAppearanceOpen(true)}
             onShortcuts={() => setDialog('shortcuts')}
             onCommands={showCommands}
@@ -1466,10 +1467,7 @@ export function Workspace() {
               headerActions={
                 narrow && mobileTab === 'media' ? headerActions : null
               }
-              onRecord={() => {
-                previewControls.current?.pause();
-                setRecordingRoute(recordingRouteKey);
-              }}
+              onRecord={showRecording}
               onRelink={relinkMedia}
               onRename={async (asset, name) => {
                 if (
@@ -1634,245 +1632,249 @@ export function Workspace() {
           </section>
         )}
         {projectsOpen && !navigation.error && projectBrowser}
-        <Suspense
-          fallback={
-            <div className="workspace-columns">
-              <WorkspaceSkeleton label="Loading workspace" />
-            </div>
-          }
-        >
-          <WorkspacePanels
-            narrow={narrow}
-            inert={projectsOpen || navigation.blocked}
-            mediaOpen={drawer}
-            onCollapseMedia={toggleMedia}
-            media={mediaPanel}
-            mobileTab={mobileTab}
+        {(!projectsOpen || project) && (
+          <Suspense
+            fallback={
+              <div className="workspace-columns">
+                <WorkspaceSkeleton label="Loading workspace" />
+              </div>
+            }
           >
-            <main
-              id="workspace-editor"
-              className="editing-area"
-              data-editor-shortcuts={projectTab === 'editor' ? '' : undefined}
-              tabIndex={0}
-              aria-label={
-                projectTab === 'editor'
-                  ? 'Video editor'
-                  : 'Storyboard workspace'
-              }
+            <WorkspacePanels
+              narrow={narrow}
+              inert={projectsOpen || navigation.blocked}
+              mediaOpen={drawer}
+              onCollapseMedia={toggleMedia}
+              media={mediaPanel}
+              mobileTab={mobileTab}
             >
-              {narrow && (
-                <Suspense
-                  fallback={
-                    <header
-                      className="mobile-edit-heading panel-header"
-                      aria-busy="true"
-                    />
-                  }
-                >
-                  <PanelHeader
-                    className="mobile-edit-heading"
-                    label="Edit"
-                    title={
-                      <Button
-                        variant="ghost"
-                        className="project-picker"
-                        ref={projectSwitcherTrigger}
-                        aria-label="Open project"
-                        aria-haspopup="dialog"
-                        aria-expanded={projectSwitcherOpen}
-                        onClick={showProjectSwitcher}
-                      >
-                        <span className="project-picker-name">
-                          {viewProject?.name ?? 'Edit'}
-                        </span>
-                      </Button>
+              <main
+                id="workspace-editor"
+                className="editing-area"
+                data-editor-shortcuts={projectTab === 'editor' ? '' : undefined}
+                tabIndex={0}
+                aria-label={
+                  projectTab === 'editor'
+                    ? 'Video editor'
+                    : 'Storyboard workspace'
+                }
+              >
+                {narrow && (
+                  <Suspense
+                    fallback={
+                      <header
+                        className="mobile-edit-heading panel-header"
+                        aria-busy="true"
+                      />
                     }
                   >
-                    {mobileTab === 'edit' ? headerActions : null}
-                    {project && (
-                      <ProjectTabs
-                        value={projectTab}
-                        onChange={chooseProjectTab}
-                      />
-                    )}
-                  </PanelHeader>
-                </Suspense>
-              )}
-              {versionsOpen && (
-                <section
-                  className="version-browser"
-                  aria-label="Project versions"
-                >
-                  <div className="section-heading">
-                    <h2>Versions</h2>
-                    {!busy && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          leaveVersion();
-                          setVersionsOpen(false);
-                        }}
-                      >
-                        Close versions
-                      </Button>
-                    )}
-                  </div>
-                  <div
-                    className="version-list"
-                    role="group"
-                    aria-label="Saved versions"
-                  >
-                    {versions.map(
-                      (version) =>
-                        !busy && (
-                          <Button
-                            key={version.id}
-                            variant={
-                              browsed?.id === version.id ? 'secondary' : 'ghost'
-                            }
-                            aria-pressed={browsed?.id === version.id}
-                            onClick={() => browseVersion(version.id)}
-                          >
-                            Version {version.number} ·{' '}
-                            {new Date(version.createdAt).toLocaleString([], {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              second: '2-digit',
-                            })}
-                            {version.kind === 'restore' ? ' · Restored' : ''}
-                          </Button>
-                        ),
-                    )}
-                  </div>
-                  {browsed && (
-                    <div className="version-actions">
-                      <span>Version {browsed.number} · Read-only</span>
-                      {!busy && (
+                    <PanelHeader
+                      className="mobile-edit-heading"
+                      label="Edit"
+                      title={
                         <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={leaveVersion}
+                          variant="ghost"
+                          className="project-picker"
+                          ref={projectSwitcherTrigger}
+                          aria-label="Open project"
+                          aria-haspopup="dialog"
+                          aria-expanded={projectSwitcherOpen}
+                          onClick={showProjectSwitcher}
                         >
-                          Return to current
+                          <span className="project-picker-name">
+                            {viewProject?.name ?? 'Edit'}
+                          </span>
                         </Button>
+                      }
+                    >
+                      {mobileTab === 'edit' ? headerActions : null}
+                      {project && (
+                        <ProjectTabs
+                          value={projectTab}
+                          onChange={chooseProjectTab}
+                        />
                       )}
-                      <Button
-                        size="sm"
-                        disabled={busy}
-                        onClick={restoreVersion}
-                      >
-                        Restore as new version
-                      </Button>
-                    </div>
-                  )}
-                </section>
-              )}
-              <div
-                id="project-editor-panel"
-                role="tabpanel"
-                aria-labelledby="project-editor-tab"
-                className="project-view-panel"
-                hidden={projectTab !== 'editor'}
-                inert={projectTab !== 'editor'}
-              >
-                <EditorPanels narrow={narrow}>
-                  <Suspense fallback={<PreviewSkeleton />}>
-                    <Preview
-                      controlsRef={previewControls}
-                      editor={editor}
-                      project={viewProject}
-                      versionId={browsed?.id}
-                      timeUs={timeUs}
-                      position={playbackPosition}
-                      seekRevision={seekRevision}
-                      onTime={setTimeUs}
-                      onImport={() => fileInput.current?.click()}
-                      onError={error}
-                    />
-                  </Suspense>
-                  <Suspense fallback={<TimelineSkeleton />}>
-                    <Timeline
-                      editor={editor}
-                      project={viewProject}
-                      assets={browsed ? versionAssets : assets}
-                      versionId={browsed?.id}
-                      readOnly={!!browsed || navigation.blocked}
-                      selected={selectedIds}
-                      position={playbackPosition}
-                      busy={busy}
-                      onSelect={selectClip}
-                      canGroup={canGroup}
-                      canUngroup={!!selectedGroups.length}
-                      canSeparate={canSeparate}
-                      overlap={overlap}
-                      transitionTemplate={
-                        activeTransition?.templateId ?? activeTransition?.kind
-                      }
-                      onSelectOverlap={(from, to) => {
-                        setSelected(from);
-                        setSelection(selectionIds(viewProject, [from, to]));
-                      }}
-                      onGroup={group}
-                      onUngroup={ungroup}
-                      onSeparate={separateAudio}
-                      onTransition={setTransition}
-                      onTime={seek}
-                      onUndo={undo}
-                      onRedo={redo}
-                      onSplit={split}
-                      onDelete={deleteClip}
-                      onProperties={(clipId, opener) => {
-                        setPropertiesOpener(opener ?? null);
-                        if (clipId) selectClip(clipId);
-                        setDialog('properties');
-                      }}
-                      onText={addText}
-                      onAddTrack={addTrack}
-                      onReorderTrack={reorderTrack}
-                      draggingAsset={draggingAsset}
-                      onDropAsset={dropAsset}
-                      onResizeClip={(clipId, durationUs) =>
-                        void action(async () => {
-                          await apply([
-                            { type: 'resizeClip', clipId, durationUs },
-                          ]);
-                        })
-                      }
-                      onMoveClips={trackOperation}
-                      onTrackOperation={trackOperation}
-                    />
-                  </Suspense>
-                </EditorPanels>
-              </div>
-              <div
-                id="project-storyboard-panel"
-                role="tabpanel"
-                aria-labelledby="project-storyboard-tab"
-                className="project-view-panel"
-                hidden={projectTab !== 'storyboard'}
-                inert={projectTab !== 'storyboard'}
-              >
-                {storyboardLoaded && editor && viewProject && (
-                  <Suspense fallback={<StoryboardSkeleton />}>
-                    <Storyboard
-                      key={`${viewProject.id}:${browsed?.id ?? 'current'}`}
-                      editor={editor}
-                      controlsRef={storyboardControls}
-                      project={viewProject}
-                      readOnly={!!browsed || navigation.blocked}
-                      active={projectTab === 'storyboard'}
-                      onSaved={refresh}
-                      onError={error}
-                    />
+                    </PanelHeader>
                   </Suspense>
                 )}
-              </div>
-            </main>
-          </WorkspacePanels>
-        </Suspense>
+                {versionsOpen && (
+                  <section
+                    className="version-browser"
+                    aria-label="Project versions"
+                  >
+                    <div className="section-heading">
+                      <h2>Versions</h2>
+                      {!busy && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            leaveVersion();
+                            setVersionsOpen(false);
+                          }}
+                        >
+                          Close versions
+                        </Button>
+                      )}
+                    </div>
+                    <div
+                      className="version-list"
+                      role="group"
+                      aria-label="Saved versions"
+                    >
+                      {versions.map(
+                        (version) =>
+                          !busy && (
+                            <Button
+                              key={version.id}
+                              variant={
+                                browsed?.id === version.id
+                                  ? 'secondary'
+                                  : 'ghost'
+                              }
+                              aria-pressed={browsed?.id === version.id}
+                              onClick={() => browseVersion(version.id)}
+                            >
+                              Version {version.number} ·{' '}
+                              {new Date(version.createdAt).toLocaleString([], {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                              })}
+                              {version.kind === 'restore' ? ' · Restored' : ''}
+                            </Button>
+                          ),
+                      )}
+                    </div>
+                    {browsed && (
+                      <div className="version-actions">
+                        <span>Version {browsed.number} · Read-only</span>
+                        {!busy && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={leaveVersion}
+                          >
+                            Return to current
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          disabled={busy}
+                          onClick={restoreVersion}
+                        >
+                          Restore as new version
+                        </Button>
+                      </div>
+                    )}
+                  </section>
+                )}
+                <div
+                  id="project-editor-panel"
+                  role="tabpanel"
+                  aria-labelledby="project-editor-tab"
+                  className="project-view-panel"
+                  hidden={projectTab !== 'editor'}
+                  inert={projectTab !== 'editor'}
+                >
+                  <EditorPanels narrow={narrow}>
+                    <Suspense fallback={<PreviewSkeleton />}>
+                      <Preview
+                        controlsRef={previewControls}
+                        editor={editor}
+                        project={viewProject}
+                        versionId={browsed?.id}
+                        timeUs={timeUs}
+                        position={playbackPosition}
+                        seekRevision={seekRevision}
+                        onTime={setTimeUs}
+                        onImport={() => fileInput.current?.click()}
+                        onError={error}
+                      />
+                    </Suspense>
+                    <Suspense fallback={<TimelineSkeleton />}>
+                      <Timeline
+                        editor={editor}
+                        project={viewProject}
+                        assets={browsed ? versionAssets : assets}
+                        versionId={browsed?.id}
+                        readOnly={!!browsed || navigation.blocked}
+                        selected={selectedIds}
+                        position={playbackPosition}
+                        busy={busy}
+                        onSelect={selectClip}
+                        canGroup={canGroup}
+                        canUngroup={!!selectedGroups.length}
+                        canSeparate={canSeparate}
+                        overlap={overlap}
+                        transitionTemplate={
+                          activeTransition?.templateId ?? activeTransition?.kind
+                        }
+                        onSelectOverlap={(from, to) => {
+                          setSelected(from);
+                          setSelection(selectionIds(viewProject, [from, to]));
+                        }}
+                        onGroup={group}
+                        onUngroup={ungroup}
+                        onSeparate={separateAudio}
+                        onTransition={setTransition}
+                        onTime={seek}
+                        onUndo={undo}
+                        onRedo={redo}
+                        onSplit={split}
+                        onDelete={deleteClip}
+                        onProperties={(clipId, opener) => {
+                          setPropertiesOpener(opener ?? null);
+                          if (clipId) selectClip(clipId);
+                          setDialog('properties');
+                        }}
+                        onText={addText}
+                        onAddTrack={addTrack}
+                        onReorderTrack={reorderTrack}
+                        draggingAsset={draggingAsset}
+                        onDropAsset={dropAsset}
+                        onResizeClip={(clipId, durationUs) =>
+                          void action(async () => {
+                            await apply([
+                              { type: 'resizeClip', clipId, durationUs },
+                            ]);
+                          })
+                        }
+                        onMoveClips={trackOperation}
+                        onTrackOperation={trackOperation}
+                      />
+                    </Suspense>
+                  </EditorPanels>
+                </div>
+                <div
+                  id="project-storyboard-panel"
+                  role="tabpanel"
+                  aria-labelledby="project-storyboard-tab"
+                  className="project-view-panel"
+                  hidden={projectTab !== 'storyboard'}
+                  inert={projectTab !== 'storyboard'}
+                >
+                  {storyboardLoaded && editor && viewProject && (
+                    <Suspense fallback={<StoryboardSkeleton />}>
+                      <Storyboard
+                        key={`${viewProject.id}:${browsed?.id ?? 'current'}`}
+                        editor={editor}
+                        controlsRef={storyboardControls}
+                        project={viewProject}
+                        readOnly={!!browsed || navigation.blocked}
+                        active={projectTab === 'storyboard'}
+                        onSaved={refresh}
+                        onError={error}
+                      />
+                    </Suspense>
+                  )}
+                </div>
+              </main>
+            </WorkspacePanels>
+          </Suspense>
+        )}
 
         {transfer && (
           <Suspense
@@ -1974,6 +1976,7 @@ export function Workspace() {
               editor,
               project: viewProject,
               route,
+              routeKey,
               version: browsed,
               selectedClipIds: selectedIds,
               position: playbackPosition,

@@ -52,11 +52,7 @@ for (const base of behaviorBases) {
         header.getByRole('button', { name, exact: true }),
       ).toHaveCount(0);
     }
-    const editor = page.getByRole('main', {
-      name: 'Video editor',
-      exact: true,
-    });
-    await editor.focus();
+    await page.getByRole('heading', { name: 'Projects', exact: true }).focus();
     await page.keyboard.press('ControlOrMeta+k');
     let dialog = page.getByRole('dialog', { name: 'Commands', exact: true });
     const search = dialog.getByRole('combobox', { name: 'Search commands' });

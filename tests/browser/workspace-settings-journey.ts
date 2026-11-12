@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { waitForWorkspaceSettings } from './workspace-settings-helper';
+import { openWorkspaceGroup } from './workspace-settings-helper';
 
 export async function settingsJourney(page: Page, base: string) {
   await test.step(`workspace settings progressively disclose groups and support keyboard navigation ${base}`, async () => {
@@ -82,6 +82,7 @@ export async function settingsJourney(page: Page, base: string) {
     await expect(settings).toBeFocused();
 
     await settings.press('ArrowDown');
+    await expect(project).toBeFocused();
     await page.keyboard.press('End');
     await expect(
       menu.getByRole('menuitem', { name: /^Browser agent/ }),
@@ -121,10 +122,10 @@ export async function settingsJourney(page: Page, base: string) {
       .getByRole('button', { name: 'Create project', exact: true })
       .click();
     await expect(dialog).not.toBeVisible();
-
-    await waitForWorkspaceSettings(page);
-    await settings.click();
-    await menu.getByRole('menuitem', { name: 'Project', exact: true }).click();
+    await expect(
+      page.getByRole('button', { name: 'Open project', exact: true }),
+    ).toContainText('Menu project');
+    await openWorkspaceGroup(page, 'Project');
     await expect(
       projectMenu.getByRole('menuitem', {
         name: 'Download project backup',

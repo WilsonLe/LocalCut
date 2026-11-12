@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 async function openForm(page: Page) {
-  await page.getByRole('button', { name: 'Open project', exact: true }).click();
+  await page.keyboard.press('ControlOrMeta+o');
   await page
     .getByRole('main', { name: 'Projects', exact: true })
     .getByRole('button', { name: 'New project', exact: true })
@@ -16,7 +16,7 @@ async function snapshot(page: Page, base: string) {
     const { createEditor } = await import(`${base}editor.js`);
     const editor = await createEditor();
     try {
-      const id = location.hash.split('/project/')[1];
+      const id = location.pathname.split('/workspace/')[1];
       return await editor.projects.snapshot(id);
     } finally {
       await editor.dispose();
@@ -48,7 +48,7 @@ for (const base of behaviorBases) {
         const editor = await createEditor();
         try {
           const project = await editor.projects.snapshot(
-            location.hash.split('/project/')[1]!,
+            location.pathname.split('/workspace/')[1]!,
           );
           const canvas = new OffscreenCanvas(32, 32);
           const context = canvas.getContext('2d')!;
@@ -165,9 +165,7 @@ for (const base of behaviorBases) {
       await expect(dialog.getByLabel('Width (px)')).toHaveValue('720');
       await expect(dialog.getByLabel('Height (px)')).toHaveValue('720');
       await dialog.getByRole('button', { name: 'Close', exact: true }).click();
-      await page
-        .getByRole('button', { name: 'Open project', exact: true })
-        .click();
+      await page.keyboard.press('ControlOrMeta+o');
       await page
         .getByRole('main', { name: 'Projects', exact: true })
         .getByRole('button', { name: 'New project', exact: true })
@@ -210,7 +208,7 @@ for (const base of behaviorBases) {
         .getByRole('button', { name: 'Create project', exact: true })
         .click();
       await expect(dialog).not.toBeVisible();
-      await expect(page).toHaveURL(/#\/project\//);
+      await expect(page).toHaveURL(/\/workspace\//);
       expect(await snapshot(page, base)).toMatchObject({
         width: 1000,
         height: 700,
@@ -235,7 +233,7 @@ for (const base of behaviorBases) {
         const editor = await createEditor();
         try {
           const project = await editor.projects.snapshot(
-            location.hash.split('/project/')[1]!,
+            location.pathname.split('/workspace/')[1]!,
           );
           const canvas = new OffscreenCanvas(32, 32);
           const context = canvas.getContext('2d')!;

@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-project-helper';
 import { behaviorBases } from './coverage-bases';
 import { openVideoExport } from './workspace-settings-helper';
 import { closeMediaImportAndPlace } from './workspace-import-helper';
@@ -605,7 +606,7 @@ for (const base of behaviorBases) {
         await editor.dispose();
       }
     }, base);
-    await page.goto(`${base}#/project/${copy.id}`);
+    await navigateWorkspace(page, `${base}workspace/${copy.id}`);
     await page.reload();
     await page
       .getByRole('button', { name: 'Expand media', exact: true })

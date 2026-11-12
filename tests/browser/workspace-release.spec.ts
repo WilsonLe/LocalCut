@@ -19,7 +19,7 @@ for (const base of behaviorBases) {
     await page.route(`**${base}assets/editor-*.js`, (route) =>
       route.fulfill({ status: 404, body: 'Removed old chunk' }),
     );
-    const projectUrl = `${base}?view=retained#/project/${id}`;
+    const projectUrl = `${base}workspace/${id}?view=retained`;
     await page.goto(projectUrl);
     const recovery = page.getByRole('alert', { name: 'Workspace recovery' });
     await expect(recovery).toContainText('Part of LocalCut could not load');
@@ -28,7 +28,7 @@ for (const base of behaviorBases) {
     ).toBeFocused();
     await recovery.getByRole('button', { name: 'Dismiss' }).click();
     await expect(recovery).toHaveCount(0);
-    expect(new URL(page.url()).hash).toBe(`#/project/${id}`);
+    expect(new URL(page.url()).pathname).toBe(`${base}workspace/${id}`);
     // Repeated failures give an explicit recovery action, never an auto-reload loop.
     await page.reload();
     await expect(recovery).toBeVisible();
@@ -50,7 +50,7 @@ for (const base of behaviorBases) {
       page.getByRole('button', { name: 'Open project', exact: true }),
     ).toContainText('Survives deployment');
     await expect(recovery).toHaveCount(0);
-    expect(new URL(page.url()).hash).toBe(`#/project/${id}`);
+    expect(new URL(page.url()).pathname).toBe(`${base}workspace/${id}`);
     expect(
       await page.evaluate(() => localStorage.getItem('test-release-preserve')),
     ).toBe('keep');

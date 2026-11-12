@@ -18,6 +18,7 @@ test('cached test assets revalidate changed entries while both deployment roots 
   for (const root of ['dist', 'dist-root']) {
     await mkdir(join(directory, root, 'assets'), { recursive: true });
     await writeFile(join(directory, root, 'index.html'), root);
+    await writeFile(join(directory, root, '404.html'), root + ' deep link');
     await writeFile(
       join(directory, root, 'build-info.json'),
       '{"revision":"old"}',
@@ -39,6 +40,20 @@ test('cached test assets revalidate changed entries while both deployment roots 
     const html = await globalThis.fetch(origin + base);
     assert.equal(await html.text(), root);
     assert.equal(html.headers.get('cache-control'), 'private, no-cache');
+    const deepLink = await globalThis.fetch(
+      origin + base + 'workspace/local-id',
+      {
+        headers: { Accept: 'text/html' },
+      },
+    );
+    assert.equal(deepLink.status, 404);
+    assert.equal(await deepLink.text(), root + ' deep link');
+    assert.equal(deepLink.headers.get('content-type'), 'text/html');
+    const malformed = await globalThis.fetch(origin + base + 'workspace/%', {
+      headers: { Accept: 'text/html' },
+    });
+    assert.equal(malformed.status, 404);
+    assert.equal(await malformed.text(), root + ' deep link');
     const asset = await globalThis.fetch(
       origin + base + 'assets/editor-abcdefgh.js',
     );

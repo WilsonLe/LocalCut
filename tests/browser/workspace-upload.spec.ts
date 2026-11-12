@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-project-helper';
 import { behaviorBases } from './coverage-bases';
 import { test, expect } from '@playwright/test';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
@@ -192,7 +193,7 @@ for (const base of behaviorBases) {
         await editor.dispose();
       }
     }, base);
-    await page.goto(`${base}#/project/${ids[0]}`);
+    await navigateWorkspace(page, `${base}workspace/${ids[0]}`);
     await expect(
       page.getByRole('button', { name: 'Open project', exact: true }),
     ).toContainText('First upload');
