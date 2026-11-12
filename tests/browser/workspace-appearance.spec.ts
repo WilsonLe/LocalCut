@@ -1,3 +1,4 @@
+import { createWorkspace } from './workspace-project-helper';
 import { behaviorBases } from './coverage-bases';
 import { expect, test, type Page } from '@playwright/test';
 
@@ -310,7 +311,7 @@ for (const base of behaviorBases) {
     ).toBeFocused();
 
     const second = await context.newPage();
-    await second.goto(base);
+    await second.goto(page.url());
     await expect.poll(() => styles(second)).toEqual(after);
     await expect
       .poll(() =>
@@ -355,6 +356,7 @@ for (const base of behaviorBases) {
   }) => {
     await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
     await page.goto(base);
+    await createWorkspace(page);
     const panel = await openAppearance(page);
     await panel.getByRole('button', { name: 'System', exact: true }).click();
     await expect(page.locator('html')).not.toHaveClass('dark');

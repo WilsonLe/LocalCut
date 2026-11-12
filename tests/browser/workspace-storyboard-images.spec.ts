@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-project-helper';
 import { behaviorBases } from './coverage-bases';
 import { test, expect } from '@playwright/test';
 
@@ -211,7 +212,7 @@ for (const base of behaviorBases) {
     expect(result.undone).toEqual(['manual-image']);
     expect(result.after).toBe(result.before);
     expect(result.errors).toHaveLength(2);
-    await page.goto(`${base}#/project/${result.id}`);
+    await navigateWorkspace(page, `${base}workspace/${result.id}`);
     await page.getByRole('tab', { name: 'Storyboard', exact: true }).click();
     await expect(page.locator('.storyboard canvas.interactive')).toBeVisible();
     const redPixels = async () =>

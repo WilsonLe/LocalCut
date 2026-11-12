@@ -17,6 +17,11 @@ async function files(path) {
   return result;
 }
 for (const root of ['dist', 'dist-root']) {
+  assert.equal(
+    await readFile(`${root}/404.html`, 'utf8'),
+    await readFile(`${root}/index.html`, 'utf8'),
+    'Deep-link fallback must match the built application',
+  );
   await checkSkills(join(root, 'skills'));
   assert.deepEqual(
     await skillIndex(join(root, 'skills')),

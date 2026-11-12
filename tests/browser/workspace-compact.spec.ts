@@ -7,8 +7,9 @@ for (const base of behaviorBases) {
   }, info) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(base);
-    await page.getByRole('main', { name: 'Video editor' }).focus();
-    await page.keyboard.press('n');
+    await page
+      .getByRole('button', { name: 'New project', exact: true })
+      .click();
     await page.getByLabel('Project name', { exact: true }).fill('Media header');
     await page.getByRole('button', { name: 'Create project' }).click();
     await page

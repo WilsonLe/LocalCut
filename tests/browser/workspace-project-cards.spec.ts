@@ -58,7 +58,7 @@ for (const base of behaviorBases) {
       }
     }, base);
     await page
-      .getByRole('button', { name: 'Open project', exact: true })
+      .getByRole('button', { name: 'Refresh projects', exact: true })
       .click();
     const browser = page.getByRole('main', { name: 'Projects', exact: true });
     const card = browser
@@ -109,9 +109,6 @@ for (const base of behaviorBases) {
       '50% 80%',
     );
     await page.reload();
-    await page
-      .getByRole('button', { name: 'Open project', exact: true })
-      .click();
     await expect(browser.locator('.project-card-thumbnail img')).toHaveCSS(
       'object-position',
       '50% 80%',
@@ -128,9 +125,6 @@ for (const base of behaviorBases) {
       .click();
     await expect(actions).toBeVisible();
     await page.reload();
-    await page
-      .getByRole('button', { name: 'Open project', exact: true })
-      .click();
     await browser
       .getByRole('button', { name: 'Archived', exact: true })
       .click();
@@ -282,9 +276,7 @@ for (const base of behaviorBases) {
     ]);
     expect(download.suggestedFilename()).toContain('localcut');
     await expect(backupDialog).not.toBeVisible();
-    await page
-      .getByRole('button', { name: 'Open project', exact: true })
-      .click();
+    await page.keyboard.press('ControlOrMeta+o');
     await page.evaluate(async (base) => {
       const { createEditor } = (await import(
         `${base}editor.js`

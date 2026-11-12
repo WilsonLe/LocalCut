@@ -31,16 +31,34 @@ export function createTestServer(directory = process.cwd()) {
         root = 'tests/fixtures';
         path = path.slice('/fixtures'.length);
       }
+      let decoded = path;
+      try {
+        decoded = decodeURIComponent(path);
+      } catch {
+        /* Invalid addresses still receive the app's recovery screen. */
+      }
       const base = resolve(directory, root),
-        file = resolve(base, '.' + decodeURIComponent(path));
+        file = resolve(base, '.' + decoded);
       if (file !== base && !file.startsWith(base + '/')) {
         res.writeHead(403);
         res.end();
         return;
       }
       let target = file;
-      if ((await stat(target)).isDirectory())
-        target = resolve(target, 'index.html');
+      try {
+        if ((await stat(target)).isDirectory())
+          target = resolve(target, 'index.html');
+      } catch (error) {
+        if (
+          error.code !== 'ENOENT' ||
+          root === 'tests/fixtures' ||
+          !req.headers.accept?.includes('text/html')
+        )
+          throw error;
+        // Match the Pages custom-404 response used by direct workspace URLs.
+        target = resolve(base, '404.html');
+        res.statusCode = 404;
+      }
       const data = await readFile(target);
       res.setHeader(
         'Content-Type',

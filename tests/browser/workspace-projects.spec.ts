@@ -41,9 +41,6 @@ for (const base of behaviorBases) {
       },
       { base, name },
     );
-    await page
-      .getByRole('button', { name: 'Open project', exact: true })
-      .click();
     const browser = page.getByRole('main', { name: 'Projects' });
     const [chooser] = await Promise.all([
       page.waitForEvent('filechooser'),
@@ -96,9 +93,6 @@ for (const base of behaviorBases) {
     async ({ page }, testInfo) => {
       await test.step(`project navigation searches, switches and preserves editing ${base}`, async () => {
         await page.goto(base);
-        await page
-          .getByRole('button', { name: 'Open project', exact: true })
-          .click();
         const browser = page.getByRole('main', {
           name: 'Projects',
           exact: true,
@@ -277,6 +271,15 @@ for (const base of behaviorBases) {
   test(`project navigation retries storage failures and refreshes external changes ${base}`, async ({
     page,
   }) => {
+    await page.goto(base);
+    await page.evaluate(async (base) => {
+      const { createEditor } = await import(`${base}editor.js`);
+      const editor = await createEditor();
+      await editor.dispose();
+    }, base);
+    await page.evaluate(() =>
+      localStorage.removeItem('localcut.project-catalog.v1'),
+    );
     await page.addInitScript(() => {
       const open = indexedDB.open.bind(indexedDB);
       let first = true;
@@ -288,10 +291,7 @@ for (const base of behaviorBases) {
         return open(...args);
       }) as typeof indexedDB.open;
     });
-    await page.goto(base);
-    await page
-      .getByRole('button', { name: 'Open project', exact: true })
-      .click();
+    await page.reload();
     const browser = page.getByRole('main', { name: 'Projects' });
     await expect(page.locator('[data-sonner-toast]')).toContainText(
       'Allow browser storage',
@@ -333,12 +333,6 @@ for (const base of behaviorBases) {
     await expect(
       browser.getByText('No saved projects yet', { exact: true }),
     ).toBeVisible();
-    await page
-      .getByRole('dialog', { name: 'Projects', exact: true })
-      .getByRole('button', { name: 'Close', exact: true })
-      .click();
-    await expect(
-      page.getByRole('button', { name: 'Open project', exact: true }),
-    ).toBeFocused();
+    await expect(page).toHaveURL(base);
   });
 }

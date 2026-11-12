@@ -1,3 +1,4 @@
+import { createWorkspace } from './workspace-project-helper';
 import { test, expect } from '@playwright/test';
 import { behaviorBases } from './coverage-bases';
 import { settingsJourney } from './workspace-settings-journey';
@@ -27,6 +28,7 @@ for (const base of behaviorBases) {
       };
     });
     await page.goto(base);
+    await createWorkspace(page);
     await expect(
       page.getByRole('main', { name: 'Video editor' }),
     ).toBeVisible();

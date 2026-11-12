@@ -1,9 +1,10 @@
+import { createWorkspace } from './workspace-project-helper';
 import { test, expect } from '@playwright/test';
 import { behaviorBases } from './coverage-bases';
 import { openWorkspaceGroup } from './workspace-settings-helper';
 
 for (const base of behaviorBases) {
-  test(`agent removal leaves an inert local editor and no provider UI ${base}`, async ({
+  test(`agent removal leaves an inert project list and no provider UI ${base}`, async ({
     page,
   }, info) => {
     const remote: string[] = [];
@@ -14,7 +15,7 @@ for (const base of behaviorBases) {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(base);
     await expect(
-      page.getByRole('main', { name: 'Video editor' }),
+      page.getByRole('main', { name: 'Projects', exact: true }),
     ).toBeVisible();
     expect(
       await page.evaluate(async () => (await indexedDB.databases()).length),
@@ -40,8 +41,9 @@ for (const base of behaviorBases) {
     ).json();
     expect(Object.keys(discovery.modules)).toEqual(['editor']);
     expect((await page.request.get(base + 'ai.js')).status()).toBe(404);
-    await page.getByRole('main', { name: 'Video editor' }).focus();
-    await page.keyboard.press('n');
+    await page
+      .getByRole('button', { name: 'New project', exact: true })
+      .click();
     await page
       .getByLabel('Project name', { exact: true })
       .fill('Manual editor');
@@ -145,7 +147,7 @@ for (const base of behaviorBases) {
     });
     await page.goto(base);
     await expect(
-      page.getByRole('button', { name: 'Collapse media', exact: true }),
+      page.getByRole('main', { name: 'Projects', exact: true }),
     ).toBeVisible();
     const state = await page.evaluate(async () => ({
       keys: Object.keys(localStorage),
@@ -173,5 +175,9 @@ for (const base of behaviorBases) {
       timelineSnapping: false,
     });
     expect(state.databases).toEqual([]);
+    await createWorkspace(page);
+    await expect(
+      page.getByRole('button', { name: 'Collapse media', exact: true }),
+    ).toBeVisible();
   });
 }

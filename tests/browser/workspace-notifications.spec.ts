@@ -1,3 +1,5 @@
+import { createWorkspace } from './workspace-project-helper';
+import { navigateWorkspace } from './workspace-project-helper';
 import { behaviorBases } from './coverage-bases';
 import { dismissNotifications } from './workspace-notifications-helper';
 import { expect, test, type Page } from '@playwright/test';
@@ -77,7 +79,7 @@ for (const base of behaviorBases) {
       await paused.completion.catch(() => {});
       return id;
     }, base);
-    await page.goto(`${base}#/project/${projectId}`);
+    await navigateWorkspace(page, `${base}workspace/${projectId}`);
     const project = page.getByRole('button', {
       name: 'Open project',
       exact: true,
@@ -180,7 +182,7 @@ for (const base of behaviorBases) {
     await expect(bell.locator('[data-notification-unread]')).toHaveCount(0);
     // A new document and a project remount must also preserve the same history.
     await page.goto(`${base}#/projects`);
-    await page.goto(`${base}#/project/${projectId}`);
+    await navigateWorkspace(page, `${base}workspace/${projectId}`);
     await expect(project).toContainText('Restart notifications');
     await bell.click();
     await expect(log).toContainText('Fresh assistant response');
@@ -281,6 +283,7 @@ for (const base of behaviorBases) {
         );
       await page.setViewportSize({ width: 1440, height: 1000 });
       await page.goto(base);
+      await createWorkspace(page);
       const bell = page.getByRole('button', { name: /^Notifications/ });
       await bell.click();
       const log = page.getByRole('dialog', {
@@ -464,7 +467,7 @@ for (const base of behaviorBases) {
         await editor.dispose();
       }
     }, base);
-    await page.goto(`${base}#/project/${id}`);
+    await navigateWorkspace(page, `${base}workspace/${id}`);
     await expect(
       page.getByRole('button', { name: 'Open project', exact: true }),
     ).toContainText('Diagnostic session');

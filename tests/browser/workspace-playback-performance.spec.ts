@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-project-helper';
 import { expect, test } from '@playwright/test';
 import { behaviorBases } from './coverage-bases';
 
@@ -187,7 +188,7 @@ for (const base of behaviorBases) {
     }, base);
     const measurements = [];
     for (const project of projects) {
-      await page.goto(`${base}#/project/${project.id}`);
+      await navigateWorkspace(page, `${base}workspace/${project.id}`);
       const play = page.getByRole('button', {
         name: 'Play preview',
         exact: true,

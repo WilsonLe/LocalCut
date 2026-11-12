@@ -42,27 +42,36 @@ async function seed(page: Page, base: string) {
 const picker = (page: Page) =>
   page.getByRole('button', { name: 'Open project', exact: true });
 for (const base of behaviorBases) {
-  test(`project routing reopens the recent project and keeps view icons in the header ${base}`, async ({
+  test(`project routing keeps the root catalog and view icons in the header ${base}`, async ({
     page,
   }, info) => {
     await page.goto(base);
-    expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
     const ids = await seed(page, base);
-    await page.goto(`${base}#/project/${ids.first}`);
+    await page.goto(`${base}workspace/${ids.first}`);
     await expect(picker(page)).toContainText('Route first');
-    await page.goto(`${base}#/project/${ids.second}`);
+    await page.goto(`${base}workspace/${ids.second}`);
     await expect(picker(page)).toContainText('Route second');
+    await page.evaluate(
+      (id) =>
+        localStorage.setItem(
+          'localcut.recent-project.v1',
+          JSON.stringify({ version: 1, projectId: id }),
+        ),
+      ids.second,
+    );
     await page.goto(base);
-    await expect(picker(page)).toContainText('Route second');
-    await expect(page).toHaveURL(new RegExp(`/project/${ids.second}$`));
-    // Explicit catalog and project links win over the saved selection.
-    await page.goto(`${base}#/projects`);
+    await expect(
+      page.getByRole('main', { name: 'Projects', exact: true }),
+    ).toBeVisible();
+    await expect(picker(page)).toHaveCount(0);
+    await expect(page).toHaveURL(base);
+    await page.goto(base);
     await expect(
       page.getByRole('main', { name: 'Projects', exact: true }),
     ).toBeVisible();
     await page.reload();
-    await expect(page).toHaveURL(/#\/projects$/);
-    await page.goto(`${base}#/project/${ids.first}`);
+    await expect(page).toHaveURL(base);
+    await page.goto(`${base}workspace/${ids.first}`);
     await expect(picker(page)).toContainText('Route first');
     const views = page.getByRole('tablist', { name: 'Project views' });
     await expect(
@@ -131,56 +140,48 @@ for (const base of behaviorBases) {
       }
     }
     await page.goto(base);
-    await expect(picker(page)).toContainText('Route first');
-    await page.evaluate(() => {
-      location.hash = '/';
-    });
-    await expect(picker(page)).toContainText('Edit');
-    await expect(page).toHaveURL(/#\/$/);
+    await expect(
+      page.getByRole('main', { name: 'Projects', exact: true }),
+    ).toBeVisible();
+    await expect(page).toHaveURL(base);
     await page.reload();
-    await expect(picker(page)).toContainText('Route first');
-    await page.evaluate(
-      async ({ base, id }) => {
-        const { createEditor } = await import(`${base}editor.js`);
-        const editor = await createEditor();
-        try {
-          await editor.projects.delete(id);
-        } finally {
-          await editor.dispose();
-        }
-      },
-      { base, id: ids.first },
-    );
-    await expect(page.getByRole('alert')).toContainText(
-      'unavailable in this browser',
-    );
-    expect(
-      await page.evaluate(() =>
-        localStorage.getItem('localcut.recent-project.v1'),
-      ),
-    ).toBeNull();
-    await page.goto(base);
-    await expect(picker(page)).toContainText('Edit');
-    await page.evaluate(() =>
-      localStorage.setItem(
-        'localcut.recent-project.v1',
-        JSON.stringify({ version: 1, projectId: 'missing-recent-project' }),
-      ),
-    );
-    await page.goto(base);
-    await expect(page.getByRole('alert')).toContainText(
-      'unavailable in this browser',
-    );
-    expect(
-      await page.evaluate(() =>
-        localStorage.getItem('localcut.recent-project.v1'),
-      ),
-    ).toBeNull();
-    await page.goto(base);
-    await expect(picker(page)).toContainText('Edit');
+    await expect(picker(page)).toHaveCount(0);
   });
 
-  test(`project routing ignores corrupt recent identities on fresh startup ${base}`, async ({
+  test(`project routing normalizes legacy links without extra history entries ${base}`, async ({
+    page,
+  }) => {
+    await page.goto(base);
+    const ids = await seed(page, base);
+    for (const legacy of [
+      `${base}#/project/${ids.first}`,
+      `${base}project/${ids.first}`,
+    ]) {
+      await page.goto(legacy);
+      await expect(picker(page)).toContainText('Route first');
+      await expect(page).toHaveURL(`${base}workspace/${ids.first}`);
+      const length = await page.evaluate(() => history.length);
+      await page.reload();
+      await expect(picker(page)).toContainText('Route first');
+      expect(await page.evaluate(() => history.length)).toBe(length);
+    }
+    await page.goto(`${base}#/projects?project=${ids.first}`);
+    await expect(page).toHaveURL(`${base}?project=${ids.first}`);
+    await expect(
+      page.getByRole('main', { name: 'Projects', exact: true }),
+    ).toBeVisible();
+    await page.goto(`${base}#/not-a-route`);
+    await expect(page.getByRole('alert')).toHaveText(
+      'This project address is not valid.',
+    );
+    await page.getByRole('button', { name: 'Open saved projects' }).click();
+    await expect(page).toHaveURL(base);
+    await expect(
+      page.getByRole('main', { name: 'Projects', exact: true }),
+    ).toBeVisible();
+  });
+
+  test(`project routing ignores retired recent identities on catalog startup ${base}`, async ({
     page,
   }) => {
     await page.addInitScript(() =>
@@ -192,9 +193,13 @@ for (const base of behaviorBases) {
     const resources: string[] = [];
     page.on('request', (request) => resources.push(request.url()));
     await page.goto(base);
-    await expect(picker(page)).toContainText('Untitled project');
-    expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
-    expect(resources.some((url) => /editor\.js|worker/.test(url))).toBe(false);
+    await expect(
+      page.getByText('No saved projects yet', { exact: true }),
+    ).toBeVisible();
+    await expect(picker(page)).toHaveCount(0);
+    expect(resources.some((url) => /worker|WorkspacePanels/.test(url))).toBe(
+      false,
+    );
     await expect(page.getByRole('alert')).toHaveCount(0);
   });
 
@@ -212,19 +217,18 @@ for (const base of behaviorBases) {
       await route.continue();
     });
     try {
-      await page.goto(`${base}?routing-startup`, {
+      await page.goto(`${base}workspace/${ids.second}`, {
         waitUntil: 'domcontentloaded',
       });
-      await expect(picker(page)).toBeVisible();
       await expect(
         page.getByRole('status', { name: 'Loading workspace', exact: true }),
       ).toBeVisible();
       await page.evaluate((id) => {
-        window.location.hash = `/project/${id}`;
+        window.location.hash = `/workspace/${id}`;
       }, ids.first);
       release();
       await expect(picker(page)).toContainText('Route first');
-      await expect(page).toHaveURL(new RegExp(`/project/${ids.first}$`));
+      await expect(page).toHaveURL(new RegExp(`/workspace/${ids.first}$`));
     } finally {
       release();
     }
@@ -234,9 +238,8 @@ for (const base of behaviorBases) {
     page,
   }) => {
     await page.goto(base);
-    expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
     const ids = await seed(page, base);
-    await page.goto(`${base}#/project/${ids.first}`);
+    await page.goto(`${base}workspace/${ids.first}`);
     await expect(picker(page)).toContainText('Route first');
     await expect(
       page.getByRole('button', { name: 'Saved routed title', exact: true }),
@@ -245,12 +248,10 @@ for (const base of behaviorBases) {
     await projectMenu
       .getByRole('menuitem', { name: 'Open project', exact: true })
       .click();
-    await expect(page).toHaveURL(
-      new RegExp(`/projects\\?project=${ids.first}$`),
-    );
+    await expect(page).toHaveURL(new RegExp(`/\\?project=${ids.first}$`));
     const catalog = page.getByRole('main', { name: 'Projects', exact: true });
     await catalog.getByRole('button', { name: /^Route second/ }).click();
-    await expect(page).toHaveURL(new RegExp(`/project/${ids.second}$`));
+    await expect(page).toHaveURL(new RegExp(`/workspace/${ids.second}$`));
     await expect(picker(page)).toContainText('Route second');
     await page.goBack();
     await expect(catalog).toBeVisible();
@@ -278,8 +279,7 @@ for (const base of behaviorBases) {
       page.getByRole('button', { name: 'Saved routed title', exact: true }),
     ).toBeVisible();
     await page.goto(base);
-    await expect(picker(page)).toContainText('Route first');
-    await picker(page).click();
+    await expect(catalog).toBeVisible();
     await catalog
       .getByRole('button', { name: 'New project', exact: true })
       .click();
@@ -292,16 +292,20 @@ for (const base of behaviorBases) {
       .getByRole('button', { name: 'Create project', exact: true })
       .click();
     await expect(picker(page)).toContainText('Created through routing');
-    await expect(page).toHaveURL(/#\/project\/[^/]+$/);
+    await expect(page).toHaveURL(/\/workspace\/[^/]+$/);
     await page.goto(base);
-    await expect(picker(page)).toContainText('Created through routing');
-    await expect(page).toHaveURL(/#\/project\/[^/]+$/);
+    await expect(catalog).toBeVisible();
+    await expect(
+      catalog.getByRole('button', { name: /^Created through routing/ }),
+    ).toBeVisible();
+    await expect(picker(page)).toHaveCount(0);
+    await expect(page).toHaveURL(base);
   });
 
   test(`project routing recovers malformed, missing and deleted projects ${base}`, async ({
     page,
   }) => {
-    await page.goto(`${base}#/not-a-route`);
+    await page.goto(`${base}not-a-route`);
     await expect(page.getByRole('alert')).toHaveText(
       'This project address is not valid.',
     );
@@ -310,7 +314,7 @@ for (const base of behaviorBases) {
     const catalog = page.getByRole('main', { name: 'Projects', exact: true });
     await expect(catalog.getByText('No saved projects yet')).toBeVisible();
     const ids = await seed(page, base);
-    await page.goto(`${base}#/project/unknown-project`);
+    await page.goto(`${base}workspace/unknown-project`);
     await expect(page.getByRole('alert')).toContainText(
       'unavailable in this browser',
     );
@@ -380,7 +384,7 @@ for (const base of behaviorBases) {
       };
     }, ids.first);
     await page.evaluate((id) => {
-      window.location.hash = `/project/${id}`;
+      window.location.hash = `/workspace/${id}`;
     }, ids.first);
     await expect(page.getByRole('status')).toContainText('Opening project');
     await expect(
@@ -402,7 +406,7 @@ for (const base of behaviorBases) {
       path: testInfo.outputPath('project-routing-loading.png'),
     });
     await page.evaluate((id) => {
-      window.location.hash = `/project/${id}`;
+      window.location.hash = `/workspace/${id}`;
     }, ids.second);
     await expect(picker(page)).toContainText('Route second');
     await page.evaluate(async () => {
@@ -413,7 +417,7 @@ for (const base of behaviorBases) {
       await new Promise(requestAnimationFrame);
     });
     await expect(picker(page)).toContainText('Route second');
-    await expect(page).toHaveURL(new RegExp(`/project/${ids.second}$`));
+    await expect(page).toHaveURL(new RegExp(`/workspace/${ids.second}$`));
   });
 
   test(`project routing retries a failed local storage restore ${base}`, async ({
@@ -432,7 +436,7 @@ for (const base of behaviorBases) {
         return open(...args);
       }) as typeof indexedDB.open;
     });
-    await page.goto(`${base}#/project/${ids.first}`);
+    await page.goto(`${base}workspace/${ids.first}`);
     // Hash-only navigation keeps the existing document; reload installs the storage fault.
     await page.reload();
     await expect(page.getByRole('alert')).toContainText(
@@ -456,7 +460,7 @@ for (const base of behaviorBases) {
   }, info) => {
     await page.goto(base);
     const ids = await seed(page, base);
-    await page.goto(`${base}#/project/${ids.first}`);
+    await page.goto(`${base}workspace/${ids.first}`);
     const trigger = picker(page);
     await expect(trigger).toContainText('Route first');
     const editor = page.getByRole('main', {
@@ -519,7 +523,7 @@ for (const base of behaviorBases) {
     await dialog.getByRole('button', { name: /^Route second/ }).click();
     await expect(dialog).toHaveCount(0);
     await expect(trigger).toContainText('Route second');
-    await expect(page).toHaveURL(new RegExp(`/project/${ids.second}$`));
+    await expect(page).toHaveURL(new RegExp(`/workspace/${ids.second}$`));
     await page.goBack();
     await expect(trigger).toContainText('Route first');
     await expect(page).toHaveURL(url);

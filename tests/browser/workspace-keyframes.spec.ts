@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-project-helper';
 import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -84,7 +85,7 @@ for (const base of behaviorBases) {
         await editor.dispose();
       }
     }, base);
-    await page.goto(`${base}#/project/${id}`);
+    await navigateWorkspace(page, `${base}workspace/${id}`);
     const first = page.locator('[data-clip-id="first"]');
     const form = page.getByRole('dialog', {
       name: 'Clip properties',
@@ -405,7 +406,7 @@ for (const base of behaviorBases) {
         },
         { base, id: timedProjectId },
       );
-      await page.goto(`${base}#/project/${timedProjectId}`);
+      await navigateWorkspace(page, `${base}workspace/${timedProjectId}`);
       await page.locator('[data-clip-id="decoded"]').click();
       await page
         .getByRole('button', { name: 'Clip properties', exact: true })

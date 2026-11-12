@@ -1,3 +1,4 @@
+import { createWorkspace } from './workspace-project-helper';
 import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 
@@ -26,7 +27,10 @@ for (const base of behaviorBases) {
         .locator('header.workspace-header')
         .getByRole('button', { name: 'Media', exact: true }),
     ).toHaveCount(0);
+    await createWorkspace(page);
     const previewInfo = page.getByRole('button', { name: 'Preview settings' });
+    await expect(previewInfo).toHaveAttribute('data-base-ui-tooltip-trigger');
+    await page.keyboard.press('Tab');
     await previewInfo.focus();
     await expect(page.getByRole('tooltip')).toContainText(
       '1920 × 1080 · 30 fps',

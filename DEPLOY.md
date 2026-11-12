@@ -42,13 +42,13 @@ pnpm exec vite preview --outDir dist-root --base / --port 4178 --strictPort
 
 This uses `http://localhost:4178/`. For a custom-base `dist` build, pass that same base to Vite preview. Preview is a development smoke check, not a production hosting service. Use an unoccupied port and keep mutable output/report directories isolated from other runs.
 
-Upload the entire chosen output to an HTTPS static host at the matching path. Preserve JavaScript module MIME types, hashed assets, worker paths, fonts and notices. No history fallback rewrite is required for hash routes. LocalCut ships no speech model or inference downloads. Test a custom content-security/network policy with the relevant editing workflows rather than bypassing browser security; external agents supply their own authorized STT/TTS capabilities.
+Upload the entire chosen output to an HTTPS static host at the matching path. Preserve JavaScript module MIME types, hashed assets, worker paths, fonts and notices. Workspace paths use browser history. Configure a navigation-only fallback to the built `index.html` (for example, `try_files $uri $uri/ /index.html` on a root Nginx host); preserve missing-asset 404s. GitHub Pages serves the included `404.html` app document for direct workspace links, retaining the URL with HTTP status 404. Both documents use the built absolute asset base. LocalCut ships no speech model or inference downloads. Test a custom content-security/network policy with the relevant editing workflows rather than bypassing browser security; external agents supply their own authorized STT/TTS capabilities.
 
 Use HTTPS in production (localhost is supported for development). Host the app on a dedicated origin when possible: unrelated scripts on the same origin may access browser-local data. Never put secrets in build variables, source files or static configuration.
 
 ## Distribution contents
 
-Publish only `dist/` or the intentionally selected `dist-root/`. Output includes `index.html`, `modules.json`, stable `editor.js` compatibility re-exports, content-hashed engine/support/worker assets, declarations, icons/manifest, fonts/notices and Vite's build manifest. Keep the complete output together; do not mix assets from different builds.
+Publish only `dist/` or the intentionally selected `dist-root/`. Output includes matching `index.html` and `404.html`, `modules.json`, stable `editor.js` compatibility re-exports, content-hashed engine/support/worker assets, declarations, icons/manifest, fonts/notices and Vite's build manifest. Keep the complete output together; do not mix assets from different builds.
 
 The authored-text catalog includes roughly 297 MiB of licensed WOFF2 assets under `fonts/<snapshot-sha256>/`; the application requests only needed subsets. Preserve per-family licenses and catalog manifests with distributions. Test harnesses, fixtures, models, caches, credentials and large inference binaries remain outside deployed output.
 
@@ -67,7 +67,7 @@ A workflow configuration or successful packaging job does not prove availability
 After an authorized deployment, use a fresh Google Chrome context with generated local media:
 
 1. Verify the title and rendered workspace at the correct base, and check for missing lazy modules, worker assets, icons or fonts.
-2. On a bare URL without a remembered project, verify inert startup: no editing-storage initialization, media workers or permission prompts before an explicit action. An explicit local project/catalog route, remembered-project startup have their documented behavior.
+2. On the root URL verify the project list, including after opening another workspace. A fresh empty catalog must not initialize editing storage or media workers or prompt for permissions. Verify a direct workspace URL and reload; existing catalogs may read local storage without opening an editor project.
 3. Create a project, import generated media, render the preview and save a real supported export. Reopen the local project after reload and verify the selected editing change's relevant flow.
 4. Verify fresh `modules.json` discovery, the compatibility entries, and worker/font snapshot paths at the deployed base. Check grouped settings, responsive/collapsible panels when touched by the release.
 5. Export a portable backup with originals and check import in an isolated profile when portability/storage changes are in scope. Do not test against personal media or clear unrelated browser data.

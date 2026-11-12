@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-project-helper';
 import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 
@@ -79,7 +80,7 @@ for (const base of behaviorBases) {
         await editor.dispose();
       }
     }, base);
-    await page.goto(`${base}#/project/${id}`);
+    await navigateWorkspace(page, `${base}workspace/${id}`);
     const p = () => snapshot(page, base, id);
     const menuButton = (name: string) =>
       page.getByRole('button', { name: `Track menu: ${name}`, exact: true });

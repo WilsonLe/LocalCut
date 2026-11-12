@@ -182,6 +182,7 @@ for (const base of behaviorBases) {
   }, info) => {
     await page.setViewportSize({ width: 320, height: 740 });
     await page.goto(base);
+    await create(page);
     const media = page.getByRole('complementary', {
       name: 'Media library',
       exact: true,
@@ -385,7 +386,10 @@ for (const base of behaviorBases) {
         const nav = page.getByRole('navigation', {
           name: 'Workspace sections',
         });
-        await expect(nav).toBeInViewport();
+        await expect(
+          page.getByRole('main', { name: 'Projects', exact: true }),
+        ).toBeVisible();
+        await expect(nav).toHaveCount(0);
         const startup = await page.evaluate(() =>
           performance.getEntriesByType('resource').map((r) => r.name),
         );

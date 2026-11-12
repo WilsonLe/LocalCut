@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-project-helper';
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
@@ -637,7 +638,7 @@ for (const base of behaviorBases) {
       ),
     ).toHaveLength(0);
     const { id, otherId } = await seed(page, base);
-    await page.goto(`${base}#/project/${id}`);
+    await navigateWorkspace(page, `${base}workspace/${id}`);
     await ready(page);
     const initial = await call<Inspection>(page, 'inspect_project');
     expect(initial.project.id).toBe(id);
@@ -791,7 +792,7 @@ for (const base of behaviorBases) {
     ).toMatchObject({ isError: true });
     expect((await persisted(page, base, id)).revision).toBe(4);
     expect((await persisted(page, base, otherId)).revision).toBe(0);
-    await page.goto(`${base}#/project/${id}`);
+    await navigateWorkspace(page, `${base}workspace/${id}`);
     await ready(page);
     await page.reload();
     await ready(page);
@@ -807,7 +808,7 @@ for (const base of behaviorBases) {
     await installHarness(page);
     await page.goto(base);
     const { id } = await seed(page, base);
-    await page.goto(`${base}#/project/${id}`);
+    await navigateWorkspace(page, `${base}workspace/${id}`);
     await ready(page);
     const base64 = await page.evaluate(() => {
       const canvas = document.createElement('canvas');
@@ -997,7 +998,7 @@ for (const base of behaviorBases) {
     await installHarness(page);
     await page.goto(base);
     const { id } = await seed(page, base);
-    await page.goto(`${base}#/project/${id}`);
+    await navigateWorkspace(page, `${base}workspace/${id}`);
     await ready(page);
     await page.evaluate(async (base) => {
       const { createEditor, freshTask } = (await import(
@@ -1092,7 +1093,7 @@ for (const base of behaviorBases) {
     });
     await page.goto(base);
     const { id } = await seed(page, base);
-    await page.goto(`${base}#/project/${id}`);
+    await navigateWorkspace(page, `${base}workspace/${id}`);
     await expect(page.locator('[data-clip-id="title"]')).toContainText(
       'Original title',
     );

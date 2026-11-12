@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-project-helper';
 import { behaviorBases } from './coverage-bases';
 import { expect, test, type Page } from '@playwright/test';
 import type { Project } from '../../src/editor';
@@ -64,7 +65,7 @@ for (const base of behaviorBases) {
         await editor.dispose();
       }
     }, base);
-    await page.goto(base + '#/project/' + id);
+    await navigateWorkspace(page, base + 'workspace/' + id);
     const first = page.locator('[data-clip-id="clip-0"]');
     const target = page.locator('[data-clip-id="clip-1"]');
     const menu = page.getByRole('menu', { name: 'Clip actions', exact: true });

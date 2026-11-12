@@ -58,7 +58,7 @@ for (const base of behaviorBases) {
     await page.screenshot({ path: testInfo.outputPath('header-mobile.png') });
     await page.reload();
     await expect(project).toContainText('Keep through refresh');
-    await expect(page).toHaveURL(new RegExp(`#/project/${projectId}$`));
+    await expect(page).toHaveURL(new RegExp(`/workspace/${projectId}$`));
     await assertHeader();
   });
 }

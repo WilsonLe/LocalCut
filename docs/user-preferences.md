@@ -4,6 +4,11 @@ This is the project record of the user's durable product and workflow choices. U
 
 Use the [current preference index](current-preferences.md) to find relevant contracts and superseding decisions. Existing dated entries and anchors remain available as decision history.
 
+## Workspace paths and root project list — 13 November 2026
+
+- Embed the workspace identity in the URL path. Opening the app root shows the saved workspace/project list, including after editing another project; do not automatically reopen the recent project.
+- Use the existing project list and editor. Preserve local project data, deep-link reloads, browser Back/Forward, both hosting bases and legacy project links. See [workspace navigation](workspace.md#project-navigation) and [static hosting](../DEPLOY.md#self-hosting).
+
 ## Asset content without indexing controls — 12 November 2026
 
 - Do not expose “index”, Index buttons, indexing progress or result summaries in the asset actions menu or viewer. This supersedes the earlier indexing-control request below.

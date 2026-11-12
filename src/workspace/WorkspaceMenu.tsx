@@ -29,6 +29,7 @@ export interface WorkspaceMenuProps {
   onProjectImport: () => void;
   onWorkspaceExport: () => void;
   onWorkspaceImport: () => void;
+  onRecord: () => void;
 }
 
 const popupClass =
@@ -99,6 +100,7 @@ export function WorkspaceMenu({
   onProjectImport,
   onWorkspaceExport,
   onWorkspaceImport,
+  onRecord,
 }: WorkspaceMenuProps) {
   const connection = useSyncExternalStore(
     browserAgentConnection.subscribe,
@@ -183,6 +185,11 @@ export function WorkspaceMenu({
               )}
             </Submenu>
             <Submenu label="Workspace">
+              {!busy && (
+                <Menu.Item className={itemClass} onClick={onRecord}>
+                  Record screen
+                </Menu.Item>
+              )}
               {!busy && (
                 <Menu.Item className={itemClass} onClick={onWorkspaceExport}>
                   Export workspace

@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-project-helper';
 import { behaviorBases } from './coverage-bases';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -41,7 +42,7 @@ for (const base of behaviorBases) {
         await editor.dispose();
       }
     }, base);
-    await page.goto(`${base}#/project/${id}`);
+    await navigateWorkspace(page, `${base}workspace/${id}`);
     await page.getByRole('button', { name: 'Add text', exact: true }).click();
     const library = page.getByRole('dialog', { name: 'Add text', exact: true });
     await library.getByRole('button', { name: 'Fonts', exact: true }).click();
