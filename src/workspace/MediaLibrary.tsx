@@ -46,6 +46,12 @@ import {
   useFolderDialog,
 } from './MediaFolders';
 import { showErrorToast } from './error-toast';
+import { onDemandDialog } from './on-demand-dialog';
+
+const AssetViewer = onDemandDialog(
+  () => import('./AssetViewerDialog'),
+  (props) => ({ title: props.asset.name, onClose: props.onClose }),
+);
 
 interface DragPosition {
   assetId: string;
@@ -69,6 +75,7 @@ export default function MediaLibrary({
   draggingAssetId,
   onImportFiles,
   onLibraryChanged,
+  onView,
 }: {
   projectId: string | undefined;
   editor: Editor | null;
@@ -89,7 +96,20 @@ export default function MediaLibrary({
     directories?: string[],
   ) => Promise<unknown>;
   onLibraryChanged: () => Promise<unknown>;
+  onView: () => void;
 }) {
+  const [viewing, setViewing] = useState<{
+    asset: Asset;
+    editor: Editor;
+    projectId: string;
+    opener: HTMLButtonElement;
+  } | null>(null);
+  if (
+    viewing &&
+    (viewing.editor !== editor || viewing.projectId !== projectId)
+  ) {
+    setViewing(null);
+  }
   const folders = useMediaFolders(
     editor,
     projectId,
@@ -204,6 +224,16 @@ export default function MediaLibrary({
             : [...selection.ids, id]
           : [id],
       );
+      if (
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.shiftKey &&
+        editor &&
+        projectId
+      ) {
+        onView();
+        setViewing({ asset, editor, projectId, opener: event.currentTarget });
+      }
     },
     'aria-pressed': selectedIds.has(entryId ?? asset.id),
   });
@@ -484,6 +514,19 @@ export default function MediaLibrary({
       {folderDialog.dialog && (
         <FolderDialog control={folderDialog} state={folders} />
       )}
+      {viewing &&
+        viewing.editor === editor &&
+        viewing.projectId === projectId && (
+          <AssetViewer
+            key={viewing.asset.id}
+            editor={viewing.editor}
+            asset={viewing.asset}
+            onClose={() => setViewing(null)}
+            finalFocus={() =>
+              viewing.opener.isConnected ? viewing.opener : false
+            }
+          />
+        )}
     </section>
   );
 }

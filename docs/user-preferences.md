@@ -4,6 +4,10 @@ This is the project record of the user's durable product and workflow choices. U
 
 Use the [current preference index](current-preferences.md) to find relevant contracts and superseding decisions. Existing dated entries and anchors remain available as decision history.
 
+## Click to view media — 12 November 2026
+
+- Click an asset in Media to view its source. Keep viewing separate from timeline edits; preserve drag and modifier selection. See [asset viewing](workspace.md#asset-viewing).
+
 ## Autonomous browser project setup — 12 November 2026
 
 - Let a compatible browser agent start a project, import authorized local files and edit independently, including when LocalCut starts without an open project.

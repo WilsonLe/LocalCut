@@ -53,6 +53,10 @@ The media panel arranges the independent local library left-to-right, top-to-bot
 
 Legacy Download project backup / Import project backup controls retain the original JSON-only format; version-one project envelopes also work in the new project import dialog. Archives exclude keys, sharing consent, conversations, receipts, undo/redo, caches and unrelated origin storage. Import never reconnects AI or starts paid requests. Complete settings groups replace only their corresponding saved preferences. Settings-only import keeps editing services inert. Imported projects commit together; settings persistence failures retain those copies, report an error and permit a settings-only retry. Cancellation is available while reading/packing/restoring; published copies survive late cancellation. The [storage contract](storage.md#workspace-and-project-transfer) describes validation and resource limits.
 
+### Asset viewing
+
+Click a Media asset thumbnail or name to view the original image or play its video/audio with native controls. Enter and Space open the focused card. Escape or Close returns focus to the card and stops playback; temporary preview URLs are released. Viewing pauses timeline playback and leaves the project unchanged, including historical versions. Missing or unsupported sources show recovery guidance. Modifier-click selection and thumbnail dragging retain their existing behavior.
+
 ### Screen recording
 
 Use **Media → Record screen → Choose source and record** to create media from a screen, app window or browser tab offered by the browser's sharing picker. Capture requires a supported desktop browser on HTTPS or localhost and explicit permission for each recording. App capture uses the selected app window; available surfaces and system permission prompts depend on the browser and OS. Opening the dialog alone requests no permission and starts no editing services.

@@ -951,6 +951,11 @@ export async function createEditor(options: EditorOptions = {}) {
         active();
         return store.getAsset(id);
       },
+      async file(id: string) {
+        active();
+        await store.getAsset(id);
+        return store.file(id);
+      },
       async rename(id: string, name: string, expectedName: string) {
         active();
         const result = await store.renameAsset(id, name, expectedName);

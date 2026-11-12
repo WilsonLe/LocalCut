@@ -1436,6 +1436,7 @@ export function Workspace() {
             }
           >
             <MediaLibrary
+              onView={() => previewControls.current?.pause()}
               key={project?.id}
               projectId={project?.id}
               editor={editor}

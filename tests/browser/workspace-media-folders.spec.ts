@@ -62,6 +62,10 @@ for (const base of behaviorBases) {
       '.media-library .media-item[data-selected="true"]',
     );
     await first.click();
+    await page
+      .getByRole('dialog', { name: 'first.png', exact: true })
+      .getByRole('button', { name: 'Close', exact: true })
+      .click();
     await expect(first).toHaveAttribute('aria-pressed', 'true');
     await expect(second).toHaveAttribute('aria-pressed', 'false');
     for (const mod of ['Meta', 'Control']) {
@@ -73,6 +77,10 @@ for (const base of behaviorBases) {
       await page.keyboard.press('Escape');
       await expect(selected).toHaveCount(0);
       await first.click();
+      await page
+        .getByRole('dialog', { name: 'first.png', exact: true })
+        .getByRole('button', { name: 'Close', exact: true })
+        .click();
       // macOS reserves Ctrl-click for context menus; dispatch the Windows click
       // modifier while retaining native Cmd-click and both native key chords.
       if (mod === 'Control')

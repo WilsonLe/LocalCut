@@ -54,17 +54,17 @@ await artifact.dispose();
 await editor.dispose();
 ```
 
-| Family        | Methods                                                                                           |
-| ------------- | ------------------------------------------------------------------------------------------------- |
-| workspace     | snapshot, export, import                                                                          |
-| projects      | create, list, open, snapshot, delete, exportJSON, importJSON                                      |
-| assets        | import, inspect, rename, relink, thumbnails, contactSheet, waveform, derivative, analyze, indexes |
-| commands      | validate, apply, undo, redo                                                                       |
-| preview       | frame, session                                                                                    |
-| exports       | preflight, start                                                                                  |
-| transcription | status, prepare, transcribe, transcript, clearModelCache                                          |
-| events        | projects, jobs                                                                                    |
-| lifecycle     | job.cancel, session.dispose, artifact.dispose, editor.dispose                                     |
+| Family        | Methods                                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------------------------- |
+| workspace     | snapshot, export, import                                                                                |
+| projects      | create, list, open, snapshot, delete, exportJSON, importJSON                                            |
+| assets        | import, inspect, file, rename, relink, thumbnails, contactSheet, waveform, derivative, analyze, indexes |
+| commands      | validate, apply, undo, redo                                                                             |
+| preview       | frame, session                                                                                          |
+| exports       | preflight, start                                                                                        |
+| transcription | status, prepare, transcribe, transcript, clearModelCache                                                |
+| events        | projects, jobs                                                                                          |
+| lifecycle     | job.cancel, session.dispose, artifact.dispose, editor.dispose                                           |
 
 `exports.start(projectId, options, expectedRevision?)` optionally binds a request to an authored revision. The queued export owner validates it against the same snapshot it freezes when execution starts. An intervening edit fails with `REVISION_CONFLICT`; omitting the third argument retains the existing latest-at-start behavior. The WebMCP export tool always supplies the requested revision.
 
@@ -97,6 +97,8 @@ Project JSON export returns a version-one backup envelope containing referenced 
 Preview play() resolves after initial scheduling and presentation succeed, and rejects startup failures such as MISSING_ASSET or PLAYBACK_BLOCKED. The first audio block is prepared before the playback clock starts. If a later decode exhausts queued audio, the timeline holds at the scheduled audio boundary and resumes consecutive blocks when decoding finishes; video presentation uses that same adjusted time. session.onError(listener) observes structured errors during playback, including a worker crash; failures stop the session. Unsubscribe and dispose the session when finished. Superseded asynchronous seeks cannot overwrite newer presentation or position.
 
 `assets.waveform`, `assets.thumbnails`, `assets.contactSheet` and `assets.derivative` reuse versioned local derivatives across engine disposal and page refresh. Keys include source identity and request parameters; thumbnail widths must be safe integers from 1 to 4096. Complete valid hits return cancellable Jobs before durable task submission, without global queue notifications or worker launches; their IDs have no task record. A new miss retains its Job ID when entering the durable queue. Cache reads retain cancellation and namespace ownership. Missing/corrupt display caches rebuild; failed display-cache writes still return the computed result. Source relinking invalidates prior derivatives. No project revision or remote request is created by a hit. See [the computation inventory](storage.md#reusable-computation-inventory).
+
+`editor.assets.file(assetId)` reads the retained original local File without editing the project, starting a worker or transcoding. Missing metadata/originals reject through the existing store errors. The caller owns native playback and any temporary object URL, including pausing and revoking it on dismissal. This also permits read-only historical source viewing.
 
 ### Asset names and project removal
 
