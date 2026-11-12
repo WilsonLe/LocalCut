@@ -1,6 +1,6 @@
 # Static deployment and rollback
 
-LocalCut serves static files and has no application backend, runtime secrets, callback rewrite or service worker. Hash-based navigation works at both `/` and `/LocalCut/`. Vite resolves worker URLs against the build base. Browser-local projects belong to the origin; moving to another host/scheme/port requires portable backups, not copying static files alone.
+LocalCut serves static files and has no application backend, runtime secrets or service worker. Workspace paths work at both `/` and `/LocalCut/` through the included Pages fallback or a host navigation rewrite. Vite resolves worker URLs against the build base. Browser-local projects belong to the origin; moving to another host/scheme/port requires portable backups, not copying static files alone.
 
 ## GitHub Pages
 

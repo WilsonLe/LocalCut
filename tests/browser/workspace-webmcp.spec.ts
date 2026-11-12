@@ -9,7 +9,7 @@ import type {
   ProjectVersionInfo,
 } from '../../src/editor';
 import { behaviorBases } from './coverage-bases';
-import { openVersions } from './workspace-settings-helper';
+import { openVersions, openWorkspaceGroup } from './workspace-settings-helper';
 
 import {
   installHarness,
@@ -206,6 +206,128 @@ async function persisted(page: Page, base: string, id: string) {
 }
 
 for (const base of behaviorBases) {
+  test(`workspace WebMCP picker fallback imports from the root catalog ${base}`, async ({
+    page,
+  }) => {
+    await installHarness(page);
+    await page.goto(base);
+    await workspaceReady(page);
+    await page.evaluate(() => {
+      const input = document.querySelector<HTMLInputElement>(
+        'input[aria-label="Import media"]',
+      )!;
+      const click = input.click;
+      // Model a host that does not grant picker activation to a site-tool call.
+      input.click = () => {
+        input.click = click;
+      };
+    });
+    expect(
+      await call(page, 'workspace', {
+        action: 'import_files',
+        expectedProjectId: null,
+      }),
+    ).toMatchObject({ status: 'awaiting_file_selection', projectId: null });
+    expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
+    const group = await openWorkspaceGroup(page, 'Workspace');
+    expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      group
+        .getByRole('menuitem', { name: 'Import media', exact: true })
+        .click(),
+    ]);
+    const base64 = await page.evaluate(() => {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 16;
+      canvas.getContext('2d')!.fillRect(0, 0, 16, 16);
+      return canvas.toDataURL('image/png').split(',')[1]!;
+    });
+    await chooser.setFiles({
+      name: 'root-picker.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(base64, 'base64'),
+    });
+    await expect
+      .poll(
+        async () =>
+          (
+            await call<{ imports: { running: boolean } | null }>(
+              page,
+              'workspace',
+              { action: 'status' },
+            )
+          ).imports?.running,
+      )
+      .toBe(false);
+    const status = await call<{ projectId: string }>(page, 'workspace', {
+      action: 'status',
+    });
+    await projectReady(page, status.projectId);
+    const inspected = await call<Inspection>(page, 'inspect_project');
+    expect(inspected.assets).toEqual([
+      expect.objectContaining({ name: 'root-picker.png', status: 'ready' }),
+    ]);
+    expect(inspected.project.tracks).toEqual([]);
+    await expect(page).toHaveURL(`${base}workspace/${status.projectId}`);
+    expect(
+      await call(page, 'workspace', { action: 'list_projects' }),
+    ).toMatchObject({
+      projects: [expect.objectContaining({ id: status.projectId })],
+    });
+  });
+
+  test(`workspace WebMCP rebinds after same-project query navigation ${base}`, async ({
+    page,
+  }) => {
+    await installHarness(page);
+    await page.goto(base);
+    await workspaceReady(page);
+    const created = await call<{ project: Project }>(page, 'workspace', {
+      action: 'create_project',
+      name: 'Query-bound project',
+    });
+    const id = created.project.id;
+    await page.goto(`${base}workspace/${id}?view=retained`);
+    await projectReady(page, id);
+    const previous = await page.evaluateHandle(async () => {
+      const context = (document as Document & { modelContext: ToolContext })
+        .modelContext;
+      return (await context.getTools()).find(
+        (tool) => tool.name === 'localcut_inspect_project',
+      )!;
+    });
+    try {
+      await call(page, 'workspace', { action: 'open_project', projectId: id });
+      await expect(page).toHaveURL(`${base}workspace/${id}`);
+      await expect
+        .poll(
+          async () =>
+            (await call<Inspection>(page, 'inspect_project')).project?.id,
+        )
+        .toBe(id);
+      expect(
+        await previous.evaluate((tool) =>
+          tool.execute({}, { signal: new AbortController().signal }),
+        ),
+      ).toMatchObject({ isError: true });
+      const before = await call<Inspection>(page, 'inspect_project');
+      expect(
+        await call(page, 'apply_edits', {
+          projectId: id,
+          expectedRevision: before.project.revision,
+          requestId: 'same-project-query-edit',
+          operations: [{ type: 'renameProject', name: 'Query tools restored' }],
+        }),
+      ).toMatchObject({ appliedRevision: before.project.revision + 1 });
+      await expect(
+        page.getByRole('button', { name: 'Open project', exact: true }),
+      ).toContainText('Query tools restored');
+    } finally {
+      await previous.dispose();
+    }
+  });
+
   test(`workspace WebMCP skills publish identical portable guidance without editor startup @journey ${base}`, async ({
     page,
   }) => {

@@ -1405,6 +1405,7 @@ export function Workspace() {
             onWorkspaceExport={() => beginTransfer({ mode: 'export' })}
             onWorkspaceImport={() => beginTransfer({ mode: 'import' })}
             onRecord={showRecording}
+            onImportMedia={() => fileInput.current?.click()}
             onAppearance={() => setAppearanceOpen(true)}
             onShortcuts={() => setDialog('shortcuts')}
             onCommands={showCommands}
@@ -1975,6 +1976,7 @@ export function Workspace() {
               editor,
               project: viewProject,
               route,
+              routeKey,
               version: browsed,
               selectedClipIds: selectedIds,
               position: playbackPosition,

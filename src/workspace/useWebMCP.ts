@@ -11,6 +11,7 @@ interface Props {
   editor: Editor | null;
   project: Project | null;
   route: ProjectRoute;
+  routeKey: string;
   version: ProjectVersion | null;
   selectedClipIds: string[];
   position: PlaybackPosition;
@@ -54,12 +55,17 @@ export default function WebMCPBridge(props: Props) {
         }
       : null,
     props.version?.id ?? 'current',
+    props.routeKey,
   );
   return null;
 }
 
 /** Unsupported browsers and bare startup never import schemas or open storage. */
-export function useWebMCP(host: SiteToolHost | null, viewKey: string) {
+export function useWebMCP(
+  host: SiteToolHost | null,
+  viewKey: string,
+  routeKey: string,
+) {
   const latest = useRef(host);
   useLayoutEffect(() => {
     latest.current = host;
@@ -95,5 +101,5 @@ export function useWebMCP(host: SiteToolHost | null, viewKey: string) {
         .dispose()
         .catch((error: unknown) => latest.current?.onError(error));
     };
-  }, [editor, projectId, viewKey]);
+  }, [editor, projectId, viewKey, routeKey]);
 }
