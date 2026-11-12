@@ -55,7 +55,7 @@ Legacy Download project backup / Import project backup controls retain the origi
 
 ### Asset viewing
 
-Click a Media asset thumbnail or name to view the original image or play its video/audio with playback and seek controls. Enter and Space open the focused card. Escape or Close returns focus to the card and stops playback; temporary preview URLs are released. Viewing pauses timeline playback and leaves the project unchanged, including historical versions. Missing or unsupported sources show recovery guidance. Modifier-click selection and thumbnail dragging retain their existing behavior. See the [desktop source viewer](screenshots/asset-viewer.png) and [mobile viewer](screenshots/asset-viewer-mobile.png).
+Click a Media asset thumbnail or name to view the original image or play its video/audio with playback and seek controls. Enter and Space open the focused card. Escape or Close returns focus to the card and stops playback; temporary preview URLs are released. Navigating away also closes the viewer, including while it is loading. Viewing pauses timeline playback and leaves the project unchanged, including historical versions. Missing or unsupported sources show recovery guidance. Modifier-click selection and thumbnail dragging retain their existing behavior. See the [desktop source viewer](screenshots/asset-viewer.png) and [mobile viewer](screenshots/asset-viewer-mobile.png).
 
 ### Screen recording
 

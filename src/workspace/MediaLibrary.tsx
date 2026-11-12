@@ -78,6 +78,7 @@ export default function MediaLibrary({
   onImportFiles,
   onLibraryChanged,
   onView,
+  routeKey,
 }: {
   projectId: string | undefined;
   editor: Editor | null;
@@ -99,16 +100,20 @@ export default function MediaLibrary({
   ) => Promise<unknown>;
   onLibraryChanged: () => Promise<unknown>;
   onView: () => void;
+  routeKey: string;
 }) {
   const [viewing, setViewing] = useState<{
     asset: Asset;
     editor: Editor;
     projectId: string;
+    routeKey: string;
     opener: HTMLButtonElement;
   } | null>(null);
   if (
     viewing &&
-    (viewing.editor !== editor || viewing.projectId !== projectId)
+    (viewing.editor !== editor ||
+      viewing.projectId !== projectId ||
+      viewing.routeKey !== routeKey)
   ) {
     setViewing(null);
   }
@@ -234,7 +239,13 @@ export default function MediaLibrary({
         projectId
       ) {
         onView();
-        setViewing({ asset, editor, projectId, opener: event.currentTarget });
+        setViewing({
+          asset,
+          editor,
+          projectId,
+          routeKey,
+          opener: event.currentTarget,
+        });
       }
     },
     'aria-pressed': selectedIds.has(entryId ?? asset.id),
@@ -518,7 +529,8 @@ export default function MediaLibrary({
       )}
       {viewing &&
         viewing.editor === editor &&
-        viewing.projectId === projectId && (
+        viewing.projectId === projectId &&
+        viewing.routeKey === routeKey && (
           <AssetViewer
             key={viewing.asset.id}
             editor={viewing.editor}

@@ -33,4 +33,4 @@ For scrolling or settings changes, select the matching title in `tests/browser/w
 
 - `MediaFolders.tsx` owns folder navigation/forms and calls `editor.library`; freeze the library revision when opening a form. Folder upload/drop hierarchy flows through `folder-upload.ts` and the shared placement API. Preserve thumbnail-to-timeline dragging and offer context-menu move alternatives. See [Media folders](../../docs/workspace.md#media-folders).
 
-- `AssetViewerDialog.tsx` owns source-view dialog activation, reusing `AssetClipPreview` and `editor.assets.previewClip` for playback and temporary URL cleanup. Keep normal card activation distinct from modifier selection and completed drags, and retain the on-demand dialog/focus boundary.
+- `AssetViewerDialog.tsx` owns source-view dialog activation, reusing `AssetClipPreview` and `editor.assets.previewClip` for playback and temporary URL cleanup. Bind the opening to the project and router location key so catalog/history navigation cancels even pending dialogs. Keep normal card activation distinct from modifier selection and completed drags, and retain the on-demand dialog/focus boundary.

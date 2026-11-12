@@ -105,6 +105,53 @@ for (const base of behaviorBases) {
         revoke(url);
       };
     });
+    // Keep the same project mounted across catalog navigation. A pending
+    // optional dialog must not outlive its route or reopen after it resolves.
+    const catalogAndReturn = async () => {
+      await page.evaluate(() => {
+        const id = location.hash.split('/')[2]!;
+        location.hash = `/projects?project=${id}`;
+      });
+      await expect(page).toHaveURL(/#\/projects\?project=/);
+      await page
+        .getByRole('button', { name: 'Back to editor', exact: true })
+        .click();
+    };
+    await catalogAndReturn();
+    let releaseChunk!: () => void;
+    let chunkStarted!: () => void;
+    let chunkFinished!: () => void;
+    const released = new Promise<void>((resolve) => {
+      releaseChunk = resolve;
+    });
+    const started = new Promise<void>((resolve) => {
+      chunkStarted = resolve;
+    });
+    const finished = new Promise<void>((resolve) => {
+      chunkFinished = resolve;
+    });
+    await page.route('**/assets/AssetViewerDialog-*.js', async (route) => {
+      chunkStarted();
+      await released;
+      await route.continue();
+      chunkFinished();
+    });
+    try {
+      await card('Landscape.png').click();
+      await started;
+      await page.goBack();
+      await expect(page).toHaveURL(/#\/projects\?project=/);
+      await expect(dialog('Landscape.png')).toHaveCount(0);
+      await expect(page.getByText(/Opening landscape.png/)).toHaveCount(0);
+    } finally {
+      releaseChunk();
+    }
+    await finished;
+    await page.unroute('**/assets/AssetViewerDialog-*.js');
+    await page
+      .getByRole('button', { name: 'Back to editor', exact: true })
+      .click();
+    await expect(dialog('Landscape.png')).toHaveCount(0);
     await card('Landscape.png').click();
     const image = dialog('Landscape.png').getByRole('img', {
       name: 'Landscape.png',
@@ -161,6 +208,25 @@ for (const base of behaviorBases) {
       );
       await expect(card(name)).toBeFocused();
     }
+    await catalogAndReturn();
+    await card('tone.wav').click();
+    const navigatingAudio = dialog('tone.wav').locator('audio');
+    await dialog('tone.wav')
+      .getByRole('button', { name: 'Play clip', exact: true })
+      .click();
+    const audioHandle = await navigatingAudio.elementHandle();
+    const navigatingUrl = await navigatingAudio.getAttribute('src');
+    await page.goBack();
+    await expect(page).toHaveURL(/#\/projects\?project=/);
+    await expect(dialog('tone.wav')).toHaveCount(0);
+    await expect.poll(() => revoked.includes(navigatingUrl!)).toBe(true);
+    expect(
+      await audioHandle!.evaluate((el: HTMLMediaElement) => el.paused),
+    ).toBe(true);
+    await page
+      .getByRole('button', { name: 'Back to editor', exact: true })
+      .click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     expect(await readProject()).toEqual(before);
     await page.setViewportSize({ width: 390, height: 844 });
     await page
