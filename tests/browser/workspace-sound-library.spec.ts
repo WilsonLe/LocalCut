@@ -60,15 +60,41 @@ for (const base of behaviorBases) {
     await search.fill('deep whoosh');
     await expect(dialog.getByRole('listitem')).toHaveCount(1);
     const audio = dialog.locator('audio');
-    await dialog.getByLabel('Preview volume').fill('0.2');
-    await dialog
-      .getByRole('button', { name: 'Preview Deep whoosh', exact: true })
-      .click();
+    let release!: () => void, arrived!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const reached = new Promise<void>((resolve) => {
+      arrived = resolve;
+    });
+    await page.route('**/sounds/audio/*.wav', async (route) => {
+      arrived();
+      await gate;
+      await route.continue().catch(() => {});
+    });
+    try {
+      await dialog
+        .getByRole('button', { name: 'Preview Deep whoosh', exact: true })
+        .click();
+      await reached;
+      await dialog.getByLabel('Preview volume').fill('0');
+      expect(
+        await audio.evaluate((node) => (node as HTMLAudioElement).volume),
+      ).toBe(0);
+    } finally {
+      release();
+    }
     await expect
       .poll(() =>
         audio.evaluate((node) => (node as HTMLAudioElement).currentTime),
       )
       .toBeGreaterThan(0);
+    expect(await dialog.getByLabel('Preview volume').inputValue()).toBe('0');
+    expect(
+      await audio.evaluate((node) => (node as HTMLAudioElement).volume),
+    ).toBe(0);
+    await page.unroute('**/sounds/audio/*.wav');
+    await dialog.getByLabel('Preview volume').fill('0.2');
     expect(
       await audio.evaluate((node) => (node as HTMLAudioElement).volume),
     ).toBe(0.2);

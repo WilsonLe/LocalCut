@@ -47,6 +47,7 @@ export default function SoundEffectsDialog({
   const [category, setCategory] = useState<SoundCategory | ''>('');
   const [page, setPage] = useState(0);
   const [volume, setVolume] = useState(0.4);
+  const previewVolume = useRef(volume);
   const [playing, setPlaying] = useState<string>();
   const [pending, setPending] = useState<{
     id: string;
@@ -130,7 +131,7 @@ export default function SoundEffectsDialog({
       if (!element) return;
       previewUrl.current = URL.createObjectURL(file);
       element.src = previewUrl.current;
-      element.volume = volume;
+      element.volume = previewVolume.current;
       await element.play();
       controller.signal.throwIfAborted();
       setPlaying(sound.id);
@@ -211,6 +212,7 @@ export default function SoundEffectsDialog({
               className="w-24 accent-primary"
               onChange={(event) => {
                 const next = Number(event.target.value);
+                previewVolume.current = next;
                 setVolume(next);
                 if (audio.current) audio.current.volume = next;
               }}

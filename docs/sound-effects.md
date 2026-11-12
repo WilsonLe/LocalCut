@@ -8,7 +8,7 @@ The initial collection contains **281 distinct sounds across nine categories**, 
 
 ## Catalogue and interaction contract
 
-The Media action loads its dialog and catalogue on demand. Opening, searching and previewing do not create a project or import audio. One preview plays at a time. Changing the search, category or page stops it. Closing, navigating to another project/route or entering a historical read-only view retires the dialog, stops playback, revokes its object URL and aborts unpublished downloads. Historical views expose no sound-library import action.
+The Media action loads its dialog and catalogue on demand. Opening, searching and previewing do not create a project or import audio. One preview plays at a time. Volume changes made during a download apply when playback starts. Changing the search, category or page stops it. Closing, navigating to another project/route or entering a historical read-only view retires the dialog, stops playback, revokes its object URL and aborts unpublished downloads. Historical views expose no sound-library import action.
 
 The catalogue's schema, category list and search live in `src/core/sound-library.ts`. The workspace loader validates that schema and verifies each requested file's byte count and SHA-256 before preview or import. A mismatch makes one HTTP revalidation attempt, then offers an actionable failure. Only checksum-derived local audio paths are constructed; creator links must use HTTPS. A failed catalogue can be retried. Failed sound requests can be retried through the same row.
 
@@ -60,7 +60,7 @@ All outputs are 48 kHz, 16-bit PCM WAV, retaining mono/stereo channel counts. Ke
 
 Sources longer than 20 seconds become explicit first-20-second excerpts with 20 ms edge fades. Short effects keep their full source duration and existing attack/tail. No source is certified as a seamless loop. Measured output sample peaks range from −28.37775 to −1.00015 dBFS; these are sample peaks, not true-peak or broadcast-loudness measurements. The audio total is 47,106,284 bytes (44.9 MiB), with a checked 60 MiB ceiling.
 
-Every candidate was decoded and measured by the recorded FFmpeg toolchain. The preparation rejects missing, non-finite, silent or unsupported-channel output. Build checks inspect every actual PCM WAV, source selection, notice, checksum, duration and size in both hosting outputs. Measurements do not establish subjective quality, clean natural transients, mono compatibility or the absence of upstream recording damage. No comprehensive listening approval is claimed; native browser playback and editing acceptance are separate evidence.
+Every candidate was decoded and measured by the recorded FFmpeg toolchain. The preparation rejects missing, non-finite, silent or unsupported-channel output. Build checks inspect every actual PCM WAV, source selection, notice, checksum, duration and size in both hosting outputs. Measurements do not establish subjective quality, clean natural transients, mono compatibility or the absence of upstream recording damage. This delivery does not include a subjective listening review; native browser playback and editing acceptance are separate evidence.
 
 ### Coverage limits
 
