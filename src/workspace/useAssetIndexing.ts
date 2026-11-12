@@ -89,6 +89,7 @@ export function useAssetIndexing(
             stage: 'Indexed',
             result: resultSummary(latest),
           });
+        else publish(scope, assetId, { running: false, stage: '' });
       } catch (error) {
         if (current.current === scope)
           showErrorToast(error, 'Could not read the saved index.');

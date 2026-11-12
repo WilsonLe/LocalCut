@@ -659,6 +659,7 @@ function MediaAssetCard({
       data-selected={selected}
     >
       <Tooltip
+        disableHoverablePopup
         content={
           <>
             <div>{asset.name}</div>

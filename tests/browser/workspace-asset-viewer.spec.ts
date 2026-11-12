@@ -181,6 +181,12 @@ for (const base of behaviorBases) {
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(card('Landscape.png')).toHaveAttribute('aria-pressed', 'true');
     await expect(card('tone.wav')).toHaveAttribute('aria-pressed', 'true');
+    const openActions = async (name: string) => {
+      await card(name).hover();
+      await page
+        .getByRole('button', { name: `Actions for ${name}`, exact: true })
+        .click();
+    };
     // Both entry points share the same job. Hold native analysis at its lock
     // boundary so progress, duplicate suppression and cancellation are observed.
     const audioId = await card('tone.wav').evaluate(
@@ -207,9 +213,7 @@ for (const base of behaviorBases) {
       await ready;
     }, audioId);
     try {
-      await page
-        .getByRole('button', { name: 'Actions for tone.wav', exact: true })
-        .click();
+      await openActions('tone.wav');
       await page
         .getByRole('menuitem', { name: 'Index asset', exact: true })
         .click();
@@ -221,9 +225,7 @@ for (const base of behaviorBases) {
         }),
       ).toBeVisible();
       await page.keyboard.press('Escape');
-      await page
-        .getByRole('button', { name: 'Actions for tone.wav', exact: true })
-        .click();
+      await openActions('tone.wav');
       await expect(
         page.getByRole('menuitem', { name: 'Indexing…', exact: true }),
       ).toBeDisabled();
@@ -256,9 +258,7 @@ for (const base of behaviorBases) {
     );
     await page.screenshot({ path: info.outputPath('asset-viewer-audio.png') });
     await page.keyboard.press('Escape');
-    await page
-      .getByRole('button', { name: 'Actions for Landscape.png', exact: true })
-      .click();
+    await openActions('Landscape.png');
     await page
       .getByRole('menuitem', { name: 'Index asset', exact: true })
       .click();
@@ -353,10 +353,8 @@ for (const base of behaviorBases) {
     for (const result of indexes.results) {
       expect(result.count).toBe(1);
       expect(result.status).toBe('analyzed');
-      expect(result.frames).toBe(
-        result.name === 'tone.wav' ? 0 : expect.any(Number),
-      );
-      if (result.name !== 'tone.wav') expect(result.frames).toBeGreaterThan(0);
+      if (result.name === 'tone.wav') expect(result.frames).toBe(0);
+      else expect(result.frames).toBeGreaterThan(0);
     }
     await catalogAndReturn();
     await card('tone.wav').click();
@@ -431,5 +429,30 @@ for (const base of behaviorBases) {
         });
       await page.keyboard.press('Escape');
     }
+    // Relinking invalidates the retained index; do not keep the former success.
+    await page.evaluate(async (base) => {
+      const { createEditor } = (await import(
+        base + 'editor.js'
+      )) as typeof import('../../src/editor');
+      const editor = await createEditor();
+      try {
+        const projectId = location.hash.split('/')[2]!;
+        const entry = (
+          await editor.library.forProject(projectId).list()
+        ).entries.find((item) => item.name === 'green.webm')!;
+        const original = await editor.library
+          .forProject(projectId)
+          .file(entry.id);
+        await editor.assets.relink(
+          entry.assetId!,
+          new File([original], 'green.webm', { type: 'video/webm' }),
+        ).completion;
+      } finally {
+        await editor.dispose();
+      }
+    }, base);
+    await card('green.webm').click();
+    await expect(dialog('green.webm').getByRole('status')).toBeEmpty();
+    await page.keyboard.press('Escape');
   });
 }

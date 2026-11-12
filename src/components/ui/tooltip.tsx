@@ -12,11 +12,13 @@ export function Tooltip({
   children,
   content,
   toggleOnClick = false,
+  disableHoverablePopup = false,
 }: {
   children: ReactElement;
   content: ReactNode;
   /** Opt in for help buttons that must also disclose their text on touch. */
   toggleOnClick?: boolean;
+  disableHoverablePopup?: boolean;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -30,7 +32,11 @@ export function Tooltip({
     };
   }, [content]);
   return (
-    <TooltipPrimitive.Root open={open} onOpenChange={setOpen}>
+    <TooltipPrimitive.Root
+      open={open}
+      onOpenChange={setOpen}
+      disableHoverablePopup={disableHoverablePopup}
+    >
       <TooltipPrimitive.Trigger
         ref={trigger}
         render={children}
