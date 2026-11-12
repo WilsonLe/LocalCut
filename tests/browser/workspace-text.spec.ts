@@ -305,7 +305,7 @@ for (const base of behaviorBases) {
       .toBe('Summer memories');
     await page.reload();
     await page
-      .getByRole('button', { name: 'Refresh projects', exact: true })
+      .getByRole('button', { name: 'Open project', exact: true })
       .click();
     await page.getByRole('button', { name: /^Text library/ }).click();
     await page
@@ -382,7 +382,7 @@ for (const base of behaviorBases) {
       }
     }, base);
     await page
-      .getByRole('button', { name: 'Open project', exact: true })
+      .getByRole('button', { name: 'Refresh projects', exact: true })
       .click();
     await page.getByRole('button', { name: /^Existing font sizes/ }).click();
     for (const fontSize of [1001, 0.5]) {
