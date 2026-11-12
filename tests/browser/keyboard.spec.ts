@@ -1,5 +1,6 @@
 import { behaviorBases } from './coverage-bases';
 import { closeMediaImportAndPlace } from './workspace-import-helper';
+import { createWorkspace } from './workspace-project-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { Project } from '../../src/core/model';
@@ -34,6 +35,7 @@ for (const base of behaviorBases) {
     // Retain focus-restoration coverage through real modal exit motion.
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto(base);
+    await createWorkspace(page, 'Keyboard setup');
     const workspace = page.getByRole('main', {
       name: 'Video editor',
       exact: true,
