@@ -155,6 +155,10 @@ for (const base of behaviorBases) {
       .getByRole('button', { name: 'Open media Trash', exact: true })
       .click();
     await first.click();
+    await page
+      .getByRole('dialog', { name: 'first.png', exact: true })
+      .getByRole('button', { name: 'Close', exact: true })
+      .click();
     await expect(first).toHaveAttribute('aria-pressed', 'true');
     await first.click({ modifiers: ['Meta'] });
     await expect(first).toHaveAttribute('aria-pressed', 'false');

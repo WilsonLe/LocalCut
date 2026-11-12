@@ -29,6 +29,7 @@ for (const base of behaviorBases) {
   test(`asset viewing opens original images video and audio without edits ${base}`, async ({
     page,
   }, info) => {
+    page.setDefaultTimeout(15000);
     await page.goto(base);
     await page.getByRole('main', { name: 'Video editor', exact: true }).focus();
     await page.keyboard.press('n');
@@ -162,7 +163,9 @@ for (const base of behaviorBases) {
     }
     expect(await readProject()).toEqual(before);
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.getByRole('tab', { name: 'Media', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Expand media', exact: true })
+      .click();
     await card('Landscape.png').click();
     await expect(dialog('Landscape.png').getByRole('img')).toBeVisible();
     const bounds = await dialog('Landscape.png').boundingBox();
