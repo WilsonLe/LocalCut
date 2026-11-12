@@ -11,6 +11,8 @@ metadata:
 
 Use the agent host's built-in browser first. Open Chrome or another external browser only when the user explicitly requests it, the built-in browser is unavailable, or a required capability fails there. State the fallback reason before switching. Missing WebMCP alone is not a reason to switch when the ordinary UI can complete the task. Before switching, back up existing work including originals, restore it in the destination and verify the intended project and media. Browser profiles do not share local data; if transfer is blocked, keep the original tab intact and report it.
 
+For “index this asset/video” requests, load `localcut-indexing` to orchestrate source inspection, Context and saved source-timed Transcript verification. A transcription job alone does not attach text to source clips or complete indexing.
+
 Each `asset.clips` entry has editable transcript text and source bounds. Read the selected clip when useful, but distinguish supplied/corrected words from canonical timed transcripts. Use `localcut-asset-clips` to read, preview or edit source clips. For requested transcription, use its actual source range and attach returned words and their actual source times in `transcriptCues` to that clip without inventing timing or rewriting caption tracks implicitly.
 
 Inspect the project and source audio asset ID, duration, language and exact requested source range in integer microseconds. Request speech-to-text (STT) from the calling agent's available speech tools or runtime. LocalCut supplies editing, source access and transcript storage; it has no bundled speech model, STT engine, TTS engine or provider connection. `localcut_transcription` only reads an existing saved transcript by ID; it cannot prepare or transcribe.

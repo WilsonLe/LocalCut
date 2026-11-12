@@ -1,6 +1,6 @@
 ---
 name: localcut-start
-description: Use this skill when starting an agent-led LocalCut project or choosing its browser. Prefer the built-in browser, discover editing workflows and use correct revisions, imports and job lifetimes.
+description: Use this skill when starting an agent-led LocalCut project or choosing its browser. Prefer the built-in browser, route import-and-index requests to localcut-indexing, discover editing workflows and use correct revisions, imports and job lifetimes.
 license: MIT
 metadata:
   author: LocalCut
@@ -35,6 +35,7 @@ Long operations return job IDs. Use `localcut_job` to wait/inspect/cancel, downl
 
 ## Choose a workflow
 
+- `localcut-indexing` handles “index this asset/video” and “import and index”: save evidence-grounded Context and source-timed Transcript, then verify both after reload. Technical `analyze` alone is incomplete.
 - `localcut-asset-clips` organizes asset source clips with previews, context and transcripts.
 - `localcut-video-editing` owns the cut and final timing.
 - `localcut-reference-analysis` studies a supplied style or example.
