@@ -13,6 +13,10 @@ Use the [current preference index](current-preferences.md) to find relevant cont
 
 Follow-up: Context and Transcript use separate full-width tabs with full text. Transcript text carries individual source timestamps and can seek the clip preview. Preserve earlier untimed text without inventing timestamps. Index the user-authorized recording through local analysis and transcription; keep personal media and extracted content outside Git.
 
+Follow-up: Simplify transcript editing into a continuous timeline instead of repeated blocks. Use icons, show each timestamp once, keep full text readable inline, and reveal timing/edit controls only when needed.
+
+Follow-up: Transcription skills require an agent-LLM normalization pass for likely sound-alike STT mistakes, using language and context to recover intended wording. Preserve raw recognition and correction provenance, keep source timestamps, and check ambiguous wording against audio or retain uncertainty; sensible prose alone does not certify speech. Keep supplied/human-corrected text unless correction is requested. Publish the same guidance through WebMCP and portable skills without restoring an in-app assistant/provider.
+
 ## Portable editing skills and asset reference text — 12 November 2026
 
 - Expose LocalCut skills through WebMCP and publish identical portable `SKILL.md` guidance, adapting all useful Agentic Workflows editing guidance into a self-contained LocalCut set. Users must not need to know about or install the upstream suite.

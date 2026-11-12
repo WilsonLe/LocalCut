@@ -64,3 +64,7 @@ The inspected source was MIT-licensed Agentic Workflows `0.2.0+codex.20261018000
 | YouTube inspection/download/sync workflow descriptions                                | No bundled downloader/cookie tools; reference guidance can use an agent host's authorized retrieval capability |
 
 File/package checks do not prove agents will select or obey a skill. Production Chrome uses a controlled WebMCP harness for discovery, parity and lifetime checks; native browser discovery retains its separate availability limits. No universal agent interoperability or model-quality result is claimed.
+
+## Transcript normalization
+
+The captions skill requires the connected agent to run an LLM normalization pass after STT and before attaching/indexing/exporting recognized text. Asset-clips and video-editing skills route through that owner. The pass uses original-language context and phonetic plausibility to correct likely sound-alike errors while preserving raw recognition, source IDs/times and a local correction record. Ambiguous or consequential wording needs source listening or explicit uncertainty; semantic fluency alone does not verify speech. Supplied/human-corrected text remains unchanged unless correction is requested. This is published agent guidance, with no new built-in assistant, remote provider, automatic media upload or app inference path.

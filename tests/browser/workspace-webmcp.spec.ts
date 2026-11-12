@@ -555,8 +555,44 @@ for (const base of behaviorBases) {
     await dialog.getByRole('option', { name: 'Detail', exact: true }).click();
     await dialog.getByRole('tab', { name: 'Transcript', exact: true }).click();
     await expect(
+      dialog.getByText('Second section', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      dialog
+        .getByRole('region', { name: 'Transcript timeline', exact: true })
+        .getByRole('textbox'),
+    ).toHaveCount(0);
+    await dialog
+      .getByRole('button', { name: 'Edit transcript text 1', exact: true })
+      .click();
+    await expect(
       dialog.getByRole('textbox', { name: 'Transcript', exact: true }),
     ).toHaveValue('Second section');
+    await dialog
+      .getByRole('button', { name: 'Edit transcript timing 1', exact: true })
+      .click();
+    await expect(
+      page.getByRole('spinbutton', {
+        name: 'Transcript start 1 (s)',
+        exact: true,
+      }),
+    ).toHaveValue('');
+    expect(
+      await page
+        .getByRole('spinbutton', { name: 'Transcript end 1 (s)', exact: true })
+        .evaluate(
+          (element) => element.getBoundingClientRect().right <= innerWidth,
+        ),
+    ).toBe(true);
+    await page
+      .getByRole('spinbutton', { name: 'Transcript start 1 (s)', exact: true })
+      .press('Escape');
+    await dialog
+      .getByRole('button', {
+        name: 'Finish editing transcript text 1',
+        exact: true,
+      })
+      .click();
     expect(
       await dialog.evaluate(
         (element) => element.scrollWidth <= element.clientWidth,
@@ -601,6 +637,15 @@ for (const base of behaviorBases) {
     ).toHaveCount(0);
     await expect(
       dialog.getByRole('button', { name: 'Add clip', exact: true }),
+    ).toHaveCount(0);
+    await dialog.getByRole('tab', { name: 'Transcript', exact: true }).click();
+    await expect(
+      dialog.getByText(text.transcript, { exact: true }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole('button', {
+        name: /Edit transcript|Add transcript|Remove transcript/,
+      }),
     ).toHaveCount(0);
     expect(
       await call(page, 'asset', {

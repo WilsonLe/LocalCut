@@ -90,7 +90,6 @@ export function AssetClipPreview({
     appliedSeek.current = seek;
     element.pause();
     element.currentTime = Math.max(startUs, Math.min(endUs, seek.timeUs)) / 1e6;
-    element.scrollIntoView({ block: 'nearest' });
   }, [seek, source, valid, startUs, endUs]);
   useEffect(
     () => () => {

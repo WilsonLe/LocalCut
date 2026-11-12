@@ -20,8 +20,12 @@ import {
 } from '../components/ui/dialog';
 import { AssetClipPreview } from './AssetClipPreview';
 import { formatTime } from './helpers';
+import {
+  TranscriptTimeline,
+  type TranscriptCueDraft,
+} from './TranscriptTimeline';
 
-type CueDraft = { id: string; start: string; end: string; text: string };
+type CueDraft = TranscriptCueDraft;
 const cueDraft = (
   cue: ReturnType<typeof assetTranscriptCues>[number],
 ): CueDraft => ({
@@ -358,133 +362,17 @@ export function AssetClipsDialog({
                   onChange={(event) => update({ context: event.target.value })}
                 />
               </TabsContent>
-              <TabsContent value="transcript" className="space-y-4">
-                {cues.map((cue, index) => (
-                  <div key={cue.id} className="space-y-2 rounded-lg border p-3">
-                    <div className="flex items-center gap-2">
-                      {cue.start.trim() &&
-                        Number.isFinite(Number(cue.start)) && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`Preview transcript at ${formatTime(Number(cue.start) * 1e6)}`}
-                            onClick={() =>
-                              setSeek({
-                                timeUs: Math.round(Number(cue.start) * 1e6),
-                                request: (seek?.request ?? 0) + 1,
-                              })
-                            }
-                          >
-                            {formatTime(Number(cue.start) * 1e6)}
-                          </Button>
-                        )}
-                      <label className="grid w-24 gap-1 text-xs text-muted-foreground">
-                        Start (s)
-                        <Input
-                          aria-label={`Transcript start ${index + 1} (s)`}
-                          type="number"
-                          step="0.001"
-                          min="0"
-                          placeholder="Untimed"
-                          value={cue.start}
-                          readOnly={readOnly}
-                          disabled={saving}
-                          onChange={(event) =>
-                            update({
-                              cues: cues.map((item, i) =>
-                                i === index
-                                  ? { ...item, start: event.target.value }
-                                  : item,
-                              ),
-                            })
-                          }
-                        />
-                      </label>
-                      <label className="grid w-24 gap-1 text-xs text-muted-foreground">
-                        End (s)
-                        <Input
-                          aria-label={`Transcript end ${index + 1} (s)`}
-                          type="number"
-                          step="0.001"
-                          min="0"
-                          value={cue.end}
-                          readOnly={readOnly}
-                          disabled={saving}
-                          onChange={(event) =>
-                            update({
-                              cues: cues.map((item, i) =>
-                                i === index
-                                  ? { ...item, end: event.target.value }
-                                  : item,
-                              ),
-                            })
-                          }
-                        />
-                      </label>
-                      {!readOnly && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          className="ml-auto"
-                          aria-label={`Remove transcript text ${index + 1}`}
-                          disabled={saving}
-                          onClick={() =>
-                            update({ cues: cues.filter((_, i) => i !== index) })
-                          }
-                        >
-                          <Trash2 />
-                        </Button>
-                      )}
-                    </div>
-                    <Textarea
-                      aria-label={
-                        index === 0
-                          ? 'Transcript'
-                          : `Transcript text ${index + 1}`
-                      }
-                      className="min-h-24 w-full resize-y"
-                      rows={Math.max(3, cue.text.split('\n').length)}
-                      value={cue.text}
-                      maxLength={1000000}
-                      readOnly={readOnly}
-                      disabled={saving}
-                      onChange={(event) =>
-                        update({
-                          cues: cues.map((item, i) =>
-                            i === index
-                              ? { ...item, text: event.target.value }
-                              : item,
-                          ),
-                        })
-                      }
-                    />
-                  </div>
-                ))}
-                {!readOnly && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={saving}
-                    onClick={() =>
-                      update({
-                        cues: [
-                          ...cues,
-                          {
-                            id: crypto.randomUUID(),
-                            start: '',
-                            end: '',
-                            text: '',
-                          },
-                        ],
-                      })
-                    }
-                  >
-                    <Plus />
-                    Add text
-                  </Button>
-                )}
+              <TabsContent value="transcript">
+                <TranscriptTimeline
+                  key={selected.id}
+                  cues={cues}
+                  readOnly={readOnly}
+                  disabled={saving}
+                  onChange={(next) => update({ cues: next })}
+                  onSeek={(timeUs) =>
+                    setSeek({ timeUs, request: (seek?.request ?? 0) + 1 })
+                  }
+                />
               </TabsContent>
             </Tabs>
             {failure && (

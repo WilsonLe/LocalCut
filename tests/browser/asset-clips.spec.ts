@@ -282,7 +282,8 @@ for (const base of behaviorBases) {
                     startUs: 1_100_000,
                     endUs: 1_700_000,
                     context: 'Second section',
-                    transcript: 'Detail words',
+                    transcript:
+                      'Detail words\nA closer look at the scene.\nThe next idea follows.',
                     transcriptCues: [
                       {
                         id: 'detail-speech',
@@ -290,12 +291,28 @@ for (const base of behaviorBases) {
                         endUs: 1_500_000,
                         text: 'Detail words',
                       },
+                      {
+                        id: 'detail-middle',
+                        timeUs: 1_510_000,
+                        endUs: 1_590_000,
+                        text: 'A closer look at the scene.',
+                      },
+                      {
+                        id: 'detail-end',
+                        timeUs: 1_600_000,
+                        endUs: 1_700_000,
+                        text: 'The next idea follows.',
+                      },
                     ],
                   },
                 ],
                 0,
               );
-              return { projectId: project.id, name: source.name };
+              return {
+                projectId: project.id,
+                name: source.name,
+                assetId: asset.id,
+              };
             }
             const rate = 16000,
               samples = rate * 2;
@@ -343,7 +360,8 @@ for (const base of behaviorBases) {
                   startUs: 1_100_000,
                   endUs: 1_700_000,
                   context: 'Second section',
-                  transcript: 'Detail words',
+                  transcript:
+                    'Detail words\nA closer look at the scene.\nThe next idea follows.',
                   transcriptCues: [
                     {
                       id: 'detail-speech',
@@ -351,12 +369,28 @@ for (const base of behaviorBases) {
                       endUs: 1_500_000,
                       text: 'Detail words',
                     },
+                    {
+                      id: 'detail-middle',
+                      timeUs: 1_510_000,
+                      endUs: 1_590_000,
+                      text: 'A closer look at the scene.',
+                    },
+                    {
+                      id: 'detail-end',
+                      timeUs: 1_600_000,
+                      endUs: 1_700_000,
+                      text: 'The next idea follows.',
+                    },
                   ],
                 },
               ],
               0,
             );
-            return { projectId: project.id, name: source.name };
+            return {
+              projectId: project.id,
+              name: source.name,
+              assetId: asset.id,
+            };
           } finally {
             await editor.dispose();
           }
@@ -418,9 +452,18 @@ for (const base of behaviorBases) {
       await dialog
         .getByRole('tab', { name: 'Transcript', exact: true })
         .click();
+      const transcript = dialog.getByRole('region', {
+        name: 'Transcript timeline',
+        exact: true,
+      });
+      await expect(transcript.getByRole('textbox')).toHaveCount(0);
+      await expect(transcript.getByRole('spinbutton')).toHaveCount(0);
       await expect(
-        dialog.getByRole('textbox', { name: 'Transcript', exact: true }),
-      ).toHaveValue('Detail words');
+        transcript.getByText('Detail words', { exact: true }),
+      ).toBeVisible();
+      await expect(
+        transcript.getByText('The next idea follows.', { exact: true }),
+      ).toBeVisible();
       await expect
         .poll(() =>
           media.evaluate((element: HTMLMediaElement) => element.currentTime),
@@ -438,8 +481,17 @@ for (const base of behaviorBases) {
         )
         .toBeCloseTo(1.25, 2);
       await page.screenshot({
-        path: `.artifacts/timestamped-transcript-${kind}.png`,
+        path: `.artifacts/transcript-timeline-${kind}.png`,
       });
+      const edit = transcript.getByRole('button', {
+        name: 'Edit transcript text 1',
+        exact: true,
+      });
+      await edit.focus();
+      await edit.press('Enter');
+      await expect(
+        transcript.getByRole('textbox', { name: 'Transcript', exact: true }),
+      ).toBeFocused();
       const fullText =
         'A complete transcript paragraph. '.repeat(100) +
         'Visible final sentence.';
@@ -453,12 +505,60 @@ for (const base of behaviorBases) {
             (element) => element.scrollHeight <= element.clientHeight + 2,
           ),
       ).toBe(true);
-      await dialog
+      await transcript
+        .getByRole('textbox', { name: 'Transcript', exact: true })
+        .press('ControlOrMeta+Enter');
+      await expect(edit).toBeFocused();
+      await expect(transcript.getByRole('textbox')).toHaveCount(0);
+      const laterTimestamp = transcript.getByRole('button', {
+        name: 'Preview transcript at 00:01.60',
+        exact: true,
+      });
+      await laterTimestamp.click();
+      await expect(laterTimestamp).toBeInViewport();
+      await expect
+        .poll(() =>
+          media.evaluate((element: HTMLMediaElement) => element.currentTime),
+        )
+        .toBeCloseTo(1.6, 2);
+      await edit.click();
+      await transcript
+        .getByRole('button', { name: 'Edit transcript timing 1', exact: true })
+        .click();
+      await page
         .getByRole('spinbutton', {
           name: 'Transcript start 1 (s)',
           exact: true,
         })
         .fill('1.3');
+      await page
+        .getByRole('spinbutton', {
+          name: 'Transcript start 1 (s)',
+          exact: true,
+        })
+        .press('Escape');
+      await expect(dialog).toBeVisible();
+      await transcript
+        .getByRole('button', {
+          name: 'Finish editing transcript text 1',
+          exact: true,
+        })
+        .click();
+      await transcript
+        .getByRole('button', { name: 'Add transcript text', exact: true })
+        .click();
+      await transcript
+        .getByRole('textbox', { name: 'Transcript text 4', exact: true })
+        .fill('Temporary entry');
+      await transcript
+        .getByRole('button', { name: 'Remove transcript text 4', exact: true })
+        .click();
+      await expect(
+        transcript.getByRole('button', {
+          name: 'Edit transcript text 3',
+          exact: true,
+        }),
+      ).toBeFocused();
       await dialog.getByRole('button', { name: 'Save', exact: true }).click();
       await expect(
         dialog.getByRole('button', { name: 'Save', exact: true }),
@@ -486,6 +586,31 @@ for (const base of behaviorBases) {
           }
         }, url),
       ).toBe(false);
+      await page.reload();
+      const saved = await page.evaluate(
+        async ({ base, assetId }) => {
+          const { createEditor } = (await import(
+            base + 'editor.js'
+          )) as typeof import('../../src/editor');
+          const editor = await createEditor();
+          try {
+            const asset = await editor.assets.inspect(assetId);
+            return asset.clips![1]!;
+          } finally {
+            await editor.dispose();
+          }
+        },
+        { base, assetId: seeded.assetId },
+      );
+      expect(saved.transcriptCues).toHaveLength(3);
+      expect(saved.transcriptCues![0]).toMatchObject({
+        timeUs: 1_300_000,
+        endUs: 1_500_000,
+        text: fullText,
+      });
+      expect(saved.transcript).toBe(
+        fullText + '\nA closer look at the scene.\nThe next idea follows.',
+      );
     });
   }
 }
