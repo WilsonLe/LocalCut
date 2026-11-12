@@ -8,6 +8,25 @@ Use the [current preference index](current-preferences.md) to find relevant cont
 
 - Click an asset in Media to view its source. Keep viewing separate from timeline edits; preserve drag and modifier selection. See [asset viewing](workspace.md#asset-viewing).
 
+## Source clips and task-facing copy — 12 November 2026
+
+- Assets contain source clips. Each clip has its own source range, context, transcript and preview, with a polished responsive UI for viewing and editing them.
+- Remove UI metatext such as “saved with this asset in your browser.” Keep visible copy to content, names, ranges, fields, actions and actionable feedback. Do not narrate storage, implementation or agent workflow in the product.
+- Apply this preference to the shipped LocalCut skills and maintained UI Design skill, so future changes preserve it. Keep technical contracts in documentation; preserve actual user/source content.
+- This supersedes the flat asset-note UI from earlier on this date. Existing text must carry over to a whole-source clip. Verify locally and open the built app in the built-in browser.
+
+Follow-up: Context and Transcript use separate full-width tabs with full text. Transcript text carries individual source timestamps and can seek the clip preview. Preserve earlier untimed text without inventing timestamps. Index the user-authorized recording through local analysis and transcription; keep personal media and extracted content outside Git.
+
+Follow-up: Simplify transcript editing into a continuous timeline instead of repeated blocks. Use icons, show each timestamp once, keep full text readable inline, and reveal timing/edit controls only when needed.
+
+Follow-up: Transcription skills require an agent-LLM normalization pass for likely sound-alike STT mistakes, using language and context to recover intended wording. Preserve raw recognition and correction provenance, keep source timestamps, and check ambiguous wording against audio or retain uncertainty; sensible prose alone does not certify speech. Keep supplied/human-corrected text unless correction is requested. Publish the same guidance through WebMCP and portable skills without restoring an in-app assistant/provider.
+
+## Portable editing skills and asset reference text — 12 November 2026
+
+- Expose LocalCut skills through WebMCP and publish identical portable `SKILL.md` guidance, adapting all useful Agentic Workflows editing guidance into a self-contained LocalCut set. Users must not need to know about or install the upstream suite.
+- Let users attach context and transcript text to assets and view/edit it in the web app. Keep the shared asset owner, local persistence and agent access consistent; plain transcript text is reference material separate from timed captions.
+- Preserve external-agent scope, inert discovery, shared editor validation and the removal of built-in assistant/provider features. See [skills](skills.md) and [asset text](api.md#asset-context-and-transcript-text).
+
 ## Autonomous browser project setup — 12 November 2026
 
 - Let a compatible browser agent start a project, import authorized local files and edit independently, including when LocalCut starts without an open project.

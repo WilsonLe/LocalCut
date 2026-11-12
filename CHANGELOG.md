@@ -6,6 +6,8 @@ Current version: **0.1.0-alpha.1**. Short summaries for end users and executives
 
 - Click Media assets to view original images and play video/audio without changing the timeline. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...wilsonle/asset-preview).
 
+- Organize assets into previewable source clips with context and a compact, timestamped transcript timeline. Discover 13 portable editing skills through WebMCP, including an agent-led STT normalization pass. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...wilsonle/webmcp-skills).
+
 - Let browser agents create/open projects and import local files from an empty workspace, including large recordings through browser file selection. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...wilsonle/webmcp-project-setup).
 
 - Let compatible browser agents inspect and edit the viewed project through WebMCP, including history, Media, previews and local exports. [Full changelog — Git diff](https://github.com/WilsonLe/LocalCut/compare/main...wilsonle/webmcp-project-control).

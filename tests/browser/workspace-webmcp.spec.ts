@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
 import type {
   Project,
@@ -230,7 +231,7 @@ async function projectSetupJourney(page: Page, base: string) {
   expect(
     (await call<Inspection>(page, 'inspect_project')).project.revision,
   ).toBe(1);
-  return { id, fixture };
+  return { id, fixture, assetId: imported.assets[0]!.id };
 }
 type Inspection = {
   project: Project;
@@ -305,12 +306,365 @@ async function persisted(page: Page, base: string, id: string) {
 }
 
 for (const base of behaviorBases) {
-  test(`workspace WebMCP creates, imports files and edits from an empty workspace @journey ${base}`, async ({
+  test(`workspace WebMCP skills publish identical portable guidance without editor startup @journey ${base}`, async ({
     page,
   }) => {
     await installHarness(page);
+    const requests: string[] = [];
+    page.on('request', (request) => requests.push(request.url()));
     await page.goto(base);
-    const { id, fixture } = await projectSetupJourney(page, base);
+    await workspaceReady(page);
+    expect(requests.filter((url) => url.includes('/skills/'))).toEqual([]);
+    type Catalog = {
+      version: number;
+      skills: {
+        name: string;
+        description: string;
+        sha256: string;
+        url: string;
+        licenseUrl: string;
+      }[];
+    };
+    const catalog = await call<Catalog>(page, 'skills', { action: 'list' });
+    expect(catalog.skills.length).toBeGreaterThanOrEqual(12);
+    expect(requests.filter((url) => url.endsWith('/SKILL.md'))).toEqual([]);
+    const sourceDirectory = new URL('../../public/skills/', import.meta.url);
+    const publishedIndex = JSON.parse(
+      await readFile(new URL('index.json', sourceDirectory), 'utf8'),
+    );
+    expect(
+      catalog.skills.map(({ name, description, sha256 }) => ({
+        name,
+        description,
+        sha256,
+      })),
+    ).toEqual(publishedIndex.skills);
+    for (const skill of catalog.skills) {
+      const result = await call<{ content: string; url: string }>(
+        page,
+        'skills',
+        { action: 'get', name: skill.name },
+      );
+      expect(result.content).toBe(
+        await readFile(
+          new URL(`${skill.name}/SKILL.md`, sourceDirectory),
+          'utf8',
+        ),
+      );
+      expect(result.url).toBe(
+        new URL(`${base}skills/${skill.name}/SKILL.md`, page.url()).href,
+      );
+      expect((await page.request.get(skill.licenseUrl)).ok()).toBe(true);
+    }
+    expect(await page.evaluate(() => indexedDB.databases())).toEqual([]);
+    expect(
+      requests.some((url) =>
+        /\/assets\/(editor|worker)-|huggingface|onnxruntime|openrouter/.test(
+          url,
+        ),
+      ),
+    ).toBe(false);
+    // Check the second hosting path's static publication without repeating a UI journey.
+    const rootIndex = await page.request.get(
+      new URL('/skills/index.json', page.url()).href,
+    );
+    expect(await rootIndex.json()).toEqual(publishedIndex);
+    const rootSkill = await page.request.get(
+      new URL('/skills/localcut-start/SKILL.md', page.url()).href,
+    );
+    expect(await rootSkill.text()).toBe(
+      await readFile(
+        new URL('localcut-start/SKILL.md', sourceDirectory),
+        'utf8',
+      ),
+    );
+    await page.goto(`${base}#/projects`);
+    await workspaceReady(page);
+    await expect(
+      page.getByRole('heading', { name: 'No saved projects yet', exact: true }),
+    ).toBeVisible();
+    const catalogDatabases = await page.evaluate(() => indexedDB.databases());
+    expect(
+      await call(page, 'skills', { action: 'get', name: 'localcut-start' }),
+    ).toHaveProperty('content');
+    await page.reload();
+    await workspaceReady(page);
+    expect(await call(page, 'skills', { action: 'list' })).toMatchObject({
+      skills: catalog.skills,
+    });
+    expect(await page.evaluate(() => indexedDB.databases())).toEqual(
+      catalogDatabases,
+    );
+  });
+
+  test(`workspace WebMCP creates, imports files, edits source clips and edits from an empty workspace @journey ${base}`, async ({
+    page,
+  }) => {
+    await installHarness(page);
+    page.setDefaultTimeout(15000);
+    await page.goto(base);
+    const { id, fixture, assetId } = await projectSetupJourney(page, base);
+    const text = {
+      context: 'Opening shot\nKeep the original crop.',
+      transcript: 'Hello LocalCut.\nThis is the opening scene.',
+    };
+    const openClips = async () => {
+      if (
+        (await page
+          .locator('#workspace-media-content')
+          .getAttribute('aria-hidden')) === 'true'
+      )
+        await page
+          .getByRole('button', { name: 'Expand media', exact: true })
+          .click();
+      await page
+        .getByRole('button', {
+          name: `Asset details for ${fixture.name}`,
+          exact: true,
+        })
+        .hover();
+      await page
+        .getByRole('button', {
+          name: `Actions for ${fixture.name}`,
+          exact: true,
+        })
+        .click();
+      await page.getByRole('menuitem', { name: 'Clips', exact: true }).click();
+    };
+    const inspectAsset = () =>
+      call<Asset>(page, 'asset', { action: 'inspect', projectId: id, assetId });
+    await openClips();
+    const dialog = page.getByRole('dialog', {
+      name: fixture.name,
+      exact: true,
+    });
+    await dialog
+      .getByRole('textbox', { name: 'Clip name', exact: true })
+      .fill('Opening');
+    await dialog.getByRole('tab', { name: 'Context', exact: true }).click();
+    await dialog
+      .getByRole('textbox', { name: 'Context', exact: true })
+      .fill(text.context);
+    await dialog.getByRole('tab', { name: 'Transcript', exact: true }).click();
+    await dialog
+      .getByRole('textbox', { name: 'Transcript', exact: true })
+      .fill(text.transcript);
+    await expect(dialog.getByRole('img', { name: fixture.name })).toBeVisible();
+    await dialog.getByRole('button', { name: 'Add clip', exact: true }).click();
+    await dialog
+      .getByRole('textbox', { name: 'Clip name', exact: true })
+      .fill('Detail');
+    await dialog.getByRole('tab', { name: 'Context', exact: true }).click();
+    await dialog
+      .getByRole('textbox', { name: 'Context', exact: true })
+      .fill('Closer view');
+    await dialog.getByRole('tab', { name: 'Transcript', exact: true }).click();
+    await dialog
+      .getByRole('textbox', { name: 'Transcript', exact: true })
+      .fill('Second section');
+    await dialog.getByRole('option', { name: 'Opening', exact: true }).click();
+    await dialog.getByRole('tab', { name: 'Context', exact: true }).click();
+    await expect(
+      dialog.getByRole('textbox', { name: 'Context', exact: true }),
+    ).toHaveValue(text.context);
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(
+      dialog.getByRole('button', { name: 'Save', exact: true }),
+    ).toHaveCount(0);
+    const saved = await inspectAsset();
+    expect(saved).toMatchObject({
+      clipsRevision: 1,
+      clips: [
+        { ...text, name: 'Opening' },
+        {
+          name: 'Detail',
+          context: 'Closer view',
+          transcript: 'Second section',
+        },
+      ],
+    });
+    const preview = await call<{ jobId: string }>(page, 'asset', {
+      action: 'preview_clip',
+      projectId: id,
+      assetId,
+      clipId: saved.clips![0]!.id,
+    });
+    expect(
+      await call(page, 'job', {
+        action: 'wait',
+        projectId: id,
+        jobId: preview.jobId,
+      }),
+    ).toMatchObject({
+      result: {
+        assetId,
+        kind: 'image',
+        startUs: 0,
+        endUs: 0,
+        previewUrl: expect.stringContaining('#t=0,0'),
+      },
+    });
+    await call(page, 'job', {
+      action: 'release',
+      projectId: id,
+      jobId: preview.jobId,
+    });
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await page.reload();
+    await projectReady(page, id);
+    await openClips();
+    await dialog.getByRole('tab', { name: 'Context', exact: true }).click();
+    await expect(
+      dialog.getByRole('textbox', { name: 'Context', exact: true }),
+    ).toHaveValue(text.context);
+    await expect(dialog.getByRole('option')).toHaveCount(2);
+    await dialog.getByRole('tab', { name: 'Context', exact: true }).click();
+    await dialog
+      .getByRole('textbox', { name: 'Context', exact: true })
+      .fill('Unsaved draft');
+    const updated = saved.clips!.map((clip, index) =>
+      index ? clip : { ...clip, context: 'Agent attached this context.' },
+    );
+    expect(
+      await call(page, 'asset', {
+        action: 'update_clips',
+        projectId: id,
+        assetId,
+        clips: updated,
+        expectedClipsRevision: 1,
+      }),
+    ).toMatchObject({ clipsRevision: 2 });
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(dialog.getByRole('alert')).toContainText('changed');
+    await dialog.getByRole('tab', { name: 'Context', exact: true }).click();
+    await expect(
+      dialog.getByRole('textbox', { name: 'Context', exact: true }),
+    ).toHaveValue('Unsaved draft');
+    await dialog
+      .getByRole('button', { name: 'Discard draft and reload', exact: true })
+      .click();
+    await dialog.getByRole('tab', { name: 'Context', exact: true }).click();
+    await expect(
+      dialog.getByRole('textbox', { name: 'Context', exact: true }),
+    ).toHaveValue(updated[0]!.context);
+    await page.screenshot({ path: '.artifacts/asset-clips-desktop.png' });
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('#mobile-media-trigger').click();
+    await openClips();
+    await dialog.getByRole('option', { name: 'Detail', exact: true }).click();
+    await dialog.getByRole('tab', { name: 'Transcript', exact: true }).click();
+    await expect(
+      dialog.getByText('Second section', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      dialog
+        .getByRole('region', { name: 'Transcript timeline', exact: true })
+        .getByRole('textbox'),
+    ).toHaveCount(0);
+    await dialog
+      .getByRole('button', { name: 'Edit transcript text 1', exact: true })
+      .click();
+    await expect(
+      dialog.getByRole('textbox', { name: 'Transcript', exact: true }),
+    ).toHaveValue('Second section');
+    await dialog
+      .getByRole('button', { name: 'Edit transcript timing 1', exact: true })
+      .click();
+    await expect(
+      page.getByRole('spinbutton', {
+        name: 'Transcript start 1 (s)',
+        exact: true,
+      }),
+    ).toHaveValue('');
+    expect(
+      await page
+        .getByRole('spinbutton', { name: 'Transcript end 1 (s)', exact: true })
+        .evaluate(
+          (element) => element.getBoundingClientRect().right <= innerWidth,
+        ),
+    ).toBe(true);
+    await page
+      .getByRole('spinbutton', { name: 'Transcript start 1 (s)', exact: true })
+      .press('Escape');
+    await dialog
+      .getByRole('button', {
+        name: 'Finish editing transcript text 1',
+        exact: true,
+      })
+      .click();
+    expect(
+      await dialog.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({ path: '.artifacts/asset-clips-mobile.png' });
+    await dialog
+      .getByRole('button', { name: 'Remove clip', exact: true })
+      .click();
+    await expect(dialog.getByRole('option')).toHaveCount(1);
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(
+      dialog.getByRole('button', { name: 'Save', exact: true }),
+    ).toHaveCount(0);
+    expect((await inspectAsset()).clips).toHaveLength(1);
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const versions = await call<ProjectVersionInfo[]>(page, 'versions', {
+      projectId: id,
+      action: 'save',
+    });
+    await openVersions(page);
+    await page
+      .getByRole('button', {
+        name: new RegExp(
+          `^Version ${versions.find((version) => version.revision === 1)!.number} ·`,
+        ),
+      })
+      .click();
+    await expect(async () => {
+      expect((await call<Inspection>(page, 'inspect_project')).readOnly).toBe(
+        true,
+      );
+    }).toPass();
+    await openClips();
+    await dialog.getByRole('tab', { name: 'Context', exact: true }).click();
+    await expect(
+      dialog.getByRole('textbox', { name: 'Context', exact: true }),
+    ).not.toBeEditable();
+    await expect(
+      dialog.getByRole('button', { name: 'Save', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      dialog.getByRole('button', { name: 'Add clip', exact: true }),
+    ).toHaveCount(0);
+    await dialog.getByRole('tab', { name: 'Transcript', exact: true }).click();
+    await expect(
+      dialog.getByText(text.transcript, { exact: true }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole('button', {
+        name: /Edit transcript|Add transcript|Remove transcript/,
+      }),
+    ).toHaveCount(0);
+    expect(
+      await call(page, 'asset', {
+        action: 'update_clips',
+        projectId: id,
+        assetId,
+        clips: updated,
+        expectedClipsRevision: 3,
+      }),
+    ).toMatchObject({ isError: true });
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Return to current', exact: true })
+      .click();
+    await expect(async () => {
+      expect((await call<Inspection>(page, 'inspect_project')).readOnly).toBe(
+        false,
+      );
+    }).toPass();
     // A file chooser is a separate browser step. Retire its captured project
     // before selection and prove the original request cannot target the new one.
     const picker = page.waitForEvent('filechooser');
@@ -368,7 +722,7 @@ for (const base of behaviorBases) {
           ).modelContext.getTools()
         ).map((tool) => tool.name),
       ),
-    ).toEqual(['localcut_workspace']);
+    ).toEqual(['localcut_skills', 'localcut_workspace']);
     expect(
       await page.evaluate(async () =>
         (await indexedDB.databases()).filter((db) =>
@@ -477,6 +831,9 @@ for (const base of behaviorBases) {
         true,
       );
     }).toPass();
+    expect(
+      await call(page, 'skills', { action: 'get', name: 'localcut-start' }),
+    ).toHaveProperty('content');
     expect(
       (await call<Inspection>(page, 'inspect_project')).project.tracks[0]!
         .clips[0]!.text!.text,

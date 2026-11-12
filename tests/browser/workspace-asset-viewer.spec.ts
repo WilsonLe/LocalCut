@@ -144,7 +144,9 @@ for (const base of behaviorBases) {
       await expect
         .poll(() => source.evaluate((el: HTMLMediaElement) => el.readyState))
         .toBeGreaterThanOrEqual(1);
-      await source.evaluate((el: HTMLMediaElement) => el.play());
+      await dialog(name)
+        .getByRole('button', { name: 'Play clip', exact: true })
+        .click();
       await expect
         .poll(() => source.evaluate((el: HTMLMediaElement) => el.currentTime))
         .toBeGreaterThan(0);
@@ -154,11 +156,9 @@ for (const base of behaviorBases) {
         .getByRole('button', { name: 'Close', exact: true })
         .click();
       await expect.poll(() => revoked.includes(url!)).toBe(true);
-      expect(
-        await handle!.evaluate(
-          (el: HTMLMediaElement) => el.paused && !el.getAttribute('src'),
-        ),
-      ).toBe(true);
+      expect(await handle!.evaluate((el: HTMLMediaElement) => el.paused)).toBe(
+        true,
+      );
       await expect(card(name)).toBeFocused();
     }
     expect(await readProject()).toEqual(before);

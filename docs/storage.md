@@ -181,3 +181,11 @@ Coding mutations/execution and generated Media import use fresh durable tasks wi
 ## Workspace preferences after agent removal
 
 `localcut.workspace-preferences.v1` retains only `mediaWidth`, `timelineHeight`, `mediaOpen`, `timelineSnapping` and `exportFormat`. Reads/imports discard obsolete chat/model/provider fields; writes preserve other valid local choices. Legacy backups import without restoring agent settings. Startup removes retired provider credentials, authorization state and voice presets without opening project storage or historical chat/reference sidecars. Existing authored projects, original media and transcripts remain intact. See [the removal contract](ai.md).
+
+## Authored source clips
+
+The assets store retains a `clips` collection and independent monotonic `clipsRevision`. Its atomic compare-and-swap owner validates clip identities, text and source ranges. These are authored metadata, not disposable derivatives or automatic inference results. Flat legacy notes become one whole-source clip on read and are replaced only on an explicit write. Relink publication preserves the latest collection in its transaction; backup remapping retains each included asset's clips. See [the API contract](api.md#asset-context-and-transcript-text).
+
+Source-clip preview reads the retained original into a browser media element. Media-element decode state is native realm-owned presentation state; it is recreated after closing/reload and does not publish a derived file or trigger model preparation. Closing pauses playback and revokes the transient object URL. Existing persisted thumbnails/waveforms remain available for other consumers.
+
+Source-clip transcripts optionally include `transcriptCues`: ordered `{ id, timeUs, endUs, text }` entries. Timestamps use source microseconds; null timestamps preserve untimed text. IDs are unique per clip, timed intervals stay within its range, and `transcript` must equal cue text joined with newlines. The shared validator checks writes and backups. Context and Transcript appear in full-content tabs; timestamps seek the bounded source preview. These authored cues remain separate from timed caption tracks.

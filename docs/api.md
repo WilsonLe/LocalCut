@@ -54,17 +54,17 @@ await artifact.dispose();
 await editor.dispose();
 ```
 
-| Family        | Methods                                                                                                 |
-| ------------- | ------------------------------------------------------------------------------------------------------- |
-| workspace     | snapshot, export, import                                                                                |
-| projects      | create, list, open, snapshot, delete, exportJSON, importJSON                                            |
-| assets        | import, inspect, file, rename, relink, thumbnails, contactSheet, waveform, derivative, analyze, indexes |
-| commands      | validate, apply, undo, redo                                                                             |
-| preview       | frame, session                                                                                          |
-| exports       | preflight, start                                                                                        |
-| transcription | status, prepare, transcribe, transcript, clearModelCache                                                |
-| events        | projects, jobs                                                                                          |
-| lifecycle     | job.cancel, session.dispose, artifact.dispose, editor.dispose                                           |
+| Family        | Methods                                                                                           |
+| ------------- | ------------------------------------------------------------------------------------------------- |
+| workspace     | snapshot, export, import                                                                          |
+| projects      | create, list, open, snapshot, delete, exportJSON, importJSON                                      |
+| assets        | import, inspect, rename, relink, thumbnails, contactSheet, waveform, derivative, analyze, indexes |
+| commands      | validate, apply, undo, redo                                                                       |
+| preview       | frame, session                                                                                    |
+| exports       | preflight, start                                                                                  |
+| transcription | status, prepare, transcribe, transcript, clearModelCache                                          |
+| events        | projects, jobs                                                                                    |
+| lifecycle     | job.cancel, session.dispose, artifact.dispose, editor.dispose                                     |
 
 `exports.start(projectId, options, expectedRevision?)` optionally binds a request to an authored revision. The queued export owner validates it against the same snapshot it freezes when execution starts. An intervening edit fails with `REVISION_CONFLICT`; omitting the third argument retains the existing latest-at-start behavior. The WebMCP export tool always supplies the requested revision.
 
@@ -97,8 +97,6 @@ Project JSON export returns a version-one backup envelope containing referenced 
 Preview play() resolves after initial scheduling and presentation succeed, and rejects startup failures such as MISSING_ASSET or PLAYBACK_BLOCKED. The first audio block is prepared before the playback clock starts. If a later decode exhausts queued audio, the timeline holds at the scheduled audio boundary and resumes consecutive blocks when decoding finishes; video presentation uses that same adjusted time. session.onError(listener) observes structured errors during playback, including a worker crash; failures stop the session. Unsubscribe and dispose the session when finished. Superseded asynchronous seeks cannot overwrite newer presentation or position.
 
 `assets.waveform`, `assets.thumbnails`, `assets.contactSheet` and `assets.derivative` reuse versioned local derivatives across engine disposal and page refresh. Keys include source identity and request parameters; thumbnail widths must be safe integers from 1 to 4096. Complete valid hits return cancellable Jobs before durable task submission, without global queue notifications or worker launches; their IDs have no task record. A new miss retains its Job ID when entering the durable queue. Cache reads retain cancellation and namespace ownership. Missing/corrupt display caches rebuild; failed display-cache writes still return the computed result. Source relinking invalidates prior derivatives. No project revision or remote request is created by a hit. See [the computation inventory](storage.md#reusable-computation-inventory).
-
-`editor.assets.file(assetId)` reads the retained original local File without editing the project, starting a worker or transcoding. Missing metadata/originals reject through the existing store errors. The caller owns native playback and any temporary object URL, including pausing and revoking it on dismissal. This also permits read-only historical source viewing.
 
 ### Asset names and project removal
 
@@ -275,3 +273,19 @@ Media inspection rejects unknown container formats with `UNSUPPORTED_CODEC`, pre
 `editor.coding.inspect(projectId)` returns the workspace revision, file paths/sizes, directories and runtime facts. `query(projectId, { type: 'read_file' | 'glob' | 'grep', ... })` returns a cancellable Job with text/search results. `run(projectId, operation, expectedRevision)` returns a cancellable, durably scheduled Job for write/edit/browser Bash/saved JavaScript execution. Its completed result contains stdout/stderr/exitCode and the new workspace manifest; file bytes remain local. Inspect the revision before dependent work. Each explicit run is fresh authored work, reusing persisted source/output files rather than automatically rerendering on startup.
 
 `file(projectId, path)` retrieves a saved local File for download or host processing. `importFile(projectId, path, expectedRevision, name?)` imports a generated audio/image/video file into the project Media library, returning its asset ID and library revision; timeline placement remains a canonical command. Unsupported media is rejected by the ordinary importer. Native/media imports that committed before late cancellation survive. Code sources are retained separately, without changing project JSON, undo/redo or original ownership. See [persistence](storage.md#project-coding-files).
+
+## Asset context and transcript text
+
+Assets own source clips, distinct from timeline placements. `assets.inspect(assetId)` exposes `clipsRevision` and `clips`, each containing `{id, name, startUs, endUs, context, transcript}`. `assets.updateClips(assetId, clips, expectedClipsRevision)` atomically replaces this list after comparing its independent revision. It preserves exact text/newlines, trims names and rejects duplicate IDs, invalid/empty/out-of-source ranges and oversized input. At least one clip is required; overlaps are allowed. Zero-duration sources use zero endpoints. Context/transcript limits are 100,000/1,000,000 characters per clip, with a combined asset limit of 2,000,000 characters and at most 1,000 clips.
+
+`assets.previewClip(assetId, {startUs, endUs})` validates bounds against the authoritative asset and returns a cancellable Job containing the immutable original `File`, media kind and selected range. It does not encode a trimmed file or create another project/timeline. The UI uses a browser media element and a range-limited scrubber; selection seeks to the chosen In point, playback stops at Out, and closing pauses media and revokes its view-owned URL. The WebMCP preview job exposes the original source URL plus a media-fragment preview URL and range, retained only until job release/navigation. No worker, model or derived artifact is created for this read. Missing originals require relinking; unsupported browser playback reports a preview failure.
+
+Clip metadata is shared by all instances/projects using an asset. Writes do not alter original bytes, reusable analysis keys, project/library revisions, canonical timed transcripts or caption cues. After a lost response, inspect before retrying; these metadata writes have no edit-batch receipt or timeline Undo. `events.assets(listener)` emits the asset ID after commit, including across editors/tabs in the namespace, without scheduling project autosave. Disposal closes the channel and subscribers.
+
+Legacy flat `Asset.notes` text is read as one whole-source clip with a stable asset-scoped ID and the old notes revision. Reads do not migrate storage. The first clip edit writes the canonical collection and removes the old notes field. Existing assets without either field expose a whole-source clip with empty text and revision zero. New imports persist their initial collection. Relinking preserves the latest clip collection/revision in its final transaction. Backups retain included asset metadata and clip IDs through asset-ID remapping; existing selection rules still determine included assets. Older strict parsers require a current build for new metadata. Historical views can inspect/preview current shared metadata but their UI/WebMCP consumers reject edits.
+
+The [Media UI](workspace.md#asset-clips) and [WebMCP asset tool](webmcp.md#asset-clips) call these same APIs. Plain source-clip transcripts remain separate from canonical timed Whisper transcripts and do not implicitly rewrite caption tracks.
+
+Source-clip transcripts optionally include `transcriptCues`: ordered `{ id, timeUs, endUs, text }` entries. Timestamps use source microseconds; null timestamps preserve untimed text. IDs are unique per clip, timed intervals stay within its range, and `transcript` must equal cue text joined with newlines. The shared validator checks writes and backups. Context and Transcript appear in full-content tabs; timestamps seek the bounded source preview. These authored cues remain separate from timed caption tracks.
+
+The scoped `localcut_asset` tool also exposes `analyze`, `indexes`, and `index`. Analysis delegates to `assets.analyze` and returns an owned job; optional `indexRunId` resumes that asset’s run. `indexes` lists retained runs for the selected asset; `index` reads one matching run. Historical views reject analysis and permit inspection. No model labeling or media upload occurs.

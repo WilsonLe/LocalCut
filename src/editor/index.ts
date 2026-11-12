@@ -71,6 +71,10 @@ import { EditorError, invariant, asEditorError } from '../core/errors';
 import { newProject, validateProject } from '../core/model';
 import { outputAssetIds } from '../core/timeline';
 import type { Asset, Project, Transcript } from '../core/model';
+import { validateAssetClips } from '../core/asset-clips';
+import type { AssetClip } from '../core/asset-clips';
+export { assetClipState } from '../core/asset-clips';
+export type { AssetClip, AssetTranscriptCue } from '../core/asset-clips';
 import { applyOperations, parseBatch } from '../core/commands';
 import { repairLegacyIdentities } from '../core/legacy-identities';
 import type { CommandBatch } from '../core/commands';
@@ -210,6 +214,20 @@ export async function createEditor(options: EditorOptions = {}) {
     };
   };
   const sessions = new Set<PreviewSession>();
+  const assetListeners = new Set<(assetId: string) => void>();
+  const assetBroadcast = new BroadcastChannel(`${namespace}-asset-metadata`);
+  const assetChanged = (assetId: string) => {
+    for (const listener of assetListeners) {
+      try {
+        listener(assetId);
+      } catch {
+        /* Consumer isolation. */
+      }
+    }
+  };
+  assetBroadcast.onmessage = (event: MessageEvent<unknown>) => {
+    if (typeof event.data === 'string') assetChanged(event.data);
+  };
   const projectListeners = new Set<(event: ProjectEvent) => void>();
   const versionListeners = new Set<(event: VersionEvent) => void>();
   const versionNotify = (event: VersionEvent) => {
@@ -951,11 +969,6 @@ export async function createEditor(options: EditorOptions = {}) {
         active();
         return store.getAsset(id);
       },
-      async file(id: string) {
-        active();
-        await store.getAsset(id);
-        return store.file(id);
-      },
       async rename(id: string, name: string, expectedName: string) {
         active();
         const result = await store.renameAsset(id, name, expectedName);
@@ -966,6 +979,51 @@ export async function createEditor(options: EditorOptions = {}) {
             type: 'changed',
           });
         return result.asset;
+      },
+      async updateClips(
+        id: string,
+        clips: AssetClip[],
+        expectedClipsRevision: number,
+      ) {
+        active();
+        const asset = await store.updateAssetClips(
+          id,
+          clips,
+          expectedClipsRevision,
+        );
+        if (!disposed) {
+          assetChanged(id);
+          assetBroadcast.postMessage(id);
+        }
+        return asset;
+      },
+      previewClip(id: string, range: { startUs: number; endUs: number }) {
+        active();
+        const bounds = { startUs: range.startUs, endUs: range.endUs };
+        return jobs.start(async (signal) => {
+          const asset = await store.getAsset(id);
+          validateAssetClips(
+            [
+              {
+                id: 'preview',
+                name: 'Preview',
+                ...bounds,
+                context: '',
+                transcript: '',
+              },
+            ],
+            asset,
+          );
+          invariant(
+            asset.status === 'ready',
+            'MISSING_ASSET',
+            'Relink the source to preview this clip.',
+          );
+          signal.throwIfAborted();
+          const file = await store.file(id);
+          signal.throwIfAborted();
+          return { file, kind: asset.kind, ...bounds };
+        });
       },
       relink(
         assetId: string,
@@ -1307,6 +1365,11 @@ export async function createEditor(options: EditorOptions = {}) {
       },
     },
     events: {
+      assets(listener: (assetId: string) => void) {
+        active();
+        assetListeners.add(listener);
+        return () => assetListeners.delete(listener);
+      },
       versions(listener: (event: VersionEvent) => void) {
         active();
         versionListeners.add(listener);
@@ -1364,6 +1427,8 @@ export async function createEditor(options: EditorOptions = {}) {
       projectListeners.clear();
       versionListeners.clear();
       libraryBroadcast.close();
+      assetBroadcast.close();
+      assetListeners.clear();
       libraryListeners.clear();
       await Promise.all(
         [...libraryStores.values()].map(async (pending) =>

@@ -116,12 +116,12 @@ export default function WorkspaceDialogs({
           if (!open && !busy) onDialogChange(null);
         }}
       >
-        <DialogContent className="new-project-dialog">
+        <DialogContent
+          className="new-project-dialog"
+          aria-describedby={undefined}
+        >
           <DialogHeader>
             <DialogTitle>New project</DialogTitle>
-            <DialogDescription className="sr-only">
-              Choose a name, dimensions and frame rate for your project.
-            </DialogDescription>
           </DialogHeader>
           {dialog === 'new' && (
             <NewProjectForm busy={busy} onCreate={onCreateProject} />
@@ -167,14 +167,9 @@ export default function WorkspaceDialogs({
           if (!open) onCloseExport();
         }}
       >
-        <DialogContent showCloseButton={!busy}>
+        <DialogContent showCloseButton={!busy} aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Export video</DialogTitle>
-            <DialogDescription>
-              {artifact
-                ? 'Your video is ready. Save a copy to your device.'
-                : 'Export locally with your browser’s video and audio codecs.'}
-            </DialogDescription>
           </DialogHeader>
           {!artifact && !busy && (
             <>
@@ -254,10 +249,9 @@ export default function WorkspaceDialogs({
         open={busy && !!progress && dialog !== 'export'}
         onOpenChange={() => {}}
       >
-        <DialogContent showCloseButton={false}>
+        <DialogContent showCloseButton={false} aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>{progress?.label ?? 'Working'}</DialogTitle>
-            <DialogDescription>Processing on this device.</DialogDescription>
           </DialogHeader>
           {progress && <ProgressView progress={progress} />}
           <DialogFooter>

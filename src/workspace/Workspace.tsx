@@ -368,6 +368,7 @@ export function Workspace() {
   const alive = useRef(true);
   const lock = useRef(false);
   const unsubscribeVersions = useRef<(() => void) | null>(null);
+  const unsubscribeAssets = useRef<(() => void) | null>(null);
   const unsubscribe = useRef<(() => void) | null>(null);
   const [errorReport, setErrorReport] = useState<ErrorReport | null>(null);
   useLayoutEffect(() => subscribeErrorDetails(setErrorReport), []);
@@ -445,6 +446,9 @@ export function Workspace() {
         }
         editorRef.current = engine;
         setEditor(engine);
+        unsubscribeAssets.current = engine.events.assets(() => {
+          void refresh().catch(error);
+        });
         unsubscribeVersions.current = engine.events.versions((event) => {
           if (event.projectId !== getProjectId()) return;
           if (event.error) error(event.error);
@@ -490,6 +494,7 @@ export function Workspace() {
       currentJob.current?.cancel();
       unsubscribe.current?.();
       unsubscribeVersions.current?.();
+      unsubscribeAssets.current?.();
       void artifactRef.current?.dispose();
       void (async () => {
         await editorRef.current?.dispose().catch(() => {});

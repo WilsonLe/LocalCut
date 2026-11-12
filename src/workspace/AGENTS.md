@@ -1,5 +1,7 @@
 # Workspace
 
+- Use task-facing copy: names, content, ranges, labels, actions and actionable failures. Do not add storage/implementation explanations or workflow narration to dialogs, forms, previews or empty states. Explanations belong in documentation unless they change a concrete user decision. See the [source-clip and copy preference](../../docs/user-preferences.md#source-clips-and-task-facing-copy--12-november-2026).
+
 - `useWebMCP.ts` binds optional vendor-neutral [site tools](../../docs/webmcp.md) to the viewed project/version. Keep registration lazy, route identity checked at invocation, canonical schemas/receipts intact and owned jobs/artifacts disposable. This external transport does not restore a built-in assistant or require a provider connection.
 - `useWorkspaceWebMCP.ts` exposes setup/status before a project opens. Registration/status must not initialize editing services. Reuse the shell's lazy editor, navigation and file input; preserve a file selection's originating URL/project until selection finishes, then use the ordinary media importer.
 
@@ -31,4 +33,4 @@ For scrolling or settings changes, select the matching title in `tests/browser/w
 
 - `MediaFolders.tsx` owns folder navigation/forms and calls `editor.library`; freeze the library revision when opening a form. Folder upload/drop hierarchy flows through `folder-upload.ts` and the shared placement API. Preserve thumbnail-to-timeline dragging and offer context-menu move alternatives. See [Media folders](../../docs/workspace.md#media-folders).
 
-- `AssetViewerDialog.tsx` owns source viewing through `editor.assets.file`, native playback and temporary URL cleanup. Keep normal card activation distinct from modifier selection and completed drags, and retain the on-demand dialog/focus boundary.
+- `AssetViewerDialog.tsx` owns source-view dialog activation, reusing `AssetClipPreview` and `editor.assets.previewClip` for playback and temporary URL cleanup. Keep normal card activation distinct from modifier selection and completed drags, and retain the on-demand dialog/focus boundary.

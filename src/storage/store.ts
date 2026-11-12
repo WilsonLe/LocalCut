@@ -15,6 +15,8 @@ import {
   validateSpeechTranscriptTiming,
 } from '../core/model';
 import { commitWithSignal } from './transaction';
+import { assetClipState, validateAssetClips } from '../core/asset-clips';
+import type { AssetClip } from '../core/asset-clips';
 import { checkAbort } from '../services/jobs';
 import { withQuotaRecovery } from './quota';
 import type { Asset, Project, Transcript, ProjectBackup } from '../core/model';
@@ -725,7 +727,8 @@ export class Store {
   async getAsset(id: string): Promise<Asset> {
     const asset = (await this.db.get('assets', id)) as Asset | undefined;
     invariant(asset, 'MISSING_ASSET', `Asset ${id} missing`);
-    return asset;
+    const state = assetClipState(asset);
+    return { ...asset, clips: state.clips, clipsRevision: state.revision };
   }
   async renameAsset(id: string, name: string, expectedName: string) {
     invariant(
@@ -761,6 +764,41 @@ export class Store {
       await tx.done.catch(() => {});
       throw asEditorError(error);
     }
+  }
+  async updateAssetClips(
+    id: string,
+    input: AssetClip[],
+    expectedRevision: number,
+  ): Promise<Asset> {
+    invariant(
+      Number.isSafeInteger(expectedRevision) && expectedRevision >= 0,
+      'INVALID_COMMAND',
+      'Provide the current clips revision.',
+    );
+    const tx = this.db.transaction('assets', 'readwrite');
+    return commitWithSignal(tx, undefined, async () => {
+      const asset = (await tx.store.get(id)) as Asset | undefined;
+      invariant(asset, 'MISSING_ASSET', `Asset ${id} missing`);
+      const revision = assetClipState(asset).revision;
+      invariant(
+        revision === expectedRevision,
+        'REVISION_CONFLICT',
+        'Clips changed elsewhere. Reload to continue.',
+      );
+      invariant(
+        revision < Number.MAX_SAFE_INTEGER,
+        'INVALID_COMMAND',
+        'Clip revision exhausted.',
+      );
+      const updated: Asset = {
+        ...asset,
+        clips: validateAssetClips(input, asset),
+        clipsRevision: revision + 1,
+      };
+      delete updated.notes;
+      await tx.store.put(updated);
+      return updated;
+    });
   }
   async file(path: string): Promise<File> {
     try {

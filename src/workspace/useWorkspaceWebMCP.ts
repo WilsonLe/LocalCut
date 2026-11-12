@@ -21,25 +21,35 @@ export function useWorkspaceWebMCP(props: Props) {
       .modelContext;
     if (!context?.registerTool) return;
     const controller = new AbortController();
-    const pending = import('./webmcp/workspace-tool').then(
-      async ({ workspaceTool }) => {
-        if (controller.signal.aborted) return;
-        const tool = workspaceTool(
-          {
-            getState: () =>
-              controller.signal.aborted
-                ? null
-                : { ...latest.current.state, url: window.location.href },
-            getEditor: () => latest.current.getEditor(),
-            openProject: (project, signal) =>
-              latest.current.openProject(project, signal),
-            selectFiles: (scope) => latest.current.selectFiles(scope),
-          },
+    const pending = Promise.all([
+      import('./webmcp/workspace-tool'),
+      import('./webmcp/skills-tool'),
+    ]).then(async ([{ workspaceTool }, { skillsTool }]) => {
+      if (controller.signal.aborted) return;
+      await context.registerTool(
+        skillsTool(
           controller.signal,
-        );
-        await context.registerTool(tool, { signal: controller.signal });
-      },
-    );
+          new URL(`${import.meta.env.BASE_URL}skills/`, window.location.href)
+            .href,
+        ),
+        { signal: controller.signal },
+      );
+      if (controller.signal.aborted) return;
+      const tool = workspaceTool(
+        {
+          getState: () =>
+            controller.signal.aborted
+              ? null
+              : { ...latest.current.state, url: window.location.href },
+          getEditor: () => latest.current.getEditor(),
+          openProject: (project, signal) =>
+            latest.current.openProject(project, signal),
+          selectFiles: (scope) => latest.current.selectFiles(scope),
+        },
+        controller.signal,
+      );
+      await context.registerTool(tool, { signal: controller.signal });
+    });
     void pending.catch((error: unknown) => {
       if (!controller.signal.aborted) {
         controller.abort();

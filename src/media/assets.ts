@@ -24,6 +24,7 @@ import {
 } from 'mediabunny';
 import type { StreamTargetChunk } from 'mediabunny';
 import type { Asset } from '../core/model';
+import { assetClipState } from '../core/asset-clips';
 import { EditorError, invariant } from '../core/errors';
 import { checkAbort } from '../services/jobs';
 import type { Progress } from '../services/jobs';
@@ -152,6 +153,9 @@ export async function importAsset(
   checkAbort(signal);
   progress({ stage: 'inspect', progress: 0 });
   const asset = await inspect(file, name, relinkId);
+  const clipState = assetClipState(asset);
+  asset.clips = clipState.clips;
+  asset.clipsRevision = clipState.revision;
   if (relinkId) {
     const existing = await store.getAsset(relinkId);
     invariant(
@@ -218,6 +222,18 @@ export async function importAsset(
                 'readwrite',
               );
               await commitWithSignal(tx, signal, async () => {
+                // Relinking replaces technical metadata, never authored notes.
+                if (relinkId) {
+                  const previous = (await tx
+                    .objectStore('assets')
+                    .get(asset.id)) as Asset | undefined;
+                  if (previous?.notes) asset.notes = previous.notes;
+                  if (previous) {
+                    const retained = assetClipState(previous);
+                    asset.clips = retained.clips;
+                    asset.clipsRevision = retained.revision;
+                  }
+                }
                 await tx.objectStore('assets').put(asset);
                 await tx.objectStore('journal').put({
                   id: jobId,

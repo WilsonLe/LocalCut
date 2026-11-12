@@ -55,7 +55,7 @@ Legacy Download project backup / Import project backup controls retain the origi
 
 ### Asset viewing
 
-Click a Media asset thumbnail or name to view the original image or play its video/audio with native controls. Enter and Space open the focused card. Escape or Close returns focus to the card and stops playback; temporary preview URLs are released. Viewing pauses timeline playback and leaves the project unchanged, including historical versions. Missing or unsupported sources show recovery guidance. Modifier-click selection and thumbnail dragging retain their existing behavior. See the [desktop source viewer](screenshots/asset-viewer.png) and [mobile viewer](screenshots/asset-viewer-mobile.png).
+Click a Media asset thumbnail or name to view the original image or play its video/audio with playback and seek controls. Enter and Space open the focused card. Escape or Close returns focus to the card and stops playback; temporary preview URLs are released. Viewing pauses timeline playback and leaves the project unchanged, including historical versions. Missing or unsupported sources show recovery guidance. Modifier-click selection and thumbnail dragging retain their existing behavior. See the [desktop source viewer](screenshots/asset-viewer.png) and [mobile viewer](screenshots/asset-viewer-mobile.png).
 
 ### Screen recording
 
@@ -206,3 +206,15 @@ The desktop editor uses the space beside the independently collapsible Media lib
 ![Manual editor after agent removal](images/manual-editor-desktop.png)
 
 ![Edit and Media navigation on mobile](images/manual-editor-mobile.png)
+
+## Asset clips
+
+Open **Media → asset actions → Clips**. Select a source clip to preview its range and view/edit its name, In/Out points, Context and Transcript. Add clips, remove unwanted drafts and choose **Save**. Clip selection retains unsaved text across the collection. A conflict keeps the draft and offers **Discard draft and reload**. The responsive dialog uses the same fields on narrow screens; historical views allow selection/preview without editing controls.
+
+Visible copy is limited to the asset/clip names, ranges, fields, actions, progress and actionable failures. Storage/implementation explanations stay in documentation. Legacy asset text appears on a whole-source clip. Source clips are shared asset metadata, independent of timeline placements and timed captions. See [the API contract](api.md#asset-context-and-transcript-text) for persistence, migration, bounds and backup inclusion.
+
+Source-clip transcripts optionally include `transcriptCues`: ordered `{ id, timeUs, endUs, text }` entries. Timestamps use source microseconds; null timestamps preserve untimed text. IDs are unique per clip, timed intervals stay within its range, and `transcript` must equal cue text joined with newlines. The shared validator checks writes and backups. Context and Transcript appear in full-content tabs; timestamps seek the bounded source preview. These authored cues remain separate from timed caption tracks.
+
+Transcript uses a continuous vertical source-time rail and inline full text rather than repeated cards. A timestamp seeks preview; selecting text or its pencil opens the entry editor. Clock, remove and finish icons expose timing, deletion and return to reading; Ctrl/Cmd+Enter also finishes editing. Timing fields appear in a popover, and the plus icon adds an untimed entry. Icon controls have accessible names. Historical views keep text and seeking while hiding mutation controls. Editing remains a draft until the dialog's Save action.
+
+![Transcript timeline with synthetic test media](images/transcript-timeline.png)
