@@ -1,8 +1,12 @@
 # LocalCut
 
+> **LocalCut has moved to [WilsonLe/LocalApps](https://github.com/WilsonLe/LocalApps).**
+> [Open LocalCut in LocalApps](https://wilsonle.github.io/LocalApps/LocalCut/). For code, issues, and contributions, use [the LocalApps repository](https://github.com/WilsonLe/LocalApps/tree/main/LocalCut).
+> This standalone repository is retained for history. To export a backup from the previous release, use the [original LocalCut page](https://wilsonle.github.io/LocalCut/).
+
 A browser video editor with local media processing. Import your own media, edit a timeline, and export a video without creating an account or running a backend.
 
-[Try LocalCut](https://wilsonle.github.io/LocalCut/) · [Get started](docs/getting-started.md) · [Contribute](CONTRIBUTING.md) · [Documentation](docs/README.md) · [Changelog](CHANGELOG.md) · [Get help](SUPPORT.md)
+[Try LocalCut](https://wilsonle.github.io/LocalApps/LocalCut/) · [Get started](docs/getting-started.md) · [Contribute in LocalApps](https://github.com/WilsonLe/LocalApps) · [Documentation](docs/README.md) · [Changelog](CHANGELOG.md) · [Get help](SUPPORT.md)
 
 ![Searchable bundled fonts in LocalCut’s Add text dialog](docs/images/text-fonts.png)
 
